@@ -6,13 +6,19 @@ import { Notice, TabBar } from './ui';
 import { Toaster } from './ui';
 import { Today } from './features/today/Today';
 import { History } from './features/history/History';
-import { Progress } from './features/progress/Progress';
 import { Settings } from './features/settings/Settings';
 import { Review } from './features/review/Review';
 import { StrengthPage } from './features/workout/StrengthPage';
 import { t } from './i18n';
 
-const SCREENS = { today: Today, history: History, progress: Progress, settings: Settings };
+/** Charts load only when Progress is opened. */
+function LazyProgress() {
+  const [C, setC] = useState<ComponentType | null>(null);
+  useEffect(() => void import('./features/progress/Progress').then((m) => setC(() => m.Progress)), []);
+  return C ? <C /> : null;
+}
+
+const SCREENS = { today: Today, history: History, progress: LazyProgress, settings: Settings };
 
 /** The style guide is its own chunk: it is not in the tab bar and is never needed for everyday use. */
 function LazyDesign() {

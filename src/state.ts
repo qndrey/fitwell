@@ -12,6 +12,11 @@ import { latestWeightEntry } from './features/body/store';
 
 export const settings = signal<Settings>(DEFAULT_SETTINGS);
 export const goals = signal<Goals>({ id: 'goals', updatedAt: 0 });
+// Local edits are applied to the signals at once; a reload caused by a change event must not overwrite a newer edit.
+let goalsSeq = 0;
+let settingsSeq = 0;
+let savingGoals = 0;
+let savingSettings = 0;
 export const storageAvailable = signal(true);
 /** Best-effort connectivity hint (the network itself is the real test). */
 export const online = signal(navigator.onLine !== false);
@@ -37,11 +42,20 @@ export async function initState(): Promise<void> {
     settings.value = await loadSettings(db);
     goals.value = await loadGoals(db);
     applyTheme(settings.value.theme);
+    // A reload triggered by a change can finish after a newer local edit; only apply it if nothing newer happened meanwhile.
     onChange(async (c) => {
-      if (c.store === 'goals') goals.value = await loadGoals(await getDb());
+      if (c.store === 'goals') {
+        const seq = goalsSeq;
+        const fresh = await loadGoals(await getDb());
+        if (seq === goalsSeq && savingGoals === 0) goals.value = fresh;
+      }
       if (c.store === 'settings') {
-        settings.value = await loadSettings(await getDb());
-        applyTheme(settings.value.theme);
+        const seq = settingsSeq;
+        const fresh = await loadSettings(await getDb());
+        if (seq === settingsSeq && savingSettings === 0) {
+          settings.value = fresh;
+          applyTheme(fresh.theme);
+        }
       }
     });
   } catch {
@@ -55,22 +69,30 @@ export function currentWeightKg(): number | undefined {
 }
 
 export async function updateSettings(patch: Partial<Omit<Settings, 'id' | 'updatedAt'>>): Promise<void> {
+  settingsSeq++;
   if (patch.theme) applyTheme(patch.theme);
   settings.value = { ...settings.value, ...patch };
   if (!storageAvailable.value) return;
+  savingSettings++;
   try {
     settings.value = await saveSettings(await getDb(), patch);
   } catch {
     storageAvailable.value = false;
+  } finally {
+    savingSettings--;
   }
 }
 
 export async function updateGoals(patch: Partial<Omit<Goals, 'id' | 'updatedAt'>>): Promise<void> {
+  goalsSeq++;
   goals.value = { ...goals.value, ...patch };
   if (!storageAvailable.value) return;
+  savingGoals++;
   try {
     goals.value = await saveGoals(await getDb(), patch);
   } catch {
     storageAvailable.value = false;
+  } finally {
+    savingGoals--;
   }
 }

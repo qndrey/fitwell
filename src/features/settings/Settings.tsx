@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Button, Card, Choice, Field, Fieldset, Screen, Segmented, TextInput } from '../../ui';
 import { parseAmount } from '../../domain/nutrition';
 import { displayWeight, toKg, weightUnit, type UnitSystem } from '../../domain/units';
@@ -114,7 +114,7 @@ function WeightField() {
   const saved = settings.value.fallbackWeightKg;
   const [text, setText] = useState(saved ? String(displayWeight(saved, units)) : '');
   const [error, setError] = useState('');
-  useEffect(() => setText(saved ? String(displayWeight(saved, units)) : ''), [units, saved]);
+  useSyncOnChange(() => setText(saved ? String(displayWeight(saved, units)) : ''), [units, saved]);
   return (
     <Field label={`${t('settings.weight')} (${weightUnit(units)})`} hint={t('settings.weight.help')} error={error}>
       {(c) => (
@@ -124,7 +124,8 @@ function WeightField() {
           autocomplete="off"
           value={text}
           onInput={(e) => setText((e.target as HTMLInputElement).value)}
-          onBlur={() => {
+          onBlur={(e) => {
+            const text = (e.target as HTMLInputElement).value; // the field's own value: state may not have caught up yet
             if (text.trim() === '') return (setError(''), void updateSettings({ fallbackWeightKg: undefined }));
             const n = parseAmount(text);
             if (n === null || n < 20 || n > 400) return setError(t('settings.weight.error'));
@@ -167,7 +168,7 @@ function GoalWeightField() {
   const saved = goals.value.goalWeightKg;
   const [text, setText] = useState(saved ? String(displayWeight(saved, units)) : '');
   const [error, setError] = useState('');
-  useEffect(() => setText(saved ? String(displayWeight(saved, units)) : ''), [units, saved]);
+  useSyncOnChange(() => setText(saved ? String(displayWeight(saved, units)) : ''), [units, saved]);
   return (
     <Field label={`${t('weight.goal')} (${weightUnit(units)})`} hint={t('weight.goal.help')} error={error}>
       {(c) => (
@@ -177,7 +178,8 @@ function GoalWeightField() {
           autocomplete="off"
           value={text}
           onInput={(e) => setText((e.target as HTMLInputElement).value)}
-          onBlur={() => {
+          onBlur={(e) => {
+            const text = (e.target as HTMLInputElement).value; // the field's own value: state may not have caught up yet
             if (text.trim() === '') return (setError(''), void updateGoals({ goalWeightKg: undefined }));
             const n = parseAmount(text);
             if (n === null || n < 20 || n > 400) return setError(t('settings.weight.error'));
@@ -188,4 +190,16 @@ function GoalWeightField() {
       )}
     </Field>
   );
+}
+
+/** Runs when the dependencies change, not on first render: otherwise it can undo what was typed before it ran. */
+function useSyncOnChange(fn: () => void, deps: unknown[]): void {
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    fn();
+  }, deps);
 }

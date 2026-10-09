@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
-async function addFood(page: Page, query: string, pick: string | RegExp, amount?: string) {
+async function addFood(page: Page, query: string, pick: string | RegExp, amount?: string, slot?: string) {
   await page.getByRole('button', { name: 'Add food', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
+  if (slot) await dialog.getByRole('radio', { name: slot }).check(); // the default meal depends on the time of day
   await dialog.getByLabel('Search foods').fill(query);
   await dialog.getByRole('button', { name: pick }).first().click();
   if (amount) await dialog.getByLabel('Amount').fill(amount);
@@ -112,7 +113,7 @@ test('day navigation keeps days separate; habit-only hides numbers', async ({ pa
 
 test('a full day can be logged quickly from recents', async ({ page }) => {
   for (const [q, name] of [['banana', /^Banana, raw/], ['egg', /Eggs?, /], ['milk', /^Milk, whole/]] as const) {
-    await addFood(page, q, name);
+    await addFood(page, q, name, undefined, 'Breakfast');
     await expect(page.getByRole('dialog').locator('.added')).toContainText('Added');
     await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
   }

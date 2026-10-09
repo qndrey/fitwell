@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { BackupSection } from './BackupSection';
 import { Screen } from '../../components/Screen';
 import { settings, updateSettings } from '../../state';
 import type { ThemePreference } from '../../db/schema';
@@ -44,6 +45,7 @@ export function Settings() {
           </span>
         </label>
       </div>
+      <BackupSection />
       <p class="muted">{t('settings.privacy')}</p>
       {info && (
         <section class="card" aria-labelledby="sources-h">

@@ -177,6 +177,14 @@ Each gate has **Entry** (what must exist), **Deliverables**, and **Exit criteria
   - [ ] Merge conflict tests (newer wins, tombstone wins ties).
   - [ ] 50k-record import completes < 5 s on throttled profile without blocking input > 100 ms.
 
+**Gate 2 status (2026-10-09):**
+- [x] Round trip: 25 seeded random datasets (with tombstones) → export → import into an empty DB → deep-equal. Destination `installId` untouched; bundled/derived data excluded.
+- [x] Corrupt / non-Fitwell / newer-version / invalid-field / older-version / unknown-field fixtures behave per §3.9; failures are explained calmly. Atomic: an injected mid-import write failure leaves the DB identical.
+- [x] Merge: newer `updatedAt` wins, tie → deletion wins, unions disjoint data (rule + per-record test).
+- [~] 50k records: parse+validate ≈ 0.3 s, write ≈ 3.6 s in Node with fake-indexeddb (single transaction). **Not verified on a throttled phone**, and parse+validate runs on the main thread, so a 50k-record import could block input for >100 ms on a phone. Move parsing into a worker if real-device testing shows it matters (typical backups are far smaller).
+- [x] Backup reminder (data exists, stale ≥ 14 days or never backed up, snooze 7 days), storage usage + persisted status in Settings, "Ask the browser to protect it", quota errors explained with a Save-backup action, replace needs a second confirm with a "save a copy first" option.
+- Not done: Web Share (save-to-Files sheet) — plain file download is used; delete-all-data stays in Gate 7.
+
 ### Gate 3 — OFF + pending queue
 - **Entry:** Gate 2 (so users can already back up).
 - **Deliverables:** OFF client + limiter, state machine, triggers, review screen, badges, "+N pending", manual search, candidate selection, caching.

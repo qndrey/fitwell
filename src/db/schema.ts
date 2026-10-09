@@ -23,6 +23,7 @@ export interface Settings {
   measurementReminderWeeks?: 1 | 2 | 4;
   backupReminderDays: number;
   lastBackupAt?: number;
+  backupReminderDismissedAt?: number;
   updatedAt: number;
 }
 

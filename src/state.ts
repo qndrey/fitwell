@@ -5,6 +5,7 @@ import { getDb } from './db/open';
 import { ensureMeta } from './db/meta';
 import { loadSettings, saveSettings } from './db/settings';
 import { onChange } from './db/broadcast';
+import { installErrorHandling } from './errors';
 
 export const settings = signal<Settings>(DEFAULT_SETTINGS);
 export const storageAvailable = signal(true);
@@ -21,6 +22,7 @@ export function applyTheme(theme: Settings['theme']): void {
 }
 
 export async function initState(): Promise<void> {
+  installErrorHandling();
   try {
     const db: IDBPDatabase = await getDb();
     await ensureMeta(db);

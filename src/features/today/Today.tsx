@@ -10,6 +10,7 @@ import { t, type Key } from '../../i18n';
 import { dayEntries, watchDay } from '../food/dayState';
 import { AddFoodSheet } from '../food/AddFoodSheet';
 import { EntrySheet } from '../food/EntrySheet';
+import { BackupReminder } from './BackupReminder';
 import { SaveMealSheet } from '../food/SaveMealSheet';
 import { defaultSlot, fmt, quantityText } from '../food/format';
 
@@ -60,6 +61,8 @@ export function Today() {
         )}
         {totals.pendingCount > 0 && <p class="muted">{`+${totals.pendingCount} ${t('today.pending')}`}</p>}
       </section>
+
+      <BackupReminder />
 
       {SLOTS.map((slot) => {
         const list = entries.filter((e) => e.slot === slot);

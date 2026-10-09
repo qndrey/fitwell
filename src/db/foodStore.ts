@@ -53,3 +53,10 @@ export async function customFoodItems(): Promise<FoodItem[]> {
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((c) => ({ ref: { kind: 'custom', id: c.id }, name: c.name, brand: c.brand, per100g: c.per100g, portions: c.portions }));
 }
+
+/** When the user first created anything; undefined if the app holds no data yet. Used by the backup reminder. */
+export async function firstDataAt(): Promise<number | undefined> {
+  const db = await getDb();
+  const cursor = await db.transaction('foodEntries').store.index('createdAt').openCursor();
+  return cursor ? (cursor.value as FoodEntry).createdAt : undefined;
+}

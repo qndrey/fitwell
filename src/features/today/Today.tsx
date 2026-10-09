@@ -31,28 +31,35 @@ export function Today() {
   const title = day === todayStr ? t('nav.today') : day === addDays(todayStr, -1) ? t('today.yesterday') : day === addDays(todayStr, 1) ? t('today.tomorrow') : formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' });
 
   return (
-    <Screen title={title} subtitle={formatDay(day)}>
-      <div class="daynav">
-        <button class="btn" onClick={() => go(addDays(day, -1))} aria-label={t('today.prev')}>‹</button>
-        {day !== todayStr && <button class="btn" onClick={() => go(todayStr)}>{t('today.jump')}</button>}
-        <button class="btn" onClick={() => go(addDays(day, 1))} aria-label={t('today.next')}>›</button>
-      </div>
-
-      <section class="card" aria-label={t('today.summary')}>
+    <Screen
+      title={title}
+      subtitle={formatDay(day)}
+      nav={{
+        prevLabel: t('today.prev'),
+        nextLabel: t('today.next'),
+        onPrev: () => go(addDays(day, -1)),
+        onNext: () => go(addDays(day, 1)),
+        extra: day !== todayStr && <button class="link-btn" onClick={() => go(todayStr)}>{t('today.jump')}</button>,
+      }}
+    >
+      <section class="card summary" aria-label={t('today.summary')}>
         {habitOnly ? (
           <p class="big">{entries.length === 0 ? t('today.noneYet') : `${totals.resolvedCount + totals.pendingCount} ${t('today.foodsLogged')}`}</p>
         ) : (
           <>
             <p class="big">{rounded.kcal} <span class="unit">{t('unit.kcal')}</span></p>
-            <p class="macros">
-              {t('macro.protein')} {fmt(rounded.protein)} g · {t('macro.carbs')} {fmt(rounded.carbs)} g · {t('macro.fat')} {fmt(rounded.fat)} g
-            </p>
+            <dl class="macros">
+              {([['protein', rounded.protein], ['carbs', rounded.carbs], ['fat', rounded.fat]] as const).map(([k, v]) => (
+                <div key={k}>
+                  <dd>{fmt(v)} g</dd>
+                  <dt>{t(`macro.${k}` as Key)}</dt>
+                </div>
+              ))}
+            </dl>
           </>
         )}
         {totals.pendingCount > 0 && <p class="muted">{`+${totals.pendingCount} ${t('today.pending')}`}</p>}
       </section>
-
-      <button class="btn primary wide" onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</button>
 
       {SLOTS.map((slot) => {
         const list = entries.filter((e) => e.slot === slot);
@@ -61,7 +68,10 @@ export function Today() {
           <section key={slot} class="slot" aria-labelledby={`slot-${slot}`}>
             <div class="slot-head">
               <h2 id={`slot-${slot}`}>{t(`slot.${slot}` as Key)}</h2>
-              {!habitOnly && list.length > 0 && <span class="muted">{st.kcal} {t('unit.kcal')}</span>}
+              {!habitOnly && list.length > 0 && <span class="muted slot-kcal">{st.kcal} {t('unit.kcal')}</span>}
+              <button class="btn small" onClick={() => setSheet({ kind: 'add', slot })} aria-label={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}>
+                + {t('common.add')}
+              </button>
             </div>
             {list.length > 0 && (
               <ul class="list">
@@ -78,13 +88,14 @@ export function Today() {
                 ))}
               </ul>
             )}
-            <div class="slot-actions">
-              <button class="link-btn" onClick={() => setSheet({ kind: 'add', slot })}>{`+ ${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}</button>
-              {list.length > 1 && <button class="link-btn" onClick={() => setSheet({ kind: 'saveMeal', entries: list })}>{t('meal.saveAs')}</button>}
-            </div>
+            {list.length > 1 && <button class="link-btn" onClick={() => setSheet({ kind: 'saveMeal', entries: list })}>{t('meal.saveAs')}</button>}
           </section>
         );
       })}
+
+      <div class="primary-bar">
+        <button class="btn primary wide" onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</button>
+      </div>
 
       {sheet?.kind === 'add' && <AddFoodSheet day={day} initialSlot={sheet.slot} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'edit' && <EntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}

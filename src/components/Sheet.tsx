@@ -4,8 +4,24 @@ import { t } from '../i18n';
 
 let counter = 0;
 
-/** Modal bottom sheet on native <dialog>: focus trap, Escape and inert background come from the browser. */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ComponentChildren }) {
+/**
+ * Modal bottom sheet on native <dialog>: focus trap, Escape and inert background come from the browser.
+ * `pinned` stays fixed under the title (e.g. a search field); the rest scrolls. `tall` keeps the height
+ * stable so results appearing never make the sheet jump (important with the on-screen keyboard open).
+ */
+export function Sheet({
+  title,
+  onClose,
+  pinned,
+  tall,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  pinned?: ComponentChildren;
+  tall?: boolean;
+  children: ComponentChildren;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   const id = useRef(`sheet-${++counter}`);
   useEffect(() => {
@@ -18,7 +34,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   return (
     <dialog
       ref={ref}
-      class="sheet"
+      class={tall ? 'sheet tall' : 'sheet'}
       aria-labelledby={id.current}
       onCancel={(e) => {
         e.preventDefault();
@@ -31,9 +47,10 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
       <div class="sheet-body">
         <div class="sheet-head">
           <h2 id={id.current}>{title}</h2>
-          <button type="button" class="btn" onClick={onClose}>{t('common.close')}</button>
+          <button type="button" class="btn small" onClick={onClose}>{t('common.close')}</button>
         </div>
-        {children}
+        {pinned && <div class="sheet-pinned">{pinned}</div>}
+        <div class="sheet-scroll">{children}</div>
       </div>
     </dialog>
   );

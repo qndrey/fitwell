@@ -53,6 +53,7 @@ Where this document or PLAN.md says "USDA", read "Frida" for the bundled food da
 | NFR-9 | Lighthouse (mobile): Performance ≥ 90, Accessibility ≥ 95, PWA installable | Lighthouse CI |
 | NFR-10 | Data durability: no write acknowledged to the user unless the IDB transaction committed | Repo tests; QuotaExceeded test |
 | NFR-11 | Tone: no red/green semantic colors on weight/measurement/calorie deltas; no shaming copy | Copy checklist + token lint (forbids `--danger` usage outside destructive confirmations) |
+| NFR-13 | **Mobile-first**, verified at 320×640 touch in `tests/e2e/mobile.spec.ts` on every phase: no horizontal scroll on any screen; interactive targets ≥ 44 px; the primary action is pinned in the bottom thumb zone and never hides content; sheets keep a stable height (pinned search, scrolling results, bottom action) so the on-screen keyboard never causes jumps; common entries (quantities) need no keyboard; inputs ≥ 16 px (no iOS zoom). Larger screens only add (sidebar nav at ≥ 840 px, centred sheet at ≥ 600 px). | Playwright mobile project + manual device check each gate |
 | NFR-12 | Browser support: last 2 versions of Chrome, Safari (iOS 16.4+), Firefox, Edge | Playwright projects: Chromium, WebKit, Firefox |
 
 ---

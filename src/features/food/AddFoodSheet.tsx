@@ -76,25 +76,38 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
   const back = () => setStep({ kind: 'search' });
 
   return (
-    <Sheet title={title} onClose={onClose}>
-      {step.kind !== 'custom' && <SlotPicker value={slot} onChange={setSlot} name="add-slot" />}
+    <Sheet
+      title={title}
+      onClose={onClose}
+      tall={step.kind === 'search'}
+      pinned={
+        step.kind === 'custom' ? undefined : (
+          <>
+            <SlotPicker value={slot} onChange={setSlot} name="add-slot" />
+            {step.kind === 'search' && (
+              <div class="field">
+                <label for="food-search" class="sr-only">{t('food.search')}</label>
+                <input
+                  id="food-search"
+                  type="search"
+                  enterkeyhint="search"
+                  autocomplete="off"
+                  autofocus
+                  value={query}
+                  placeholder={t('food.searchPlaceholder')}
+                  onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+                />
+              </div>
+            )}
+          </>
+        )
+      }
+    >
       <p class="sr-only" role="status" aria-live="polite">{added}</p>
 
       {step.kind === 'search' && (
         <>
           {added && <p class="added" aria-hidden="true">✓ {added}</p>}
-          <div class="field">
-            <label for="food-search">{t('food.search')}</label>
-            <input
-              id="food-search"
-              type="search"
-              autocomplete="off"
-              autofocus
-              value={query}
-              placeholder={t('food.searchPlaceholder')}
-              onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
-            />
-          </div>
           {visible.map((s) => (
             <section key={s.title} aria-label={s.title}>
               <h3 class="list-title">{s.title}</h3>
@@ -122,8 +135,8 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
           <button type="button" class="btn wide" onClick={() => setStep({ kind: 'custom' })}>
             {q ? `${t('custom.create')} “${q}”` : t('custom.create')}
           </button>
-          <div class="actions">
-            <button type="button" class="btn primary" onClick={onClose}>{t('common.done')}</button>
+          <div class="sticky-action">
+            <button type="button" class="btn primary wide" onClick={onClose}>{t('common.done')}</button>
           </div>
         </>
       )}

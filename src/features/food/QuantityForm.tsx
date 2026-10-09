@@ -70,13 +70,29 @@ export function QuantityForm({
           )}
         </div>
       </div>
+      <div class="quick" role="group" aria-label={t('food.quick')}>
+        {(unit === 'g' ? [50, 100, 150, 200, 250] : [0.5, 1, 2, 3]).map((n) => (
+          <button
+            key={n}
+            type="button"
+            class="btn small"
+            aria-pressed={amount === n}
+            onClick={() => {
+              setText(String(n));
+              setError('');
+            }}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
       {error && <p id="qty-error" class="field-error">{error}</p>}
       {preview && !settings.value.habitOnly && (
         <p class="preview" aria-live="polite">
           {preview.kcal} {t('unit.kcal')} · {t('macro.protein.short')} {fmt(preview.protein)} g · {t('macro.carbs.short')} {fmt(preview.carbs)} g · {t('macro.fat.short')} {fmt(preview.fat)} g
         </p>
       )}
-      <button type="submit" class="btn primary wide">{submitLabel}</button>
+      <div class="sticky-action"><button type="submit" class="btn primary wide">{submitLabel}</button></div>
     </form>
   );
 }

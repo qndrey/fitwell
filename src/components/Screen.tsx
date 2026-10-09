@@ -3,8 +3,17 @@ import type { ComponentChildren } from 'preact';
 
 let firstScreen = true;
 
+export interface ScreenNav {
+  prevLabel: string;
+  nextLabel: string;
+  onPrev: () => void;
+  onNext: () => void;
+  /** Small extra control under the subtitle, e.g. "Back to today". */
+  extra?: ComponentChildren;
+}
+
 /** Screen wrapper: moves focus to the heading on navigation for screen-reader users. */
-export function Screen({ title, subtitle, children }: { title: string; subtitle?: string; children: ComponentChildren }) {
+export function Screen({ title, subtitle, nav, children }: { title: string; subtitle?: string; nav?: ScreenNav; children: ComponentChildren }) {
   const h1 = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     document.title = `${title} · Fitwell`;
@@ -12,10 +21,21 @@ export function Screen({ title, subtitle, children }: { title: string; subtitle?
     if (firstScreen) firstScreen = false;
     else h1.current?.focus({ preventScroll: true });
   }, [title]);
-  return (
-    <>
+  const heading = (
+    <div class="screen-title">
       <h1 ref={h1} tabIndex={-1}>{title}</h1>
       {subtitle && <p class="muted">{subtitle}</p>}
+      {nav?.extra}
+    </div>
+  );
+  if (!nav) return <>{heading}{children}</>;
+  return (
+    <>
+      <header class="daybar">
+        <button type="button" class="btn icon" onClick={nav.onPrev} aria-label={nav.prevLabel}>‹</button>
+        {heading}
+        <button type="button" class="btn icon" onClick={nav.onNext} aria-label={nav.nextLabel}>›</button>
+      </header>
       {children}
     </>
   );

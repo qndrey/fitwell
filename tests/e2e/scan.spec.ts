@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { a11yScan } from '../helpers/a11y';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { ean13Modules } from '../helpers/ean';
 
@@ -183,7 +183,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await mockOff(context, () => ({ body: { status: 0, code: CODE } }));
     await fakeCamera(page, { deny: true });
     const d = await openScanner(page);
-    const scan = () => new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    const scan = () => a11yScan(page);
     await expect(d.getByText('The camera is blocked')).toBeVisible();
     expect((await scan()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     await d.getByLabel('Or type the number').fill('123');

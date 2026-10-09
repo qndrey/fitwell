@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { a11yScan } from '../helpers/a11y';
 import { expect, test } from '@playwright/test';
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -7,7 +7,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto(`/#/${screen}`);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-      const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+      const { violations } = await a11yScan(page);
       expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     });
   }
@@ -37,7 +37,7 @@ for (const scheme of ['light', 'dark'] as const) {
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Search foods').fill('banana');
     await expect(dialog.getByRole('button', { name: /^Banana, raw/ })).toBeVisible();
-    const scan = () => new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    const scan = () => a11yScan(page);
     expect((await scan()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
 
     await dialog.getByRole('button', { name: /^Banana, raw/ }).first().click();

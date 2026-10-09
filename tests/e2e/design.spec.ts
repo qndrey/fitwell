@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { a11yScan } from '../helpers/a11y';
 import { expect, test } from '@playwright/test';
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -9,7 +9,7 @@ for (const scheme of ['light', 'dark'] as const) {
     for (const h of ['Principles', 'Colour', 'Typography', 'Spacing, shape and size', 'Icons', 'Buttons', 'Form controls', 'Cards, lists and numbers', 'Feedback']) {
       await expect(page.getByRole('heading', { level: 2, name: h })).toBeVisible();
     }
-    const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    const { violations } = await a11yScan(page);
     expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 

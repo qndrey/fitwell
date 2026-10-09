@@ -12,6 +12,7 @@ import { displayDistance, distanceUnit } from '../../domain/units';
 import { AddFoodSheet } from '../food/AddFoodSheet';
 import { EntrySheet } from '../food/EntrySheet';
 import { BackupReminder } from './BackupReminder';
+import { BodyCard } from '../body/BodyCard';
 import { AddWorkoutSheet } from '../workout/AddWorkoutSheet';
 import { CardioSheet } from '../workout/CardioSheet';
 import { dayWorkouts, watchWorkouts } from '../workout/dayState';
@@ -71,6 +72,8 @@ export function Today() {
         )}
         {totals.pendingCount > 0 && <p class="muted mt-2">{`+${totals.pendingCount} ${t('today.pending')}`}</p>}
       </Card>
+
+      <BodyCard day={day} />
 
       {toConfirm > 0 && (
         <Notice>

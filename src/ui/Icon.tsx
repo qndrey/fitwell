@@ -1,4 +1,4 @@
-import { CalendarDays, ChartLine, Check, ChevronLeft, ChevronRight, Clock, Download, Info, Plus, ScanBarcode, Search, Settings, Star, Trash, Upload, X } from 'lucide-preact';
+import { CalendarDays, ChartLine, Check, ChevronLeft, ChevronRight, Clock, Download, Info, Minus, Plus, ScanBarcode, Search, Settings, Star, Trash, Upload, X } from 'lucide-preact';
 
 /** Lucide (ISC) icons, imported by name so only these ship. Decorative: meaning always comes from adjacent text or an aria-label. */
 const ICONS = {
@@ -9,6 +9,7 @@ const ICONS = {
   prev: ChevronLeft,
   next: ChevronRight,
   plus: Plus,
+  minus: Minus,
   star: Star,
   download: Download,
   upload: Upload,

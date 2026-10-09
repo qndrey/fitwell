@@ -25,6 +25,7 @@ export interface Settings {
   measurementReminderWeeks?: 1 | 2 | 4;
   backupReminderDays: number;
   lastBackupAt?: number;
+  measurementReminderDismissedAt?: number;
   backupReminderDismissedAt?: number;
   updatedAt: number;
 }
@@ -156,6 +157,30 @@ export interface CustomExercise extends Base {
 export interface CustomActivity extends Base {
   name: string;
   met: number;
+}
+
+/** One per day: the id is `weight:<day>`, so logging the same day again replaces it. Always kilograms. */
+export interface WeightEntry extends Base {
+  day: string;
+  kg: number;
+}
+
+export interface MeasurementType extends Base {
+  /** Preset ids are `mt:<key>` and stable; yours are random. */
+  key: string;
+  label: string;
+  /** `length` is stored in cm and shown as cm/in; `percent` is a plain %; `custom` keeps whatever unit you named. */
+  kind: 'length' | 'percent' | 'custom';
+  customUnit?: string;
+  enabled: boolean;
+  preset: boolean;
+  order: number;
+}
+
+/** One per day (`meas:<day>`): values by measurement type id, in canonical units (cm, %, or your custom unit). */
+export interface MeasurementEntry extends Base {
+  day: string;
+  values: Record<string, number>;
 }
 
 export interface CustomFood extends Base {

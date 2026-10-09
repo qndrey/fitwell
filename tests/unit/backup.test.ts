@@ -85,7 +85,7 @@ describe('export → wipe → import', () => {
     const a = await freshDb();
     await seed(a, 10);
     const backup = await buildBackup(a);
-    expect(Object.keys(backup.data).sort()).toEqual(['customActivities', 'customExercises', 'customFoods', 'favorites', 'foodEntries', 'goals', 'savedMeals', 'settings', 'workoutTemplates', 'workouts']);
+    expect(Object.keys(backup.data).sort()).toEqual(['customActivities', 'customExercises', 'customFoods', 'favorites', 'foodEntries', 'goals', 'measurementEntries', 'measurementTypes', 'savedMeals', 'settings', 'weightEntries', 'workoutTemplates', 'workouts']);
     const b = await freshDb();
     const before = (await b.get('meta', 'installId')).value;
     await applyImport(b, roundtrip(backup), 'replace');
@@ -113,6 +113,34 @@ describe('unresolved entries survive a backup', () => {
     await applyImport(b, roundtrip(await buildBackup(a)), 'replace');
     expect(await dump(b)).toEqual(await dump(a));
     expect((await b.get('settings', 'settings')).onlineLookup).toBe(false);
+  });
+});
+
+describe('body data survives a backup', () => {
+  it('weights, measurement types (presets and custom) and entries round-trip', async () => {
+    const a = await freshDb();
+    const base = { createdAt: 1, updatedAt: 2, rev: 3 };
+    await a.put('weightEntries', { id: 'weight:2026-10-01', day: '2026-10-01', kg: 80.2, ...base });
+    await a.put('weightEntries', { id: 'weight:2026-10-02', day: '2026-10-02', kg: 79.9, ...base, deletedAt: 9 });
+    await a.put('measurementTypes', { id: 'mt:waist', key: 'waist', label: 'Waist', kind: 'length', enabled: true, preset: true, order: 0, ...base });
+    await a.put('measurementTypes', { id: 'x1', key: 'custom', label: 'Wrist', kind: 'custom', customUnit: 'mm', enabled: false, preset: false, order: 100, ...base });
+    await a.put('measurementEntries', { id: 'meas:2026-10-01', day: '2026-10-01', values: { 'mt:waist': 90.5, x1: 160 }, ...base });
+    await a.put('goals', { id: 'goals', goalWeightKg: 75, updatedAt: 4 });
+    await a.put('settings', { id: 'settings', units: 'imperial', theme: 'system', habitOnly: false, hideBodyTracking: true, onlineLookup: true, measurementReminderWeeks: 2, measurementReminderDismissedAt: 5, backupReminderDays: 14, updatedAt: 3 });
+    const b = await freshDb();
+    await applyImport(b, roundtrip(await buildBackup(a)), 'replace');
+    expect(await dump(b)).toEqual(await dump(a));
+    expect(countsOf(roundtrip(await buildBackup(a)).data)).toMatchObject({ weights: 2, measurements: 1 });
+  });
+  it('rejects a weight that is not plausible or a negative measurement', async () => {
+    const a = await freshDb();
+    await a.put('weightEntries', { id: 'weight:2026-10-01', day: '2026-10-01', kg: 80, createdAt: 1, updatedAt: 2, rev: 1 });
+    const b = JSON.parse(JSON.stringify(await buildBackup(a)));
+    b.data.weightEntries[0].kg = 5000;
+    expect(parseBackup(JSON.stringify(b)).ok).toBe(false);
+    b.data.weightEntries[0].kg = 80;
+    b.data.measurementEntries = [{ id: 'meas:2026-10-01', day: '2026-10-01', values: { a: -3 }, createdAt: 1, updatedAt: 2, rev: 1 }];
+    expect(parseBackup(JSON.stringify(b)).ok).toBe(false);
   });
 });
 
@@ -148,7 +176,7 @@ describe('parseBackup', () => {
     const old = { app: 'fitwell', schemaVersion: 1, exportedAt: 1, installId: 'x', data: { settings: { id: 'settings', units: 'metric', theme: 'light', habitOnly: false, hideBodyTracking: false, backupReminderDays: 14, updatedAt: 3 } } };
     const r = parseBackup(JSON.stringify(old));
     expect(r.ok && r.backup.schemaVersion).toBe(LATEST_VERSION);
-    expect(r.ok && countsOf(r.backup.data)).toEqual({ foodEntries: 0, customFoods: 0, favorites: 0, savedMeals: 0, workouts: 0 });
+    expect(r.ok && countsOf(r.backup.data)).toEqual({ foodEntries: 0, customFoods: 0, favorites: 0, savedMeals: 0, workouts: 0, weights: 0, measurements: 0 });
   });
   it('ignores unknown fields instead of importing them', async () => {
     const db = await freshDb();

@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { a11yScan } from '../helpers/a11y';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 
 // Synthetic products in Open Food Facts' response shape (made-up values; no network is used).
@@ -254,7 +254,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await ready(page);
     await logPending(page, 'oat drink');
     await expect(page.getByText('1 item to confirm')).toBeVisible();
-    const scan = () => new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    const scan = () => a11yScan(page);
     expect((await scan()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     await page.getByRole('button', { name: 'Review' }).click();
     await expect(page.getByRole('radio').first()).toBeVisible();

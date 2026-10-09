@@ -63,6 +63,17 @@ export const migrations: Migration[] = [
       db.createObjectStore('customActivities', { keyPath: 'id' });
     },
   },
+  {
+    version: 6,
+    name: 'weight and body measurements',
+    up(db) {
+      const w = db.createObjectStore('weightEntries', { keyPath: 'id' });
+      w.createIndex('day', 'day');
+      db.createObjectStore('measurementTypes', { keyPath: 'id' });
+      const m = db.createObjectStore('measurementEntries', { keyPath: 'id' });
+      m.createIndex('day', 'day');
+    },
+  },
 ];
 
 export const LATEST_VERSION = migrations[migrations.length - 1]!.version;

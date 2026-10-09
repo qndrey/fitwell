@@ -57,6 +57,8 @@ export interface Counts {
   favorites: number;
   savedMeals: number;
   workouts: number;
+  weights: number;
+  measurements: number;
 }
 
 export const countsOf = (d: BackupData): Counts => ({
@@ -65,11 +67,13 @@ export const countsOf = (d: BackupData): Counts => ({
   favorites: d.favorites?.length ?? 0,
   savedMeals: d.savedMeals?.length ?? 0,
   workouts: d.workouts?.length ?? 0,
+  weights: d.weightEntries?.length ?? 0,
+  measurements: d.measurementEntries?.length ?? 0,
 });
 
 export async function currentCounts(db: IDBPDatabase): Promise<Counts> {
   const live = async (store: string) => ((await db.getAll(store)) as { deletedAt?: number }[]).filter((r) => r.deletedAt === undefined).length;
-  return { foodEntries: await live('foodEntries'), customFoods: await live('customFoods'), favorites: await live('favorites'), savedMeals: await live('savedMeals'), workouts: await live('workouts') };
+  return { foodEntries: await live('foodEntries'), customFoods: await live('customFoods'), favorites: await live('favorites'), savedMeals: await live('savedMeals'), workouts: await live('workouts'), weights: await live('weightEntries'), measurements: await live('measurementEntries') };
 }
 
 interface Rec {

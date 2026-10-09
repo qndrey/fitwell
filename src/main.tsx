@@ -11,10 +11,13 @@ import { App } from './app';
 import { initState } from './state';
 import { registerServiceWorker } from './pwa/register';
 import { startQueue } from './queue';
+import { watchBody } from './features/body/store';
+import { ensureMeasurementTypes } from './db/bodyStore';
 import { watchUnresolved } from './features/review/store';
 
 await initState();
 render(<App />, document.getElementById('app')!);
 watchUnresolved();
+void ensureMeasurementTypes().then(watchBody).catch(() => undefined);
 startQueue();
 registerServiceWorker();

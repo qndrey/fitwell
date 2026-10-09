@@ -7,8 +7,8 @@ import { getDb } from '../../db/open';
 import { t } from '../../i18n';
 import { showToast } from '../food/toast';
 
-const KEYS: (keyof Counts)[] = ['foodEntries', 'workouts', 'customFoods', 'favorites', 'savedMeals'];
-const LABEL = { foodEntries: 'count.entries', customFoods: 'count.customFoods', favorites: 'count.favorites', savedMeals: 'count.savedMeals', workouts: 'count.workouts' } as const;
+const KEYS: (keyof Counts)[] = ['foodEntries', 'workouts', 'customFoods', 'favorites', 'savedMeals', 'weights', 'measurements'];
+const LABEL = { foodEntries: 'count.entries', customFoods: 'count.customFoods', favorites: 'count.favorites', savedMeals: 'count.savedMeals', workouts: 'count.workouts', weights: 'count.weights', measurements: 'count.measurements' } as const;
 
 function CountList({ counts }: { counts: Counts }) {
   return (

@@ -3,6 +3,12 @@ export type UnitSystem = 'metric' | 'imperial';
 const LB_PER_KG = 2.2046226218;
 const MI_PER_KM = 0.6213711922;
 
+export const cmToIn = (cm: number): number => cm / 2.54;
+export const inToCm = (inch: number): number => inch * 2.54;
+export const lengthUnit = (u: UnitSystem): string => (u === 'metric' ? 'cm' : 'in');
+export const displayLength = (cm: number, u: UnitSystem): number => Math.round((u === 'metric' ? cm : cmToIn(cm)) * 10) / 10;
+export const toCm = (value: number, u: UnitSystem): number => (u === 'metric' ? value : inToCm(value));
+
 export const kgToLb = (kg: number): number => kg * LB_PER_KG;
 export const lbToKg = (lb: number): number => lb / LB_PER_KG;
 export const kmToMi = (km: number): number => km * MI_PER_KM;

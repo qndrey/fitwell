@@ -3,6 +3,8 @@ import type { ComponentChildren } from 'preact';
 import { t } from '../i18n';
 import { Button } from './Button';
 import { Icon } from './Icon';
+import { sheetStack } from './sheetStack';
+import { ToastView } from './Toaster';
 
 let counter = 0;
 
@@ -26,10 +28,13 @@ export function Sheet({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const id = useRef(`sheet-${++counter}`);
+  const num = useRef(counter);
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
+    sheetStack.value = [...sheetStack.value, num.current];
     return () => {
+      sheetStack.value = sheetStack.value.filter((n) => n !== num.current);
       if (d?.open) d.close();
     };
   }, []);
@@ -53,6 +58,11 @@ export function Sheet({
         </div>
         {pinned && <div class="sheet-pinned">{pinned}</div>}
         <div class="sheet-scroll">{children}</div>
+        {sheetStack.value[sheetStack.value.length - 1] === num.current && (
+          <div class="toast-region stack gap-2" role="status" aria-live="polite">
+            <ToastView />
+          </div>
+        )}
       </div>
     </dialog>
   );

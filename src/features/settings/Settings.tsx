@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Card, Choice, Field, Fieldset, Screen, Segmented, TextInput } from '../../ui';
+import { Button, Card, Choice, Field, Fieldset, Screen, Segmented, TextInput } from '../../ui';
 import { parseAmount } from '../../domain/nutrition';
 import { displayWeight, toKg, weightUnit, type UnitSystem } from '../../domain/units';
 import { BackupSection } from './BackupSection';
-import { settings, updateSettings } from '../../state';
+import { goals, settings, updateGoals, updateSettings } from '../../state';
+import { ManageMeasurements } from '../body/ManageMeasurements';
 import type { ThemePreference } from '../../db/schema';
 import { t, type Key } from '../../i18n';
 import { loadBundledFoods, type DatasetInfo } from '../../data/bundledFoods';
@@ -43,6 +44,7 @@ export function Settings() {
           <WeightField />
         </div>
       </Card>
+      <BodyTrackingCard />
       <Card>
         <Choice
           type="checkbox"
@@ -128,6 +130,59 @@ function WeightField() {
             if (n === null || n < 20 || n > 400) return setError(t('settings.weight.error'));
             setError('');
             void updateSettings({ fallbackWeightKg: toKg(n, units) });
+          }}
+        />
+      )}
+    </Field>
+  );
+}
+
+function BodyTrackingCard() {
+  const s = settings.value;
+  const [managing, setManaging] = useState(false);
+  return (
+    <Card labelledBy="body-h">
+      <div class="stack gap-4">
+        <h2 id="body-h">{t('settings.body')}</h2>
+        <Choice type="checkbox" checked={s.hideBodyTracking} onChange={(on) => void updateSettings({ hideBodyTracking: on })} label={t('settings.hideBody')} help={t('settings.hideBody.help')} />
+        <GoalWeightField />
+        <Button block onClick={() => setManaging(true)}>{t('measure.manage')}</Button>
+        <Segmented<'0' | '1' | '2' | '4'>
+          legend={t('measure.remind')}
+          name="measure-remind"
+          value={String(s.measurementReminderWeeks ?? 0) as '0' | '1' | '2' | '4'}
+          onChange={(v) => void updateSettings({ measurementReminderWeeks: v === '0' ? undefined : (Number(v) as 1 | 2 | 4) })}
+          options={[{ value: '0', label: t('measure.remind.off') }, { value: '1', label: t('measure.remind.1') }, { value: '2', label: t('measure.remind.2') }, { value: '4', label: t('measure.remind.4') }]}
+        />
+        <p class="t-caption">{t('measure.remind.help')}</p>
+      </div>
+      {managing && <ManageMeasurements onClose={() => setManaging(false)} />}
+    </Card>
+  );
+}
+
+/** Optional goal weight. It works for losing, keeping or gaining: it is only ever shown as "your goal". */
+function GoalWeightField() {
+  const units = settings.value.units;
+  const saved = goals.value.goalWeightKg;
+  const [text, setText] = useState(saved ? String(displayWeight(saved, units)) : '');
+  const [error, setError] = useState('');
+  useEffect(() => setText(saved ? String(displayWeight(saved, units)) : ''), [units, saved]);
+  return (
+    <Field label={`${t('weight.goal')} (${weightUnit(units)})`} hint={t('weight.goal.help')} error={error}>
+      {(c) => (
+        <TextInput
+          {...c}
+          inputMode="decimal"
+          autocomplete="off"
+          value={text}
+          onInput={(e) => setText((e.target as HTMLInputElement).value)}
+          onBlur={() => {
+            if (text.trim() === '') return (setError(''), void updateGoals({ goalWeightKg: undefined }));
+            const n = parseAmount(text);
+            if (n === null || n < 20 || n > 400) return setError(t('settings.weight.error'));
+            setError('');
+            void updateGoals({ goalWeightKg: toKg(n, units) });
           }}
         />
       )}

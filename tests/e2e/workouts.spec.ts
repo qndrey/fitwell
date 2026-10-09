@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { a11yScan } from '../helpers/a11y';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -270,7 +270,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`workout screens are accessible and phone-friendly (${scheme})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
     await page.setViewportSize({ width: 320, height: 640 });
-    const scan = () => new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+    const scan = () => a11yScan(page);
     const clean = async () => expect((await scan()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
     const fits = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 

@@ -18,6 +18,8 @@ Normative words: **MUST**, **SHOULD**, **MAY** (RFC 2119).
 | 2026-10-09 | **Barcode scanning added (was out of scope for v1)** at the user's request. Camera + BarcodeDetector where available (Chrome/Edge/Samsung on Android), otherwise `barcode-detector` → ZXing-C++ WebAssembly, **self-hosted** (the library defaults to jsDelivr; overridden), precached (+1.1 MB) so it also works offline. Unknown/offline/busy → "keep it for later": the barcode joins the pending queue and is looked up via the product API. Typing the number is always available. CSP gains `'wasm-unsafe-eval'` (no `eval()`), Permissions-Policy `camera=(self)`. Video frames never leave the device; only the digits are sent. | Scan in a shop with poor signal, confirm later. |
 | 2026-10-09 | Gate 4: exercise search reuses the app's own ranker (typo-tolerant name match + muscle/equipment filters) instead of adding MiniSearch: 876 exercises don't need it, and it saves a dependency. Bundled library split into a 19 KB-gzipped search index and a lazy 131 KB-gzipped how-to file (both precached, total precache ≈ 2.1 MiB). | Simpler; fast offline. |
 | 2026-10-09 | Gate 4: cardio MET table is ~58 hand-assembled, rounded values following the published Compendium tables, credited in the app; **no bulk import**. Permission from the Compendium maintainers is still to be requested before any larger use. Body weight for estimates is the Settings value until weight logging exists (Gate 5), via `currentWeightKg()`. | Per decision 1. |
+| 2026-10-09 | Gate 5: messages with an "Undo" are now shown **inside the open sheet** (a modal sheet makes everything outside it untappable, so the old global toast could not be pressed while a sheet was open, e.g. deleting a saved meal). The global toast is used when no sheet is open. | Real usability bug found by the new measurement-type test. |
+| 2026-10-09 | Test tooling: axe's `target-size` rule is off in e2e (`tests/helpers/a11y.ts`) because it flags any button the pinned "Add food" bar partly covers at the current scroll position; 44 px sizes are asserted directly instead. | Avoids a false positive without dropping the 44 px requirement. |
 | 2026-10-09 | Design system added (Figtree self-hosted, token files, `src/ui`, Lucide icons, live style guide). Initial JS budget now measured over `index-*` + `ui-*` chunks. | Consistency before more screens. |
 | 2026-10-09 | Attribution (CC BY 4.0 citation) is shown in Settings from Gate 1; the full About screen stays in Gate 7. | CC BY requires attribution as soon as data ships. |
 
@@ -252,6 +254,18 @@ Each gate has **Entry** (what must exist), **Deliverables**, and **Exit criteria
   - [ ] Hiding body tracking removes all related UI and charts but preserves data.
   - [ ] Unit round-trip tests (metric/imperial).
   - [ ] Copy review: no judgment colors or language.
+
+**Gate 5 status (2026-10-09):**
+- [x] One weight per day: logging the same day replaces it (same id `weight:<day>`, revives a deleted one); same for measurement sets (`meas:<day>`), partial sets allowed, editing the day updates it. Stored in kg / cm, shown in the chosen units without drift (round-trip tests incl. lb ↔ kg and in ↔ cm).
+- [x] Latest logged weight feeds cardio estimates and beats the Settings value (e2e: 9.8 × 70 × 0.5, not × 100); the Settings weight remains the fallback; no weight → no estimate.
+- [x] Presets (waist, hips, chest, neck, left/right upper arm, thigh, calf, body fat %) with stable ids and a how-to hint each; waist/hips/chest on by default; switching on/off in Settings never gets overwritten by later releases; your own types (name + unit) can be added, renamed, removed with undo; body fat is a typed percentage (no formulas).
+- [x] Only enabled types appear in the log form; last values appear as placeholders; values for types switched off are kept.
+- [x] Goal weight is direction-neutral ("Goal weight 85 kg · 5 kg away"); no BMI, no categories, no ahead/behind wording (asserted).
+- [x] Hide body tracking removes the weight card, measurements and reminder everywhere and keeps the data; unhiding restores it.
+- [x] Measurement reminder (1/2/4 weeks): in-app only, never for people who haven't measured before, snooze 3 days.
+- [x] Weight, measurement types and entries, goal weight and the new settings are in backups (round-trip + validation tests; implausible weights rejected).
+- [x] Axe, 320 px and 44 px checks on the weight sheet, measurements sheet (with hints) and the Settings/Manage screens, both themes.
+- Not in this gate: weight trend and measurement charts (Gate 6).
 
 ### Gate 6 — History & Progress
 - **Entry:** Gate 5.

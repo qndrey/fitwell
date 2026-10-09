@@ -1,4 +1,4 @@
-import AxeBuilder from '@axe-core/playwright';
+import { a11yScan } from '../helpers/a11y';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -144,7 +144,7 @@ test('a full disk is explained with a way to save a backup', async ({ page }) =>
 test('settings and the restore sheet are accessible and mobile-friendly', async ({ page }) => {
   await logBanana(page, '100');
   const json = await saveBackup(page);
-  const scan = () => new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
+  const scan = () => a11yScan(page);
   expect((await scan()).violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 

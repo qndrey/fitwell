@@ -72,6 +72,19 @@ const template = v.object({
 });
 const customExercise = v.object({ ...base, name: v.string(), primary: v.array(v.string()), equipment: v.optional(v.string()) });
 const customActivity = v.object({ ...base, name: v.string(), met: nonNeg });
+const dayStr = v.pipe(v.string(), v.check(isDay, 'not a valid day'));
+const weightEntry = v.object({ ...base, day: dayStr, kg: v.pipe(num, v.minValue(1), v.maxValue(700)) });
+const measurementType = v.object({
+  ...base,
+  key: v.string(),
+  label: v.string(),
+  kind: v.picklist(['length', 'percent', 'custom']),
+  customUnit: v.optional(v.string()),
+  enabled: v.boolean(),
+  preset: v.boolean(),
+  order: num,
+});
+const measurementEntry = v.object({ ...base, day: dayStr, values: v.record(v.string(), nonNeg) });
 const day = v.pipe(v.string(), v.check(isDay, 'not a valid day'));
 
 const foodEntry = v.object({
@@ -103,6 +116,7 @@ const settings = v.object({
   backupReminderDays: v.pipe(num, v.minValue(1)),
   lastBackupAt: v.optional(num),
   backupReminderDismissedAt: v.optional(num),
+  measurementReminderDismissedAt: v.optional(num),
   updatedAt: num,
 });
 const goals = v.object({
@@ -138,6 +152,9 @@ export const backupSchema = v.object({
     workoutTemplates: v.optional(v.array(template)),
     customExercises: v.optional(v.array(customExercise)),
     customActivities: v.optional(v.array(customActivity)),
+    weightEntries: v.optional(v.array(weightEntry)),
+    measurementTypes: v.optional(v.array(measurementType)),
+    measurementEntries: v.optional(v.array(measurementEntry)),
   }),
 });
 
@@ -156,5 +173,8 @@ export const BACKUP_STORES = [
   { name: 'workoutTemplates', kind: 'collection' },
   { name: 'customExercises', kind: 'collection' },
   { name: 'customActivities', kind: 'collection' },
+  { name: 'weightEntries', kind: 'collection' },
+  { name: 'measurementTypes', kind: 'collection' },
+  { name: 'measurementEntries', kind: 'collection' },
 ] as const;
 export type BackupStoreName = (typeof BACKUP_STORES)[number]['name'];

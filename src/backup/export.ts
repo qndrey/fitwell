@@ -36,5 +36,5 @@ export function backupFilename(at: Date): string {
 }
 
 export function countRecords(data: BackupData): number {
-  return (data.foodEntries?.length ?? 0) + (data.customFoods?.length ?? 0) + (data.favorites?.length ?? 0) + (data.savedMeals?.length ?? 0) + (data.workouts?.length ?? 0) + (data.workoutTemplates?.length ?? 0) + (data.customExercises?.length ?? 0) + (data.customActivities?.length ?? 0);
+  return (data.foodEntries?.length ?? 0) + (data.customFoods?.length ?? 0) + (data.favorites?.length ?? 0) + (data.savedMeals?.length ?? 0) + (data.workouts?.length ?? 0) + (data.workoutTemplates?.length ?? 0) + (data.customExercises?.length ?? 0) + (data.customActivities?.length ?? 0) + (data.weightEntries?.length ?? 0) + (data.measurementEntries?.length ?? 0);
 }

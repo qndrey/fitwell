@@ -2,9 +2,11 @@ import { useState } from 'preact/hooks';
 import { customFoodsRepo } from '../../db/foodStore';
 import type { FoodItem } from '../../domain/foods';
 import { parseAmount, type Nutrients, type Portion } from '../../domain/nutrition';
+import { Button, Choice, Field, Fieldset, TextInput } from '../../ui';
 import { t } from '../../i18n';
 
 type Basis = 'per100g' | 'perServing';
+type Values = { kcal: string; protein: string; carbs: string; fat: string; serving: string };
 
 export function CustomFoodForm({
   initialName,
@@ -17,9 +19,9 @@ export function CustomFoodForm({
 }) {
   const [name, setName] = useState(initialName);
   const [basis, setBasis] = useState<Basis>('per100g');
-  const [v, setV] = useState({ kcal: '', protein: '', carbs: '', fat: '', serving: '' });
+  const [v, setV] = useState<Values>({ kcal: '', protein: '', carbs: '', fat: '', serving: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const set = (k: keyof typeof v) => (e: Event) => setV({ ...v, [k]: (e.target as HTMLInputElement).value });
+  const set = (k: keyof Values) => (e: Event) => setV({ ...v, [k]: (e.target as HTMLInputElement).value });
 
   async function submit(e: Event) {
     e.preventDefault();
@@ -48,49 +50,32 @@ export function CustomFoodForm({
     onCreated({ ref: { kind: 'custom', id: rec.id }, name: rec.name, per100g, portions });
   }
 
-  const field = (id: keyof typeof v | 'name', label: string, value: string, onInput: (e: Event) => void, hint?: string) => (
-    <div class="field">
-      <label for={`cf-${id}`}>{label}</label>
-      <input
-        id={`cf-${id}`}
-        type="text"
-        inputMode={id === 'name' ? 'text' : 'decimal'}
-        autocomplete="off"
-        value={value}
-        onInput={onInput}
-        aria-invalid={errors[id] ? 'true' : undefined}
-        aria-describedby={errors[id] ? `cf-${id}-err` : undefined}
-      />
-      {hint && !errors[id] && <span class="hint">{hint}</span>}
-      {errors[id] && <span id={`cf-${id}-err`} class="field-error">{errors[id]}</span>}
-    </div>
+  const num = (key: keyof Values, label: string, hint?: string) => (
+    <Field label={label} error={errors[key]} hint={hint} class="grow">
+      {(c) => <TextInput {...c} inputMode="decimal" autocomplete="off" value={v[key]} onInput={set(key)} />}
+    </Field>
   );
 
   return (
-    <form onSubmit={submit} noValidate>
-      {field('name', t('custom.name'), name, (e) => setName((e.target as HTMLInputElement).value))}
-      <fieldset>
-        <legend>{t('custom.basis')}</legend>
-        <label class="choice">
-          <input type="radio" name="basis" checked={basis === 'per100g'} onChange={() => setBasis('per100g')} />
-          {t('custom.per100g')}
-        </label>
-        <label class="choice">
-          <input type="radio" name="basis" checked={basis === 'perServing'} onChange={() => setBasis('perServing')} />
-          {t('custom.perServing')}
-        </label>
-      </fieldset>
-      {basis === 'perServing' && field('serving', t('custom.servingWeight'), v.serving, set('serving'))}
-      {field('kcal', t('unit.kcal'), v.kcal, set('kcal'))}
+    <form class="stack gap-4" onSubmit={submit} noValidate>
+      <Field label={t('custom.name')} error={errors.name}>
+        {(c) => <TextInput {...c} autocomplete="off" value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)} />}
+      </Field>
+      <Fieldset legend={t('custom.basis')}>
+        <Choice type="radio" name="basis" checked={basis === 'per100g'} onChange={() => setBasis('per100g')} label={t('custom.per100g')} />
+        <Choice type="radio" name="basis" checked={basis === 'perServing'} onChange={() => setBasis('perServing')} label={t('custom.perServing')} />
+      </Fieldset>
+      {basis === 'perServing' && num('serving', t('custom.servingWeight'))}
+      {num('kcal', t('unit.kcal'))}
       <div class="field-row">
-        <div class="grow">{field('protein', t('macro.protein'), v.protein, set('protein'))}</div>
-        <div class="grow">{field('carbs', t('macro.carbs'), v.carbs, set('carbs'))}</div>
-        <div class="grow">{field('fat', t('macro.fat'), v.fat, set('fat'))}</div>
+        {num('protein', t('macro.protein'))}
+        {num('carbs', t('macro.carbs'))}
+        {num('fat', t('macro.fat'))}
       </div>
-      {basis === 'per100g' && field('serving', t('custom.servingOptional'), v.serving, set('serving'), t('custom.servingHint'))}
-      <div class="actions">
-        <button type="button" class="btn" onClick={onCancel}>{t('common.back')}</button>
-        <button type="submit" class="btn primary">{t('custom.save')}</button>
+      {basis === 'per100g' && num('serving', t('custom.servingOptional'), t('custom.servingHint'))}
+      <div class="cluster between">
+        <Button onClick={onCancel}>{t('common.back')}</Button>
+        <Button type="submit" variant="primary">{t('custom.save')}</Button>
       </div>
     </form>
   );

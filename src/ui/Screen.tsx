@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
+import { Button } from './Button';
+import { Icon } from './Icon';
 
 let firstScreen = true;
 
@@ -28,15 +30,15 @@ export function Screen({ title, subtitle, nav, children }: { title: string; subt
       {nav?.extra}
     </div>
   );
-  if (!nav) return <>{heading}{children}</>;
+  if (!nav) return <><header>{heading}</header><div class="page">{children}</div></>;
   return (
     <>
       <header class="daybar">
-        <button type="button" class="btn icon" onClick={nav.onPrev} aria-label={nav.prevLabel}>‹</button>
+        <Button icon onClick={nav.onPrev} aria-label={nav.prevLabel}><Icon name="prev" size="lg" /></Button>
         {heading}
-        <button type="button" class="btn icon" onClick={nav.onNext} aria-label={nav.nextLabel}>›</button>
+        <Button icon onClick={nav.onNext} aria-label={nav.nextLabel}><Icon name="next" size="lg" /></Button>
       </header>
-      {children}
+      <div class="page">{children}</div>
     </>
   );
 }

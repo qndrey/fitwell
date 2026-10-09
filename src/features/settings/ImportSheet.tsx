@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { Sheet } from '../../components/Sheet';
+import { Button, Notice, SectionTitle, Sheet } from '../../ui';
 import { saveBackupFile } from '../../backup/save';
 import { applyImport, countsOf, type Counts, type ImportMode } from '../../backup/import';
 import type { Backup } from '../../backup/schema';
@@ -40,29 +40,31 @@ export function ImportSheet({ backup, current, onClose }: { backup: Backup; curr
 
   return (
     <Sheet title={t('restore.title')} onClose={onClose}>
-      <p>{t('restore.madeOn')} {new Date(backup.exportedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.</p>
-      <div class="two-col">
-        <div><h3 class="list-title">{t('restore.contains')}</h3><CountList counts={countsOf(backup.data)} /></div>
-        <div><h3 class="list-title">{t('restore.here')}</h3><CountList counts={current} /></div>
-      </div>
-      {error && <p class="notice" role="alert">{error}</p>}
+      <div class="stack gap-4">
+        <p>{t('restore.madeOn')} {new Date(backup.exportedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.</p>
+        <div class="two-col">
+          <div><SectionTitle>{t('restore.contains')}</SectionTitle><CountList counts={countsOf(backup.data)} /></div>
+          <div><SectionTitle>{t('restore.here')}</SectionTitle><CountList counts={current} /></div>
+        </div>
+        {error && <Notice role="alert">{error}</Notice>}
 
-      {!confirming ? (
-        <div class="stack">
-          <button type="button" class="btn primary wide" disabled={busy} onClick={() => void run('merge')}>{t('restore.merge')}</button>
-          <p class="muted help">{t('restore.merge.help')}</p>
-          <button type="button" class="btn wide" disabled={busy} onClick={() => setConfirming(true)}>{t('restore.replace')}</button>
-          <p class="muted help">{t('restore.replace.help')}</p>
-        </div>
-      ) : (
-        <div class="stack" role="group" aria-labelledby="confirm-h">
-          <h3 id="confirm-h">{t('restore.confirm')}</h3>
-          <p>{t('restore.confirm.help')}</p>
-          <button type="button" class="btn wide" onClick={() => void saveBackupFile().then(() => showToast(t('backup.saved')))}>{t('restore.backupFirst')}</button>
-          <button type="button" class="btn primary wide" disabled={busy} onClick={() => void run('replace')}>{t('restore.confirm.yes')}</button>
-          <button type="button" class="btn wide" disabled={busy} onClick={() => setConfirming(false)}>{t('common.back')}</button>
-        </div>
-      )}
+        {!confirming ? (
+          <div class="stack gap-2">
+            <Button variant="primary" block disabled={busy} onClick={() => void run('merge')}>{t('restore.merge')}</Button>
+            <p class="t-caption">{t('restore.merge.help')}</p>
+            <Button block disabled={busy} onClick={() => setConfirming(true)}>{t('restore.replace')}</Button>
+            <p class="t-caption">{t('restore.replace.help')}</p>
+          </div>
+        ) : (
+          <div class="stack gap-3" role="group" aria-labelledby="confirm-h">
+            <h3 id="confirm-h">{t('restore.confirm')}</h3>
+            <p>{t('restore.confirm.help')}</p>
+            <Button block onClick={() => void saveBackupFile().then(() => showToast(t('backup.saved')))}>{t('restore.backupFirst')}</Button>
+            <Button variant="danger" block disabled={busy} onClick={() => void run('replace')}>{t('restore.confirm.yes')}</Button>
+            <Button block disabled={busy} onClick={() => setConfirming(false)}>{t('common.back')}</Button>
+          </div>
+        )}
+      </div>
     </Sheet>
   );
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { t } from '../i18n';
+import { Button } from './Button';
+import { Icon } from './Icon';
 
 let counter = 0;
 
@@ -47,7 +49,7 @@ export function Sheet({
       <div class="sheet-body">
         <div class="sheet-head">
           <h2 id={id.current}>{title}</h2>
-          <button type="button" class="btn small" onClick={onClose}>{t('common.close')}</button>
+          <Button size="sm" onClick={onClose}><Icon name="close" size="sm" />{t('common.close')}</Button>
         </div>
         {pinned && <div class="sheet-pinned">{pinned}</div>}
         <div class="sheet-scroll">{children}</div>

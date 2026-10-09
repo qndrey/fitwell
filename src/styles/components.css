@@ -1,0 +1,141 @@
+/* Base components. Every value comes from a token. Class names are the public API of src/ui/. */
+
+/* ---- Icon (Lucide, decorative) ---- */
+.icon { flex: none; width: var(--icon-md); height: var(--icon-md); }
+.icon-sm { width: var(--icon-sm); height: var(--icon-sm); }
+.icon-lg { width: var(--icon-lg); height: var(--icon-lg); }
+
+/* ---- Button ---- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--tap); padding: 0 var(--space-4);
+  border: var(--border-w) solid var(--border); border-radius: var(--radius-s);
+  background: var(--surface); color: var(--text);
+  font-size: var(--text-md); font-weight: var(--weight-semibold); line-height: var(--lh-snug);
+  text-decoration: none; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.btn:hover { background: var(--surface-2); }
+.btn:active { border-color: var(--text-muted); }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--accent); }
+.btn.ghost:hover { background: var(--accent-soft); color: var(--on-accent-soft); }
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn.sm { padding: 0 var(--space-3); font-size: var(--text-sm); }
+.btn.lg { min-height: var(--control-lg); font-size: var(--text-lg); border-radius: var(--radius-pill); }
+.btn.block { width: 100%; }
+.btn.icon { width: var(--tap); padding: 0; flex: none; }
+.btn[aria-pressed='true'] { background: var(--accent-soft); color: var(--on-accent-soft); border-color: var(--accent); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.btn.lg.primary { box-shadow: var(--shadow-2); }
+
+.link-btn {
+  display: inline-flex; align-items: center; min-height: var(--tap); padding: 0;
+  background: none; border: 0; color: var(--accent);
+  font-weight: var(--weight-semibold); cursor: pointer; text-align: left;
+}
+.link-btn:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+
+/* ---- Form fields ---- */
+.field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.field-label { font-weight: var(--weight-semibold); }
+.input {
+  width: 100%; min-height: var(--tap); padding: 0 var(--space-3);
+  background: var(--surface); color: var(--text);
+  border: var(--border-w) solid var(--border); border-radius: var(--radius-s);
+  font-size: var(--text-md);
+}
+.input::placeholder { color: var(--text-muted); opacity: 1; }
+.input[readonly] { background: var(--surface-2); }
+.input[aria-invalid='true'] { border-width: var(--border-w-strong); }
+.field-error { display: flex; align-items: baseline; gap: var(--space-1); font-size: var(--text-sm); }
+.hint { color: var(--text-muted); font-size: var(--text-sm); }
+.field-row { display: flex; gap: var(--space-3); align-items: flex-start; }
+
+.fieldset-legend { font-weight: var(--weight-semibold); margin-bottom: var(--space-2); padding: 0; }
+.choice { display: flex; align-items: center; gap: var(--space-3); min-height: var(--tap); cursor: pointer; }
+.choice input { width: var(--check); height: var(--check); accent-color: var(--accent); margin: 0; flex: none; }
+.choice-help { display: block; color: var(--text-muted); font-size: var(--text-sm); }
+
+/* Segmented control: one row of equal radio segments */
+.segmented { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); gap: var(--space-1); min-width: 0; }
+.segment { position: relative; }
+.segment input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.segment span {
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: var(--tap);
+  padding: 0 var(--space-1); border: var(--border-w) solid var(--border); border-radius: var(--radius-pill);
+  background: var(--surface); font-size: var(--text-sm); font-weight: var(--weight-semibold);
+}
+.segment input:checked + span { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.segment input:focus-visible + span { outline: var(--ring-w) solid var(--focus); outline-offset: 2px; }
+
+/* ---- Card ---- */
+.card {
+  background: var(--surface); border: var(--border-w) solid var(--divider);
+  border-radius: var(--radius-m); padding: var(--space-4); box-shadow: var(--shadow-1);
+}
+.card.compact { padding: var(--space-3) var(--space-4); }
+
+/* ---- List ---- */
+.list { background: var(--surface); border: var(--border-w) solid var(--divider); border-radius: var(--radius-m); overflow: hidden; }
+.list > li + li { border-top: var(--border-w) solid var(--divider); }
+.row {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); width: 100%;
+  min-height: var(--tap); padding: var(--space-3) var(--space-4);
+  background: none; border: 0; color: var(--text); text-align: left; cursor: pointer;
+}
+.row.static { cursor: default; }
+.row:hover:not(.static) { background: var(--surface-2); }
+.row-main { font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.row-sub { color: var(--text-muted); font-size: var(--text-sm); }
+.section-title { margin: var(--space-4) 0 var(--space-2); }
+
+/* ---- Feedback ---- */
+.notice {
+  background: var(--accent-soft); color: var(--on-accent-soft);
+  border-radius: var(--radius-s); padding: var(--space-3) var(--space-4);
+}
+.notice.quiet { background: var(--surface-2); color: var(--text); }
+.badge {
+  display: inline-flex; align-items: center; min-height: 1.5rem; padding: 0 var(--space-2);
+  border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--on-accent-soft);
+  font-size: var(--text-sm); font-weight: var(--weight-semibold);
+}
+.toast {
+  display: flex; gap: var(--space-3); align-items: center; justify-content: space-between;
+  max-width: 30rem; margin: 0 auto;
+  background: var(--surface-2); border: var(--border-w) solid var(--border); border-radius: var(--radius-m);
+  padding: var(--space-3) var(--space-4); box-shadow: var(--shadow-1);
+}
+.empty { text-align: center; color: var(--text-muted); padding: var(--space-5) var(--space-4); }
+
+/* ---- Stat ---- */
+.stat { display: flex; flex-direction: column-reverse; }
+.stat dd { font-weight: var(--weight-semibold); font-size: var(--text-lg); }
+.stat dt { color: var(--text-muted); font-size: var(--text-sm); }
+.stat-grid { display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr); gap: var(--space-2); }
+
+.facts > div { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-top: var(--border-w) solid var(--divider); }
+.facts dt { color: var(--text-muted); }
+.facts dd { font-weight: var(--weight-semibold); text-align: right; }
+.added { background: var(--accent-soft); color: var(--on-accent-soft); border-radius: var(--radius-s); padding: var(--space-2) var(--space-3); }
+
+/* ---- Sheet (native <dialog>): header and pinned area stay put, only the body scrolls ---- */
+.sheet { padding: 0; border: 0; background: transparent; color: var(--text); width: 100%; max-width: var(--sheet-w); max-height: 94dvh; margin: auto auto 0; overflow: visible; }
+.sheet.tall { height: 94dvh; }
+.sheet::backdrop { background: var(--overlay); }
+.sheet-body {
+  display: flex; flex-direction: column; height: 100%; max-height: 94dvh; background: var(--bg);
+  border-radius: var(--radius-l) var(--radius-l) 0 0; padding: var(--space-3) var(--space-4) 0;
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); flex: none; }
+.sheet-head h2 { overflow-wrap: anywhere; }
+.sheet-pinned { flex: none; }
+.sheet-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom)); }
+.sticky-action { margin-top: auto; position: sticky; bottom: 0; padding: var(--space-3) 0 var(--space-1); background: linear-gradient(transparent, var(--bg) 30%); }
+@media (min-width: 600px) {
+  .sheet { margin: auto; }
+  .sheet.tall { height: min(94dvh, 45rem); }
+  .sheet-body { border-radius: var(--radius-l); }
+}

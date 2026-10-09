@@ -12,13 +12,17 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "contrast": "tsx scripts/check-contrast.ts",
-    "licenses": "license-checker-rseidelsohn --production --excludePrivatePackages --onlyAllow \"MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD\"",
+    "licenses": "license-checker-rseidelsohn --production --excludePrivatePackages --onlyAllow \"MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;OFL-1.1\"",
     "size": "size-limit",
-    "build:foods": "tsx scripts/build-foods.ts"
+    "build:foods": "tsx scripts/build-foods.ts",
+    "tokens": "tsx scripts/check-tokens.ts",
+    "check": "npm run typecheck && npm run lint && npm test && npm run contrast && npm run tokens"
   },
   "dependencies": {
+    "@fontsource-variable/figtree": "^5.3.0",
     "@preact/signals": "^2.11.3",
     "idb": "^8.0.4",
+    "lucide-preact": "^1.54.0",
     "preact": "^11.0.1",
     "valibot": "^1.5.0"
   },
@@ -43,7 +47,10 @@
   },
   "size-limit": [
     {
-      "path": "dist/assets/index-*.js",
+      "path": [
+        "dist/assets/index-*.js",
+        "dist/assets/ui-*.js"
+      ],
       "limit": "90 kB",
       "gzip": true
     }

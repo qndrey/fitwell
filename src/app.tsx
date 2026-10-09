@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'preact/hooks';
+import type { ComponentType } from 'preact';
 import { route } from './router';
 import { storageAvailable } from './state';
-import { TabBar } from './components/TabBar';
-import { UpdateToast } from './components/UpdateToast';
-import { Toaster } from './components/Toaster';
+import { Notice, TabBar } from './ui';
+import { Toaster } from './ui';
 import { Today } from './features/today/Today';
 import { History } from './features/history/History';
 import { Progress } from './features/progress/Progress';
@@ -11,8 +12,15 @@ import { t } from './i18n';
 
 const SCREENS = { today: Today, history: History, progress: Progress, settings: Settings };
 
+/** The style guide is its own chunk: it is not in the tab bar and is never needed for everyday use. */
+function LazyDesign() {
+  const [C, setC] = useState<ComponentType | null>(null);
+  useEffect(() => void import('./features/design/Design').then((m) => setC(() => m.Design)), []);
+  return C ? <C /> : null;
+}
+
 export function App() {
-  const Current = SCREENS[route.value];
+  const Current = route.value === 'design' ? LazyDesign : SCREENS[route.value];
   return (
     <>
       <a
@@ -28,12 +36,11 @@ export function App() {
       <div class="shell">
         <TabBar />
         <main id="main" tabIndex={-1}>
-          {!storageAvailable.value && <div class="notice" role="status">{t('storage.unavailable')}</div>}
+          {!storageAvailable.value && <Notice role="status">{t('storage.unavailable')}</Notice>}
           <Current />
         </main>
       </div>
       <Toaster />
-      <UpdateToast />
     </>
   );
 }

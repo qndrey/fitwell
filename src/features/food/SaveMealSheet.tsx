@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
-import { Sheet } from '../../components/Sheet';
 import type { FoodEntry } from '../../db/schema';
+import { Button, Field, Sheet, TextInput } from '../../ui';
 import { t } from '../../i18n';
 import { saveSlotAsMeal } from './actions';
 import { showToast } from './toast';
@@ -11,6 +11,7 @@ export function SaveMealSheet({ entries, onClose }: { entries: FoodEntry[]; onCl
   return (
     <Sheet title={t('meal.saveTitle')} onClose={onClose}>
       <form
+        class="stack gap-4"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!name.trim()) return setError(t('meal.nameError'));
@@ -19,25 +20,22 @@ export function SaveMealSheet({ entries, onClose }: { entries: FoodEntry[]; onCl
           onClose();
         }}
       >
-        <div class="field">
-          <label for="meal-name">{t('meal.name')}</label>
-          <input
-            id="meal-name"
-            type="text"
-            autofocus
-            autocomplete="off"
-            value={name}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? 'meal-err' : undefined}
-            onInput={(e) => {
-              setName((e.target as HTMLInputElement).value);
-              setError('');
-            }}
-          />
-          {error && <span id="meal-err" class="field-error">{error}</span>}
-        </div>
+        <Field label={t('meal.name')} error={error}>
+          {(c) => (
+            <TextInput
+              {...c}
+              autofocus
+              autocomplete="off"
+              value={name}
+              onInput={(e) => {
+                setName((e.target as HTMLInputElement).value);
+                setError('');
+              }}
+            />
+          )}
+        </Field>
         <p class="muted">{entries.map((e) => e.food?.name).filter(Boolean).join(', ')}</p>
-        <button type="submit" class="btn primary wide">{t('meal.save')}</button>
+        <Button type="submit" variant="primary" block>{t('meal.save')}</Button>
       </form>
     </Sheet>
   );

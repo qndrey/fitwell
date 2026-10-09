@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import type { FoodItem } from '../../domain/foods';
 import { parseAmount, quantityGrams, roundForDisplay, scale, type Quantity } from '../../domain/nutrition';
 import { settings } from '../../state';
+import { Button, Field, Select, TextInput } from '../../ui';
 import { t } from '../../i18n';
 import { fmt } from './format';
 
@@ -32,6 +33,7 @@ export function QuantityForm({
 
   return (
     <form
+      class="stack"
       onSubmit={(e) => {
         e.preventDefault();
         if (!quantity) return setError(t('food.amountError'));
@@ -39,43 +41,41 @@ export function QuantityForm({
       }}
     >
       <div class="field-row">
-        <div class="field grow">
-          <label for="qty-amount">{t('food.amount')}</label>
-          <input
-            id="qty-amount"
-            type="text"
-            inputMode="decimal"
-            autocomplete="off"
-            value={text}
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? 'qty-error' : undefined}
-            onInput={(e) => {
-              setText((e.target as HTMLInputElement).value);
-              setError('');
-            }}
-            onFocus={(e) => (e.target as HTMLInputElement).select()}
-          />
-        </div>
-        <div class="field">
-          <label for="qty-unit">{t('food.unit')}</label>
-          {food.portions.length > 0 ? (
-            <select id="qty-unit" value={unit} onChange={(e) => setUnit((e.target as HTMLSelectElement).value)}>
-              <option value="g">g</option>
-              {food.portions.map((p) => (
-                <option key={p.label} value={p.label}>{`${p.label} (${fmt(p.grams)} g)`}</option>
-              ))}
-            </select>
-          ) : (
-            <input id="qty-unit" value="g" readOnly aria-readonly="true" size={3} />
+        <Field label={t('food.amount')} error={error} class="grow">
+          {(c) => (
+            <TextInput
+              {...c}
+              inputMode="decimal"
+              autocomplete="off"
+              value={text}
+              onInput={(e) => {
+                setText((e.target as HTMLInputElement).value);
+                setError('');
+              }}
+              onFocus={(e) => (e.target as HTMLInputElement).select()}
+            />
           )}
-        </div>
+        </Field>
+        <Field label={t('food.unit')}>
+          {(c) =>
+            food.portions.length > 0 ? (
+              <Select {...c} value={unit} onChange={(e) => setUnit((e.target as HTMLSelectElement).value)}>
+                <option value="g">g</option>
+                {food.portions.map((p) => (
+                  <option key={p.label} value={p.label}>{`${p.label} (${fmt(p.grams)} g)`}</option>
+                ))}
+              </Select>
+            ) : (
+              <TextInput {...c} value="g" readOnly aria-readonly="true" size={3} />
+            )
+          }
+        </Field>
       </div>
       <div class="quick" role="group" aria-label={t('food.quick')}>
         {(unit === 'g' ? [50, 100, 150, 200, 250] : [0.5, 1, 2, 3]).map((n) => (
-          <button
+          <Button
             key={n}
-            type="button"
-            class="btn small"
+            size="sm"
             aria-pressed={amount === n}
             onClick={() => {
               setText(String(n));
@@ -83,16 +83,17 @@ export function QuantityForm({
             }}
           >
             {n}
-          </button>
+          </Button>
         ))}
       </div>
-      {error && <p id="qty-error" class="field-error">{error}</p>}
       {preview && !settings.value.habitOnly && (
-        <p class="preview" aria-live="polite">
+        <p class="t-caption" aria-live="polite">
           {preview.kcal} {t('unit.kcal')} · {t('macro.protein.short')} {fmt(preview.protein)} g · {t('macro.carbs.short')} {fmt(preview.carbs)} g · {t('macro.fat.short')} {fmt(preview.fat)} g
         </p>
       )}
-      <div class="sticky-action"><button type="submit" class="btn primary wide">{submitLabel}</button></div>
+      <div class="sticky-action">
+        <Button type="submit" variant="primary" block>{submitLabel}</Button>
+      </div>
     </form>
   );
 }

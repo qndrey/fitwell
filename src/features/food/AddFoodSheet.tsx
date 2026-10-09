@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { Sheet } from '../../components/Sheet';
+import { Button, Field, Icon, List, ListRow, SectionTitle, Sheet, TextInput } from '../../ui';
 import { customFoodItems, favoritesRepo, recentFoods, savedMealsRepo, setFavorite, favoriteId, type RecentFood } from '../../db/foodStore';
 import type { SavedMeal, Slot } from '../../db/schema';
 import { refKey, type FoodItem } from '../../domain/foods';
@@ -85,19 +85,20 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
           <>
             <SlotPicker value={slot} onChange={setSlot} name="add-slot" />
             {step.kind === 'search' && (
-              <div class="field">
-                <label for="food-search" class="sr-only">{t('food.search')}</label>
-                <input
-                  id="food-search"
-                  type="search"
-                  enterkeyhint="search"
-                  autocomplete="off"
-                  autofocus
-                  value={query}
-                  placeholder={t('food.searchPlaceholder')}
-                  onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
-                />
-              </div>
+              <Field label={t('food.search')} labelHidden class="mt-3">
+                {(c) => (
+                  <TextInput
+                    {...c}
+                    type="search"
+                    enterkeyhint="search"
+                    autocomplete="off"
+                    autofocus
+                    value={query}
+                    placeholder={t('food.searchPlaceholder')}
+                    onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+                  />
+                )}
+              </Field>
             )}
           </>
         )
@@ -107,36 +108,31 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
 
       {step.kind === 'search' && (
         <>
-          {added && <p class="added" aria-hidden="true">✓ {added}</p>}
+          {added && <p class="added mt-3 cluster gap-2" aria-hidden="true"><Icon name="check" size="sm" />{added}</p>}
           {visible.map((s) => (
             <section key={s.title} aria-label={s.title}>
-              <h3 class="list-title">{s.title}</h3>
-              <ul class="list">
+              <SectionTitle>{s.title}</SectionTitle>
+              <List>
                 {s.foods?.map((f) => (
-                  <li key={refKey(f.ref)}>
-                    <button type="button" class="row" onClick={() => pick(f)}>
-                      <span class="row-main">{f.name}</span>
-                      <span class="row-sub">{[f.brand, f.group, settings.value.habitOnly ? '' : `${Math.round(f.per100g.kcal)} ${t('unit.kcal')}/100 g`].filter(Boolean).join(' · ')}</span>
-                    </button>
-                  </li>
+                  <ListRow
+                    key={refKey(f.ref)}
+                    main={f.name}
+                    sub={[f.brand, f.group, settings.value.habitOnly ? '' : `${Math.round(f.per100g.kcal)} ${t('unit.kcal')}/100 g`].filter(Boolean).join(' · ')}
+                    onClick={() => pick(f)}
+                  />
                 ))}
                 {s.meals?.map((m) => (
-                  <li key={m.id}>
-                    <button type="button" class="row" onClick={() => setStep({ kind: 'meal', meal: m })}>
-                      <span class="row-main">{m.name}</span>
-                      <span class="row-sub">{`${m.items.length} ${t('food.items')}`}</span>
-                    </button>
-                  </li>
+                  <ListRow key={m.id} main={m.name} sub={`${m.items.length} ${t('food.items')}`} onClick={() => setStep({ kind: 'meal', meal: m })} />
                 ))}
-              </ul>
+              </List>
             </section>
           ))}
-          {q && visible.length === 0 && <p class="muted">{t('food.noMatch')}</p>}
-          <button type="button" class="btn wide" onClick={() => setStep({ kind: 'custom' })}>
+          {q && visible.length === 0 && <p class="muted mt-3">{t('food.noMatch')}</p>}
+          <Button block class="mt-4" onClick={() => setStep({ kind: 'custom' })}>
             {q ? `${t('custom.create')} “${q}”` : t('custom.create')}
-          </button>
+          </Button>
           <div class="sticky-action">
-            <button type="button" class="btn primary wide" onClick={onClose}>{t('common.done')}</button>
+            <Button variant="primary" block onClick={onClose}>{t('common.done')}</Button>
           </div>
         </>
       )}
@@ -201,22 +197,20 @@ function FoodQuantity({ food, initial, slot, onBack, onLogged }: { food: FoodIte
   }, [food]);
   return (
     <>
-      <p class="muted">{[food.brand, food.group].filter(Boolean).join(' · ')}</p>
+      <p class="muted mb-3">{[food.brand, food.group].filter(Boolean).join(' · ')}</p>
       <QuantityForm food={food} initial={initial} submitLabel={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`} onSubmit={onLogged} />
-      <div class="actions">
-        <button type="button" class="btn" onClick={onBack}>{t('common.back')}</button>
+      <div class="cluster between mt-4">
+        <Button onClick={onBack}>{t('common.back')}</Button>
         {fav !== null && (
-          <button
-            type="button"
-            class="btn"
+          <Button
             aria-pressed={fav}
             onClick={async () => {
               await setFavorite(food, !fav);
               setFav(!fav);
             }}
           >
-            <span aria-hidden="true">{fav ? '★ ' : '☆ '}</span>{t('food.favorite')}
-          </button>
+            <Icon name="star" size="sm" filled={!!fav} />{t('food.favorite')}
+          </Button>
         )}
       </div>
     </>
@@ -227,19 +221,20 @@ function MealStep({ meal, slot, onBack, onAdd, onDelete }: { meal: SavedMeal; sl
   const total = roundForDisplay(sum(meal.items.map((i) => scale(i.food.per100g, quantityGrams(i.quantity, i.food.portions)))));
   return (
     <>
-      <ul class="list">
+      <List>
         {meal.items.map((i, n) => (
-          <li key={n} class="row static">
-            <span class="row-main">{i.food.name}</span>
-            <span class="row-sub">{quantityText(i.quantity)}</span>
-          </li>
+          <ListRow key={n} main={i.food.name} sub={quantityText(i.quantity)} />
         ))}
-      </ul>
-      {!settings.value.habitOnly && <p class="preview">{total.kcal} {t('unit.kcal')} · {t('macro.protein.short')} {fmt(total.protein)} g · {t('macro.carbs.short')} {fmt(total.carbs)} g · {t('macro.fat.short')} {fmt(total.fat)} g</p>}
-      <button type="button" class="btn primary wide" onClick={onAdd}>{`${t('meal.addAll')} ${t(`slot.${slot}` as Key)}`}</button>
-      <div class="actions">
-        <button type="button" class="btn" onClick={onBack}>{t('common.back')}</button>
-        <button type="button" class="btn" onClick={onDelete}>{t('meal.delete')}</button>
+      </List>
+      {!settings.value.habitOnly && (
+        <p class="t-caption mt-3">
+          {total.kcal} {t('unit.kcal')} · {t('macro.protein.short')} {fmt(total.protein)} g · {t('macro.carbs.short')} {fmt(total.carbs)} g · {t('macro.fat.short')} {fmt(total.fat)} g
+        </p>
+      )}
+      <Button variant="primary" block class="mt-4" onClick={onAdd}>{`${t('meal.addAll')} ${t(`slot.${slot}` as Key)}`}</Button>
+      <div class="cluster between mt-4">
+        <Button onClick={onBack}>{t('common.back')}</Button>
+        <Button onClick={onDelete}>{t('meal.delete')}</Button>
       </div>
     </>
   );

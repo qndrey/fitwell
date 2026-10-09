@@ -15,6 +15,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run contrast
+      - run: npm run tokens
       - run: npm run licenses
       - run: npm run build
       - run: npm run size

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Screen } from '../../components/Screen';
+import { BigNumber, Button, Card, Icon, LinkButton, List, ListRow, Screen, StatGrid } from '../../ui';
 import { addDays, formatDay, today } from '../../domain/dates';
 import { roundForDisplay } from '../../domain/nutrition';
 import { dayTotals, slotTotals } from '../../domain/totals';
@@ -43,24 +43,23 @@ export function Today() {
         extra: day !== todayStr && <button class="link-btn" onClick={() => go(todayStr)}>{t('today.jump')}</button>,
       }}
     >
-      <section class="card summary" aria-label={t('today.summary')}>
+      <Card label={t('today.summary')} compact>
         {habitOnly ? (
-          <p class="big">{entries.length === 0 ? t('today.noneYet') : `${totals.resolvedCount + totals.pendingCount} ${t('today.foodsLogged')}`}</p>
+          <p class="t-stat">{entries.length === 0 ? t('today.noneYet') : `${totals.resolvedCount + totals.pendingCount} ${t('today.foodsLogged')}`}</p>
         ) : (
-          <>
-            <p class="big">{rounded.kcal} <span class="unit">{t('unit.kcal')}</span></p>
-            <dl class="macros">
-              {([['protein', rounded.protein], ['carbs', rounded.carbs], ['fat', rounded.fat]] as const).map(([k, v]) => (
-                <div key={k}>
-                  <dd>{fmt(v)} g</dd>
-                  <dt>{t(`macro.${k}` as Key)}</dt>
-                </div>
-              ))}
-            </dl>
-          </>
+          <div class="stack gap-2">
+            <BigNumber value={rounded.kcal} unit={t('unit.kcal')} />
+            <StatGrid
+              items={[
+                { label: t('macro.protein'), value: `${fmt(rounded.protein)} g` },
+                { label: t('macro.carbs'), value: `${fmt(rounded.carbs)} g` },
+                { label: t('macro.fat'), value: `${fmt(rounded.fat)} g` },
+              ]}
+            />
+          </div>
         )}
-        {totals.pendingCount > 0 && <p class="muted">{`+${totals.pendingCount} ${t('today.pending')}`}</p>}
-      </section>
+        {totals.pendingCount > 0 && <p class="muted mt-2">{`+${totals.pendingCount} ${t('today.pending')}`}</p>}
+      </Card>
 
       <BackupReminder />
 
@@ -68,36 +67,33 @@ export function Today() {
         const list = entries.filter((e) => e.slot === slot);
         const st = roundForDisplay(slotTotals(entries, slot));
         return (
-          <section key={slot} class="slot" aria-labelledby={`slot-${slot}`}>
+          <section key={slot} class="slot stack gap-2" aria-labelledby={`slot-${slot}`}>
             <div class="slot-head">
               <h2 id={`slot-${slot}`}>{t(`slot.${slot}` as Key)}</h2>
-              {!habitOnly && list.length > 0 && <span class="muted slot-kcal">{st.kcal} {t('unit.kcal')}</span>}
-              <button class="btn small" onClick={() => setSheet({ kind: 'add', slot })} aria-label={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}>
-                + {t('common.add')}
-              </button>
+              {!habitOnly && list.length > 0 && <span class="t-caption">{st.kcal} {t('unit.kcal')}</span>}
+              <Button size="sm" onClick={() => setSheet({ kind: 'add', slot })} aria-label={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}>
+                <Icon name="plus" size="sm" />{t('common.add')}
+              </Button>
             </div>
             {list.length > 0 && (
-              <ul class="list">
+              <List>
                 {list.map((e) => (
-                  <li key={e.id}>
-                    <button class="row" onClick={() => setSheet({ kind: 'edit', entry: e })}>
-                      <span class="row-main">{e.food?.name ?? e.queryText}</span>
-                      <span class="row-sub">
-                        {quantityText(e.quantity)}
-                        {!habitOnly && e.nutrition ? ` · ${Math.round(e.nutrition.kcal)} ${t('unit.kcal')}` : ''}
-                      </span>
-                    </button>
-                  </li>
+                  <ListRow
+                    key={e.id}
+                    main={e.food?.name ?? e.queryText}
+                    sub={`${quantityText(e.quantity)}${!habitOnly && e.nutrition ? ` · ${Math.round(e.nutrition.kcal)} ${t('unit.kcal')}` : ''}`}
+                    onClick={() => setSheet({ kind: 'edit', entry: e })}
+                  />
                 ))}
-              </ul>
+              </List>
             )}
-            {list.length > 1 && <button class="link-btn" onClick={() => setSheet({ kind: 'saveMeal', entries: list })}>{t('meal.saveAs')}</button>}
+            {list.length > 1 && <LinkButton onClick={() => setSheet({ kind: 'saveMeal', entries: list })}>{t('meal.saveAs')}</LinkButton>}
           </section>
         );
       })}
 
       <div class="primary-bar">
-        <button class="btn primary wide" onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</button>
+        <Button variant="primary" size="lg" block onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</Button>
       </div>
 
       {sheet?.kind === 'add' && <AddFoodSheet day={day} initialSlot={sheet.slot} onClose={() => setSheet(null)} />}

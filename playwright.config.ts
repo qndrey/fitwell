@@ -16,7 +16,8 @@ export default defineConfig({
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
-  use: { baseURL: 'http://localhost:4173', trace: 'retain-on-failure' },
+  // reducedMotion: transitions off, so axe never samples a colour mid-fade.
+  use: { baseURL: 'http://localhost:4173', trace: 'retain-on-failure', reducedMotion: 'reduce' },
   projects,
   webServer: {
     command: 'npm run build && npm run preview -- --strictPort',

@@ -120,6 +120,8 @@ const en = {
   'count.favorites': 'favorites',
   'count.savedMeals': 'saved meals',
   'error.quota': "There isn't enough space left on this device to save that. Everything up to now is safe: save a backup, then free some space.",
+  'about.fonts': 'Typeface',
+  'about.fonts.text': 'Figtree, © The Figtree Project Authors, used under the SIL Open Font License 1.1. Served from this app, never from a font service.',
   'about.foodData': 'Food data',
   'about.foodData.note': 'Values are per 100 g, lab-analysed or calculated, and meant as a guide. The database also draws on other countries\' food tables. Unaltered apart from selection and rounding.',
   'today.empty': 'Nothing logged yet. Whatever you add today will show up here.',

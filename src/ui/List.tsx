@@ -1,0 +1,27 @@
+import type { ComponentChildren } from 'preact';
+
+export function List({ children, class: cls }: { children: ComponentChildren; class?: string }) {
+  return <ul class={['list', cls].filter(Boolean).join(' ')}>{children}</ul>;
+}
+
+/** A row: bold main line, muted sub line. Tappable when `onClick` is given, otherwise static. */
+export function ListRow({ main, sub, onClick }: { main: ComponentChildren; sub?: ComponentChildren; onClick?: () => void }) {
+  const inner = (
+    <>
+      <span class="row-main">{main}</span>
+      {sub ? <span class="row-sub">{sub}</span> : null}
+    </>
+  );
+  return onClick ? (
+    <li>
+      <button type="button" class="row" onClick={onClick}>{inner}</button>
+    </li>
+  ) : (
+    <li class="row static">{inner}</li>
+  );
+}
+
+/** Small uppercase heading above a list or group. */
+export function SectionTitle({ children }: { children: ComponentChildren }) {
+  return <h3 class="t-overline section-title">{children}</h3>;
+}

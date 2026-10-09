@@ -7,6 +7,7 @@ import { getStorageEstimate, requestPersistence } from '../../db/persistence';
 import { settings } from '../../state';
 import { t } from '../../i18n';
 import { showToast } from '../food/toast';
+import { Button, Card, Icon, Notice } from '../../ui';
 import { ImportSheet } from './ImportSheet';
 
 const MAX_BYTES = 200 * 1024 * 1024;
@@ -54,42 +55,41 @@ export function BackupSection() {
 
   const last = settings.value.lastBackupAt;
   return (
-    <section class="card" aria-labelledby="backup-h">
-      <h2 id="backup-h">{t('backup.title')}</h2>
-      <p class="muted">{t('backup.intro')}</p>
-      <dl class="facts">
-        <div><dt>{t('backup.last')}</dt><dd>{last ? new Date(last).toLocaleDateString(undefined, { dateStyle: 'medium' }) : t('backup.never')}</dd></div>
-        {storage && <div><dt>{t('backup.storage')}</dt><dd>{mb(storage.usage)}</dd></div>}
-        {persisted !== null && <div><dt>{t('backup.protected')}</dt><dd>{persisted ? t('backup.protected.yes') : t('backup.protected.no')}</dd></div>}
-      </dl>
-      <div class="stack">
-        <button
-          type="button"
-          class="btn primary wide"
+    <Card labelledBy="backup-h">
+      <div class="stack gap-3">
+        <h2 id="backup-h">{t('backup.title')}</h2>
+        <p class="muted">{t('backup.intro')}</p>
+        <dl class="facts">
+          <div><dt>{t('backup.last')}</dt><dd>{last ? new Date(last).toLocaleDateString(undefined, { dateStyle: 'medium' }) : t('backup.never')}</dd></div>
+          {storage && <div><dt>{t('backup.storage')}</dt><dd>{mb(storage.usage)}</dd></div>}
+          {persisted !== null && <div><dt>{t('backup.protected')}</dt><dd>{persisted ? t('backup.protected.yes') : t('backup.protected.no')}</dd></div>}
+        </dl>
+        <Button
+          variant="primary"
+          block
           onClick={async () => {
             const n = await saveBackupFile();
             showToast(`${t('backup.saved')} (${n})`);
           }}
         >
-          {t('backup.save')}
-        </button>
-        <button type="button" class="btn wide" onClick={() => fileInput.current?.click()}>{t('backup.restore')}</button>
+          <Icon name="download" size="sm" />{t('backup.save')}
+        </Button>
+        <Button block onClick={() => fileInput.current?.click()}><Icon name="upload" size="sm" />{t('backup.restore')}</Button>
         {persisted === false && (
-          <button
-            type="button"
-            class="btn wide"
+          <Button
+            block
             onClick={async () => {
               await requestPersistence();
               await refreshStorage();
             }}
           >
             {t('backup.protect')}
-          </button>
+          </Button>
         )}
+        <input ref={fileInput} type="file" accept="application/json,.json" class="sr-only" tabIndex={-1} aria-label={t('backup.restore')} onChange={(e) => void onFile(e)} />
+        {error && <Notice role="alert">{error}</Notice>}
       </div>
-      <input ref={fileInput} type="file" accept="application/json,.json" class="sr-only" tabIndex={-1} aria-label={t('backup.restore')} onChange={(e) => void onFile(e)} />
-      {error && <p class="notice" role="alert">{error}</p>}
       {pending && <ImportSheet backup={pending.backup} current={pending.current} onClose={() => setPending(null)} />}
-    </section>
+    </Card>
   );
 }

@@ -13,6 +13,7 @@ Normative words: **MUST**, **SHOULD**, **MAY** (RFC 2119).
 | 2026-10-09 | Frida has 1,381 usable foods (USDA was ~7,500), ~28 KB gzip. **No Web Worker or prebuilt index**: a linear scan with ranking takes well under 15 ms. | Simpler; NFR-6 met by a wide margin. Revisit if the dataset grows past ~10k foods. |
 | 2026-10-09 | Bundled foods have **no portion sizes** (Frida has none); they are logged in grams. Custom foods can define a serving. | Not inventing portion weights. A curated common-portions table is a candidate follow-up. |
 | 2026-10-09 | `dailyAggregates` store is **deferred to Gate 6**; Today computes totals from the day's entries. | Not needed for one day; built with its rebuild test where charts need it. |
+| 2026-10-09 | Design system added (Figtree self-hosted, token files, `src/ui`, Lucide icons, live style guide). Initial JS budget now measured over `index-*` + `ui-*` chunks. | Consistency before more screens. |
 | 2026-10-09 | Attribution (CC BY 4.0 citation) is shown in Settings from Gate 1; the full About screen stays in Gate 7. | CC BY requires attribution as soon as data ships. |
 
 Where this document or PLAN.md says "USDA", read "Frida" for the bundled food dataset (the USDA licence row is superseded by the table in §11 below).
@@ -54,6 +55,7 @@ Where this document or PLAN.md says "USDA", read "Frida" for the bundled food da
 | NFR-10 | Data durability: no write acknowledged to the user unless the IDB transaction committed | Repo tests; QuotaExceeded test |
 | NFR-11 | Tone: no red/green semantic colors on weight/measurement/calorie deltas; no shaming copy | Copy checklist + token lint (forbids `--danger` usage outside destructive confirmations) |
 | NFR-13 | **Mobile-first**, verified at 320×640 touch in `tests/e2e/mobile.spec.ts` on every phase: no horizontal scroll on any screen; interactive targets ≥ 44 px; the primary action is pinned in the bottom thumb zone and never hides content; sheets keep a stable height (pinned search, scrolling results, bottom action) so the on-screen keyboard never causes jumps; common entries (quantities) need no keyboard; inputs ≥ 16 px (no iOS zoom). Larger screens only add (sidebar nav at ≥ 840 px, centred sheet at ≥ 600 px). | Playwright mobile project + manual device check each gate |
+| NFR-14 | **Design system**: all UI built from tokens/components in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md); no raw colours/lengths in component CSS; contrast + colour-blind palette checks; style guide at `/#/design` passes axe in both themes. | `npm run contrast`, `npm run tokens`, `tests/e2e/design.spec.ts` |
 | NFR-12 | Browser support: last 2 versions of Chrome, Safari (iOS 16.4+), Firefox, Edge | Playwright projects: Chromium, WebKit, Firefox |
 
 ---

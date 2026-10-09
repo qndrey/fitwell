@@ -1,0 +1,66 @@
+/* App frame: phone first (bottom tab bar, one column); wider screens add a sidebar. */
+.skip-link {
+  position: absolute; left: var(--space-3); top: -100px; z-index: var(--z-skip);
+  display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 var(--space-4);
+  background: var(--accent); color: var(--on-accent); border-radius: var(--radius-s);
+}
+.skip-link:focus { top: var(--space-3); }
+
+.shell { display: flex; flex-direction: column; min-height: 100dvh; }
+main {
+  flex: 1; display: flex; flex-direction: column; width: 100%; max-width: var(--content-w); margin: 0 auto;
+  padding: var(--gutter) var(--gutter) calc(var(--tabbar-h) + var(--gutter) + env(safe-area-inset-bottom));
+}
+/* Every screen's content: one column with a consistent rhythm */
+.page { display: flex; flex-direction: column; flex: 1; gap: var(--space-4); }
+
+.tabbar {
+  position: fixed; inset: auto 0 0 0; z-index: var(--z-tabbar); display: flex;
+  background: var(--surface); border-top: var(--border-w) solid var(--divider);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tabbar a {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); min-height: var(--tabbar-h);
+  color: var(--text-muted); text-decoration: none; font-size: var(--text-sm); font-weight: var(--weight-medium);
+  border-top: 3px solid transparent;
+}
+.tabbar a[aria-current='page'] { color: var(--text); border-top-color: var(--accent); font-weight: var(--weight-bold); }
+
+/* Screen header; with `nav` it becomes a day bar (‹ title ›) */
+.screen-title h1 { margin: 0; }
+.screen-title p { font-size: var(--text-sm); }
+.daybar { display: flex; align-items: center; gap: var(--space-2); }
+main > header { margin-bottom: var(--space-4); }
+.daybar .screen-title { flex: 1; min-width: 0; text-align: center; }
+
+/* The one primary action, pinned in the thumb zone above the tab bar. Taps pass through everywhere but the button. */
+.primary-bar {
+  position: sticky; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-3));
+  margin-top: auto; padding-top: var(--space-2); z-index: var(--z-primary); pointer-events: none;
+}
+.primary-bar .btn { pointer-events: auto; }
+
+.toast-region { position: fixed; left: var(--gutter); right: var(--gutter); bottom: calc(var(--tabbar-h) + var(--space-4) + env(safe-area-inset-bottom)); z-index: var(--z-toast); pointer-events: none; }
+.toast-region .toast { pointer-events: auto; }
+
+@media (min-width: 840px) {
+  .shell { flex-direction: row; }
+  .tabbar {
+    position: sticky; top: 0; inset: 0 auto auto 0; height: 100dvh; width: var(--sidebar-w); flex-direction: column;
+    justify-content: flex-start; gap: var(--space-1); padding: var(--space-5) var(--space-3);
+    border-top: 0; border-right: var(--border-w) solid var(--divider);
+  }
+  .tabbar a { flex: 0 0 auto; flex-direction: row; gap: var(--space-3); justify-content: flex-start; padding: 0 var(--space-4); border-top: 0; border-left: 3px solid transparent; border-radius: var(--radius-s); }
+  .tabbar a[aria-current='page'] { border-left-color: var(--accent); background: var(--surface-2); }
+  main { padding-bottom: var(--space-6); }
+  .primary-bar { bottom: var(--space-4); }
+  .toast-region { bottom: var(--space-4); }
+}
+
+/* ---- Screen-specific compositions (built from the components above) ---- */
+.slot-head { display: flex; align-items: center; gap: var(--space-3); min-height: var(--tap); }
+.slot-head h2 { flex: 1; }
+.quick { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.quick .btn { min-width: 3.5rem; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.plain > li { padding: var(--space-1) 0; }

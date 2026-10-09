@@ -37,7 +37,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,json,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,json,webmanifest,woff2}'],
+        // The style guide is reachable by URL only; no need to cache it for offline use.
+        globIgnores: ['**/Design-*'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
         skipWaiting: false,
@@ -46,5 +48,6 @@ export default defineConfig({
     }),
   ],
   preview: { headers: SECURITY_HEADERS },
-  build: { target: 'es2022', sourcemap: false },
+  // Fonts must stay separate files: the CSP allows font-src 'self' but not data: URIs.
+  build: { target: 'es2022', sourcemap: false, assetsInlineLimit: 0 },
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
+import { Card, Choice, Fieldset, Screen } from '../../ui';
 import { BackupSection } from './BackupSection';
-import { Screen } from '../../components/Screen';
 import { settings, updateSettings } from '../../state';
 import type { ThemePreference } from '../../db/schema';
 import { t, type Key } from '../../i18n';
@@ -15,47 +15,48 @@ export function Settings() {
   }, []);
   return (
     <Screen title={t('nav.settings')}>
-      <div class="card">
-        <fieldset>
-          <legend>{t('settings.theme')}</legend>
+      <Card>
+        <Fieldset legend={t('settings.theme')}>
           {THEMES.map((th) => (
-            <label class="choice" key={th}>
-              <input
-                type="radio"
-                name="theme"
-                value={th}
-                checked={settings.value.theme === th}
-                onChange={() => void updateSettings({ theme: th })}
-              />
-              {t(`settings.theme.${th}` as Key)}
-            </label>
+            <Choice
+              key={th}
+              type="radio"
+              name="theme"
+              checked={settings.value.theme === th}
+              onChange={() => void updateSettings({ theme: th })}
+              label={t(`settings.theme.${th}` as Key)}
+            />
           ))}
-        </fieldset>
-      </div>
-      <div class="card">
-        <label class="choice">
-          <input
-            type="checkbox"
-            checked={settings.value.habitOnly}
-            onChange={(e) => void updateSettings({ habitOnly: (e.target as HTMLInputElement).checked })}
-          />
-          <span>
-            {t('settings.habitOnly')}
-            <span class="muted block">{t('settings.habitOnly.help')}</span>
-          </span>
-        </label>
-      </div>
+        </Fieldset>
+      </Card>
+      <Card>
+        <Choice
+          type="checkbox"
+          checked={settings.value.habitOnly}
+          onChange={(on) => void updateSettings({ habitOnly: on })}
+          label={t('settings.habitOnly')}
+          help={t('settings.habitOnly.help')}
+        />
+      </Card>
       <BackupSection />
       <p class="muted">{t('settings.privacy')}</p>
+      <Card labelledBy="fonts-h">
+        <div class="stack gap-2">
+          <h2 id="fonts-h">{t('about.fonts')}</h2>
+          <p class="t-caption">{t('about.fonts.text')}</p>
+        </div>
+      </Card>
       {info && (
-        <section class="card" aria-labelledby="sources-h">
-          <h2 id="sources-h">{t('about.foodData')}</h2>
-          <p>
-            {info.attribution}{' '}
-            <a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer noopener">{info.license}</a>.
-          </p>
-          <p class="muted">{t('about.foodData.note')}</p>
-        </section>
+        <Card labelledBy="sources-h">
+          <div class="stack gap-2">
+            <h2 id="sources-h">{t('about.foodData')}</h2>
+            <p>
+              {info.attribution}{' '}
+              <a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer noopener">{info.license}</a>.
+            </p>
+            <p class="t-caption">{t('about.foodData.note')}</p>
+          </div>
+        </Card>
       )}
     </Screen>
   );

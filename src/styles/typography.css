@@ -1,0 +1,26 @@
+/* Type roles. Use the role that matches the *meaning*, not the size.
+   Figtree variable (self-hosted, OFL) with tabular figures for every number. */
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+}
+
+h1, .t-title { font-size: var(--text-xl); font-weight: var(--weight-bold); line-height: var(--lh-tight); }
+h2, .t-heading { font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--lh-snug); }
+h3, .t-subheading { font-size: var(--text-md); font-weight: var(--weight-semibold); line-height: var(--lh-snug); }
+p { overflow-wrap: anywhere; }
+
+.t-display { font-size: var(--text-3xl); font-weight: var(--weight-bold); line-height: var(--lh-tight); }
+.t-stat { font-size: var(--text-2xl); font-weight: var(--weight-bold); line-height: var(--lh-tight); }
+.t-body { font-size: var(--text-md); line-height: var(--lh-body); }
+.t-label { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.t-caption { font-size: var(--text-sm); color: var(--text-muted); }
+.t-overline { font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: var(--track-caps); text-transform: uppercase; color: var(--text-muted); }
+.t-unit { font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--text-muted); }
+
+a { color: var(--accent); text-underline-offset: 0.2em; }
+.muted { color: var(--text-muted); }

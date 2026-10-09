@@ -1,0 +1,14 @@
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; background: var(--bg); color: var(--text); min-height: 100dvh; }
+button, a, label, select, summary { touch-action: manipulation; }
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, p, ul, dl, dd, fieldset, figure { margin: 0; padding: 0; }
+ul { list-style: none; }
+fieldset { border: 0; min-width: 0; }
+:focus-visible { outline: var(--ring-w) solid var(--focus); outline-offset: 2px; }
+main:focus, h1:focus { outline: none; }
+body:has(dialog[open]) { overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
 test('logs foods from the bundled database and shows totals', async ({ page }) => {
   await addFood(page, 'banana', /^Banana, raw/, '120');
   const dialog = page.getByRole('dialog');
-  await expect(dialog.locator('.added')).toHaveText('✓ Added: Banana, raw');
+  await expect(dialog.locator('.added')).toHaveText('Added: Banana, raw');
   await dialog.getByRole('button', { name: 'Done' }).click();
 
   const main = page.locator('main');

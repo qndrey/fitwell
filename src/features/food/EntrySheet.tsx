@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Sheet } from '../../components/Sheet';
 import { favoritesRepo, favoriteId } from '../../db/foodStore';
 import type { FoodEntry, Slot } from '../../db/schema';
+import { Button, Icon, Sheet } from '../../ui';
 import { t } from '../../i18n';
 import { changeEntry, deleteEntry, setFavorite } from './actions';
 import { QuantityForm } from './QuantityForm';
@@ -17,41 +17,38 @@ export function EntrySheet({ entry, onClose }: { entry: FoodEntry; onClose: () =
   if (!food) return null; // unresolved entries get their own review flow later
 
   return (
-    <Sheet title={food.name} onClose={onClose}>
-      <SlotPicker value={slot} onChange={setSlot} name="edit-slot" />
-      <QuantityForm
-        food={food}
-        initial={entry.quantity}
-        submitLabel={t('common.save')}
-        onSubmit={async (quantity) => {
-          await changeEntry(entry, { slot, quantity });
-          onClose();
-        }}
-      />
-      <div class="actions">
+    <Sheet title={food.name} onClose={onClose} pinned={<SlotPicker value={slot} onChange={setSlot} name="edit-slot" />}>
+      <div class="mt-3">
+        <QuantityForm
+          food={food}
+          initial={entry.quantity}
+          submitLabel={t('common.save')}
+          onSubmit={async (quantity) => {
+            await changeEntry(entry, { slot, quantity });
+            onClose();
+          }}
+        />
+      </div>
+      <div class="cluster between mt-4">
         {fav !== null && (
-          <button
-            type="button"
-            class="btn"
+          <Button
             aria-pressed={fav}
             onClick={async () => {
               await setFavorite(food, !fav);
               setFav(!fav);
             }}
           >
-            <span aria-hidden="true">{fav ? '★ ' : '☆ '}</span>{t('food.favorite')}
-          </button>
+            <Icon name="star" size="sm" filled={!!fav} />{t('food.favorite')}
+          </Button>
         )}
-        <button
-          type="button"
-          class="btn"
+        <Button
           onClick={async () => {
             await deleteEntry(entry);
             onClose();
           }}
         >
-          {t('food.remove')}
-        </button>
+          <Icon name="trash" size="sm" />{t('food.remove')}
+        </Button>
       </div>
     </Sheet>
   );

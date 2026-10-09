@@ -11,11 +11,22 @@ import { App } from './app';
 import { initState } from './state';
 import { registerServiceWorker } from './pwa/register';
 import { startQueue } from './queue';
+import { DELETED_FLAG } from './db/deleteAll';
+import { showToast } from './features/food/toast';
+import { t } from './i18n';
 import { watchBody } from './features/body/store';
 import { ensureMeasurementTypes } from './db/bodyStore';
 import { watchUnresolved } from './features/review/store';
 
 await initState();
+try {
+  if (sessionStorage.getItem(DELETED_FLAG)) {
+    sessionStorage.removeItem(DELETED_FLAG);
+    showToast(t('delete.done'), undefined, 8000);
+  }
+} catch {
+  /* storage may be blocked */
+}
 render(<App />, document.getElementById('app')!);
 watchUnresolved();
 void ensureMeasurementTypes().then(watchBody).catch(() => undefined);

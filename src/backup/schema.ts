@@ -117,6 +117,7 @@ const settings = v.object({
   lastBackupAt: v.optional(num),
   backupReminderDismissedAt: v.optional(num),
   measurementReminderDismissedAt: v.optional(num),
+  installHintDismissedAt: v.optional(num),
   updatedAt: num,
 });
 const goals = v.object({

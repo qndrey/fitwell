@@ -198,3 +198,6 @@
 .cal-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: var(--text-sm); color: var(--text-muted); }
 .cal-legend li { display: inline-flex; align-items: center; gap: var(--space-1); }
 .cal-pending-key { display: inline-block; width: 0.75rem; height: 0.75rem; border: var(--border-w-strong) dashed var(--border); border-radius: var(--radius-s); }
+
+/* ---- About ---- */
+.licence { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-sm); color: var(--text-muted); background: var(--surface-2); border-radius: var(--radius-s); padding: var(--space-3); margin-top: var(--space-2); max-height: 20rem; overflow: auto; }

@@ -5,7 +5,7 @@ import { roundForDisplay } from '../../domain/nutrition';
 import { dayTotals, slotTotals } from '../../domain/totals';
 import { SLOTS, type FoodEntry, type Slot } from '../../db/schema';
 import { routeDay } from '../../router';
-import { settings } from '../../state';
+import { goals, settings } from '../../state';
 import { t, type Key } from '../../i18n';
 import { dayEntries, watchDay } from '../food/dayState';
 import { displayDistance, distanceUnit } from '../../domain/units';
@@ -13,6 +13,8 @@ import { AddFoodSheet } from '../food/AddFoodSheet';
 import { EntrySheet } from '../food/EntrySheet';
 import { BackupReminder } from './BackupReminder';
 import { BodyCard } from '../body/BodyCard';
+import { InstallHint } from './InstallHint';
+import { WeekGoal } from './WeekGoal';
 import { AddWorkoutSheet } from '../workout/AddWorkoutSheet';
 import { CardioSheet } from '../workout/CardioSheet';
 import { dayWorkouts, watchWorkouts } from '../workout/dayState';
@@ -40,6 +42,9 @@ export function Today() {
   const totals = dayTotals(entries);
   const rounded = roundForDisplay(totals);
   const toConfirm = toConfirmCount();
+  const g = goals.value;
+  const hasTargets = [g.kcal, g.proteinG, g.carbsG, g.fatG].some((v) => v !== undefined);
+  const targetsText = [g.kcal !== undefined ? `${fmt(g.kcal)} ${t('unit.kcal')}` : '', g.proteinG !== undefined ? `${t('macro.protein.short')} ${fmt(g.proteinG)} g` : '', g.carbsG !== undefined ? `${t('macro.carbs.short')} ${fmt(g.carbsG)} g` : '', g.fatG !== undefined ? `${t('macro.fat.short')} ${fmt(g.fatG)} g` : ''].filter(Boolean).join(' · ');
 
   const title = day === todayStr ? t('nav.today') : day === addDays(todayStr, -1) ? t('today.yesterday') : day === addDays(todayStr, 1) ? t('today.tomorrow') : formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -70,6 +75,7 @@ export function Today() {
             />
           </div>
         )}
+        {!habitOnly && hasTargets && <p class="t-caption mt-2">{targetsText}</p>}
         {totals.pendingCount > 0 && <p class="muted mt-2">{`+${totals.pendingCount} ${t('today.pending')}`}</p>}
       </Card>
 
@@ -85,6 +91,7 @@ export function Today() {
       )}
 
       <BackupReminder />
+      <InstallHint />
 
       {SLOTS.map((slot) => {
         const list = entries.filter((e) => e.slot === slot);
@@ -132,6 +139,7 @@ export function Today() {
             <Icon name="plus" size="sm" />{t('common.add')}
           </Button>
         </div>
+        <WeekGoal day={day} />
         {workouts.length > 0 && (
           <List>
             {workouts.map((w) => {

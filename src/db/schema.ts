@@ -26,6 +26,7 @@ export interface Settings {
   backupReminderDays: number;
   lastBackupAt?: number;
   measurementReminderDismissedAt?: number;
+  installHintDismissedAt?: number;
   backupReminderDismissedAt?: number;
   updatedAt: number;
 }

@@ -275,6 +275,43 @@ const en = {
   'history.legend.workout': 'Workout',
   'history.legend.body': 'Weight or measurements',
   'history.legend.pending': 'Something to confirm',
+  'about.title': 'About Fitwell',
+  'about.back': 'Back to settings',
+  'about.open': 'About and data sources',
+  'about.open.help': 'Privacy, where the data comes from, and the licences.',
+  'about.privacy.title': 'Your data stays with you',
+  'about.privacy.1': 'Everything you log lives on this device. There are no accounts, no analytics, no ads and no tracking.',
+  'about.privacy.2': 'Fitwell only goes online when you ask it to look up a food (Search online or scanning a barcode), or when a food you logged without nutrition is waiting for a lookup. Only the words you typed, or the barcode digits, are sent, to Open Food Facts. You can switch this off in Settings.',
+  'about.privacy.3': 'Because nothing is stored elsewhere, clearing your browser data erases your history. Save a backup file now and then.',
+  'about.data': 'Where the data comes from',
+  'about.frida.use': 'The built-in food list (nutrition per 100 g).',
+  'about.frida.note': 'Values are lab-analysed or calculated and meant as a guide; the database also draws on other countries’ food tables.',
+  'about.ex.use': 'The exercise library (names, muscles, equipment and how-to text; no images).',
+  'about.ex.text': 'Exercises from free-exercise-db, released into the public domain.',
+  'about.software': 'Built with',
+  'about.software.help': 'Open-source software that ships inside Fitwell, with the licence text each one asks us to include.',
+  'about.licenceText': 'Licence text',
+  'goals.title': 'Goals',
+  'goals.help': 'All optional. They show up as a gentle reference line or caption, never as a limit or a score.',
+  'goals.workouts': 'Workouts per week',
+  'goals.kcal': 'Daily calories',
+  'goals.error': 'Enter a whole or decimal number up to {max}, or leave it empty.',
+  'goals.target': 'Target',
+  'goals.thisWeek': 'This week',
+  'goals.targets': 'Your targets',
+  'delete.title': 'Delete all my data',
+  'delete.help': 'Removes everything Fitwell keeps on this device: entries, workouts, weight, measurements, settings and saved foods.',
+  'delete.open': 'Delete all data…',
+  'delete.explain': 'This cannot be undone. Everything on this device will be erased, and Fitwell starts fresh. Your backup files are not touched. Saving a backup first is a good idea.',
+  'delete.word': 'delete',
+  'delete.type': 'Type “{word}” to confirm',
+  'delete.confirm': 'Delete everything',
+  'delete.failed': 'Fitwell could not delete everything. If it is open in another tab, close that tab and try again.',
+  'delete.done': 'All data deleted. You are starting fresh.',
+  'install.title': 'Add Fitwell to your Home Screen',
+  'install.ios': 'On iPhone and iPad, tap the Share button, then “Add to Home Screen”. It opens like an app, works offline, and your history is less likely to be cleaned up by the browser.',
+  'install.android': 'Install Fitwell for quick access. It opens like an app and works offline.',
+  'install.button': 'Install',
   'common.close': 'Close',
   'common.add': 'Add',
   'common.back': 'Back',
@@ -377,7 +414,7 @@ const en = {
   'restore.confirm.yes': 'Yes, replace',
   'restore.backupFirst': 'Save a copy of current data first',
   'restore.done': 'Backup restored.',
-  'restore.failed': 'Something went wrong while restoring. Nothing was changed.',
+  'restore.failed': "Restoring didn't finish, and nothing was changed. You can try again.",
   'restore.err.notJson': "That file couldn't be read as a Fitwell backup.",
   'restore.err.notFitwell': "That file isn't a Fitwell backup.",
   'restore.err.newer': 'This backup was made with a newer version of Fitwell. Update the app, then try again.',
@@ -416,6 +453,9 @@ const en = {
 } as const;
 
 export type Key = keyof typeof en;
+
+/** All strings, for tests (copy checks). */
+export const messages: Readonly<Record<string, string>> = en;
 
 export function t(key: Key): string {
   return en[key];

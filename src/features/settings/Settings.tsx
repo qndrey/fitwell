@@ -1,21 +1,20 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Button, Card, Choice, Field, Fieldset, Screen, Segmented, TextInput } from '../../ui';
+import { Button, Card, Choice, Field, Fieldset, Icon, Screen, Segmented, TextInput } from '../../ui';
 import { parseAmount } from '../../domain/nutrition';
 import { displayWeight, toKg, weightUnit, type UnitSystem } from '../../domain/units';
 import { BackupSection } from './BackupSection';
+import { DeleteAllSheet } from './DeleteAllSheet';
+import { GoalsCard } from './GoalsCard';
+import { InstallCard } from './InstallCard';
 import { goals, settings, updateGoals, updateSettings } from '../../state';
 import { ManageMeasurements } from '../body/ManageMeasurements';
 import type { ThemePreference } from '../../db/schema';
 import { t, type Key } from '../../i18n';
-import { loadBundledFoods, type DatasetInfo } from '../../data/bundledFoods';
 
 const THEMES: ThemePreference[] = ['system', 'light', 'dark'];
 
 export function Settings() {
-  const [info, setInfo] = useState<DatasetInfo | null>(null);
-  useEffect(() => {
-    void loadBundledFoods().then((d) => setInfo(d.info));
-  }, []);
+  const [deleting, setDeleting] = useState(false);
   return (
     <Screen title={t('nav.settings')}>
       <Card>
@@ -44,64 +43,41 @@ export function Settings() {
           <WeightField />
         </div>
       </Card>
+      <GoalsCard />
       <BodyTrackingCard />
       <Card>
-        <Choice
-          type="checkbox"
-          checked={settings.value.habitOnly}
-          onChange={(on) => void updateSettings({ habitOnly: on })}
-          label={t('settings.habitOnly')}
-          help={t('settings.habitOnly.help')}
-        />
+        <div class="stack gap-3">
+          <Choice
+            type="checkbox"
+            checked={settings.value.habitOnly}
+            onChange={(on) => void updateSettings({ habitOnly: on })}
+            label={t('settings.habitOnly')}
+            help={t('settings.habitOnly.help')}
+          />
+          <Choice
+            type="checkbox"
+            checked={settings.value.onlineLookup}
+            onChange={(on) => void updateSettings({ onlineLookup: on })}
+            label={t('settings.online')}
+            help={t('settings.online.help')}
+          />
+        </div>
       </Card>
-      <Card>
-        <Choice
-          type="checkbox"
-          checked={settings.value.onlineLookup}
-          onChange={(on) => void updateSettings({ onlineLookup: on })}
-          label={t('settings.online')}
-          help={t('settings.online.help')}
-        />
-      </Card>
+      <InstallCard />
       <BackupSection />
-      <p class="muted">{t('settings.privacy')}</p>
-      <Card labelledBy="ex-h">
-        <div class="stack gap-2">
-          <h2 id="ex-h">{t('workout.title')}</h2>
-          <p class="t-caption">{t('about.exercises')}</p>
+      <Card labelledBy="delete-h">
+        <div class="stack gap-3">
+          <h2 id="delete-h">{t('delete.title')}</h2>
+          <p class="t-caption">{t('delete.help')}</p>
+          <Button block variant="danger" onClick={() => setDeleting(true)}><Icon name="trash" size="sm" />{t('delete.open')}</Button>
         </div>
+        {deleting && <DeleteAllSheet onClose={() => setDeleting(false)} />}
       </Card>
-      <Card labelledBy="scan-h">
-        <div class="stack gap-2">
-          <h2 id="scan-h">{t('scan.title')}</h2>
-          <p class="t-caption">{t('about.scan')}</p>
-        </div>
-      </Card>
-      <Card labelledBy="fonts-h">
-        <div class="stack gap-2">
-          <h2 id="fonts-h">{t('about.fonts')}</h2>
-          <p class="t-caption">{t('about.fonts.text')}</p>
-        </div>
-      </Card>
-      {info && (
-        <Card labelledBy="sources-h">
-          <div class="stack gap-2">
-            <h2 id="sources-h">{t('about.foodData')}</h2>
-            <p>
-              {info.attribution}{' '}
-              <a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer noopener">{info.license}</a>.
-            </p>
-            <p class="t-caption">{t('about.foodData.note')}</p>
-          </div>
-        </Card>
-      )}
-      <Card labelledBy="off-h">
-        <div class="stack gap-2">
-          <h2 id="off-h">Open Food Facts</h2>
-          <p>{t('about.off')}</p>
-          <p class="t-caption">
-            <a href="https://world.openfoodfacts.org/legal" rel="noreferrer noopener">{t('about.off.licence')}</a>
-          </p>
+      <Card labelledBy="about-h">
+        <div class="stack gap-3">
+          <h2 id="about-h">{t('about.title')}</h2>
+          <p class="t-caption">{t('about.open.help')}</p>
+          <Button block onClick={() => (location.hash = '#/about')}>{t('about.open')}</Button>
         </div>
       </Card>
     </Screen>

@@ -31,11 +31,16 @@ export function Sheet({
   const num = useRef(counter);
   useEffect(() => {
     const d = ref.current;
+    // Remember what had focus so it can go back there: the sheet is removed from the page, which loses the browser's own restore.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (d && !d.open) d.showModal();
     sheetStack.value = [...sheetStack.value, num.current];
     return () => {
       sheetStack.value = sheetStack.value.filter((n) => n !== num.current);
       if (d?.open) d.close();
+      requestAnimationFrame(() => {
+        if (opener?.isConnected && !document.querySelector('dialog[open]')) opener.focus();
+      });
     };
   }, []);
   return (

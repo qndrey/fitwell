@@ -93,3 +93,12 @@ test('has an installable manifest', async ({ page }) => {
   expect(manifest.icons.some((i: { sizes: string }) => i.sizes === '512x512')).toBe(true);
   expect(manifest.icons.some((i: { purpose?: string }) => i.purpose === 'maskable')).toBe(true);
 });
+
+test('Chrome considers the app installable (no installability errors)', async ({ page, context, browserName }) => {
+  test.skip(browserName !== 'chromium', 'uses the Chrome DevTools protocol');
+  await page.goto('/');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  const cdp = await context.newCDPSession(page);
+  const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');
+  expect(installabilityErrors.map((e) => e.errorId)).toEqual([]);
+});

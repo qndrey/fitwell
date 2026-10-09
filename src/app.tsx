@@ -11,6 +11,13 @@ import { Review } from './features/review/Review';
 import { StrengthPage } from './features/workout/StrengthPage';
 import { t } from './i18n';
 
+/** The About screen carries every licence text, so it loads only when opened. */
+function LazyAbout() {
+  const [C, setC] = useState<ComponentType | null>(null);
+  useEffect(() => void import('./features/about/About').then((m) => setC(() => m.About)), []);
+  return C ? <C /> : null;
+}
+
 /** Charts load only when Progress is opened. */
 function LazyProgress() {
   const [C, setC] = useState<ComponentType | null>(null);
@@ -28,7 +35,7 @@ function LazyDesign() {
 }
 
 export function App() {
-  const Current = route.value === 'design' ? LazyDesign : route.value === 'review' ? Review : route.value === 'workout' ? StrengthPage : SCREENS[route.value];
+  const Current = route.value === 'design' ? LazyDesign : route.value === 'review' ? Review : route.value === 'workout' ? StrengthPage : route.value === 'about' ? LazyAbout : SCREENS[route.value];
   return (
     <>
       <a

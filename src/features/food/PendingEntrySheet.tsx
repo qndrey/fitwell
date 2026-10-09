@@ -5,6 +5,7 @@ import { Button, Icon, Sheet } from '../../ui';
 import { t } from '../../i18n';
 import { deleteEntry, editUnresolved, retryLookup } from './actions';
 import { PendingForm } from './PendingForm';
+import { entryLabel } from './format';
 
 export function pendingStatus(e: FoodEntry): string {
   if (e.state !== 'pending') return '';
@@ -16,7 +17,7 @@ export function pendingStatus(e: FoodEntry): string {
 /** Edit what was typed, look it up now, or remove it. */
 export function PendingEntrySheet({ entry, onClose }: { entry: FoodEntry; onClose: () => void }) {
   return (
-    <Sheet title={entry.queryText ?? ''} onClose={onClose}>
+    <Sheet title={entryLabel(entry)} onClose={onClose}>
       <p class="t-caption mb-3" role="status">{pendingStatus(entry)}</p>
       <PendingForm
         initialText={entry.queryText ?? ''}

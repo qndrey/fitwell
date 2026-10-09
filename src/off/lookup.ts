@@ -1,5 +1,6 @@
 import type { Candidate } from '../db/schema';
 import { normalizeQuery } from '../queue/machine';
+import { looksLikeBarcode, normalizeBarcode } from '../scan/ean';
 import type { OffClient } from './client';
 import type { Priority } from './rateLimiter';
 
@@ -28,13 +29,15 @@ export function createLookup(deps: { client: OffClient; cache: LookupCache; now?
 
   return {
     async search(term: string, priority: Priority = 'background'): Promise<Candidate[]> {
-      const key = normalizeQuery(term);
+      // Digits that are a valid barcode go to the exact product lookup; everything else is a text search.
+      const barcode = looksLikeBarcode(term) ? normalizeBarcode(term) : null;
+      const key = barcode ? `barcode:${barcode}` : normalizeQuery(term);
       const hit = await deps.cache.get(key);
       if (hit && now() - hit.fetchedAt < (hit.candidates.length ? TTL_MS : EMPTY_TTL_MS)) return hit.candidates;
       let p = inflight.get(key);
       if (!p) {
-        p = deps.client
-          .search(key, priority)
+        const request = barcode ? deps.client.product(barcode, priority).then((c) => (c ? [c] : [])) : deps.client.search(key, priority);
+        p = request
           .then(async (candidates) => {
             await deps.cache.put({ key, fetchedAt: now(), candidates });
             return candidates;

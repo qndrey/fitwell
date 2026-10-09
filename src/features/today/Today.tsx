@@ -14,7 +14,7 @@ import { BackupReminder } from './BackupReminder';
 import { PendingEntrySheet, pendingStatus } from '../food/PendingEntrySheet';
 import { toConfirmCount } from '../review/store';
 import { SaveMealSheet } from '../food/SaveMealSheet';
-import { defaultSlot, fmt, quantityText } from '../food/format';
+import { defaultSlot, entryLabel, fmt, quantityText } from '../food/format';
 
 type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
 
@@ -92,7 +92,7 @@ export function Today() {
                 {list.map((e) => (
                   <ListRow
                     key={e.id}
-                    main={e.food?.name ?? e.queryText}
+                    main={entryLabel(e)}
                     sub={
                       e.state === 'resolved' ? (
                         `${quantityText(e.quantity)}${!habitOnly && e.nutrition ? ` · ${Math.round(e.nutrition.kcal)} ${t('unit.kcal')}` : ''}${e.manual ? ` · ${t('manual.badge')}` : ''}`

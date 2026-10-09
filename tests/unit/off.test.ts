@@ -148,7 +148,7 @@ describe('lookup cache + de-duplication', () => {
   it('three identical lookups at once make one request; the next one comes from the cache', async () => {
     const search = vi.fn(async () => [cand]);
     const { cache } = store();
-    const lookup = createLookup({ client: { search }, cache });
+    const lookup = createLookup({ client: { search, product: async () => null }, cache });
     const [a, b, c] = await Promise.all([lookup.search('Oat  Milk'), lookup.search('oat milk'), lookup.search(' OAT MILK ')]);
     expect([a, b, c].every((r) => r.length === 1)).toBe(true);
     await lookup.search('oat milk');
@@ -160,7 +160,7 @@ describe('lookup cache + de-duplication', () => {
     let t = 0;
     const search = vi.fn(async () => [cand]);
     const empty = vi.fn(async () => []);
-    const l1 = createLookup({ client: { search }, cache: store().cache, now: () => t });
+    const l1 = createLookup({ client: { search, product: async () => null }, cache: store().cache, now: () => t });
     await l1.search('a');
     t = TTL_MS - 1;
     await l1.search('a');
@@ -170,7 +170,7 @@ describe('lookup cache + de-duplication', () => {
     expect(search).toHaveBeenCalledTimes(2);
 
     t = 0;
-    const l2 = createLookup({ client: { search: empty }, cache: store().cache, now: () => t });
+    const l2 = createLookup({ client: { search: empty, product: async () => null }, cache: store().cache, now: () => t });
     await l2.search('zzz');
     t = EMPTY_TTL_MS + 1;
     await l2.search('zzz');
@@ -180,9 +180,65 @@ describe('lookup cache + de-duplication', () => {
   it('does not cache failures and lets the next call retry', async () => {
     const search = vi.fn().mockRejectedValueOnce(new OffError('server', 'x')).mockResolvedValue([cand]);
     const { rows, cache } = store();
-    const lookup = createLookup({ client: { search }, cache });
+    const lookup = createLookup({ client: { search, product: async () => null }, cache });
     await expect(lookup.search('a')).rejects.toThrow();
     expect(rows.size).toBe(0);
     expect(await lookup.search('a')).toHaveLength(1);
+  });
+});
+
+describe('barcode product lookup', () => {
+  const make = (impl: () => Promise<Response>) => {
+    const c = clock();
+    const limiter = new RateLimiter(c, { minGapMs: 0, perMinute: 100 });
+    const f = vi.fn(impl);
+    return { f, client: createOffClient({ limiter, fetch: f as unknown as typeof fetch }) };
+  };
+  const found = { status: 1, code: '4006381333931', product: { product_name: 'Test highlighter', nutriments: { 'energy-kcal_100g': 120 } } };
+
+  it('fetches /api/v2/product/<code> with only digits and a fields list', async () => {
+    const { f, client } = make(async () => json(found));
+    const c = await client.product('4006381333931');
+    expect(c).toMatchObject({ sourceId: '4006381333931', name: 'Test highlighter', per100g: { kcal: 120 } });
+    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/^https:\/\/world\.openfoodfacts\.org\/api\/v2\/product\/4006381333931\.json\?fields=[a-z_,]+$/);
+    expect(init).toMatchObject({ credentials: 'omit', referrerPolicy: 'no-referrer' });
+    expect(init.headers).toBeUndefined();
+  });
+
+  it('unknown products are null (status 0 or HTTP 404), not errors', async () => {
+    for (const impl of [async () => json({ status: 0, code: '1', status_verbose: 'product not found' }), async () => new Response('{}', { status: 404 })]) {
+      expect(await make(impl).client.product('96385074')).toBeNull();
+    }
+  });
+
+  it('a product without usable nutrition is null; outages are errors', async () => {
+    expect(await make(async () => json({ status: 1, code: '96385074', product: { product_name: 'X' } })).client.product('96385074')).toBeNull();
+    await expect(make(async () => new Response('', { status: 503 })).client.product('96385074')).rejects.toMatchObject({ kind: 'rate' });
+    await expect(make(async () => { throw new TypeError('x'); }).client.product('96385074')).rejects.toMatchObject({ kind: 'offline' });
+  });
+
+  it('refuses anything that is not digits (never builds a URL from free text)', async () => {
+    const { f, client } = make(async () => json(found));
+    await expect(client.product('../../etc')).rejects.toMatchObject({ kind: 'bad' });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('lookup routes valid barcodes to the product API, normalised and cached separately from text', async () => {
+    const cand = toCandidate(product())!;
+    const productFn = vi.fn(async (...a: [string, ...unknown[]]) => (void a, cand));
+    const search = vi.fn(async () => []);
+    const rows = new Map<string, CacheRow>();
+    const lookup = createLookup({ client: { search, product: productFn }, cache: { get: async (k) => rows.get(k), put: async (r) => void rows.set(r.key, r) } });
+    expect(await lookup.search('4006381333931')).toEqual([cand]);
+    await lookup.search(' 4006-3813-33931 ');
+    await lookup.search('036000291452'); // UPC-A → EAN-13 with a leading 0
+    expect(productFn.mock.calls.map((c) => c[0])).toEqual(['4006381333931', '0036000291452']);
+    expect(search).not.toHaveBeenCalled();
+    expect([...rows.keys()]).toEqual(['barcode:4006381333931', 'barcode:0036000291452']);
+    await lookup.search('4006381333930'); // bad check digit: treated as plain text
+    expect(search).toHaveBeenCalledTimes(1);
+    productFn.mockResolvedValueOnce(null as never);
+    expect(await lookup.search('96385074')).toEqual([]); // unknown barcode → empty (entry becomes "not found")
   });
 });

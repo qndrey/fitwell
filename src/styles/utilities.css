@@ -20,3 +20,4 @@
 .mb-3 { margin-bottom: var(--space-3); }
 .mb-4 { margin-bottom: var(--space-4); }
 .between { justify-content: space-between; }
+.nowrap { flex-wrap: nowrap; align-items: flex-end; }

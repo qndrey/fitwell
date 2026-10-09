@@ -1,4 +1,7 @@
 import type { Quantity } from '../../domain/nutrition';
+import type { FoodEntry } from '../../db/schema';
+import { looksLikeBarcode } from '../../scan/ean';
+import { t } from '../../i18n';
 
 const num = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 export const fmt = (n: number): string => num.format(n);
@@ -15,4 +18,11 @@ export function defaultSlot(now = new Date()): 'breakfast' | 'lunch' | 'dinner' 
   if (h < 16) return 'snacks';
   if (h < 21) return 'dinner';
   return 'snacks';
+}
+
+/** What to call an entry: its food, its typed text, or "Barcode 1234…" for a scanned code waiting for lookup. */
+export function entryLabel(e: Pick<FoodEntry, 'food' | 'queryText'>): string {
+  if (e.food) return e.food.name;
+  const text = e.queryText ?? '';
+  return looksLikeBarcode(text) ? `${t('barcode.label')} ${text}` : text;
 }

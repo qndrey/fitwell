@@ -20,7 +20,7 @@ export interface RunResult {
   nextAt?: number;
 }
 
-const RATE_PAUSE_MS = 60_000;
+const RATE_PAUSE_MS = 30_000;
 
 /**
  * One pass over the queue. Network trouble stops the pass without blaming the entry (we simply try

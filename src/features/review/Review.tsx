@@ -7,7 +7,7 @@ import { Badge, Button, Card, Choice, EmptyState, Icon, LinkButton, List, ListRo
 import { t, type Key } from '../../i18n';
 import { AddFoodSheet } from '../food/AddFoodSheet';
 import { deleteEntry, resolveWithFood, resolveWithValues, retryLookup } from '../food/actions';
-import { fmt, quantityText } from '../food/format';
+import { entryLabel, fmt, quantityText } from '../food/format';
 import { candidateToFood } from '../food/online';
 import { ValuesForm } from '../food/ValuesForm';
 import { pendingStatus } from '../food/PendingEntrySheet';
@@ -25,7 +25,7 @@ function ReviewItem({ entry }: { entry: FoodEntry }) {
     <Card labelledBy={`rv-${entry.id}`}>
       <div class="stack gap-3">
         <div>
-          <h2 id={`rv-${entry.id}`}>{entry.queryText}</h2>
+          <h2 id={`rv-${entry.id}`}>{entryLabel(entry)}</h2>
           <p class="t-caption">
             {formatDay(entry.day, { weekday: 'short', month: 'short', day: 'numeric' })} · {t(`slot.${entry.slot}` as Key)} · {quantityText(entry.quantity)}
           </p>
@@ -128,7 +128,7 @@ export function Review() {
           <SectionTitle>{t('review.waiting')}</SectionTitle>
           <List>
             {waiting.map((e) => (
-              <ListRow key={e.id} main={e.queryText} sub={<>{quantityText(e.quantity)} · <Badge>{pendingStatus(e) || t('pending.badge')}</Badge></>} />
+              <ListRow key={e.id} main={entryLabel(e)} sub={<>{quantityText(e.quantity)} · <Badge>{pendingStatus(e) || t('pending.badge')}</Badge></>} />
             ))}
           </List>
         </section>

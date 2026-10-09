@@ -59,7 +59,8 @@ test('makes no third-party requests and has no CSP violations (NFR-2/3/4)', asyn
   const csp = res!.headers()['content-security-policy'] ?? '';
   expect(csp).toContain("default-src 'self'");
   expect(csp).toContain("connect-src 'self' https://world.openfoodfacts.org");
-  expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
+  expect(csp.replace("'wasm-unsafe-eval'", '')).not.toMatch(/unsafe-inline|unsafe-eval/); // wasm-only, no eval()
+  expect(csp).toContain("script-src 'self' 'wasm-unsafe-eval'");
 });
 
 test('ships a _headers file for static hosts', () => {

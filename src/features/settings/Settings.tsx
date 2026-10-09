@@ -49,6 +49,12 @@ export function Settings() {
       </Card>
       <BackupSection />
       <p class="muted">{t('settings.privacy')}</p>
+      <Card labelledBy="scan-h">
+        <div class="stack gap-2">
+          <h2 id="scan-h">{t('scan.title')}</h2>
+          <p class="t-caption">{t('about.scan')}</p>
+        </div>
+      </Card>
       <Card labelledBy="fonts-h">
         <div class="stack gap-2">
           <h2 id="fonts-h">{t('about.fonts')}</h2>

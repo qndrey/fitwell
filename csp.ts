@@ -2,7 +2,8 @@
 // and emitted as `_headers` for Cloudflare Pages / Netlify.
 export const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  // 'wasm-unsafe-eval' lets the barcode decoder (WebAssembly) run where the browser has no built-in reader. It does not allow eval().
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self'",
   "img-src 'self' data:",
   "font-src 'self'",
@@ -18,7 +19,7 @@ export const SECURITY_HEADERS: Record<string, string> = {
   'Content-Security-Policy': CSP,
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+  'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(), interest-cohort=()',
 };
 
 export function headersFile(): string {

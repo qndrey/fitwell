@@ -177,7 +177,7 @@ Derived/cached (rebuildable, never exported): `dailyAggregates` (`day → {kcal,
 
 ## 4. Open Food Facts integration
 
-- **Endpoint (see TECH_SPEC decision log for what was verified):** `https://world.openfoodfacts.org/cgi/search.pl?search_terms=…&search_simple=1&json=1&page_size=10&fields=code,product_name,brands,nutriments,serving_size,serving_quantity` (verify against the current v2/search-a-licious docs at build time; the API is migrating, so isolate it behind `OffClient` with a single adapter).
+- **Endpoints (see TECH_SPEC decision log for what was verified):** barcode product API `/api/v2/product/<code>` (dependable) and, for typed text, `https://world.openfoodfacts.org/cgi/search.pl?search_terms=…&search_simple=1&json=1&page_size=10&fields=code,product_name,brands,nutriments,serving_size,serving_quantity` (verify against the current v2/search-a-licious docs at build time; the API is migrating, so isolate it behind `OffClient` with a single adapter).
 - **Only the search term is sent.** No cookies (`credentials: 'omit'`), no referrer (`referrerPolicy: 'no-referrer'`), no user IDs.
 - **User-Agent:** OFF asks apps to identify themselves with a custom UA (`Fitwell/1.0 (contact@…)`). Browsers forbid overriding `User-Agent` in `fetch`, so we cannot set it. Mitigation: use OFF's accepted alternative — pass identifying info via a query parameter / `app_name` style hint if documented, and **confirm with OFF** (their support/Slack) that browser-based apps are acceptable. This is flagged as a risk (§7).
 - **Rate limits (official docs):** search 10 req/min/IP (applies per user for client-side apps), product reads 15 req/min; exceeding can cause 503/IP ban. Strategy:

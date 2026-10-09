@@ -161,7 +161,7 @@ describe('queue runner', () => {
   it('identical texts cost one request (shared lookup), and entries are processed oldest first', async () => {
     const search = vi.fn(async () => [cand('1')]);
     const rows = new Map();
-    const shared = createLookup({ client: { search }, cache: { get: async (k) => rows.get(k), put: async (r) => void rows.set(r.key, r) } });
+    const shared = createLookup({ client: { search, product: async () => null }, cache: { get: async (k) => rows.get(k), put: async (r) => void rows.set(r.key, r) } });
     const order: string[] = [];
     const { repo, add, runner } = await setup({ lookup: async (t) => (order.push(t), shared.search(t)) });
     const ids = [await add('Oat Milk'), await add('rice'), await add(' oat  milk ')];

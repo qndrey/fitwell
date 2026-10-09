@@ -12,6 +12,7 @@ import { OffError } from '../../off/client';
 import { t, type Key } from '../../i18n';
 import { logFood, logMeal, deleteMeal, logPending } from './actions';
 import { PendingForm } from './PendingForm';
+import { ScanSheet } from './ScanSheet';
 import { candidateToFood } from './online';
 import { CustomFoodForm } from './CustomFoodForm';
 import { QuantityForm, defaultQuantity } from './QuantityForm';
@@ -48,6 +49,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
   const [slot, setSlot] = useState<Slot>(initialSlot);
   const [step, setStep] = useState<Step>({ kind: 'search' });
   const [query, setQuery] = useState(initialQuery);
+  const [scanning, setScanning] = useState(false);
   const [onlineResult, setOnlineResult] = useState<Online>({ status: 'idle' });
   const [lists, setLists] = useState<Lists>(EMPTY);
   const [added, setAdded] = useState('');
@@ -113,29 +115,58 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
           <>
             {!pickMode && <SlotPicker value={slot} onChange={setSlot} name="add-slot" />}
             {step.kind === 'search' && (
-              <Field label={t('food.search')} labelHidden class="mt-3">
-                {(c) => (
-                  <TextInput
-                    {...c}
-                    type="search"
-                    enterkeyhint="search"
-                    autocomplete="off"
-                    autofocus
-                    value={query}
-                    placeholder={t('food.searchPlaceholder')}
-                    onInput={(e) => {
-                      setQuery((e.target as HTMLInputElement).value);
-                      setOnlineResult({ status: 'idle' });
-                    }}
-                  />
+              <div class="cluster gap-2 mt-3 nowrap">
+                <Field label={t('food.search')} labelHidden class="grow">
+                  {(c) => (
+                    <TextInput
+                      {...c}
+                      type="search"
+                      enterkeyhint="search"
+                      autocomplete="off"
+                      autofocus
+                      value={query}
+                      placeholder={t('food.searchPlaceholder')}
+                      onInput={(e) => {
+                        setQuery((e.target as HTMLInputElement).value);
+                        setOnlineResult({ status: 'idle' });
+                      }}
+                    />
+                  )}
+                </Field>
+                {settings.value.onlineLookup && (
+                  <Button icon aria-label={t('scan.open')} onClick={() => setScanning(true)}>
+                    <Icon name="scan" size="lg" />
+                  </Button>
                 )}
-              </Field>
+              </div>
             )}
           </>
         )
       }
     >
       <p class="sr-only" role="status" aria-live="polite">{added}</p>
+      {scanning && (
+        <ScanSheet
+          onClose={() => setScanning(false)}
+          onFood={(food) => {
+            setScanning(false);
+            pick(food);
+          }}
+          onCustom={() => {
+            setScanning(false);
+            setStep({ kind: 'custom' });
+          }}
+          onLater={
+            pickMode
+              ? undefined
+              : async (code) => {
+                  setScanning(false);
+                  await logPending(day, slot, code, 100);
+                  setAdded(t('scan.kept'));
+                }
+          }
+        />
+      )}
 
       {step.kind === 'search' && (
         <>

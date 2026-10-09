@@ -37,7 +37,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,json,webmanifest,woff2}'],
+        // wasm = the barcode decoder (~1 MB). Precached so scanning works in a shop with no signal, on first use too.
+        globPatterns: ['**/*.{js,css,html,svg,png,json,webmanifest,woff2,wasm}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // The style guide is reachable by URL only; no need to cache it for offline use.
         globIgnores: ['**/Design-*'],
         navigateFallback: 'index.html',

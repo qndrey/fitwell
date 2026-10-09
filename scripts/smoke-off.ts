@@ -1,21 +1,44 @@
 // Manual check against the REAL Open Food Facts (not part of CI; be polite, run it rarely).
-// Verifies: the endpoint answers JSON, browsers are allowed to read it (CORS), and our parser accepts the shape.
+// Verifies, for both endpoints we use: JSON answer, browsers allowed to read it (CORS), and our parser accepts the shape.
+// The text search is known to answer 503 intermittently, so it is retried a few times, spaced out.
 // Run: npm run smoke:off -- "oat drink"
-import { toCandidates } from '../src/off/normalize.ts';
+import { toCandidate, toCandidates } from '../src/off/normalize.ts';
 import { OFF_ORIGIN } from '../src/off/client.ts';
 
 const term = process.argv[2] ?? 'oat drink';
-const url = `${OFF_ORIGIN}/cgi/search.pl?search_terms=${encodeURIComponent(term)}&search_simple=1&action=process&json=1&page_size=5&fields=code,product_name,brands,nutriments,serving_quantity`;
-const res = await fetch(url, { headers: { Origin: 'https://fitwell.example', 'User-Agent': 'Fitwell-smoke/0.1 (manual check)' } });
-const cors = res.headers.get('access-control-allow-origin');
-console.log(`HTTP ${res.status}  content-type: ${res.headers.get('content-type')}  access-control-allow-origin: ${cors ?? '(none)'}`);
-if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) {
-  console.error('✗ Not a JSON success (OFF may be in maintenance or rate-limiting). Try again later.');
-  process.exit(1);
+const FIELDS = 'code,product_name,brands,nutriments,serving_quantity';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const headers = { Origin: 'https://fitwell.example', 'User-Agent': 'Fitwell-smoke/0.1 (manual check)' };
+
+async function get(url: string) {
+  const res = await fetch(url, { headers });
+  const json = (res.headers.get('content-type') ?? '').includes('json') ? await res.json().catch(() => null) : null;
+  return { res, json, cors: res.headers.get('access-control-allow-origin') };
 }
-const json = (await res.json()) as { products?: unknown[] };
-const candidates = toCandidates(json.products ?? []);
-console.log(`products: ${json.products?.length ?? 0}, usable candidates: ${candidates.length}`);
-for (const c of candidates.slice(0, 3)) console.log(' •', c.name, c.brand ?? '', `${c.per100g.kcal} kcal/100 g`);
-if (!cors) console.error('✗ No Access-Control-Allow-Origin: browsers on other origins cannot read this endpoint.');
-process.exit(cors && candidates.length ? 0 : 1);
+
+let failed = 0;
+
+console.log('— product by barcode (used by the scanner)');
+{
+  const { res, json, cors } = await get(`${OFF_ORIGIN}/api/v2/product/3017620422003.json?fields=${FIELDS}`);
+  const c = json ? toCandidate({ ...(json.product ?? {}), code: json.code }) : null;
+  console.log(`  HTTP ${res.status}  CORS: ${cors ?? '(none)'}  parsed: ${c ? `${c.name} ${c.per100g.kcal} kcal/100 g` : 'no'}`);
+  if (!res.ok || !cors || !c) failed++;
+}
+
+console.log('— text search (used for typed foods and the pending queue)');
+{
+  let ok = false;
+  for (let attempt = 1; attempt <= 3 && !ok; attempt++) {
+    if (attempt > 1) await sleep(15_000);
+    const { res, json, cors } = await get(`${OFF_ORIGIN}/cgi/search.pl?search_terms=${encodeURIComponent(term)}&search_simple=1&action=process&json=1&page_size=5&fields=${FIELDS}`);
+    const list = toCandidates(json?.products ?? []);
+    console.log(`  attempt ${attempt}: HTTP ${res.status}  CORS: ${cors ?? '(none)'}  usable candidates: ${list.length}`);
+    ok = res.ok && !!cors && list.length > 0;
+  }
+  if (!ok) {
+    failed++;
+    console.error('  ✗ search never answered with JSON. The app retries 503s with a pause, but check OFF status.');
+  }
+}
+process.exit(failed ? 1 : 0);

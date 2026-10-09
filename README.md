@@ -28,7 +28,13 @@ Docs: [PLAN.md](PLAN.md) (architecture), [TECH_SPEC.md](TECH_SPEC.md) (specs, de
 
 ## Deploy
 It is a static site. Build with `npm run build` and publish `dist/`.
-- **Cloudflare Pages / Netlify:** build command `npm run build`, output `dist`. The `_headers` file in `dist` sets the security headers and CSP automatically.
+- **Cloudflare Pages (automated):** `.github/workflows/ci.yml` runs every check, then deploys the exact build that passed with Wrangler: pushes to `main` go to production, pull requests from this repository get a preview URL. After deploying it fetches the site and fails if the Content-Security-Policy header is missing. One-time setup:
+  1. Create the project: `npx wrangler pages project create <name> --production-branch=main`.
+  2. Create an API token (Cloudflare dashboard → My Profile → API Tokens → *Edit Cloudflare Workers* template is too broad; use a custom token with **Account → Cloudflare Pages → Edit**), and note your Account ID.
+  3. In the GitHub repository (Settings → Secrets and variables → Actions) add secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and the variable `CLOUDFLARE_PAGES_PROJECT` with the project name.
+  4. Optional: add your own domain under the Pages project's *Custom domains*.
+  Until those three are set, the deploy job is skipped (CI stays green). The `_headers` file in `dist` sets the security headers and the CSP; `sw.js` is served with `no-cache` so updates reach people.
+- **Cloudflare Pages / Netlify (their own Git integration instead):** build command `npm run build`, output `dist`.
 - **GitHub Pages (sub-path):** build with `VITE_BASE=/your-repo/ npm run build`. GitHub Pages ignores `_headers`, so the CSP and other headers will not be sent; prefer Cloudflare Pages or Netlify.
 - Use HTTPS (required for the service worker and the camera).
 

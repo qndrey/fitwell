@@ -1,11 +1,23 @@
 name: CI
+
 on:
   push: { branches: [main] }
   pull_request:
+  workflow_dispatch:
+
+# One run per branch; a newer push cancels the older run (but never cancels a production deploy that is already running).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
 jobs:
   check:
+    name: Check and build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,6 +36,71 @@ jobs:
       - run: npm run test:e2e
         env: { CI: 'true' }
       - run: npm run lighthouse
+      # The exact build that passed every check is what gets deployed (nothing is rebuilt later).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: playwright-report, path: playwright-report }
+
+  deploy:
+    name: Deploy to Cloudflare Pages
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Production: pushes to main. Preview: pull requests from this repository (forks have no access to secrets).
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    environment:
+      name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+    steps:
+      # Without the Cloudflare secrets the deploy is skipped, not failed, so CI stays green on forks and fresh clones.
+      - name: Is Cloudflare configured?
+        id: cfg
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] && [ -n "$PROJECT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping deploy: set secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and variable CLOUDFLARE_PAGES_PROJECT (see README, Deploy)."
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.cfg.outputs.ready == 'true'
+        with: { name: dist, path: dist }
+      - name: Deploy
+        id: deploy
+        if: steps.cfg.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # main -> the production branch of the Pages project; anything else -> a preview URL named after the branch.
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=${{ github.event_name == 'push' && 'main' || github.head_ref }} --commit-hash=${{ github.sha }} --commit-dirty=true
+      - name: Check the deployed site
+        if: steps.cfg.outputs.ready == 'true' && steps.deploy.outputs.deployment-url != ''
+        run: |
+          url="${{ steps.deploy.outputs.deployment-url }}"
+          # A fresh deployment can take a few seconds to answer everywhere.
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$url/")
+            [ "$code" = 200 ] && break
+            sleep 5
+          done
+          csp=$(curl -sI "$url/" | tr -d '\r' | grep -i '^content-security-policy:' || true)
+          manifest=$(curl -s -o /dev/null -w "%{http_code}" "$url/manifest.webmanifest")
+          echo "page=$code manifest=$manifest"
+          test "$code" = 200
+          test "$manifest" = 200
+          # _headers must have been applied, otherwise the privacy promise (no third-party requests) is not enforced.
+          echo "$csp" | grep -q "default-src 'self'" || { echo "::error::The Content-Security-Policy header is missing on the deployed site"; exit 1; }

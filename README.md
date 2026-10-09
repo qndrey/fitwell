@@ -34,7 +34,8 @@ It is a static site. Build with `npm run build` and publish `dist/`.
   3. In the GitHub repository (Settings → Secrets and variables → Actions) add secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and the variable `CLOUDFLARE_PAGES_PROJECT` with the project name.
   4. Optional: add your own domain under the Pages project's *Custom domains*.
   Until those three are set, the deploy job is skipped (CI stays green). The `_headers` file in `dist` sets the security headers and the CSP; `sw.js` is served with `no-cache` so updates reach people.
-- **Cloudflare Pages / Netlify (their own Git integration instead):** build command `npm run build`, output `dist`.
+- **Cloudflare Pages with its own Git integration (no GitHub Action needed):** Workers & Pages → Create → Pages → Connect to Git → pick the repository. Framework preset *None*, build command `npm run build`, build output directory `dist`, root directory empty. `.node-version` (22) selects the Node version. Cloudflare then builds on every push (production branch `main`, previews for other branches). It does not run the tests; GitHub CI does, so consider protecting `main` until CI is green. If you use this route you can delete the `deploy` job in `ci.yml` (it skips itself while the Cloudflare secrets are unset).
+- **Netlify:** the same build command and output directory.
 - **GitHub Pages (sub-path):** build with `VITE_BASE=/your-repo/ npm run build`. GitHub Pages ignores `_headers`, so the CSP and other headers will not be sent; prefer Cloudflare Pages or Netlify.
 - Use HTTPS (required for the service worker and the camera).
 

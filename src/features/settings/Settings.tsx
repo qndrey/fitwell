@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Card, Choice, Fieldset, Screen } from '../../ui';
+import { Card, Choice, Field, Fieldset, Screen, Segmented, TextInput } from '../../ui';
+import { parseAmount } from '../../domain/nutrition';
+import { displayWeight, toKg, weightUnit, type UnitSystem } from '../../domain/units';
 import { BackupSection } from './BackupSection';
 import { settings, updateSettings } from '../../state';
 import type { ThemePreference } from '../../db/schema';
@@ -30,6 +32,18 @@ export function Settings() {
         </Fieldset>
       </Card>
       <Card>
+        <div class="stack gap-3">
+          <Segmented<UnitSystem>
+            legend={t('settings.units')}
+            name="units"
+            value={settings.value.units}
+            onChange={(v) => void updateSettings({ units: v })}
+            options={[{ value: 'metric', label: t('settings.units.metric') }, { value: 'imperial', label: t('settings.units.imperial') }]}
+          />
+          <WeightField />
+        </div>
+      </Card>
+      <Card>
         <Choice
           type="checkbox"
           checked={settings.value.habitOnly}
@@ -49,6 +63,12 @@ export function Settings() {
       </Card>
       <BackupSection />
       <p class="muted">{t('settings.privacy')}</p>
+      <Card labelledBy="ex-h">
+        <div class="stack gap-2">
+          <h2 id="ex-h">{t('workout.title')}</h2>
+          <p class="t-caption">{t('about.exercises')}</p>
+        </div>
+      </Card>
       <Card labelledBy="scan-h">
         <div class="stack gap-2">
           <h2 id="scan-h">{t('scan.title')}</h2>
@@ -83,5 +103,34 @@ export function Settings() {
         </div>
       </Card>
     </Screen>
+  );
+}
+
+/** Body weight used for calorie estimates until you log your own weight. */
+function WeightField() {
+  const units = settings.value.units;
+  const saved = settings.value.fallbackWeightKg;
+  const [text, setText] = useState(saved ? String(displayWeight(saved, units)) : '');
+  const [error, setError] = useState('');
+  useEffect(() => setText(saved ? String(displayWeight(saved, units)) : ''), [units, saved]);
+  return (
+    <Field label={`${t('settings.weight')} (${weightUnit(units)})`} hint={t('settings.weight.help')} error={error}>
+      {(c) => (
+        <TextInput
+          {...c}
+          inputMode="decimal"
+          autocomplete="off"
+          value={text}
+          onInput={(e) => setText((e.target as HTMLInputElement).value)}
+          onBlur={() => {
+            if (text.trim() === '') return (setError(''), void updateSettings({ fallbackWeightKg: undefined }));
+            const n = parseAmount(text);
+            if (n === null || n < 20 || n > 400) return setError(t('settings.weight.error'));
+            setError('');
+            void updateSettings({ fallbackWeightKg: toKg(n, units) });
+          }}
+        />
+      )}
+    </Field>
   );
 }

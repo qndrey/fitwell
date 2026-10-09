@@ -85,7 +85,7 @@ describe('export → wipe → import', () => {
     const a = await freshDb();
     await seed(a, 10);
     const backup = await buildBackup(a);
-    expect(Object.keys(backup.data).sort()).toEqual(['customFoods', 'favorites', 'foodEntries', 'goals', 'savedMeals', 'settings']);
+    expect(Object.keys(backup.data).sort()).toEqual(['customActivities', 'customExercises', 'customFoods', 'favorites', 'foodEntries', 'goals', 'savedMeals', 'settings', 'workoutTemplates', 'workouts']);
     const b = await freshDb();
     const before = (await b.get('meta', 'installId')).value;
     await applyImport(b, roundtrip(backup), 'replace');
@@ -148,7 +148,7 @@ describe('parseBackup', () => {
     const old = { app: 'fitwell', schemaVersion: 1, exportedAt: 1, installId: 'x', data: { settings: { id: 'settings', units: 'metric', theme: 'light', habitOnly: false, hideBodyTracking: false, backupReminderDays: 14, updatedAt: 3 } } };
     const r = parseBackup(JSON.stringify(old));
     expect(r.ok && r.backup.schemaVersion).toBe(LATEST_VERSION);
-    expect(r.ok && countsOf(r.backup.data)).toEqual({ foodEntries: 0, customFoods: 0, favorites: 0, savedMeals: 0 });
+    expect(r.ok && countsOf(r.backup.data)).toEqual({ foodEntries: 0, customFoods: 0, favorites: 0, savedMeals: 0, workouts: 0 });
   });
   it('ignores unknown fields instead of importing them', async () => {
     const db = await freshDb();

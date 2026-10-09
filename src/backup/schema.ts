@@ -41,6 +41,37 @@ const lookup = v.object({
   suggestedIndex: v.optional(v.pipe(num, v.integer(), v.minValue(0))),
   completedAt: v.optional(num),
 });
+const setType = v.picklist(['warmup', 'working']);
+const workoutSet = v.object({ id: v.string(), type: setType, reps: nonNeg, weightKg: nonNeg });
+const cardio = v.object({
+  activityRef: v.string(),
+  activityName: v.string(),
+  met: nonNeg,
+  durationMin: nonNeg,
+  distanceKm: v.optional(nonNeg),
+  kcalEstimated: v.optional(nonNeg),
+  kcalOverride: v.optional(nonNeg),
+  weightKgUsed: v.optional(nonNeg),
+});
+const workout = v.object({
+  ...base,
+  day: v.pipe(v.string(), v.check(isDay, 'not a valid day')),
+  type: v.picklist(['cardio', 'strength']),
+  name: v.optional(v.string()),
+  cardio: v.optional(cardio),
+  exercises: v.optional(v.array(v.object({ exerciseRef: v.string(), exerciseName: v.string(), sets: v.array(workoutSet) }))),
+});
+const template = v.object({
+  ...base,
+  name: v.string(),
+  type: v.picklist(['cardio', 'strength']),
+  cardio: v.optional(v.object({ activityRef: v.string(), activityName: v.string(), met: nonNeg, durationMin: nonNeg, distanceKm: v.optional(nonNeg) })),
+  exercises: v.optional(
+    v.array(v.object({ exerciseRef: v.string(), exerciseName: v.string(), sets: v.array(v.object({ type: setType, reps: nonNeg, weightKg: nonNeg })) })),
+  ),
+});
+const customExercise = v.object({ ...base, name: v.string(), primary: v.array(v.string()), equipment: v.optional(v.string()) });
+const customActivity = v.object({ ...base, name: v.string(), met: nonNeg });
 const day = v.pipe(v.string(), v.check(isDay, 'not a valid day'));
 
 const foodEntry = v.object({
@@ -103,6 +134,10 @@ export const backupSchema = v.object({
     customFoods: v.optional(v.array(customFood)),
     favorites: v.optional(v.array(favorite)),
     savedMeals: v.optional(v.array(savedMeal)),
+    workouts: v.optional(v.array(workout)),
+    workoutTemplates: v.optional(v.array(template)),
+    customExercises: v.optional(v.array(customExercise)),
+    customActivities: v.optional(v.array(customActivity)),
   }),
 });
 
@@ -117,5 +152,9 @@ export const BACKUP_STORES = [
   { name: 'customFoods', kind: 'collection' },
   { name: 'favorites', kind: 'collection' },
   { name: 'savedMeals', kind: 'collection' },
+  { name: 'workouts', kind: 'collection' },
+  { name: 'workoutTemplates', kind: 'collection' },
+  { name: 'customExercises', kind: 'collection' },
+  { name: 'customActivities', kind: 'collection' },
 ] as const;
 export type BackupStoreName = (typeof BACKUP_STORES)[number]['name'];

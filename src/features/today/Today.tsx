@@ -8,15 +8,21 @@ import { routeDay } from '../../router';
 import { settings } from '../../state';
 import { t, type Key } from '../../i18n';
 import { dayEntries, watchDay } from '../food/dayState';
+import { displayDistance, distanceUnit } from '../../domain/units';
 import { AddFoodSheet } from '../food/AddFoodSheet';
 import { EntrySheet } from '../food/EntrySheet';
 import { BackupReminder } from './BackupReminder';
+import { AddWorkoutSheet } from '../workout/AddWorkoutSheet';
+import { CardioSheet } from '../workout/CardioSheet';
+import { dayWorkouts, watchWorkouts } from '../workout/dayState';
+import { cardioKcal, describeWorkout } from '../../domain/workouts';
+import type { Workout } from '../../db/schema';
 import { PendingEntrySheet, pendingStatus } from '../food/PendingEntrySheet';
 import { toConfirmCount } from '../review/store';
 import { SaveMealSheet } from '../food/SaveMealSheet';
 import { defaultSlot, entryLabel, fmt, quantityText } from '../food/format';
 
-type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
+type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'addWorkout' } | { kind: 'cardio'; workout: Workout } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
 
 const go = (day: string) => (location.hash = day === today() ? '#/today' : `#/today/${day}`);
 
@@ -25,6 +31,8 @@ export function Today() {
   const day = routeDay.value ?? todayStr;
   const [sheet, setSheet] = useState<Sheet>(null);
   useEffect(() => watchDay(day), [day]);
+  useEffect(() => watchWorkouts(day), [day]);
+  const workouts = dayWorkouts.value;
 
   const entries = dayEntries.value;
   const habitOnly = settings.value.habitOnly;
@@ -114,11 +122,43 @@ export function Today() {
         );
       })}
 
+      <section class="slot stack gap-2" aria-labelledby="workouts-h">
+        <div class="slot-head">
+          <h2 id="workouts-h">{t('workout.title')}</h2>
+          <Button size="sm" onClick={() => setSheet({ kind: 'addWorkout' })} aria-label={t('workout.add')}>
+            <Icon name="plus" size="sm" />{t('common.add')}
+          </Button>
+        </div>
+        {workouts.length > 0 && (
+          <List>
+            {workouts.map((w) => {
+              const d = describeWorkout(w);
+              const kcal = w.cardio ? cardioKcal(w.cardio) : undefined;
+              const dist = w.cardio?.distanceKm;
+              const extras = [
+                dist ? `${Math.round(displayDistance(dist, settings.value.units) * 10) / 10} ${distanceUnit(settings.value.units)}` : '',
+                !habitOnly && kcal !== undefined ? `${w.cardio?.kcalOverride !== undefined ? '' : '≈ '}${kcal} ${t('unit.kcal')}` : '',
+              ].filter(Boolean);
+              return (
+                <ListRow
+                  key={w.id}
+                  main={d.title}
+                  sub={[t(w.type === 'cardio' ? 'workout.cardio' : 'workout.strength'), d.detail, ...extras].join(' · ')}
+                  onClick={() => (w.type === 'strength' ? void (location.hash = `#/workout/${w.id}`) : setSheet({ kind: 'cardio', workout: w }))}
+                />
+              );
+            })}
+          </List>
+        )}
+      </section>
+
       <div class="primary-bar">
         <Button variant="primary" size="lg" block onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</Button>
       </div>
 
       {sheet?.kind === 'add' && <AddFoodSheet day={day} initialSlot={sheet.slot} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'addWorkout' && <AddWorkoutSheet day={day} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'cardio' && <CardioSheet day={day} existing={sheet.workout} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'pending' && <PendingEntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'edit' && <EntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'saveMeal' && <SaveMealSheet entries={sheet.entries} onClose={() => setSheet(null)} />}

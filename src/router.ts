@@ -3,26 +3,33 @@ import { isDay, type Day } from './domain/dates';
 
 export const ROUTES = ['today', 'history', 'progress', 'settings'] as const;
 export type RouteName = (typeof ROUTES)[number];
-/** Reachable by URL only, never in the tab bar (the living style guide). */
-const HIDDEN = ['design', 'review'] as const;
+/** Reachable by URL only, never in the tab bar. */
+const HIDDEN = ['design', 'review', 'workout'] as const;
 export type AnyRoute = RouteName | (typeof HIDDEN)[number];
 
 interface Parsed {
   name: AnyRoute;
+  /** `#/today/2026-10-08` */
   day?: Day;
+  /** `#/workout/<id>` */
+  id?: string;
 }
 
 function parse(hash: string): Parsed | null {
-  const m = /^#\/([a-z]+)(?:\/(\d{4}-\d{2}-\d{2}))?$/.exec(hash);
+  const m = /^#\/([a-z]+)(?:\/([\w-]+))?$/.exec(hash);
   const name = m?.[1] as AnyRoute | undefined;
-  if (!m || !name || !(ROUTES as readonly string[]).includes(name) && !(HIDDEN as readonly string[]).includes(name)) return null;
-  return { name, day: m[2] && isDay(m[2]) ? m[2] : undefined };
+  if (!m || !name) return null;
+  if (!(ROUTES as readonly string[]).includes(name) && !(HIDDEN as readonly string[]).includes(name)) return null;
+  const seg = m[2];
+  if (name === 'workout') return seg ? { name, id: seg } : null;
+  return { name, day: seg && isDay(seg) ? seg : undefined };
 }
 
 const initial = parse(location.hash);
 export const route = signal<AnyRoute>(initial?.name ?? 'today');
-/** Day selected in the URL (`#/today/2026-10-08`); undefined means "today". */
+/** Day selected in the URL; undefined means "today". */
 export const routeDay = signal<Day | undefined>(initial?.day);
+export const routeId = signal<string | undefined>(initial?.id);
 
 // Ignore non-route hashes (e.g. skip links) so they never change the screen.
 window.addEventListener('hashchange', () => {
@@ -30,5 +37,6 @@ window.addEventListener('hashchange', () => {
   if (next) {
     route.value = next.name;
     routeDay.value = next.day;
+    routeId.value = next.id;
   }
 });

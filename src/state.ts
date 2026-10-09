@@ -6,6 +6,7 @@ import { ensureMeta } from './db/meta';
 import { loadSettings, saveSettings } from './db/settings';
 import { onChange } from './db/broadcast';
 import { installErrorHandling } from './errors';
+import { bodyWeightKg } from './domain/met';
 
 export const settings = signal<Settings>(DEFAULT_SETTINGS);
 export const storageAvailable = signal(true);
@@ -41,6 +42,11 @@ export async function initState(): Promise<void> {
   } catch {
     storageAvailable.value = false;
   }
+}
+
+/** Body weight for calorie estimates: the latest logged weight (Gate 5) else the one set in Settings, else none. */
+export function currentWeightKg(): number | undefined {
+  return bodyWeightKg(undefined, settings.value.fallbackWeightKg);
 }
 
 export async function updateSettings(patch: Partial<Omit<Settings, 'id' | 'updatedAt'>>): Promise<void> {

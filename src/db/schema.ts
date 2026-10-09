@@ -101,6 +101,63 @@ export interface CachedFood extends Base {
   fetchedAt: number;
 }
 
+export type SetType = 'warmup' | 'working';
+
+export interface WorkoutSet {
+  id: string;
+  type: SetType;
+  reps: number;
+  /** Always kilograms; shown in the unit chosen in Settings. */
+  weightKg: number;
+}
+
+export interface WorkoutExercise {
+  /** "ex:<id>" for the bundled library, "cx:<id>" for your own. */
+  exerciseRef: string;
+  /** Name at the time of logging, so history survives library updates. */
+  exerciseName: string;
+  sets: WorkoutSet[];
+}
+
+export interface CardioDetails {
+  /** "act:<slug>" (bundled) or "ca:<id>" (your own). */
+  activityRef: string;
+  activityName: string;
+  met: number;
+  durationMin: number;
+  distanceKm?: number;
+  /** MET × body weight (kg) × hours; absent when no body weight was known. */
+  kcalEstimated?: number;
+  kcalOverride?: number;
+  weightKgUsed?: number;
+}
+
+export interface Workout extends Base {
+  day: string;
+  type: 'cardio' | 'strength';
+  name?: string;
+  cardio?: CardioDetails;
+  exercises?: WorkoutExercise[];
+}
+
+export interface WorkoutTemplate extends Base {
+  name: string;
+  type: 'cardio' | 'strength';
+  cardio?: Pick<CardioDetails, 'activityRef' | 'activityName' | 'met' | 'durationMin' | 'distanceKm'>;
+  exercises?: { exerciseRef: string; exerciseName: string; sets: { type: SetType; reps: number; weightKg: number }[] }[];
+}
+
+export interface CustomExercise extends Base {
+  name: string;
+  primary: string[];
+  equipment?: string;
+}
+
+export interface CustomActivity extends Base {
+  name: string;
+  met: number;
+}
+
 export interface CustomFood extends Base {
   name: string;
   brand?: string;

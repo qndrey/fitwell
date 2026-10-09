@@ -51,6 +51,18 @@ export const migrations: Migration[] = [
       db.createObjectStore('offCache', { keyPath: 'key' });
     },
   },
+  {
+    version: 5,
+    name: 'workouts, templates, custom exercises and activities',
+    up(db) {
+      const workouts = db.createObjectStore('workouts', { keyPath: 'id' });
+      workouts.createIndex('day', 'day');
+      workouts.createIndex('createdAt', 'createdAt');
+      db.createObjectStore('workoutTemplates', { keyPath: 'id' });
+      db.createObjectStore('customExercises', { keyPath: 'id' });
+      db.createObjectStore('customActivities', { keyPath: 'id' });
+    },
+  },
 ];
 
 export const LATEST_VERSION = migrations[migrations.length - 1]!.version;

@@ -66,14 +66,24 @@ jobs:
       PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
     steps:
       # Without the Cloudflare secrets the deploy is skipped, not failed, so CI stays green on forks and fresh clones.
-      - name: Is Cloudflare configured?
+      - name: Is Cloudflare configured? (and which branch name is safe to use)
         id: cfg
+        env:
+          # Untrusted text (a branch name can contain ; $( ) ` etc.): only ever read through the environment, never interpolated into a script or command.
+          RAW_BRANCH: ${{ github.event_name == 'push' && 'main' || github.head_ref }}
         run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ] && [ -n "$PROJECT" ]; then
+          # Keep only characters that are harmless in a command line and a URL; never start with "-" so it cannot be read as an option.
+          branch=$(printf '%s' "$RAW_BRANCH" | tr -c 'A-Za-z0-9._-' '-' | sed 's/^[-.]*//' | cut -c1-60)
+          [ -n "$branch" ] || branch="preview"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          if ! printf '%s' "$PROJECT" | grep -Eq '^[a-z0-9][a-z0-9-]{0,57}$'; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping deploy: variable CLOUDFLARE_PAGES_PROJECT is missing or not a valid Pages project name (see README, Deploy)."
+          elif [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping deploy: set secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and variable CLOUDFLARE_PAGES_PROJECT (see README, Deploy)."
+            echo "::notice::Skipping deploy: set secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (see README, Deploy)."
           fi
       - uses: actions/download-artifact@v4
         if: steps.cfg.outputs.ready == 'true'
@@ -86,11 +96,16 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # main -> the production branch of the Pages project; anything else -> a preview URL named after the branch.
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=${{ github.event_name == 'push' && 'main' || github.head_ref }} --commit-hash=${{ github.sha }} --commit-dirty=true
+          # Only validated values reach this line: the project name matched a strict pattern and the branch was reduced to [A-Za-z0-9._-].
+          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=${{ steps.cfg.outputs.branch }} --commit-hash=${{ github.sha }} --commit-dirty=true
       - name: Check the deployed site
         if: steps.cfg.outputs.ready == 'true' && steps.deploy.outputs.deployment-url != ''
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
-          url="${{ steps.deploy.outputs.deployment-url }}"
+          url="$DEPLOY_URL"
+          case "$url" in https://*.pages.dev|https://*.pages.dev/) ;; *) echo "::error::Unexpected deployment URL"; exit 1 ;; esac
+          url="${url%/}"
           # A fresh deployment can take a few seconds to answer everywhere.
           for i in 1 2 3 4 5 6; do
             code=$(curl -s -o /dev/null -w "%{http_code}" "$url/")

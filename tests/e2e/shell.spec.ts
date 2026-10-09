@@ -1,0 +1,76 @@
+import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+test('shows the four main screens and navigates between them', async ({ page }) => {
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await expect(nav.getByRole('link')).toHaveText(['Today', 'History', 'Progress', 'Settings']);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Today');
+  for (const name of ['History', 'Progress', 'Settings']) {
+    await nav.getByRole('link', { name }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(name);
+    await expect(nav.getByRole('link', { name })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
+  }
+});
+
+test('theme choice persists across reloads (IndexedDB)', async ({ page }) => {
+  await page.goto('/#/settings');
+  await page.getByLabel('Dark').check();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByLabel('Dark')).toBeChecked();
+  await page.getByLabel('Match my device').check();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
+});
+
+test('makes no third-party requests and has no CSP violations (NFR-2/3/4)', async ({ page }) => {
+  const origins = new Set<string>();
+  const problems: string[] = [];
+  page.on('request', (r) => origins.add(new URL(r.url()).origin));
+  page.on('console', (m) => {
+    if (/content security policy|refused to/i.test(m.text())) problems.push(m.text());
+  });
+  const res = await page.goto('/');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  for (const r of ['today', 'history', 'progress', 'settings']) await page.goto(`/#/${r}`);
+
+  expect([...origins]).toEqual(['http://localhost:4173']);
+  expect(problems).toEqual([]);
+  const csp = res!.headers()['content-security-policy'] ?? '';
+  expect(csp).toContain("default-src 'self'");
+  expect(csp).toContain("connect-src 'self' https://world.openfoodfacts.org");
+  expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
+});
+
+test('ships a _headers file for static hosts', () => {
+  const headers = readFileSync('dist/_headers', 'utf8');
+  expect(headers).toContain('Content-Security-Policy');
+  expect(headers).toContain('/sw.js');
+});
+
+test('works offline after first load (PWA)', async ({ page, context }) => {
+  await page.goto('/');
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  // Wait until the precache is fully populated.
+  await expect
+    .poll(() => page.evaluate(async () => (await (await caches.keys()).length > 0) && (await (await caches.open((await caches.keys())[0]!)).keys()).length))
+    .toBeGreaterThan(3);
+  await page.reload(); // now controlled by the SW
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Today');
+  await page.getByRole('link', { name: 'History' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('History');
+  await context.setOffline(false);
+});
+
+test('has an installable manifest', async ({ page }) => {
+  await page.goto('/');
+  const href = await page.locator('link[rel="manifest"]').getAttribute('href');
+  const manifest = await (await page.request.get(href!)).json();
+  expect(manifest).toMatchObject({ name: 'Fitwell', display: 'standalone' });
+  expect(manifest.icons.some((i: { sizes: string }) => i.sizes === '512x512')).toBe(true);
+  expect(manifest.icons.some((i: { purpose?: string }) => i.purpose === 'maskable')).toBe(true);
+});

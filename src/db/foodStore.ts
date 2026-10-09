@@ -1,0 +1,55 @@
+import { getDb } from './open';
+import { Repository } from './repository';
+import type { CustomFood, Favorite, FoodEntry, SavedMeal } from './schema';
+import { refKey, type FoodItem } from '../domain/foods';
+import type { Quantity } from '../domain/nutrition';
+
+const deps = { getDb };
+export const entriesRepo = new Repository<FoodEntry>('foodEntries', deps);
+export const customFoodsRepo = new Repository<CustomFood>('customFoods', deps);
+export const favoritesRepo = new Repository<Favorite>('favorites', deps);
+export const savedMealsRepo = new Repository<SavedMeal>('savedMeals', deps);
+
+export async function entriesForDay(day: string): Promise<FoodEntry[]> {
+  const list = await entriesRepo.listByIndex('day', day);
+  return list.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export interface RecentFood {
+  food: FoodItem;
+  quantity: Quantity;
+}
+
+/** Most recently logged distinct foods (with the quantity last used), newest first. */
+export async function recentFoods(limit = 30): Promise<RecentFood[]> {
+  const db = await getDb();
+  const seen = new Set<string>();
+  const out: RecentFood[] = [];
+  let cursor = await db.transaction('foodEntries').store.index('createdAt').openCursor(null, 'prev');
+  while (cursor && out.length < limit) {
+    const e = cursor.value as FoodEntry;
+    if (e.deletedAt === undefined && e.food && e.state === 'resolved') {
+      const key = refKey(e.food.ref);
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push({ food: e.food, quantity: e.quantity });
+      }
+    }
+    cursor = await cursor.continue();
+  }
+  return out;
+}
+
+export const favoriteId = (food: FoodItem): string => `fav:${refKey(food.ref)}`;
+
+export async function setFavorite(food: FoodItem, on: boolean): Promise<void> {
+  if (on) await favoritesRepo.upsert(favoriteId(food), { food });
+  else await favoritesRepo.remove(favoriteId(food));
+}
+
+export async function customFoodItems(): Promise<FoodItem[]> {
+  const list = await customFoodsRepo.list();
+  return list
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => ({ ref: { kind: 'custom', id: c.id }, name: c.name, brand: c.brand, per100g: c.per100g, portions: c.portions }));
+}

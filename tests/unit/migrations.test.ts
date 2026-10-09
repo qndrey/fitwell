@@ -11,7 +11,7 @@ const dbName = () => `fitwell-test-${++n}`;
 describe('migrations', () => {
   it('creates the latest schema from scratch', async () => {
     const db = await openDatabase({ name: dbName() });
-    expect([...db.objectStoreNames].sort()).toEqual(['goals', 'meta', 'settings']);
+    expect([...db.objectStoreNames].sort()).toEqual(['customFoods', 'favorites', 'foodEntries', 'goals', 'meta', 'savedMeals', 'settings']);
     db.close();
   });
 

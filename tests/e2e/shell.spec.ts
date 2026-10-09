@@ -18,6 +18,24 @@ test('theme choice persists across reloads (IndexedDB)', async ({ page }) => {
   await page.goto('/#/settings');
   await page.getByLabel('Dark').check();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  // Wait for the IndexedDB write to commit before reloading.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            const open = indexedDB.open('fitwell');
+            open.onsuccess = () => {
+              const get = open.result.transaction('settings').objectStore('settings').get('settings');
+              get.onsuccess = () => {
+                open.result.close();
+                resolve(get.result?.theme);
+              };
+            };
+          }),
+      ),
+    )
+    .toBe('dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByLabel('Dark')).toBeChecked();

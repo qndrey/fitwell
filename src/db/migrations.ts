@@ -30,6 +30,19 @@ export const migrations: Migration[] = [
       db.createObjectStore('goals', { keyPath: 'id' });
     },
   },
+  {
+    version: 3,
+    name: 'food log, custom foods, favorites, saved meals',
+    up(db) {
+      const entries = db.createObjectStore('foodEntries', { keyPath: 'id' });
+      entries.createIndex('day', 'day');
+      entries.createIndex('state', 'state');
+      entries.createIndex('createdAt', 'createdAt');
+      db.createObjectStore('customFoods', { keyPath: 'id' });
+      db.createObjectStore('favorites', { keyPath: 'id' });
+      db.createObjectStore('savedMeals', { keyPath: 'id' });
+    },
+  },
 ];
 
 export const LATEST_VERSION = migrations[migrations.length - 1]!.version;

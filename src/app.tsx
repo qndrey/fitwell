@@ -2,6 +2,7 @@ import { route } from './router';
 import { storageAvailable } from './state';
 import { TabBar } from './components/TabBar';
 import { UpdateToast } from './components/UpdateToast';
+import { Toaster } from './components/Toaster';
 import { Today } from './features/today/Today';
 import { History } from './features/history/History';
 import { Progress } from './features/progress/Progress';
@@ -31,6 +32,7 @@ export function App() {
           <Current />
         </main>
       </div>
+      <Toaster />
       <UpdateToast />
     </>
   );

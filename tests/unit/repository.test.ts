@@ -62,3 +62,29 @@ describe('Repository', () => {
     expect(seen).toEqual(['goals:id-1', 'goals:id-1', 'goals:id-1']);
   });
 });
+
+describe('Repository extras', () => {
+  it('upsert creates, replaces, and revives a tombstone while keeping history', async () => {
+    const { repo, setNow } = await setup();
+    const a = await repo.upsert('fav:1', { label: 'a' });
+    expect(a).toMatchObject({ id: 'fav:1', rev: 1, createdAt: 1000 });
+    setNow(2000);
+    await repo.remove('fav:1');
+    expect(await repo.get('fav:1')).toBeUndefined();
+    setNow(3000);
+    const b = await repo.upsert('fav:1', { label: 'b' });
+    expect(b).toMatchObject({ label: 'b', createdAt: 1000, updatedAt: 3000, rev: 3 });
+    expect(b.deletedAt).toBeUndefined();
+    expect((await repo.list()).length).toBe(1);
+  });
+
+  it('restore undoes a soft delete and is a no-op on live records', async () => {
+    const { repo } = await setup();
+    const a = await repo.create({ label: 'a' });
+    await repo.remove(a.id);
+    expect((await repo.restore(a.id))?.deletedAt).toBeUndefined();
+    expect((await repo.get(a.id))?.label).toBe('a');
+    expect((await repo.restore(a.id))?.rev).toBe(3);
+    expect(await repo.restore('missing')).toBeUndefined();
+  });
+});

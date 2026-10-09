@@ -5,6 +5,18 @@ Normative words: **MUST**, **SHOULD**, **MAY** (RFC 2119).
 
 ---
 
+## 0. Changes since the plan (decision log)
+
+| Date | Change | Why |
+|---|---|---|
+| 2026-10-09 | **Bundled food dataset is Frida 5.5 (DTU, Denmark, CC BY 4.0), not USDA FoodData Central.** Foods are referenced as `bundled` / `frida:<id>`. | User preference for an EU source. Licence confirmed via the figshare record; English names included. |
+| 2026-10-09 | Frida has 1,381 usable foods (USDA was ~7,500), ~28 KB gzip. **No Web Worker or prebuilt index**: a linear scan with ranking takes well under 15 ms. | Simpler; NFR-6 met by a wide margin. Revisit if the dataset grows past ~10k foods. |
+| 2026-10-09 | Bundled foods have **no portion sizes** (Frida has none); they are logged in grams. Custom foods can define a serving. | Not inventing portion weights. A curated common-portions table is a candidate follow-up. |
+| 2026-10-09 | `dailyAggregates` store is **deferred to Gate 6**; Today computes totals from the day's entries. | Not needed for one day; built with its rebuild test where charts need it. |
+| 2026-10-09 | Attribution (CC BY 4.0 citation) is shown in Settings from Gate 1; the full About screen stays in Gate 7. | CC BY requires attribution as soon as data ships. |
+
+Where this document or PLAN.md says "USDA", read "Frida" for the bundled food dataset (the USDA licence row is superseded by the table in §11 below).
+
 ## 1. Locked decisions
 
 | Area | Decision |
@@ -12,7 +24,7 @@ Normative words: **MUST**, **SHOULD**, **MAY** (RFC 2119).
 | Stack | Preact + signals, Vite, TypeScript strict, plain CSS tokens, native `<dialog>`/`<details>`; Zag.js only if the food combobox needs it |
 | Storage | IndexedDB via `idb`, repository layer, no `localStorage` for user data |
 | PWA | `vite-plugin-pwa` (Workbox precache), installable, offline after first load |
-| Search | Precomputed USDA index in a Web Worker; MiniSearch for exercises; local user data ranked first |
+| Search | Main-thread ranked scan over the bundled Frida foods (see §0); MiniSearch for exercises; local user data ranked first |
 | Charts | d3-scale/shape/array + own SVG components, lazy-loaded with Progress route |
 | Validation | valibot for import and OFF responses |
 | Hosting | Cloudflare Pages / Netlify at root domain; configurable `base` retained |
@@ -137,7 +149,7 @@ Each gate has **Entry** (what must exist), **Deliverables**, and **Exit criteria
   - [ ] NFR-2/3/4 network + CSP test green.
   - [ ] CI pipeline < 5 min.
 
-### Gate 1 — Meals, offline
+### Gate 1 — Meals, offline  *(built; see status below)*
 - **Entry:** Gate 0.
 - **Deliverables:** Today screen (day nav, slots, totals), USDA build script + worker search, add-food flow, quantity/portion entry, custom foods, recents/favorites/saved meals, edit/delete, habit-only toggle, `storage.persist()` call.
 - **Exit:**
@@ -146,6 +158,14 @@ Each gate has **Entry** (what must exist), **Deliverables**, and **Exit criteria
   - [ ] Totals correct against a hand-verified fixture of 20 foods.
   - [ ] Deterministic data build; data ≤ 350 KB brotli.
   - [ ] Soft-delete + edit tested; reload keeps all data.
+
+**Gate 1 status (2026-10-09):**
+- [x] NFR-6 search budget: ranked scan incl. typo fallback < 15 ms avg in unit test (Node). *Not yet measured on a real low-end phone.*
+- [ ] Timed task ≤ 30 s with 3 testers — needs people. An automated run logging 3 foods from recents completes in about a second.
+- [x] Totals correct against a hand-computed day (3 foods) plus unit tests; *the 20-food fixture in the gate is not done*.
+- [x] Deterministic data build (byte-identical on re-run); data ≈ 28 KB gzip.
+- [x] Soft delete (with undo), edit, reload persistence, offline logging — Playwright.
+- [x] axe clean on the add-food sheet steps incl. validation errors, both themes.
 
 ### Gate 2 — Backup first
 - **Entry:** Gate 1.

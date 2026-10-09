@@ -40,6 +40,48 @@ export class Repository<T extends Base> {
     return record;
   }
 
+  /**
+   * Create-or-replace by a caller-chosen id (e.g. one favorite per food). Revives a
+   * tombstone and keeps `createdAt`/`rev` history instead of resetting it.
+   */
+  async upsert(id: string, fields: Fields<T>): Promise<T> {
+    const db = await this.getDb();
+    const tx = db.transaction(this.store, 'readwrite');
+    const cur = (await tx.store.get(id)) as T | undefined;
+    const t = cur ? this.nextTimestamp(cur) : this.now();
+    const base = cur ?? ({ id, createdAt: t, rev: 0 } as unknown as T);
+    const next = { ...base, ...fields, id, updatedAt: t, rev: base.rev + 1 } as T;
+    delete next.deletedAt;
+    await tx.store.put(next);
+    await tx.done;
+    publishChange({ store: this.store, ids: [id] });
+    return next;
+  }
+
+  /** Undo a soft delete. */
+  async restore(id: string): Promise<T | undefined> {
+    const db = await this.getDb();
+    const tx = db.transaction(this.store, 'readwrite');
+    const cur = (await tx.store.get(id)) as T | undefined;
+    if (!cur || cur.deletedAt === undefined) {
+      await tx.done;
+      return cur;
+    }
+    const next = { ...cur, updatedAt: this.nextTimestamp(cur), rev: cur.rev + 1 } as T;
+    delete next.deletedAt;
+    await tx.store.put(next);
+    await tx.done;
+    publishChange({ store: this.store, ids: [id] });
+    return next;
+  }
+
+  /** Live records whose indexed value equals `key`. */
+  async listByIndex(index: string, key: IDBValidKey): Promise<T[]> {
+    const db = await this.getDb();
+    const all = (await db.getAllFromIndex(this.store, index, key)) as T[];
+    return all.filter((r) => r.deletedAt === undefined);
+  }
+
   /** Returns undefined for missing or soft-deleted records. */
   async get(id: string): Promise<T | undefined> {
     const db = await this.getDb();

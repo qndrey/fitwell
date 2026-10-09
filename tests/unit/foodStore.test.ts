@@ -10,7 +10,7 @@ vi.mock('../../src/db/open', async (orig) => {
 });
 
 const { entriesRepo, entriesForDay, recentFoods, setFavorite, favoritesRepo, customFoodItems, customFoodsRepo } = await import('../../src/db/foodStore');
-const { entryFields } = await import('../../src/features/food/actions');
+const { entryFields } = await import('../../src/features/food/entry');
 
 const food = (id: string, name: string) => ({
   ref: { kind: 'bundled' as const, id },

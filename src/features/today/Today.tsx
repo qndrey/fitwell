@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { BigNumber, Button, Card, Icon, LinkButton, List, ListRow, Screen, StatGrid } from '../../ui';
+import { BigNumber, Badge, Button, Card, Icon, LinkButton, List, ListRow, Notice, Screen, StatGrid } from '../../ui';
 import { addDays, formatDay, today } from '../../domain/dates';
 import { roundForDisplay } from '../../domain/nutrition';
 import { dayTotals, slotTotals } from '../../domain/totals';
@@ -11,10 +11,12 @@ import { dayEntries, watchDay } from '../food/dayState';
 import { AddFoodSheet } from '../food/AddFoodSheet';
 import { EntrySheet } from '../food/EntrySheet';
 import { BackupReminder } from './BackupReminder';
+import { PendingEntrySheet, pendingStatus } from '../food/PendingEntrySheet';
+import { toConfirmCount } from '../review/store';
 import { SaveMealSheet } from '../food/SaveMealSheet';
 import { defaultSlot, fmt, quantityText } from '../food/format';
 
-type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
+type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
 
 const go = (day: string) => (location.hash = day === today() ? '#/today' : `#/today/${day}`);
 
@@ -28,6 +30,7 @@ export function Today() {
   const habitOnly = settings.value.habitOnly;
   const totals = dayTotals(entries);
   const rounded = roundForDisplay(totals);
+  const toConfirm = toConfirmCount();
 
   const title = day === todayStr ? t('nav.today') : day === addDays(todayStr, -1) ? t('today.yesterday') : day === addDays(todayStr, 1) ? t('today.tomorrow') : formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -61,6 +64,15 @@ export function Today() {
         {totals.pendingCount > 0 && <p class="muted mt-2">{`+${totals.pendingCount} ${t('today.pending')}`}</p>}
       </Card>
 
+      {toConfirm > 0 && (
+        <Notice>
+          <div class="cluster between">
+            <span>{toConfirm === 1 ? t('today.toConfirm.one') : t('today.toConfirm.many').replace('{n}', String(toConfirm))}</span>
+            <Button size="sm" variant="primary" onClick={() => (location.hash = '#/review')}>{t('today.review')}</Button>
+          </div>
+        </Notice>
+      )}
+
       <BackupReminder />
 
       {SLOTS.map((slot) => {
@@ -81,8 +93,18 @@ export function Today() {
                   <ListRow
                     key={e.id}
                     main={e.food?.name ?? e.queryText}
-                    sub={`${quantityText(e.quantity)}${!habitOnly && e.nutrition ? ` · ${Math.round(e.nutrition.kcal)} ${t('unit.kcal')}` : ''}`}
-                    onClick={() => setSheet({ kind: 'edit', entry: e })}
+                    sub={
+                      e.state === 'resolved' ? (
+                        `${quantityText(e.quantity)}${!habitOnly && e.nutrition ? ` · ${Math.round(e.nutrition.kcal)} ${t('unit.kcal')}` : ''}${e.manual ? ` · ${t('manual.badge')}` : ''}`
+                      ) : (
+                        <>
+                          {quantityText(e.quantity)} ·{' '}
+                          <Badge>{e.state === 'pending' ? t('pending.badge') : e.state === 'awaiting_confirmation' ? t('confirm.badge') : t('unmatched.badge')}</Badge>
+                          {e.state === 'pending' && ` ${pendingStatus(e)}`}
+                        </>
+                      )
+                    }
+                    onClick={() => (e.state === 'resolved' ? setSheet({ kind: 'edit', entry: e }) : e.state === 'pending' ? setSheet({ kind: 'pending', entry: e }) : void (location.hash = '#/review'))}
                   />
                 ))}
               </List>
@@ -97,6 +119,7 @@ export function Today() {
       </div>
 
       {sheet?.kind === 'add' && <AddFoodSheet day={day} initialSlot={sheet.slot} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'pending' && <PendingEntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'edit' && <EntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'saveMeal' && <SaveMealSheet entries={sheet.entries} onClose={() => setSheet(null)} />}
     </Screen>

@@ -1,6 +1,6 @@
 import { getDb } from './open';
 import { Repository } from './repository';
-import type { CustomFood, Favorite, FoodEntry, SavedMeal } from './schema';
+import type { CachedFood, CustomFood, Favorite, FoodEntry, SavedMeal } from './schema';
 import { refKey, type FoodItem } from '../domain/foods';
 import type { Quantity } from '../domain/nutrition';
 
@@ -9,6 +9,23 @@ export const entriesRepo = new Repository<FoodEntry>('foodEntries', deps);
 export const customFoodsRepo = new Repository<CustomFood>('customFoods', deps);
 export const favoritesRepo = new Repository<Favorite>('favorites', deps);
 export const savedMealsRepo = new Repository<SavedMeal>('savedMeals', deps);
+export const cachedFoodsRepo = new Repository<CachedFood>('foods', deps);
+
+/** Foods fetched online earlier: searchable offline, ranked after the user's own foods. */
+export async function cachedFoodItems(): Promise<FoodItem[]> {
+  const list = await cachedFoodsRepo.list();
+  return list.sort((a, b) => b.fetchedAt - a.fetchedAt).map((c) => c.food);
+}
+
+export async function cacheOnlineFood(food: FoodItem): Promise<void> {
+  await cachedFoodsRepo.upsert(`off:${food.ref.id}`, { food, fetchedAt: Date.now() });
+}
+
+/** Everything not yet resolved, any day, newest day first. */
+export async function unresolvedEntries(): Promise<FoodEntry[]> {
+  const lists = await Promise.all((['pending', 'awaiting_confirmation', 'unmatched'] as const).map((s) => entriesRepo.listByIndex('state', s)));
+  return lists.flat().sort((a, b) => (a.day === b.day ? a.createdAt - b.createdAt : a.day < b.day ? 1 : -1));
+}
 
 export async function entriesForDay(day: string): Promise<FoodEntry[]> {
   const list = await entriesRepo.listByIndex('day', day);

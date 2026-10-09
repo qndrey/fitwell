@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { Button, Field, Icon, List, ListRow, SectionTitle, Sheet, TextInput } from '../../ui';
-import { customFoodItems, favoritesRepo, recentFoods, savedMealsRepo, setFavorite, favoriteId, type RecentFood } from '../../db/foodStore';
+import { Button, Field, Icon, List, ListRow, Notice, SectionTitle, Sheet, TextInput } from '../../ui';
+import { cacheOnlineFood, cachedFoodItems, customFoodItems, favoritesRepo, recentFoods, savedMealsRepo, setFavorite, favoriteId, type RecentFood } from '../../db/foodStore';
 import type { SavedMeal, Slot } from '../../db/schema';
 import { refKey, type FoodItem } from '../../domain/foods';
 import { roundForDisplay, scale, sum, quantityGrams, type Quantity } from '../../domain/nutrition';
 import { loadBundledFoods } from '../../data/bundledFoods';
 import { prepare, search } from '../../search/rank';
-import { settings } from '../../state';
+import { online, settings } from '../../state';
+import { offLookup } from '../../off';
+import { OffError } from '../../off/client';
 import { t, type Key } from '../../i18n';
-import { logFood, logMeal, deleteMeal } from './actions';
+import { logFood, logMeal, deleteMeal, logPending } from './actions';
+import { PendingForm } from './PendingForm';
+import { candidateToFood } from './online';
 import { CustomFoodForm } from './CustomFoodForm';
 import { QuantityForm, defaultQuantity } from './QuantityForm';
 import { SlotPicker } from './SlotPicker';
@@ -18,28 +22,39 @@ type Step =
   | { kind: 'search' }
   | { kind: 'quantity'; food: FoodItem; initial: Quantity }
   | { kind: 'custom' }
+  | { kind: 'pending'; text: string }
   | { kind: 'meal'; meal: SavedMeal };
+
+type Online = { status: 'idle' } | { status: 'loading' } | { status: 'done'; foods: FoodItem[] } | { status: 'error'; message: string };
+
+export interface PickMode {
+  title: string;
+  onPick: (food: FoodItem) => void;
+}
+
 
 interface Lists {
   favorites: FoodItem[];
   recents: RecentFood[];
   custom: FoodItem[];
+  cached: FoodItem[];
   meals: SavedMeal[];
   bundled: FoodItem[];
 }
 
-const EMPTY: Lists = { favorites: [], recents: [], custom: [], meals: [], bundled: [] };
+const EMPTY: Lists = { favorites: [], recents: [], custom: [], cached: [], meals: [], bundled: [] };
 
-export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initialSlot: Slot; onClose: () => void }) {
+export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery = '' }: { day: string; initialSlot: Slot; onClose: () => void; pickMode?: PickMode; initialQuery?: string }) {
   const [slot, setSlot] = useState<Slot>(initialSlot);
   const [step, setStep] = useState<Step>({ kind: 'search' });
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const [onlineResult, setOnlineResult] = useState<Online>({ status: 'idle' });
   const [lists, setLists] = useState<Lists>(EMPTY);
   const [added, setAdded] = useState('');
 
   async function reload() {
-    const [favs, recents, custom, meals] = await Promise.all([favoritesRepo.list(), recentFoods(), customFoodItems(), savedMealsRepo.list()]);
-    setLists((l) => ({ ...l, favorites: favs.map((f) => f.food), recents, custom, meals: meals.sort((a, b) => a.name.localeCompare(b.name)) }));
+    const [favs, recents, custom, cached, meals] = await Promise.all([favoritesRepo.list(), recentFoods(), customFoodItems(), cachedFoodItems(), savedMealsRepo.list()]);
+    setLists((l) => ({ ...l, favorites: favs.map((f) => f.food), recents, custom, cached, meals: meals.sort((a, b) => a.name.localeCompare(b.name)) }));
   }
   useEffect(() => {
     void reload();
@@ -48,11 +63,23 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
 
   const favIndex = useMemo(() => prepare(dedupe([...lists.favorites, ...lists.recents.map((r) => r.food)]), (f) => f.name), [lists.favorites, lists.recents]);
   const customIndex = useMemo(() => prepare(lists.custom, (f) => f.name), [lists.custom]);
+  const cachedIndex = useMemo(() => prepare(lists.cached, (f) => f.name), [lists.cached]);
   const mealIndex = useMemo(() => prepare(lists.meals, (m) => m.name), [lists.meals]);
   const bundledIndex = useMemo(() => prepare(lists.bundled, (f) => f.name), [lists.bundled]);
 
   const quantityFor = (food: FoodItem): Quantity => lists.recents.find((r) => refKey(r.food.ref) === refKey(food.ref))?.quantity ?? defaultQuantity(food);
-  const pick = (food: FoodItem) => setStep({ kind: 'quantity', food, initial: quantityFor(food) });
+  const pick = (food: FoodItem) => (pickMode ? pickMode.onPick(food) : setStep({ kind: 'quantity', food, initial: quantityFor(food) }));
+
+  async function searchOnline(term: string) {
+    setOnlineResult({ status: 'loading' });
+    try {
+      const found = await offLookup.search(term, 'interactive');
+      setOnlineResult({ status: 'done', foods: found.map(candidateToFood) });
+    } catch (e) {
+      const kind = e instanceof OffError ? e.kind : 'server';
+      setOnlineResult({ status: 'error', message: kind === 'offline' ? t('online.offline') : kind === 'rate' ? t('online.busy') : t('online.failed') });
+    }
+  }
 
   const q = query.trim();
   const shown = new Set<string>();
@@ -60,19 +87,20 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
   const sections: { title: string; foods?: FoodItem[]; meals?: SavedMeal[] }[] = q
     ? [
         { title: t('food.favoritesRecent'), foods: take(search(favIndex, q, 10)) },
-        { title: t('food.savedMeals'), meals: search(mealIndex, q, 5) },
+        { title: t('food.savedMeals'), meals: pickMode ? [] : search(mealIndex, q, 5) },
         { title: t('food.yourFoods'), foods: take(search(customIndex, q, 10)) },
+        { title: t('food.cached'), foods: take(search(cachedIndex, q, 10)) },
         { title: t('food.database'), foods: take(search(bundledIndex, q, 30)) },
       ]
     : [
         { title: t('food.favorites'), foods: take(lists.favorites.slice(0, 10)) },
         { title: t('food.recent'), foods: take(lists.recents.slice(0, 12).map((r) => r.food)) },
-        { title: t('food.savedMeals'), meals: lists.meals },
+        { title: t('food.savedMeals'), meals: pickMode ? [] : lists.meals },
         { title: t('food.yourFoods'), foods: take(lists.custom.slice(0, 8)) },
       ];
   const visible = sections.filter((s) => (s.foods?.length ?? 0) + (s.meals?.length ?? 0) > 0);
 
-  const title = step.kind === 'search' ? t('food.add') : step.kind === 'custom' ? t('custom.title') : step.kind === 'meal' ? step.meal.name : step.food.name;
+  const title = step.kind === 'search' ? (pickMode?.title ?? t('food.add')) : step.kind === 'pending' ? t('pending.title') : step.kind === 'custom' ? t('custom.title') : step.kind === 'meal' ? step.meal.name : step.food.name;
   const back = () => setStep({ kind: 'search' });
 
   return (
@@ -83,7 +111,7 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
       pinned={
         step.kind === 'custom' ? undefined : (
           <>
-            <SlotPicker value={slot} onChange={setSlot} name="add-slot" />
+            {!pickMode && <SlotPicker value={slot} onChange={setSlot} name="add-slot" />}
             {step.kind === 'search' && (
               <Field label={t('food.search')} labelHidden class="mt-3">
                 {(c) => (
@@ -95,7 +123,10 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
                     autofocus
                     value={query}
                     placeholder={t('food.searchPlaceholder')}
-                    onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+                    onInput={(e) => {
+                      setQuery((e.target as HTMLInputElement).value);
+                      setOnlineResult({ status: 'idle' });
+                    }}
                   />
                 )}
               </Field>
@@ -128,11 +159,52 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
             </section>
           ))}
           {q && visible.length === 0 && <p class="muted mt-3">{t('food.noMatch')}</p>}
+
+          {q.length >= 2 && settings.value.onlineLookup && (
+            <section aria-label={t('online.title')} class="mt-3">
+              {onlineResult.status === 'idle' && (
+                <>
+                  <Button block disabled={!online.value} onClick={() => void searchOnline(q)}>
+                    <Icon name="search" size="sm" />{t('online.search')}
+                  </Button>
+                  {!online.value && <p class="t-caption mt-2">{t('online.offline')}</p>}
+                </>
+              )}
+              {onlineResult.status === 'loading' && <p class="muted" role="status">{t('online.searching')}</p>}
+              {onlineResult.status === 'error' && <Notice quiet role="status">{onlineResult.message}</Notice>}
+              {onlineResult.status === 'done' && (
+                <>
+                  <SectionTitle>{t('online.title')}</SectionTitle>
+                  {onlineResult.foods.length === 0 ? (
+                    <p class="muted">{t('online.none')}</p>
+                  ) : (
+                    <List>
+                      {onlineResult.foods.map((f) => (
+                        <ListRow
+                          key={f.ref.id}
+                          main={f.name}
+                          sub={[f.brand, settings.value.habitOnly ? '' : `${Math.round(f.per100g.kcal)} ${t('unit.kcal')}/100 g`].filter(Boolean).join(' · ')}
+                          onClick={() => pick(f)}
+                        />
+                      ))}
+                    </List>
+                  )}
+                  <p class="t-caption mt-2">{t('online.attribution')}</p>
+                </>
+              )}
+            </section>
+          )}
+
           <Button block class="mt-4" onClick={() => setStep({ kind: 'custom' })}>
             {q ? `${t('custom.create')} “${q}”` : t('custom.create')}
           </Button>
+          {q && !pickMode && (
+            <Button block class="mt-3" onClick={() => setStep({ kind: 'pending', text: q })}>
+              {`${t('pending.log')} “${q}”`}
+            </Button>
+          )}
           <div class="sticky-action">
-            <Button variant="primary" block onClick={onClose}>{t('common.done')}</Button>
+            <Button variant="primary" block onClick={onClose}>{pickMode ? t('common.cancel') : t('common.done')}</Button>
           </div>
         </>
       )}
@@ -144,10 +216,24 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
           slot={slot}
           onBack={back}
           onLogged={async (q2) => {
+            if (step.food.ref.kind === 'off') await cacheOnlineFood(step.food);
             await logFood(day, slot, step.food, q2);
             setAdded(`${t('food.added')}: ${step.food.name}`);
             setQuery('');
             void reload();
+            back();
+          }}
+        />
+      )}
+
+      {step.kind === 'pending' && (
+        <PendingForm
+          initialText={step.text}
+          submitLabel={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}
+          onSubmit={async (text, grams) => {
+            await logPending(day, slot, text, grams);
+            setAdded(`${t('pending.added')}: ${text}`);
+            setQuery('');
             back();
           }}
         />
@@ -159,6 +245,7 @@ export function AddFoodSheet({ day, initialSlot, onClose }: { day: string; initi
           onCancel={back}
           onCreated={(food) => {
             void reload();
+            if (pickMode) return pickMode.onPick(food);
             setStep({ kind: 'quantity', food, initial: defaultQuantity(food) });
           }}
         />

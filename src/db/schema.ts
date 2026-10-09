@@ -19,6 +19,8 @@ export interface Settings {
   theme: ThemePreference;
   habitOnly: boolean;
   hideBodyTracking: boolean;
+  /** Allow looking foods up on Open Food Facts (sends only the search text). */
+  onlineLookup: boolean;
   fallbackWeightKg?: number;
   measurementReminderWeeks?: 1 | 2 | 4;
   backupReminderDays: number;
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   habitOnly: false,
   hideBodyTracking: false,
+  onlineLookup: true,
   backupReminderDays: 14,
   updatedAt: 0,
 };
@@ -53,6 +56,28 @@ export const SLOTS: Slot[] = ['breakfast', 'lunch', 'dinner', 'snacks'];
 
 /** See PLAN §8. Gate 1 only creates `resolved` entries; the other states arrive with the pending queue. */
 export type EntryState = 'resolved' | 'pending' | 'awaiting_confirmation' | 'unmatched';
+
+/** A possible match from Open Food Facts, stored with the entry until the user decides. */
+export interface Candidate {
+  source: 'off';
+  sourceId: string;
+  name: string;
+  brand?: string;
+  per100g: Nutrients;
+  portions: Portion[];
+}
+
+/** Bookkeeping for the background lookup (see src/queue). */
+export interface LookupInfo {
+  /** Bumped whenever the user edits the text; a lookup result is applied only if it still matches. */
+  queryVersion: number;
+  attempts: number;
+  nextAttemptAt?: number;
+  lastError?: string;
+  candidates?: Candidate[];
+  suggestedIndex?: number;
+  completedAt?: number;
+}
 
 export interface FoodEntry extends Base {
   day: string;
@@ -65,6 +90,15 @@ export interface FoodEntry extends Base {
   quantity: Quantity;
   grams?: number;
   nutrition?: Nutrients;
+  lookup?: LookupInfo;
+  /** Values typed by hand instead of taken from a food. */
+  manual?: boolean;
+}
+
+/** Foods fetched online, kept so they are searchable offline next time. Rebuildable cache, not part of backups. */
+export interface CachedFood extends Base {
+  food: FoodItem;
+  fetchedAt: number;
 }
 
 export interface CustomFood extends Base {

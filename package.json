@@ -16,7 +16,8 @@
     "size": "size-limit",
     "build:foods": "tsx scripts/build-foods.ts",
     "tokens": "tsx scripts/check-tokens.ts",
-    "check": "npm run typecheck && npm run lint && npm test && npm run contrast && npm run tokens"
+    "check": "npm run typecheck && npm run lint && npm test && npm run contrast && npm run tokens",
+    "smoke:off": "tsx scripts/smoke-off.ts"
   },
   "dependencies": {
     "@fontsource-variable/figtree": "^5.3.0",

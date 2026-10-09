@@ -111,6 +111,26 @@ export class Repository<T extends Base> {
     return next;
   }
 
+  /**
+   * Atomic read-modify-write: `fn` sees the current live record and returns the fields to change, or null to
+   * leave it alone. Used where a decision depends on the record's *current* state (e.g. applying a lookup result).
+   */
+  async mutate(id: string, fn: (cur: T) => Partial<Fields<T>> | null): Promise<T | null> {
+    const db = await this.getDb();
+    const tx = db.transaction(this.store, 'readwrite');
+    const cur = (await tx.store.get(id)) as T | undefined;
+    const patch = cur && cur.deletedAt === undefined ? fn(cur) : null;
+    if (!cur || !patch) {
+      await tx.done;
+      return null;
+    }
+    const next = { ...cur, ...patch, updatedAt: this.nextTimestamp(cur), rev: cur.rev + 1 } as T;
+    await tx.store.put(next);
+    await tx.done;
+    publishChange({ store: this.store, ids: [id] });
+    return next;
+  }
+
   /** Soft delete (tombstone). */
   async remove(id: string): Promise<void> {
     const db = await this.getDb();

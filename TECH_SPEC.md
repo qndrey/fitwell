@@ -13,6 +13,7 @@ Normative words: **MUST**, **SHOULD**, **MAY** (RFC 2119).
 | 2026-10-09 | Frida has 1,381 usable foods (USDA was ~7,500), ~28 KB gzip. **No Web Worker or prebuilt index**: a linear scan with ranking takes well under 15 ms. | Simpler; NFR-6 met by a wide margin. Revisit if the dataset grows past ~10k foods. |
 | 2026-10-09 | Bundled foods have **no portion sizes** (Frida has none); they are logged in grams. Custom foods can define a serving. | Not inventing portion weights. A curated common-portions table is a candidate follow-up. |
 | 2026-10-09 | `dailyAggregates` store is **deferred to Gate 6**; Today computes totals from the day's entries. | Not needed for one day; built with its rebuild test where charts need it. |
+| 2026-10-09 | **Open Food Facts text search uses the legacy `cgi/search.pl`** behind a single adapter (`src/off/client.ts`). Checked while building Gate 3: the newer search-a-licious service returns **no nutrition fields** and sent **no `Access-Control-Allow-Origin`** for a foreign origin, so it can't serve a browser-only app; `/api/v2/search` has no text search. The legacy endpoint was answering **503 "temporarily unavailable"** every time I tried (4 requests, over several minutes), so live behaviour and CORS for it are **unverified**. Run `npm run smoke:off` when OFF is up. | Don't ship Gate 3 as "done" without that check. If search.pl is unusable from browsers, options: a tiny stateless proxy, barcode-only lookups (CORS-enabled product API), or dropping online lookup. |
 | 2026-10-09 | Design system added (Figtree self-hosted, token files, `src/ui`, Lucide icons, live style guide). Initial JS budget now measured over `index-*` + `ui-*` chunks. | Consistency before more screens. |
 | 2026-10-09 | Attribution (CC BY 4.0 citation) is shown in Settings from Gate 1; the full About screen stays in Gate 7. | CC BY requires attribution as soon as data ships. |
 
@@ -199,6 +200,18 @@ Each gate has **Entry** (what must exist), **Deliverables**, and **Exit criteria
   - [ ] Two-tab test: one runner only.
   - [ ] Written confirmation (or documented attempt) from OFF about browser-client usage and attribution wording.
   - [ ] Attribution visible in About and on OFF foods.
+
+**Gate 3 status (2026-10-09):**
+- [x] State machine: table-tested; invariant test over every state × event proves only `USER_RESOLVE` can resolve an entry. Matches are never auto-applied (e2e checks totals stay 0 until the user chooses).
+- [x] Playwright offline flow (`context.setOffline`): log without nutrition → reload (still queued) → online event → suggestions → review → choose a *different* candidate → totals update; chosen food is found offline afterwards.
+- [x] Race: text edited while a lookup is in flight → stale answer discarded, corrected text looked up (unit test on real IndexedDB + e2e with a held response). Also resolved/deleted-meanwhile cases.
+- [x] Duplicates: 3 identical foods → 1 request (unit + e2e). Two tabs → one runner (Web Locks) and both tabs see the result.
+- [x] Backoff 15 s·2ⁿ ±20 % (cap 30 min), stop after 8 attempts until next app start or manual retry; 429/503 pause the shared limiter (Retry-After) without blaming the entry; limiter never exceeds 6/min and spaces calls ≥ 1.5 s (fake-clock tests); results cached 7 days (1 day for empty).
+- [x] Privacy: only the search text is sent (no cookies/referrer/custom headers, plain GET); explicit "Search online" button, nothing on keystrokes; a setting turns online lookup off entirely; attribution on results and in Settings.
+- [x] Review screen + "N items to confirm" on Today; per item: confirm suggestion, pick another, search myself (typo-tolerant), enter values by hand, look up again, remove. Axe clean in both themes.
+- [ ] **Live OFF verification (endpoint, CORS)** — blocked: OFF returned 503. See decision log.
+- [ ] **Written confirmation from OFF** that browser-based apps may call it (and how to identify the app, since browsers can't set `User-Agent`).
+- Notes: pending entries are logged in grams only (a free-text name has no portion table); Frida foods remain gram-based.
 
 ### Gate 4 — Workouts
 - **Entry:** Gate 3.

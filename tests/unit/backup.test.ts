@@ -102,6 +102,20 @@ describe('export → wipe → import', () => {
   });
 });
 
+describe('unresolved entries survive a backup', () => {
+  it('keeps lookup state, candidates and hand-typed values through export → import', async () => {
+    const a = await freshDb();
+    const candidate = { source: 'off' as const, sourceId: '111', name: 'Test oat drink', brand: 'Acme', per100g: { kcal: 46, protein: 1, carbs: 6.7, fat: 1.5 }, portions: [{ label: 'serving', grams: 250 }] };
+    await a.put('foodEntries', { ...entry(1), state: 'awaiting_confirmation', food: undefined, nutrition: undefined, queryText: 'oat drink', lookup: { queryVersion: 2, attempts: 1, lastError: 'HTTP 500', nextAttemptAt: 99, candidates: [candidate], suggestedIndex: 0, completedAt: 5 } });
+    await a.put('foodEntries', { ...entry(2), state: 'resolved', food: undefined, queryText: 'grandma soup', manual: true });
+    await a.put('settings', { id: 'settings', units: 'metric', theme: 'system', habitOnly: false, hideBodyTracking: false, onlineLookup: false, backupReminderDays: 14, updatedAt: 3 });
+    const b = await freshDb();
+    await applyImport(b, roundtrip(await buildBackup(a)), 'replace');
+    expect(await dump(b)).toEqual(await dump(a));
+    expect((await b.get('settings', 'settings')).onlineLookup).toBe(false);
+  });
+});
+
 describe('parseBackup', () => {
   const good = async () => roundtrip(await buildBackup(await freshDb()));
 

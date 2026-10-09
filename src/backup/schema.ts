@@ -24,6 +24,23 @@ const foodItem = v.object({
   per100g: nutrients,
   portions: v.array(portion),
 });
+const candidate = v.object({
+  source: v.literal('off'),
+  sourceId: v.string(),
+  name: v.string(),
+  brand: v.optional(v.string()),
+  per100g: nutrients,
+  portions: v.array(portion),
+});
+const lookup = v.object({
+  queryVersion: v.pipe(num, v.integer(), v.minValue(0)),
+  attempts: v.pipe(num, v.integer(), v.minValue(0)),
+  nextAttemptAt: v.optional(num),
+  lastError: v.optional(v.string()),
+  candidates: v.optional(v.array(candidate)),
+  suggestedIndex: v.optional(v.pipe(num, v.integer(), v.minValue(0))),
+  completedAt: v.optional(num),
+});
 const day = v.pipe(v.string(), v.check(isDay, 'not a valid day'));
 
 const foodEntry = v.object({
@@ -36,6 +53,8 @@ const foodEntry = v.object({
   quantity,
   grams: v.optional(nonNeg),
   nutrition: v.optional(nutrients),
+  lookup: v.optional(lookup),
+  manual: v.optional(v.boolean()),
 });
 const customFood = v.object({ ...base, name: v.string(), brand: v.optional(v.string()), per100g: nutrients, portions: v.array(portion) });
 const favorite = v.object({ ...base, food: foodItem });
@@ -47,6 +66,7 @@ const settings = v.object({
   theme: v.picklist(['light', 'dark', 'system']),
   habitOnly: v.boolean(),
   hideBodyTracking: v.boolean(),
+  onlineLookup: v.optional(v.boolean()),
   fallbackWeightKg: v.optional(nonNeg),
   measurementReminderWeeks: v.optional(v.picklist([1, 2, 4])),
   backupReminderDays: v.pipe(num, v.minValue(1)),

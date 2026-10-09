@@ -9,6 +9,10 @@ import { installErrorHandling } from './errors';
 
 export const settings = signal<Settings>(DEFAULT_SETTINGS);
 export const storageAvailable = signal(true);
+/** Best-effort connectivity hint (the network itself is the real test). */
+export const online = signal(navigator.onLine !== false);
+window.addEventListener('online', () => (online.value = true));
+window.addEventListener('offline', () => (online.value = false));
 
 export function applyTheme(theme: Settings['theme']): void {
   const root = document.documentElement;

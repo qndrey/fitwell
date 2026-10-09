@@ -1,18 +1,16 @@
 import { getDb } from '../../db/open';
 import { requestPersistence } from '../../db/persistence';
-import { entriesRepo, savedMealsRepo, setFavorite } from '../../db/foodStore';
-import type { Base, FoodEntry, SavedMeal, Slot } from '../../db/schema';
+import { cacheOnlineFood, entriesRepo, savedMealsRepo, setFavorite } from '../../db/foodStore';
+import { freshLookup, reduce } from '../../queue/machine';
+import { kickQueue } from '../../queue';
+import type { FoodEntry, SavedMeal, Slot } from '../../db/schema';
 import type { FoodItem } from '../../domain/foods';
-import { quantityGrams, scale, type Quantity } from '../../domain/nutrition';
+import { quantityGrams, scale, type Nutrients, type Quantity } from '../../domain/nutrition';
 import { t } from '../../i18n';
 import { showToast } from './toast';
 
-type Fields = Omit<FoodEntry, keyof Base>;
-
-export function entryFields(day: string, slot: Slot, food: FoodItem, quantity: Quantity): Fields {
-  const grams = quantityGrams(quantity, food.portions);
-  return { day, slot, state: 'resolved', food, quantity, grams, nutrition: scale(food.per100g, grams) };
-}
+export { entryFields } from './entry';
+import { entryFields } from './entry';
 
 /** Asks the browser to keep our data (once, after the first real save). */
 async function maybeRequestPersistence(): Promise<void> {
@@ -57,3 +55,59 @@ export async function deleteMeal(meal: SavedMeal): Promise<void> {
 }
 
 export { setFavorite };
+
+// ---- Unresolved entries (pending lookup, awaiting confirmation, unmatched) ----
+
+/** Log free text with an amount in grams. No nutrition yet: a background lookup will suggest matches. */
+export async function logPending(day: string, slot: Slot, text: string, grams: number): Promise<FoodEntry> {
+  const entry = await entriesRepo.create({
+    day,
+    slot,
+    state: 'pending',
+    queryText: text.trim(),
+    quantity: { amount: grams, unit: 'g' },
+    lookup: freshLookup(0),
+  });
+  void maybeRequestPersistence();
+  kickQueue();
+  return entry;
+}
+
+/** Change the text and/or the amount of an unresolved entry. New text restarts the lookup (and invalidates any in flight). */
+export async function editUnresolved(entry: FoodEntry, change: { text: string; grams: number }): Promise<void> {
+  const textChanged = change.text.trim() !== (entry.queryText ?? '');
+  await entriesRepo.mutate(entry.id, (cur) => {
+    const quantity = { amount: change.grams, unit: 'g' as const };
+    if (!textChanged) return cur.state === 'resolved' ? null : { quantity };
+    const patch = reduce(cur, { type: 'USER_EDIT_TEXT', text: change.text.trim() });
+    return patch && { ...patch, quantity };
+  });
+  if (textChanged) kickQueue();
+}
+
+export async function retryLookup(entry: FoodEntry): Promise<void> {
+  await entriesRepo.mutate(entry.id, (cur) => reduce(cur, { type: 'USER_RETRY' }));
+  kickQueue();
+}
+
+/** The user chose a food (a suggested match, or one found by searching): this is the only way out of "unresolved". */
+export async function resolveWithFood(entry: FoodEntry, food: FoodItem): Promise<void> {
+  const grams = entry.quantity.unit === 'g' ? entry.quantity.amount : quantityGrams(entry.quantity, food.portions);
+  await entriesRepo.mutate(entry.id, (cur) => {
+    const patch = reduce(cur, { type: 'USER_RESOLVE' });
+    return patch && { ...patch, food, grams, nutrition: scale(food.per100g, grams), manual: undefined };
+  });
+  if (food.ref.kind === 'off') await cacheOnlineFood(food); // searchable offline from now on
+}
+
+/** The user typed the totals for this amount by hand. */
+export async function resolveWithValues(entry: FoodEntry, nutrition: Nutrients): Promise<void> {
+  await entriesRepo.mutate(entry.id, (cur) => {
+    const patch = reduce(cur, { type: 'USER_RESOLVE' });
+    return patch && { ...patch, nutrition, grams: cur.quantity.amount, manual: true, food: undefined };
+  });
+}
+
+export async function updateManualValues(entry: FoodEntry, nutrition: Nutrients, grams: number): Promise<void> {
+  await entriesRepo.mutate(entry.id, (cur) => (cur.manual ? { nutrition, grams, quantity: { amount: grams, unit: 'g' as const } } : null));
+}

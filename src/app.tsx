@@ -8,6 +8,7 @@ import { Today } from './features/today/Today';
 import { History } from './features/history/History';
 import { Progress } from './features/progress/Progress';
 import { Settings } from './features/settings/Settings';
+import { Review } from './features/review/Review';
 import { t } from './i18n';
 
 const SCREENS = { today: Today, history: History, progress: Progress, settings: Settings };
@@ -20,7 +21,7 @@ function LazyDesign() {
 }
 
 export function App() {
-  const Current = route.value === 'design' ? LazyDesign : SCREENS[route.value];
+  const Current = route.value === 'design' ? LazyDesign : route.value === 'review' ? Review : SCREENS[route.value];
   return (
     <>
       <a

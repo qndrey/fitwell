@@ -38,6 +38,15 @@ export function Settings() {
           help={t('settings.habitOnly.help')}
         />
       </Card>
+      <Card>
+        <Choice
+          type="checkbox"
+          checked={settings.value.onlineLookup}
+          onChange={(on) => void updateSettings({ onlineLookup: on })}
+          label={t('settings.online')}
+          help={t('settings.online.help')}
+        />
+      </Card>
       <BackupSection />
       <p class="muted">{t('settings.privacy')}</p>
       <Card labelledBy="fonts-h">
@@ -58,6 +67,15 @@ export function Settings() {
           </div>
         </Card>
       )}
+      <Card labelledBy="off-h">
+        <div class="stack gap-2">
+          <h2 id="off-h">Open Food Facts</h2>
+          <p>{t('about.off')}</p>
+          <p class="t-caption">
+            <a href="https://world.openfoodfacts.org/legal" rel="noreferrer noopener">{t('about.off.licence')}</a>
+          </p>
+        </div>
+      </Card>
     </Screen>
   );
 }

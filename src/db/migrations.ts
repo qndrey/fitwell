@@ -43,6 +43,14 @@ export const migrations: Migration[] = [
       db.createObjectStore('savedMeals', { keyPath: 'id' });
     },
   },
+  {
+    version: 4,
+    name: 'online food cache + lookup cache',
+    up(db) {
+      db.createObjectStore('foods', { keyPath: 'id' });
+      db.createObjectStore('offCache', { keyPath: 'key' });
+    },
+  },
 ];
 
 export const LATEST_VERSION = migrations[migrations.length - 1]!.version;

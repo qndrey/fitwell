@@ -93,18 +93,29 @@
 .fig { display: block; width: 100%; height: auto; background: var(--surface-2); border-radius: var(--radius-m); }
 .fig-thumb { width: 5rem; border-radius: var(--radius-s); }
 .fig-blank { display: block; width: 5rem; aspect-ratio: 3 / 2; background: var(--surface-2); border-radius: var(--radius-s); }
-.fig-floor, .fig-propline { stroke: var(--text-muted); stroke-width: 1.2; opacity: 0.6; }
+.fig-floor, .fig-propline { stroke: var(--text-muted); stroke-width: 1.2; stroke-linecap: round; opacity: 0.6; }
 .fig-prop { fill: var(--text-muted); opacity: 0.5; }
-.fig-prop-bar { stroke: var(--text-muted); stroke-width: 2; }
-.fig-cable { stroke: var(--text-muted); stroke-width: 1; }
+.fig-prop-box { fill: var(--text-muted); opacity: 0.3; }
+.fig-prop-pad { stroke: var(--text-muted); stroke-width: 3; stroke-linecap: round; opacity: 0.6; }
+.fig-prop-bar { stroke: var(--text-muted); stroke-width: 2; stroke-linecap: round; }
+.fig-cable { stroke: var(--text-muted); stroke-width: 0.8; }
+.fig-pulley { fill: var(--surface-2); stroke: var(--text-muted); stroke-width: 1; }
 .fig-limb, .fig-torso { stroke: var(--text); stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; fill: none; }
 .fig-torso { stroke-width: 4.4; }
 .fig-thumb .fig-limb { stroke-width: 3.8; }
 .fig-thumb .fig-torso { stroke-width: 5; }
 .fig-far { stroke: var(--text-muted); }
 .fig-head { fill: var(--surface); stroke: var(--text); stroke-width: 2.4; }
-.fig-implement { fill: none; stroke: var(--accent); stroke-width: 2.4; }
-.fig-implement.solid { fill: var(--accent); }
+/* A faint copy of the other end of the motion, and the dotted path the hands take */
+.fig-ghost, .fig-ghost-head { stroke: var(--text); stroke-linecap: round; stroke-linejoin: round; stroke-width: 3; fill: none; opacity: 0.16; }
+.fig-ghost.thick { stroke-width: 4.4; }
+.fig-thumb .fig-ghost { stroke-width: 3.8; }
+.fig-thumb .fig-ghost.thick { stroke-width: 5; }
+.fig-trace { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 1.5 2; stroke-linecap: round; opacity: 0.8; }
+.fig-trace-head { fill: var(--accent); opacity: 0.8; }
+.fig-implement { fill: none; stroke: var(--accent); stroke-width: 2.2; }
+.fig-implement.solid { fill: var(--accent); stroke: none; }
+.fig-implement-handle { stroke: var(--accent); stroke-width: 1.4; }
 .prompt-box { height: auto; min-height: 8rem; padding: var(--space-3); font-family: ui-monospace, monospace; font-size: var(--text-sm); line-height: 1.4; resize: vertical; }
 .ex-figure { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-2) 0; }
 .row:hover:not(.static) { background: var(--surface-2); }

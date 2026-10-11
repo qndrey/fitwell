@@ -384,3 +384,53 @@ test('strength: timed sets and bodyweight', async ({ page }) => {
   await page.getByRole('link', { name: 'Back to today' }).or(page.getByRole('button', { name: 'Back to today' })).first().click();
   await expect(wk(page).filter({ hasText: 'Strength' })).toContainText('2 sets');
 });
+
+test('exercise drawings: preview in the picker, figure in How to, none for your own', async ({ page }) => {
+  await startStrength(page);
+  await page.getByRole('button', { name: 'Add exercise' }).click();
+  const d = page.getByRole('dialog');
+  await d.getByLabel('Search exercises').fill('squat');
+  // Rows with a drawing and rows without line up (a drawing or an empty box in front of every title).
+  await expect(d.locator('button.row.has-lead').first()).toBeVisible();
+  await expect(d.locator('button.row svg.fig-thumb').first()).toBeVisible();
+  await d.getByRole('button', { name: /^Barbell Full Squat/ }).click();
+  await page.getByText('How to').click();
+  const fig = page.getByRole('img', { name: /Barbell Full Squat: stick figure/ });
+  await expect(fig).toBeVisible();
+  // Reduced motion (the default here): switch by hand.
+  await expect(page.getByText('Start position')).toBeVisible();
+  const before = await fig.innerHTML();
+  await page.getByRole('button', { name: 'Show other position' }).click();
+  await expect(page.getByText('End position')).toBeVisible();
+  expect(await fig.innerHTML()).not.toBe(before);
+});
+
+test('exercise drawings: play and pause when motion is welcome', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByText('How to').click();
+  const fig = page.getByRole('img', { name: /stick figure/ });
+  const a = await fig.innerHTML();
+  await expect.poll(async () => (await fig.innerHTML()) !== a).toBe(true);
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.waitForTimeout(250);
+  const frozen = await fig.innerHTML();
+  await page.waitForTimeout(400);
+  expect(await fig.innerHTML()).toBe(frozen);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+});
+
+test('exercise drawings are accessible and fit a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByText('How to').click();
+  await expect(page.getByRole('img', { name: /stick figure/ })).toBeVisible();
+  expect((await a11yScan(page)).violations.map((v) => v.id)).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Add exercise' }).click();
+  await page.getByRole('dialog').getByLabel('Search exercises').fill('squat');
+  await expect(page.locator('dialog svg.fig-thumb').first()).toBeVisible();
+  expect((await a11yScan(page)).violations.map((v) => v.id)).toEqual([]);
+});

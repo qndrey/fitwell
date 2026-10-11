@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { ExerciseFigure, ExerciseThumb } from './ExerciseFigure';
 import { Button, Field, Icon, List, ListRow, SectionTitle, Select, Sheet, TextInput } from '../../ui';
 import { customExercisesRepo, recentRefs } from '../../db/workoutStore';
 import { fromCustom, loadExercises, loadInstructions, prepareExercises, searchExercises, type Exercise } from '../../data/exercises';
@@ -54,6 +55,7 @@ function HowTo({ ex }: { ex: Exercise }) {
   return (
     <details class="howto" onToggle={(e) => (e.target as HTMLDetailsElement).open && !steps && void loadInstructions(ex.ref).then(setSteps)}>
       <summary>{t('exercise.howTo')}</summary>
+      {ex.ref.startsWith('ex:') && <ExerciseFigure name={ex.name} />}
       {steps && (steps.length ? <ol>{steps.map((s, i) => <li key={i}>{s}</li>)}</ol> : <p class="muted">{t('exercise.noSteps')}</p>)}
     </details>
   );
@@ -83,7 +85,7 @@ export function ExercisePicker({ onPick, onClose }: { onPick: (e: Exercise) => v
   const recents = recent.map((r) => byRef.get(r.ref) ?? { ref: r.ref, name: r.name, equipment: 'other', primary: [], secondary: [] });
 
   const row = (e: Exercise) => (
-    <ListRow key={e.ref} main={e.name} sub={[e.primary.map(title).join(', '), e.equipment !== 'none' ? title(e.equipment) : t('exercise.noEquipment')].filter(Boolean).join(' · ')} onClick={() => onPick(e)} />
+    <ListRow key={e.ref} lead={<ExerciseThumb name={e.name} />} main={e.name} sub={[e.primary.map(title).join(', '), e.equipment !== 'none' ? title(e.equipment) : t('exercise.noEquipment')].filter(Boolean).join(' · ')} onClick={() => onPick(e)} />
   );
 
   return (

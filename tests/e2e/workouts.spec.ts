@@ -137,8 +137,8 @@ test('strength: search the library offline, log sets, see "Last time", repeat, w
   await expect(setInputs(page, 2).weight).toHaveValue('60');
   await expect(setInputs(page, 2).reps).toHaveValue('8');
   await page.getByRole('button', { name: 'Add set' }).click();
-  await setInputs(page, 3).reps.fill('6');
-  await setInputs(page, 3).weight.fill('62,5');
+  await setInputs(page, 3).reps.fill('6.5'); // partial reps and small plates keep their decimals
+  await setInputs(page, 3).weight.fill('62,25');
   await page.getByRole('button', { name: /^Set 1: working set/ }).click(); // mark the first as a warm-up
   await expect(page.getByRole('button', { name: /^Set 1: warm-up/ })).toHaveText('W');
   await expect(page.getByRole('button', { name: /^Set 2: working/ })).toHaveText('1'); // working sets renumber
@@ -146,10 +146,11 @@ test('strength: search the library offline, log sets, see "Last time", repeat, w
   // Saved without any "save" button: reload and it's all there.
   await page.waitForTimeout(500);
   await page.reload();
-  await expect(setInputs(page, 3).weight).toHaveValue('62.5');
+  await expect(setInputs(page, 3).weight).toHaveValue('62.25');
+  await expect(setInputs(page, 3).reps).toHaveValue('6.5');
   await expect(page.getByRole('button', { name: /^Set 1: warm-up/ })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Back to today' }).or(page.getByRole('button', { name: 'Back to today' })).first().click();
+  await page.getByRole('button', { name: /Open this day/ }).click();
   const row = wk(page).filter({ hasText: 'Strength' });
   await expect(row).toContainText('1 exercise · 3 sets');
 
@@ -158,7 +159,7 @@ test('strength: search the library offline, log sets, see "Last time", repeat, w
   d = await addWorkout(page);
   await d.getByRole('button', { name: 'Strength workout', exact: true }).click();
   await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
-  await expect(page.getByText('8 @ 60, 6 @ 62.5 kg')).toBeVisible();
+  await expect(page.getByText('8 @ 60, 6.5 @ 62.25 kg')).toBeVisible();
   await expect(page.getByText('Last time')).toBeVisible();
   await expect(setInputs(page, 1).weight).toHaveValue('60');
   await context.setOffline(false);
@@ -196,7 +197,7 @@ test('strength: filters, instructions, your own exercise, templates and repeat l
   await page.getByRole('dialog').getByLabel('Template name').fill('Arms and sled');
   await page.getByRole('dialog').getByRole('button', { name: 'Save template' }).click();
   await page.waitForTimeout(400);
-  await page.getByRole('button', { name: 'Back to today' }).click();
+  await page.getByRole('button', { name: /Open this day/ }).click();
 
   await page.getByRole('button', { name: 'Previous day' }).click();
   d = await addWorkout(page);
@@ -204,7 +205,7 @@ test('strength: filters, instructions, your own exercise, templates and repeat l
   await expect(page.getByRole('heading', { level: 2, name: 'Sled push' })).toBeVisible();
   await expect(setInputs(page, 1, /Sled push/).weight).toHaveValue('40');
   await page.waitForTimeout(400);
-  await page.getByRole('button', { name: 'Back to today' }).click();
+  await page.getByRole('button', { name: /Open this day/ }).click();
   await page.getByRole('button', { name: 'Previous day' }).click();
   d = await addWorkout(page);
   await d.getByRole('button', { name: /Repeat last strength workout/ }).click();
@@ -214,7 +215,7 @@ test('strength: filters, instructions, your own exercise, templates and repeat l
 test('an empty strength workout is not left behind; units switch to pounds', async ({ page }) => {
   let d = await addWorkout(page);
   await d.getByRole('button', { name: 'Strength workout', exact: true }).click();
-  await page.getByRole('button', { name: 'Back to today' }).click();
+  await page.getByRole('button', { name: /Open this day/ }).click();
   await expect(wk(page).filter({ hasText: 'Strength' })).toHaveCount(0);
 
   await page.getByRole('link', { name: 'Settings' }).click();
@@ -239,7 +240,7 @@ test('workouts are part of backups and restore exactly', async ({ page }) => {
   await page.getByLabel('Set 1 kg').fill('100');
   await page.getByLabel('Set 1 reps').fill('5');
   await page.waitForTimeout(500);
-  await page.getByRole('button', { name: 'Back to today' }).click();
+  await page.getByRole('button', { name: /Open this day/ }).click();
 
   await page.getByRole('link', { name: 'Settings' }).click();
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save a backup file' }).click()]);
@@ -332,10 +333,9 @@ test('strength: exercises fold away, the new one stays open, collapse/expand all
   await first.click();
   await expect(first).toHaveAttribute('aria-expanded', 'true');
   await expect(open).toHaveCount(2);
-  await page.getByRole('button', { name: 'Collapse all' }).click();
-  await expect(open).toHaveCount(0);
-  await page.getByRole('button', { name: 'Expand all' }).click();
-  await expect(open).toHaveCount(2);
+  await first.click();
+  await expect(open).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /Collapse all|Expand all/ })).toHaveCount(0);
 });
 
 test('strength: supersets share a round, and unlinking splits them', async ({ page }) => {
@@ -381,7 +381,7 @@ test('strength: timed sets and bodyweight', async ({ page }) => {
   await page.waitForTimeout(500);
   await page.reload();
   await expect(card.getByLabel(/^Set 1 time/)).toHaveValue('1:30');
-  await page.getByRole('link', { name: 'Back to today' }).or(page.getByRole('button', { name: 'Back to today' })).first().click();
+  await page.getByRole('button', { name: /Open this day/ }).click();
   await expect(wk(page).filter({ hasText: 'Strength' })).toContainText('2 sets');
 });
 

@@ -28,7 +28,16 @@ try {
   /* storage may be blocked */
 }
 render(<App />, document.getElementById('app')!);
+hideSplash();
 watchUnresolved();
 void ensureMeasurementTypes().then(watchBody).catch(() => undefined);
 startQueue();
 registerServiceWorker();
+
+/** Fades out the start-up screen from index.html once the first screen is drawn. */
+function hideSplash() {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+  splash.classList.add('done');
+  setTimeout(() => splash.remove(), 300);
+}

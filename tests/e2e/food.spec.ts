@@ -100,8 +100,9 @@ test('day navigation keeps days separate; habit-only hides numbers', async ({ pa
   await page.getByRole('button', { name: 'Previous day' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Yesterday');
   await expect(page.locator('main').getByRole('button', { name: /Banana/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Back to today' }).click();
+  await page.getByRole('button', { name: /Go to today/ }).click(); // the date under the title
   await expect(page.locator('main').getByRole('button', { name: /Banana/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Go to today/ })).toHaveCount(0); // already there: plain text
 
   await page.getByRole('link', { name: 'Settings' }).click();
   await page.getByLabel('Habit-only mode').check();

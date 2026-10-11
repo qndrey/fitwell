@@ -10,12 +10,13 @@ export interface ScreenNav {
   nextLabel: string;
   onPrev: () => void;
   onNext: () => void;
-  /** Small extra control under the subtitle, e.g. "Back to today". */
-  extra?: ComponentChildren;
 }
 
-/** Screen wrapper: moves focus to the heading on navigation for screen-reader users. */
-export function Screen({ title, subtitle, nav, children }: { title: string; subtitle?: string; nav?: ScreenNav; children: ComponentChildren }) {
+/**
+ * Screen wrapper: moves focus to the heading on navigation for screen-reader users.
+ * `onSubtitle` makes the subtitle (a date) a button, e.g. to jump back to that day; `subtitleAction` names what it does.
+ */
+export function Screen({ title, subtitle, onSubtitle, subtitleAction, nav, children }: { title: string; subtitle?: string; onSubtitle?: () => void; subtitleAction?: string; nav?: ScreenNav; children: ComponentChildren }) {
   const h1 = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     document.title = `${title} · Fitwell`;
@@ -26,8 +27,12 @@ export function Screen({ title, subtitle, nav, children }: { title: string; subt
   const heading = (
     <div class="screen-title">
       <h1 ref={h1} tabIndex={-1}>{title}</h1>
-      {subtitle && <p class="muted">{subtitle}</p>}
-      {nav?.extra}
+      {subtitle && !onSubtitle && <p class="muted">{subtitle}</p>}
+      {subtitle && onSubtitle && (
+        <button type="button" class="screen-date" onClick={onSubtitle} aria-label={subtitleAction ? `${subtitle}. ${subtitleAction}` : undefined}>
+          <Icon name="today" size="sm" />{subtitle}
+        </button>
+      )}
     </div>
   );
   if (!nav) return <><header>{heading}</header><div class="page">{children}</div></>;

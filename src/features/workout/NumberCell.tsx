@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { parseAmount } from '../../domain/nutrition';
 
 /** A numeric input that keeps what you type ("6.", "") while you type, and only reports finite numbers. */
-export function NumberCell({ value, onValue, label, placeholder, integer }: { value: number; onValue: (n: number) => void; label: string; placeholder?: string; integer?: boolean }) {
+export function NumberCell({ value, onValue, label, placeholder }: { value: number; onValue: (n: number) => void; label: string; placeholder?: string }) {
   const show = (n: number) => (n ? String(n) : '');
   const [text, setText] = useState(show(value));
   const focused = useRef(false);
@@ -12,7 +12,7 @@ export function NumberCell({ value, onValue, label, placeholder, integer }: { va
   return (
     <input
       class="input num"
-      inputMode={integer ? 'numeric' : 'decimal'}
+      inputMode="decimal"
       autocomplete="off"
       aria-label={label}
       placeholder={placeholder}
@@ -29,7 +29,7 @@ export function NumberCell({ value, onValue, label, placeholder, integer }: { va
         const s = (e.target as HTMLInputElement).value;
         setText(s);
         const n = s.trim() === '' ? 0 : parseAmount(s);
-        if (n !== null) onValue(integer ? Math.round(n) : n);
+        if (n !== null) onValue(n);
       }}
     />
   );

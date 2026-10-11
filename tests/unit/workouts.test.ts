@@ -56,6 +56,14 @@ describe('units', () => {
     expect(displayDistance(toKm(3.1, 'imperial'), 'imperial')).toBe(3.1);
     expect(displayDistance(10, 'metric')).toBe(10);
   });
+  it('keeps a second decimal for small plates, not for conversion noise', () => {
+    expect(displayWeight(62.25, 'metric', 2)).toBe(62.25);
+    expect(displayWeight(1.75, 'metric', 2)).toBe(1.75);
+    expect(displayWeight(62.33, 'metric', 2)).toBe(62.3);
+    expect(displayWeight(62.25, 'metric')).toBe(62.3); // default stays at 0.1
+    expect(displayWeight(60, 'imperial', 2)).toBe(132.3);
+    expect(displayWeight(lbToKg(132.25), 'imperial', 2)).toBe(132.25);
+  });
 });
 
 describe('set summaries ("Last time: …")', () => {
@@ -65,6 +73,7 @@ describe('set summaries ("Last time: …")', () => {
   });
   it('lists sets when they differ', () => {
     expect(summarizeSets([w(8, 60), w(8, 60), w(6, 62.5)], 'metric')).toBe('8 @ 60, 8 @ 60, 6 @ 62.5 kg');
+    expect(summarizeSets([w(8, 60), w(6.5, 62.25)], 'metric')).toBe('8 @ 60, 6.5 @ 62.25 kg');
   });
   it('converts to pounds and handles bodyweight sets', () => {
     expect(summarizeSets([w(5, 60), w(5, 60)], 'imperial')).toBe('2×5 @ 132.3 lb');
@@ -95,7 +104,7 @@ describe('copy and describe', () => {
     expect(src[0]!.sets[0]!.reps).toBe(5);
   });
   it('describes workouts for lists', () => {
-    expect(describeWorkout({ type: 'cardio', cardio: { activityRef: 'a', activityName: 'Running', met: 9, durationMin: 30.4 } })).toEqual({ title: 'Running', detail: '30 min' });
+    expect(describeWorkout({ type: 'cardio', cardio: { activityRef: 'a', activityName: 'Running', met: 9, durationMin: 30.4 } })).toEqual({ title: 'Running', detail: '30.4 min' });
     expect(describeWorkout({ type: 'strength', name: 'Push day', exercises: [{ exerciseRef: 'x', exerciseName: 'X', sets: [{ id: '1', type: 'working', reps: 5, weightKg: 1 }, { id: '2', type: 'working', reps: 0, weightKg: 0 }] }] })).toEqual({ title: 'Push day', detail: '1 exercise · 1 set' });
   });
 });

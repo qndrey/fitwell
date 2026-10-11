@@ -18,7 +18,7 @@ Status: decisions in §0 confirmed (all defaults accepted; Preact + custom CSS, 
 | 8 | Persistent storage: ask the browser for `navigator.storage.persist()` on first meaningful save (no prompt on Chrome; Safari/Firefox may prompt). OK? | Yes. |
 | 9 | Languages: English only for v1 (strings still go through a tiny `t()` helper). | English only. |
 | 10 | Strength weight increments / plate math: skip in v1. | Skip. |
-| 11 | Name/domain, app icon, and contact email for the OFF User-Agent string. | Placeholder. |
+| 11 | Name/domain, app icon, and contact email for the OFF User-Agent string. | Name and domain placeholders. App icon: a leaf whose vein is a rising pulse line (`scripts/make-icons.ts`), also on the start-up screen (`public/splash.css`). |
 
 ---
 

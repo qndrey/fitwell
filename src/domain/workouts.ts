@@ -4,8 +4,6 @@ import { displayWeight, weightUnit, type UnitSystem } from './units';
 /** What counts toward the calorie total for a cardio workout: the user's own number wins over the estimate. */
 export const cardioKcal = (c: CardioDetails): number | undefined => c.kcalOverride ?? c.kcalEstimated;
 
-const fmt = (n: number) => String(Math.round(n * 10) / 10);
-
 /** Added load of a set: for bodyweight sets, what was added on top of body weight; otherwise the weight itself. */
 export const addedLoadKg = (s: Pick<WorkoutSet, 'weightKg' | 'bodyweightKg'>): number =>
   s.bodyweightKg !== undefined ? Math.max(0, Math.round((s.weightKg - s.bodyweightKg) * 100) / 100) : s.weightKg;
@@ -45,7 +43,7 @@ export function summarizeSets(sets: SummarySet[], units: UnitSystem, how: { mode
   const isTime = how.mode === 'time';
   const working = sets.filter((s) => s.type === 'working' && (isTime ? (s.durationSec ?? 0) > 0 : s.reps > 0 || (s.durationSec ?? 0) > 0));
   if (working.length === 0) return '';
-  const w = (kg: number) => fmt(displayWeight(kg, units));
+  const w = (kg: number) => String(displayWeight(kg, units, 2));
   const unit = weightUnit(units);
   const measure = (s: SummarySet) => (!isTime && s.reps > 0 ? String(s.reps) : formatDuration(s.durationSec ?? 0));
   const load = (s: SummarySet): { text: string; numeric: boolean } => {
@@ -130,7 +128,7 @@ export function copyExercises(exercises: WorkoutExercise[], newId: () => string)
 export function describeWorkout(w: Pick<Workout, 'type' | 'cardio' | 'exercises' | 'name'>): { title: string; detail: string } {
   if (w.type === 'cardio' && w.cardio) {
     const c = w.cardio;
-    return { title: c.activityName, detail: `${Math.round(c.durationMin)} min` };
+    return { title: c.activityName, detail: `${Math.round(c.durationMin * 10) / 10} min` };
   }
   const ex = w.exercises ?? [];
   const sets = ex.reduce((n, e) => n + e.sets.filter(isSetLogged).length, 0);

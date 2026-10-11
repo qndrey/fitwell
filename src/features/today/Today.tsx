@@ -53,12 +53,13 @@ export function Today() {
     <Screen
       title={title}
       subtitle={formatDay(day)}
+      onSubtitle={day !== todayStr ? () => go(todayStr) : undefined}
+      subtitleAction={t('today.goToday')}
       nav={{
         prevLabel: t('today.prev'),
         nextLabel: t('today.next'),
         onPrev: () => go(addDays(day, -1)),
         onNext: () => go(addDays(day, 1)),
-        extra: day !== todayStr && <button class="link-btn" onClick={() => go(todayStr)}>{t('today.jump')}</button>,
       }}
     >
       <Card label={t('today.summary')} compact>
@@ -102,8 +103,8 @@ export function Today() {
             <div class="slot-head">
               <h2 id={`slot-${slot}`}>{t(`slot.${slot}` as Key)}</h2>
               {!habitOnly && list.length > 0 && <span class="t-caption">{st.kcal} {t('unit.kcal')}</span>}
-              <Button size="sm" onClick={() => setSheet({ kind: 'add', slot })} aria-label={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}>
-                <Icon name="plus" size="sm" />{t('common.add')}
+              <Button icon class="add-btn" onClick={() => setSheet({ kind: 'add', slot })} aria-label={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}>
+                <Icon name="plus" />
               </Button>
             </div>
             {list.length > 0 && (
@@ -136,8 +137,8 @@ export function Today() {
       <section class="slot stack gap-2" aria-labelledby="workouts-h">
         <div class="slot-head">
           <h2 id="workouts-h">{t('workout.title')}</h2>
-          <Button size="sm" onClick={() => setSheet({ kind: 'addWorkout' })} aria-label={t('workout.add')}>
-            <Icon name="plus" size="sm" />{t('common.add')}
+          <Button icon class="add-btn" onClick={() => setSheet({ kind: 'addWorkout' })} aria-label={t('workout.add')}>
+            <Icon name="plus" />
           </Button>
         </div>
         <WeekGoal day={day} />
@@ -148,7 +149,7 @@ export function Today() {
               const kcal = w.cardio ? cardioKcal(w.cardio) : undefined;
               const dist = w.cardio?.distanceKm;
               const extras = [
-                dist ? `${Math.round(displayDistance(dist, settings.value.units) * 10) / 10} ${distanceUnit(settings.value.units)}` : '',
+                dist ? `${displayDistance(dist, settings.value.units)} ${distanceUnit(settings.value.units)}` : '',
                 !habitOnly && kcal !== undefined ? `${w.cardio?.kcalOverride !== undefined ? '' : '≈ '}${kcal} ${t('unit.kcal')}` : '',
               ].filter(Boolean);
               return (

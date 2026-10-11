@@ -5,19 +5,28 @@ export function List({ children, class: cls }: { children: ComponentChildren; cl
 }
 
 /** A row: bold main line, muted sub line. Tappable when `onClick` is given, otherwise static. */
-export function ListRow({ main, sub, onClick }: { main: ComponentChildren; sub?: ComponentChildren; onClick?: () => void }) {
-  const inner = (
+export function ListRow({ main, sub, onClick, lead }: { main: ComponentChildren; sub?: ComponentChildren; onClick?: () => void; lead?: ComponentChildren }) {
+  const text = (
     <>
       <span class="row-main">{main}</span>
       {sub ? <span class="row-sub">{sub}</span> : null}
     </>
   );
+  const inner = lead ? (
+    <>
+      <span class="row-lead" aria-hidden="true">{lead}</span>
+      <span class="row-text">{text}</span>
+    </>
+  ) : (
+    text
+  );
+  const cls = lead ? 'row has-lead' : 'row';
   return onClick ? (
     <li>
-      <button type="button" class="row" onClick={onClick}>{inner}</button>
+      <button type="button" class={cls} onClick={onClick}>{inner}</button>
     </li>
   ) : (
-    <li class="row static">{inner}</li>
+    <li class={`${cls} static`}>{inner}</li>
   );
 }
 

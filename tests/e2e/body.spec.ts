@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('weight: log from Today, replace the same day, start from your last weight, remove', async ({ page }) => {
-  await expect(weightValue(page)).toHaveText('—');
+  await expect(weightValue(page)).toHaveText('No weigh-in yet');
   await logWeight(page, '72,4');
   await expect(weightValue(page)).toContainText('72.4 kg');
   await logWeight(page, '72.1'); // same day: replaced, not duplicated
@@ -27,7 +27,7 @@ test('weight: log from Today, replace the same day, start from your last weight,
 
   // The next day starts from yesterday's number; steppers nudge by 0.1.
   await page.getByRole('button', { name: 'Next day' }).click();
-  await expect(weightValue(page)).toHaveText('—');
+  await expect(weightValue(page)).toHaveText('No weigh-in yet');
   await card(page).getByRole('button', { name: 'Log weight' }).click();
   const d = page.getByRole('dialog');
   await expect(d.getByLabel(/^Weight \(/)).toHaveValue('72.1');
@@ -45,7 +45,7 @@ test('weight: log from Today, replace the same day, start from your last weight,
 
   await card(page).getByRole('button', { name: 'Update' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
-  await expect(weightValue(page)).toHaveText('—');
+  await expect(weightValue(page)).toHaveText('No weigh-in yet');
   await page.getByRole('button', { name: 'Previous day' }).click();
   await expect(weightValue(page)).toContainText('72.1 kg'); // the other day is untouched
 });
@@ -90,6 +90,13 @@ test('logged weight feeds cardio estimates (and beats the Settings fallback)', a
   await d.getByRole('button', { name: /^Running, about 10 km\/h/ }).click();
   await d.getByLabel('Duration (minutes)').fill('30');
   await expect(d.getByText(/≈ 343 kcal/)).toBeVisible(); // 9.8 × 70 × 0.5, not × 100
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  // Settings shows the weigh-in that is used, not a second number to keep in sync.
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page.getByText(/^70 kg/)).toBeVisible();
+  await expect(page.getByText(/from your weigh-in on/)).toBeVisible();
+  await expect(page.getByLabel(/^Your weight/)).toHaveCount(0);
 });
 
 test('measurements: only enabled types, partial entries, same-day edit, how-to hints, units', async ({ page }) => {
@@ -229,7 +236,7 @@ test('weight and measurements are in backups and restore exactly', async ({ page
   await page.getByRole('link', { name: 'Today' }).click();
   await card(page).getByRole('button', { name: 'Update' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
-  await expect(weightValue(page)).toHaveText('—');
+  await expect(weightValue(page)).toHaveText('No weigh-in yet');
 
   await page.getByRole('link', { name: 'Settings' }).click();
   await page.getByLabel('Restore from a backup', { exact: true }).last().setInputFiles({ name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(json) });

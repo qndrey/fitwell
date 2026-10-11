@@ -44,6 +44,18 @@ export async function logMeal(day: string, slot: Slot, meal: SavedMeal): Promise
   for (const item of meal.items) await logFood(day, slot, item.food, item.quantity);
 }
 
+/** Logs copies of the resolved entries on `day` in `slot` (e.g. "same as yesterday"). Returns the new ids so the copy can be undone. */
+export async function copyEntries(day: string, slot: Slot, entries: FoodEntry[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const e of entries) {
+    if (e.state !== 'resolved') continue;
+    const { food, quantity, grams, nutrition, manual } = e;
+    const created = await entriesRepo.create({ day, slot, state: 'resolved', quantity, ...(food ? { food } : {}), ...(grams !== undefined ? { grams } : {}), ...(nutrition ? { nutrition } : {}), ...(manual ? { manual } : {}) });
+    ids.push(created.id);
+  }
+  return ids;
+}
+
 export async function saveSlotAsMeal(entries: FoodEntry[], name: string): Promise<SavedMeal> {
   const items = entries.flatMap((e) => (e.food ? [{ food: e.food, quantity: e.quantity }] : []));
   return savedMealsRepo.create({ name: name.trim(), items });

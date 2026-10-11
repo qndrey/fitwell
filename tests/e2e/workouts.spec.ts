@@ -35,6 +35,21 @@ async function addExercise(page: Page, query: string, name: string | RegExp) {
   await d.getByRole('button', { name }).first().click();
 }
 
+/** Opens the ⋯ menu of the n-th exercise card and picks an item ("Exercise options", "How to", "Remove exercise"). */
+async function exerciseMenu(page: Page, n: number, item: string) {
+  await page.getByRole('button', { name: /^More for this exercise/ }).nth(n).click();
+  await page.getByRole('menuitem', { name: item }).click();
+}
+
+/** Exercise options sheet: measure by, load, superset; closes with Done. */
+async function exerciseOptions(page: Page, n: number, set: (d: ReturnType<Page['getByRole']>) => Promise<void>) {
+  await exerciseMenu(page, n, 'Exercise options');
+  const d = page.getByRole('dialog');
+  await set(d);
+  await d.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+}
+
 /** Inputs of set n, optionally within one exercise's card. */
 const setInputs = (page: Page, n: number, exercise?: string | RegExp) => {
   const scope = exercise ? page.getByRole('group', { name: exercise }) : page;
@@ -136,10 +151,17 @@ test('strength: search the library offline, log sets, see "Last time", repeat, w
   await page.getByRole('button', { name: 'Add set' }).click(); // copies the previous set
   await expect(setInputs(page, 2).weight).toHaveValue('60');
   await expect(setInputs(page, 2).reps).toHaveValue('8');
+  // A copied set is planned until you do it: ticking it counts it (and starts the rest timer).
+  await expect(page.getByRole('button', { name: 'Set 2: done' })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Set 2: done' }).click();
+  await expect(page.getByRole('button', { name: 'Set 2: done' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('timer')).toContainText(/Rest 1:[0-9]{2}/);
+  await page.getByRole('button', { name: 'Skip' }).click();
   await page.getByRole('button', { name: 'Add set' }).click();
   await setInputs(page, 3).reps.fill('6.5'); // partial reps and small plates keep their decimals
   await setInputs(page, 3).weight.fill('62,25');
-  await page.getByRole('button', { name: /^Set 1: working set/ }).click(); // mark the first as a warm-up
+  await page.getByRole('button', { name: /^Set 1: working set/ }).click(); // the set badge opens its menu
+  await page.getByRole('menuitem', { name: 'Make it a warm-up' }).click();
   await expect(page.getByRole('button', { name: /^Set 1: warm-up/ })).toHaveText('W');
   await expect(page.getByRole('button', { name: /^Set 2: working/ })).toHaveText('1'); // working sets renumber
 
@@ -178,8 +200,9 @@ test('strength: filters, instructions, your own exercise, templates and repeat l
   await d.getByLabel('Search exercises').fill('curl');
   await results.first().click();
 
-  await page.getByText('How to').click();
-  await expect(page.locator('.howto ol li').first()).toBeVisible();
+  await exerciseMenu(page, 0, 'How to');
+  await expect(page.getByRole('dialog').locator('.howto ol li').first()).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('button', { name: 'Add exercise' }).click();
   d = page.getByRole('dialog');
@@ -300,11 +323,13 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByRole('dialog').getByLabel('Search exercises').fill('plank');
     await page.getByRole('dialog').getByRole('button', { name: /Plank/ }).first().click();
     await page.getByRole('button', { name: /Squat/ }).first().click(); // fold away the first one
-    const card = page.locator('section.card').nth(1);
-    await card.getByText('Exercise options').click();
-    await card.getByRole('radio', { name: 'Time' }).check();
-    await card.getByRole('radio', { name: 'Bodyweight' }).check();
-    await card.getByLabel('Superset with the exercise above').check();
+    await exerciseMenu(page, 1, 'Exercise options');
+    const opts = page.getByRole('dialog');
+    await opts.getByRole('radio', { name: 'Time' }).check();
+    await opts.getByRole('radio', { name: 'Bodyweight' }).check();
+    await opts.getByLabel('Superset with the exercise above').check();
+    await clean();
+    await opts.getByRole('button', { name: 'Done' }).click();
     await clean();
     await fits();
     const tight = await page.evaluate(() => [...document.querySelectorAll('main button, main input:not([readonly]):not([type=radio]):not([type=checkbox])')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.height < 43.5 || r.width < 43.5); }).map((b) => `${(b as HTMLElement).tagName} ${(b as HTMLElement).getAttribute('aria-label') ?? b.textContent}`));
@@ -343,9 +368,7 @@ test('strength: supersets share a round, and unlinking splits them', async ({ pa
   await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
   await addExercise(page, 'squat', /Squat/);
   await page.getByRole('button', { name: /Barbell Bench Press/ }).first().click();
-  const card = page.locator('section.card').nth(1);
-  await card.getByText('Exercise options').click();
-  await card.getByLabel('Superset with the exercise above').check();
+  await exerciseOptions(page, 1, (d) => d.getByLabel('Superset with the exercise above').check());
   await expect(page.getByText('Superset 1 of 2')).toBeVisible();
   await expect(page.getByText('Superset 2 of 2')).toBeVisible();
   await page.getByRole('button', { name: 'Add round' }).first().click();
@@ -353,9 +376,7 @@ test('strength: supersets share a round, and unlinking splits them', async ({ pa
   await page.waitForTimeout(500);
   await page.reload();
   await expect(page.getByText('Superset 2 of 2')).toBeVisible();
-  const again = page.locator('section.card').nth(1);
-  await again.getByText('Exercise options').click();
-  await again.getByLabel('Superset with the exercise above').uncheck();
+  await exerciseOptions(page, 1, (d) => d.getByLabel('Superset with the exercise above').uncheck());
   await expect(page.getByText(/Superset \d of/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add set' }).filter({ visible: true })).toHaveCount(2);
 });
@@ -364,9 +385,10 @@ test('strength: timed sets and bodyweight', async ({ page }) => {
   await startStrength(page);
   await addExercise(page, 'plank', /Plank/);
   const card = page.locator('section.card').first();
-  await card.getByText('Exercise options').click();
-  await card.getByRole('radio', { name: 'Time' }).check();
-  await card.getByRole('radio', { name: 'Bodyweight' }).check();
+  await exerciseOptions(page, 0, async (d) => {
+    await d.getByRole('radio', { name: 'Time' }).check();
+    await d.getByRole('radio', { name: 'Bodyweight' }).check();
+  });
   await expect(card.getByLabel(/^Set 1 time/)).toBeVisible();
   await card.getByLabel(/^Set 1 time/).fill('1:30');
   await card.getByLabel(/^Set 1 time/).blur();
@@ -394,7 +416,7 @@ test('exercise drawings: preview in the picker, figure in How to, none for your 
   await expect(d.locator('button.row.has-lead').first()).toBeVisible();
   await expect(d.locator('button.row svg.fig-thumb').first()).toBeVisible();
   await d.getByRole('button', { name: /^Barbell Full Squat/ }).click();
-  await page.getByText('How to').click();
+  await exerciseMenu(page, 0, 'How to');
   const fig = page.getByRole('img', { name: /Barbell Full Squat: stick figure/ });
   await expect(fig).toBeVisible();
   // Reduced motion (the default here): switch by hand.
@@ -409,7 +431,7 @@ test('exercise drawings: play and pause when motion is welcome', async ({ page }
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await startStrength(page);
   await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
-  await page.getByText('How to').click();
+  await exerciseMenu(page, 0, 'How to');
   const fig = page.getByRole('img', { name: /stick figure/ });
   const a = await fig.innerHTML();
   await expect.poll(async () => (await fig.innerHTML()) !== a).toBe(true);
@@ -425,10 +447,11 @@ test('exercise drawings are accessible and fit a phone', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await startStrength(page);
   await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
-  await page.getByText('How to').click();
+  await exerciseMenu(page, 0, 'How to');
   await expect(page.getByRole('img', { name: /stick figure/ })).toBeVisible();
   expect((await a11yScan(page)).violations.map((v) => v.id)).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
   await page.getByRole('button', { name: 'Add exercise' }).click();
   await page.getByRole('dialog').getByLabel('Search exercises').fill('squat');
   await expect(page.locator('dialog svg.fig-thumb').first()).toBeVisible();

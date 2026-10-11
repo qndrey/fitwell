@@ -50,6 +50,18 @@ function CustomExerciseForm({ initialName, muscles, equipment, onCreated, onBack
   );
 }
 
+/** The figure and the steps, loaded when shown: the body of the How-to sheet on the workout page. */
+export function HowToSteps({ ex }: { ex: Pick<Exercise, 'ref' | 'name'> }) {
+  const [steps, setSteps] = useState<string[] | null>(null);
+  useEffect(() => void loadInstructions(ex.ref).then(setSteps), [ex.ref]);
+  return (
+    <div class="howto stack gap-3">
+      {ex.ref.startsWith('ex:') && <ExerciseFigure name={ex.name} />}
+      {steps === null ? <p class="muted" role="status">{t('common.loading')}</p> : steps.length ? <ol>{steps.map((s, i) => <li key={i}>{s}</li>)}</ol> : <p class="muted">{t('exercise.noSteps')}</p>}
+    </div>
+  );
+}
+
 function HowTo({ ex }: { ex: Exercise }) {
   const [steps, setSteps] = useState<string[] | null>(null);
   return (
@@ -80,7 +92,8 @@ export function ExercisePicker({ onPick, onClose }: { onPick: (e: Exercise) => v
   const all = useMemo(() => [...mine, ...(lib?.exercises ?? [])], [mine, lib]);
   const index = useMemo(() => prepareExercises(all), [all]);
   const filtering = !!(query.trim() || muscle || equip);
-  const results = filtering ? searchExercises(index, all, { query, muscle: muscle || undefined, equipment: equip || undefined }) : [];
+  const yours = useMemo(() => new Set([...recent.map((r) => r.ref), ...mine.map((m) => m.ref)]), [recent, mine]);
+  const results = filtering ? searchExercises(index, all, { query, muscle: muscle || undefined, equipment: equip || undefined }, 40, yours) : [];
   const byRef = useMemo(() => new Map(all.map((e) => [e.ref, e])), [all]);
   const recents = recent.map((r) => byRef.get(r.ref) ?? { ref: r.ref, name: r.name, equipment: 'other', primary: [], secondary: [] });
 

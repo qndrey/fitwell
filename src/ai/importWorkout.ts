@@ -129,7 +129,7 @@ export function buildExercises(i: BuildInput): WorkoutExercise[] {
     const timed = ex.mode === 'time' || (ex.mode === undefined && ex.sets.every((s) => (s.seconds ?? 0) > 0 && !(s.reps ?? 0)));
     const sets: WorkoutSet[] = ex.sets.map((s) => {
       const added = toKg(bodyweight ? (s.added ?? s.weight ?? 0) : (s.weight ?? 0), units);
-      const set: WorkoutSet = { id: i.newId(), type: s.type ?? 'working', reps: timed ? 0 : Math.round((s.reps ?? 0) * 100) / 100, weightKg: bodyweight ? i.bodyKg + added : added };
+      const set: WorkoutSet = { id: i.newId(), type: s.type ?? 'working', done: false, reps: timed ? 0 : Math.round((s.reps ?? 0) * 100) / 100, weightKg: bodyweight ? i.bodyKg + added : added };
       if ((s.seconds ?? 0) > 0) set.durationSec = Math.round(s.seconds!);
       if (bodyweight) set.bodyweightKg = i.bodyKg;
       return set;

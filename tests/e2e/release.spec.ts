@@ -78,7 +78,8 @@ test.describe('Goals', () => {
     await page.getByLabel('Workouts per week').fill('3');
     await page.getByLabel('Workouts per week').blur();
     await page.getByRole('link', { name: 'Today' }).click();
-    await expect(page.getByRole('region', { name: 'Daily totals' })).toContainText('2,000 kcal · P 120 g');
+    await expect(page.getByRole('region', { name: 'Daily totals' })).toContainText('Goal 2,000 kcal');
+    await expect(page.getByRole('region', { name: 'Daily totals' })).toContainText('goal 120 g');
     await expect(page.getByText('This week 0 · target 3')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Daily totals' })).not.toContainText(/left|remaining|over|under/i);
 

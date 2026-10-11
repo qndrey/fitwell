@@ -33,6 +33,10 @@
   /* Feedback */
   --focus: #1f5f8b;
   --danger: #a3341f;
+  /* Needs attention (something to confirm, a backup due): amber, distinct from the sage brand */
+  --attention: #8a5a00;
+  --attention-soft: #fbefd6;
+  --on-attention-soft: #573800;
 
   /* Data visualisation: six categorical colours, calm and not red/green; pair with markers or labels */
   --chart-1: #3d6b5c;
@@ -53,13 +57,13 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
     --bg: #171512;
-    --surface: #211e1a;
-    --surface-2: #2b2722;
+    --surface: #25211c;
+    --surface-2: #302b25;
     --overlay: rgb(0 0 0 / 55%);
     --text: #f1ede6;
     --text-muted: #b5aea3;
     --border: #8d867b;
-    --divider: #38332d;
+    --divider: #3e3832;
     --accent: #8fc4b0;
     --accent-strong: #b3dccd;
     --on-accent: #10201a;
@@ -67,6 +71,9 @@
     --on-accent-soft: #d3eadf;
     --focus: #8cc3ee;
     --danger: #f0a191;
+    --attention: #e8b45c;
+    --attention-soft: #3a2e17;
+    --on-attention-soft: #f6dcae;
     --chart-1: #8fc4b0;
     --chart-2: #86a6f0;
     --chart-3: #e0b36a;
@@ -83,13 +90,13 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #171512;
-  --surface: #211e1a;
-  --surface-2: #2b2722;
+  --surface: #25211c;
+  --surface-2: #302b25;
   --overlay: rgb(0 0 0 / 55%);
   --text: #f1ede6;
   --text-muted: #b5aea3;
   --border: #8d867b;
-  --divider: #38332d;
+  --divider: #3e3832;
   --accent: #8fc4b0;
   --accent-strong: #b3dccd;
   --on-accent: #10201a;
@@ -97,6 +104,9 @@
   --on-accent-soft: #d3eadf;
   --focus: #8cc3ee;
   --danger: #f0a191;
+  --attention: #e8b45c;
+  --attention-soft: #3a2e17;
+  --on-attention-soft: #f6dcae;
   --chart-1: #8fc4b0;
   --chart-2: #86a6f0;
   --chart-3: #e0b36a;

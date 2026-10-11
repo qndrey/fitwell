@@ -115,6 +115,11 @@ export interface WorkoutSet {
   durationSec?: number;
   /** Body weight (kg) at the time, kept only for sets of a bodyweight exercise so history doesn't change when you weigh in later. */
   bodyweightKg?: number;
+  /**
+   * false: planned, not lifted yet (prefilled from last time, a template or a repeat). Missing or true: done.
+   * Only done sets count in summaries, history and progress, so older workouts (no flag) are unchanged.
+   */
+  done?: boolean;
 }
 
 export interface WorkoutExercise {

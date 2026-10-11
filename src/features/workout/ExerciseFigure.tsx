@@ -8,11 +8,11 @@ import { t } from '../../i18n';
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const PERIOD_MS = 2600;
 
-/** Small picture for lists: the telling end of the motion over a faint copy of the other end. Exercises without a drawing get an empty box so the text still lines up. */
-export function ExerciseThumb({ name }: { name: string }) {
+/** Small picture for lists: the telling end of the motion over a faint copy of the other end. Exercises without a drawing get a dumbbell in the same box so the text still lines up. */
+export function ExerciseThumb({ name, small }: { name: string; small?: boolean }) {
   const fig = useMemo(() => figureFor(name), [name]);
-  if (!fig) return <span class="fig-blank" />;
-  return <svg class="fig fig-thumb" viewBox="0 0 120 80" aria-hidden="true" dangerouslySetInnerHTML={{ __html: figureAt(fig.template, fig.template.thumb ?? 1, { ghost: true }) }} />;
+  if (!fig) return <span class={small ? 'fig-blank small' : 'fig-blank'} aria-hidden="true"><Icon name="strength" /></span>;
+  return <svg class={small ? 'fig fig-thumb small' : 'fig fig-thumb'} viewBox="0 0 120 80" aria-hidden="true" dangerouslySetInnerHTML={{ __html: figureAt(fig.template, fig.template.thumb ?? 1, { ghost: true }) }} />;
 }
 
 /** The movement as a slow loop between start and end, over the dotted path it takes. Pause it, or step by hand when you prefer less motion. */

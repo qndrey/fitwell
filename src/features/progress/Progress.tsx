@@ -59,6 +59,7 @@ export function Progress() {
         <p class="muted" role="status">{t('common.loading')}</p>
       ) : (
         <>
+          <Summary data={data} from={from} end={end} units={s.units} />
           {!s.hideBodyTracking && <WeightChart data={data} from={from} end={end} range={r} units={s.units} />}
           {!s.habitOnly && <CaloriesChart data={data} from={from} end={end} range={r} />}
           <WorkoutsChart data={data} from={from} end={end} />
@@ -72,6 +73,39 @@ export function Progress() {
 }
 
 type Props = { data: NonNullable<ReturnType<typeof useRangeData>>; from: Day; end: Day };
+
+// ------------------------------------------------------------------ summary tiles
+/** The three numbers most people come here for, before the charts: weight trend, average calories, workouts a week. */
+function Summary({ data, from, end, units }: Props & { units: UnitSystem }) {
+  const s = settings.value;
+  const tiles = useMemo(() => {
+    const out: { label: string; value: string }[] = [];
+    const days = aggregateDays(data);
+    if (!s.hideBodyTracking) {
+      const all = data.weights.filter((w) => w.deletedAt === undefined).map((w) => ({ day: w.day, value: displayWeight(w.kg, units) }));
+      const trend = trendChange(movingAverage(all).filter((p) => p.day >= from));
+      out.push({ label: t('progress.tile.weight'), value: trend ? `${signed(trend.change)} ${weightUnit(units)}` : '—' });
+    }
+    if (!s.habitOnly) {
+      const logged = [...days.values()].filter((a) => a.day >= from && a.day <= end && a.foodCount > 0);
+      out.push({ label: t('progress.tile.kcal'), value: logged.length ? money(logged.reduce((n, a) => n + a.kcal, 0) / logged.length) : '—' });
+    }
+    const weeks = workoutsPerWeek(days, from, end);
+    const perWeek = weeks.length ? weeks.reduce((n, w) => n + w.strength + w.cardio, 0) / weeks.length : 0;
+    out.push({ label: t('progress.tile.workouts'), value: String(r1(perWeek)) });
+    return out;
+  }, [data, from, end, units, s.hideBodyTracking, s.habitOnly]);
+  return (
+    <section class="tiles" aria-label={t('progress.summary')}>
+      {tiles.map((tile) => (
+        <div class="tile" key={tile.label}>
+          <span class="tile-value">{tile.value}</span>
+          <span class="tile-label">{tile.label}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 // ------------------------------------------------------------------ weight
 function WeightChart({ data, from, end, range: r, units }: Props & { range: RangeKey; units: UnitSystem }) {

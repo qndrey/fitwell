@@ -48,7 +48,7 @@ Themed tokens, all contrast-checked in both themes (`npm run contrast`, 32+ pair
 | Text | `--text`, `--text-muted` | Both ≥ 4.5:1 on every surface |
 | Lines | `--border` (≥ 3:1, controls), `--divider` (decorative) | Never use `--divider` for a control edge |
 | Accent | `--accent`, `--accent-strong`, `--on-accent`, `--accent-soft`, `--on-accent-soft` | Sage. One primary action per screen |
-| Feedback | `--focus`, `--danger` | Focus ring everywhere; danger only on `.btn.danger` |
+| Feedback | `--focus`, `--danger`, `--attention`, `--attention-soft`, `--on-attention-soft` | Focus ring everywhere. Danger only on destructive actions (`.btn.danger`, `.menu-item.danger`, `.link-btn.danger`). Attention (amber) for something waiting on you: items to confirm, a backup due, an error notice, warm-up sets |
 | Charts | `--chart-1…6`, `--chart-grid`, `--chart-axis` | ≥ 3:1 on surfaces; pairwise ΔE ≥ 20 and ≥ 8 under protan/deutan/tritan simulation; always add markers or labels |
 
 Deltas in weight, measurements and calories are neutral ink with a ± sign. Never red/green.
@@ -69,17 +69,18 @@ Lucide (`lucide-preact`, ISC), named imports only. Wrapped by `<Icon name size f
 ## Components (`src/ui`)
 | Component | Use | Notes |
 |---|---|---|
-| `Button` | `variant` primary / secondary / ghost / danger; `size` sm / md / lg; `block`, `icon` | One `primary` per screen. `danger` only in destructive confirmations. Icon-only buttons need `aria-label`. Defaults to `type="button"` |
+| `Button` | `variant` primary / secondary / ghost / danger; `size` sm / md / lg; `block`, `icon` | Three levels: filled `primary` for the one main action per screen; outlined secondary for real alternatives; borderless `icon` buttons (tinted when pressed) for everything else, `icon outlined` only beside a field. `danger` only for destructive actions. Icon-only buttons need `aria-label`. Defaults to `type="button"` |
+| `Menu` | Pop-up list of actions under a ⋯ (or custom) button | Arrow keys, Escape and outside tap close it; destructive items marked `danger` |
 | `LinkButton` | Low-emphasis inline action | Same 44 px target |
 | `Field` + `TextInput` / `Select` | Label, control, hint, error wired with ids | Errors: icon + calm instruction. Never placeholder-as-label |
 | `Choice`, `Fieldset` | Radio / checkbox rows with optional help text | |
 | `Segmented` | 2–5 short mutually exclusive options in one row | Meal selector, theme |
 | `Card` | Grouped content on a raised surface | Name it with `label` / `labelledBy` |
 | `List`, `ListRow`, `SectionTitle` | Tappable or static rows (main + sub) | |
-| `Notice`, `Badge`, `EmptyState` | Calm inline messages and status pills | `role="alert"` only for things to react to |
-| `BigNumber`, `StatGrid` | Hero number; labelled values in a grid | |
-| `Sheet` | Modal bottom sheet on native `<dialog>` | `pinned` area stays, body scrolls; `tall` keeps height stable |
-| `Screen` | Page header + focus management (+ day bar with `nav`) | |
+| `Notice`, `Badge`, `EmptyState` | Calm inline messages and status pills | `Notice attention` (amber + icon) for something waiting on you; `Badge tone` neutral for passive facts, attention for to-confirm. `role="alert"` only for things to react to |
+| `BigNumber`, `StatGrid`, `Meter`, `Sparkline` | Hero number; labelled values in a grid (optionally with a goal bar and note); thin progress bar; tiny trend line | Meter and sparkline are decorative: the number or caption beside them carries the meaning |
+| `Sheet` | Modal bottom sheet on native `<dialog>` | Grab handle, ✕ icon to close, optional `subtitle`; `pinned` area stays, body scrolls; `tall` keeps height stable |
+| `Screen` | Page header + focus management | Main tabs: large left title. Today: `nav` adds ‹ calendar › at the right. Pages opened from elsewhere: `back` adds a back arrow. `onSubtitle` makes the date a link |
 | `Toaster`, `TabBar` | Transient messages; primary navigation | |
 
 ## Writing

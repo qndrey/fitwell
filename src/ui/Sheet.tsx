@@ -35,12 +35,15 @@ function openerFor(active: Element | null): HTMLElement | null {
 
 export function Sheet({
   title,
+  subtitle,
   onClose,
   pinned,
   tall,
   children,
 }: {
   title: string;
+  /** One quiet line under the title, e.g. a food's description. */
+  subtitle?: string;
   onClose: () => void;
   pinned?: ComponentChildren;
   tall?: boolean;
@@ -77,10 +80,12 @@ export function Sheet({
       }}
     >
       <div class="sheet-body">
+        <span class="sheet-grab" aria-hidden="true" />
         <div class="sheet-head">
           <h2 id={id.current}>{title}</h2>
-          <Button size="sm" onClick={onClose}><Icon name="close" size="sm" />{t('common.close')}</Button>
+          <Button icon onClick={onClose} aria-label={t('common.close')}><Icon name="close" /></Button>
         </div>
+        {subtitle && <p class="sheet-sub">{subtitle}</p>}
         {pinned && <div class="sheet-pinned">{pinned}</div>}
         <div class="sheet-scroll">{children}</div>
         {sheetStack.value[sheetStack.value.length - 1] === num.current && (

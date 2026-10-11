@@ -1,5 +1,5 @@
 import type { CardioDetails, SetType, Workout, WorkoutExercise, WorkoutSet } from '../db/schema';
-import { displayWeight, weightUnit, type UnitSystem } from './units';
+import { displayWeight, toKg, weightUnit, type UnitSystem } from './units';
 
 /** What counts toward the calorie total for a cardio workout: the user's own number wins over the estimate. */
 export const cardioKcal = (c: CardioDetails): number | undefined => c.kcalOverride ?? c.kcalEstimated;
@@ -8,9 +8,12 @@ export const cardioKcal = (c: CardioDetails): number | undefined => c.kcalOverri
 export const addedLoadKg = (s: Pick<WorkoutSet, 'weightKg' | 'bodyweightKg'>): number =>
   s.bodyweightKg !== undefined ? Math.max(0, Math.round((s.weightKg - s.bodyweightKg) * 100) / 100) : s.weightKg;
 
-/** Whether a set has anything in it (a timed or bodyweight set may have no weight at all). */
-export const isSetLogged = (s: Pick<WorkoutSet, 'reps' | 'weightKg' | 'bodyweightKg' | 'durationSec'>): boolean =>
-  s.reps > 0 || (s.durationSec ?? 0) > 0 || addedLoadKg(s) > 0;
+/** A set you actually did: not one still planned (prefilled and not ticked). Sets from before the flag existed count. */
+export const isSetDone = (s: Pick<WorkoutSet, 'done'>): boolean => s.done !== false;
+
+/** Whether a set was done and has anything in it (a timed or bodyweight set may have no weight at all). */
+export const isSetLogged = (s: Pick<WorkoutSet, 'reps' | 'weightKg' | 'bodyweightKg' | 'durationSec' | 'done'>): boolean =>
+  isSetDone(s) && (s.reps > 0 || (s.durationSec ?? 0) > 0 || addedLoadKg(s) > 0);
 
 /** "45 s" under a minute, "1:30" from a minute up. */
 export function formatDuration(sec: number): string {
@@ -32,16 +35,16 @@ export function parseDuration(text: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-type SummarySet = Pick<WorkoutSet, 'type' | 'reps' | 'weightKg' | 'durationSec' | 'bodyweightKg'>;
+type SummarySet = Pick<WorkoutSet, 'type' | 'reps' | 'weightKg' | 'durationSec' | 'bodyweightKg' | 'done'>;
 
 /**
  * "3×8 @ 60 kg" when all working sets match, otherwise "8 @ 60, 8 @ 60, 6 @ 62.5 kg". Warm-ups are left out.
  * Timed sets read "3×45 s", bodyweight sets "3×8 @ BW" or "3×8 @ BW + 10 kg".
- * Used for "Last time: …" so you know what to beat at a glance.
+ * Used for "Last time: …" so you know what to beat at a glance. Sets still planned (not done) are left out.
  */
 export function summarizeSets(sets: SummarySet[], units: UnitSystem, how: { mode?: 'reps' | 'time'; load?: 'weight' | 'bodyweight' } = {}): string {
   const isTime = how.mode === 'time';
-  const working = sets.filter((s) => s.type === 'working' && (isTime ? (s.durationSec ?? 0) > 0 : s.reps > 0 || (s.durationSec ?? 0) > 0));
+  const working = sets.filter((s) => s.type === 'working' && isSetDone(s) && (isTime ? (s.durationSec ?? 0) > 0 : s.reps > 0 || (s.durationSec ?? 0) > 0));
   if (working.length === 0) return '';
   const w = (kg: number) => String(displayWeight(kg, units, 2));
   const unit = weightUnit(units);
@@ -74,8 +77,36 @@ export function estimatedOneRepMax(weightKg: number, reps: number): number | und
   return reps === 1 ? weightKg : weightKg * (1 + reps / 30);
 }
 
+/**
+ * A weight to try next time: last time's working weight plus one small step (2.5 kg or 5 lb), offered only when every
+ * done working set used that same weight for at least 5 reps. Otherwise undefined: no nudge when the picture is mixed.
+ */
+export function suggestNextKg(sets: SummarySet[], units: UnitSystem): number | undefined {
+  const working = sets.filter((s) => s.type === 'working' && isSetDone(s) && s.reps > 0 && s.bodyweightKg === undefined && s.weightKg > 0);
+  const w = working[0]?.weightKg;
+  if (w === undefined || !working.every((s) => Math.abs(s.weightKg - w) < 0.01 && s.reps >= 5)) return undefined;
+  return units === 'metric' ? w + 2.5 : toKg(displayWeight(w, 'imperial') + 5, 'imperial');
+}
+
+/** Done and planned sets, and the volume (weight × reps of done working sets with a load) for a workout in progress. */
+export function workoutTally(exercises: Pick<WorkoutExercise, 'sets' | 'mode'>[]): { done: number; total: number; volumeKg: number } {
+  let done = 0;
+  let total = 0;
+  let volumeKg = 0;
+  for (const e of exercises) {
+    for (const s of e.sets) {
+      total++;
+      if (!isSetLogged(s)) continue;
+      done++;
+      if (s.type === 'working' && e.mode !== 'time' && s.reps > 0) volumeKg += s.weightKg * s.reps;
+    }
+  }
+  return { done, total, volumeKg };
+}
+
+/** A new set, planned (not done yet), optionally prefilled from another. */
 export function newSet(id: string, type: SetType = 'working', from?: Pick<WorkoutSet, 'reps' | 'weightKg' | 'durationSec' | 'bodyweightKg'>): WorkoutSet {
-  const set: WorkoutSet = { id, type, reps: from?.reps ?? 0, weightKg: from?.weightKg ?? 0 };
+  const set: WorkoutSet = { id, type, reps: from?.reps ?? 0, weightKg: from?.weightKg ?? 0, done: false };
   if (from?.durationSec) set.durationSec = from.durationSec;
   if (from?.bodyweightKg !== undefined) set.bodyweightKg = from.bodyweightKg;
   return set;
@@ -119,9 +150,9 @@ export function supersetPosition(exercises: Pick<WorkoutExercise, 'supersetId'>[
   return { letter: String.fromCharCode(65 + (index - start)), size: end - start + 1, first: index === start, last: index === end };
 }
 
-/** A fresh copy of a workout on another day: new set ids, nothing shared with the original. */
+/** A fresh copy of a workout on another day: new set ids, nothing shared with the original, every set planned (not done yet). */
 export function copyExercises(exercises: WorkoutExercise[], newId: () => string): WorkoutExercise[] {
-  return exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s, id: newId() })) }));
+  return exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s, id: newId(), done: false })) }));
 }
 
 /** One-line description for lists. */

@@ -250,7 +250,7 @@ export function exerciseProgress(workouts: Workout[], exerciseRef: string): Exer
     for (const e of w.exercises ?? []) {
       if (e.exerciseRef !== exerciseRef || e.mode === 'time') continue;
       for (const s of e.sets) {
-        if (s.type !== 'working' || s.reps < 1 || s.weightKg <= 0) continue;
+        if (s.type !== 'working' || s.done === false || s.reps < 1 || s.weightKg <= 0) continue;
         const p = by.get(w.day) ?? { day: w.day, bestKg: 0 };
         p.bestKg = Math.max(p.bestKg, s.weightKg);
         const est = estimatedOneRepMax(s.weightKg, s.reps);
@@ -268,7 +268,7 @@ export function exerciseOptions(workouts: Workout[]): { ref: string; name: strin
   for (const w of workouts) {
     if (w.deletedAt !== undefined || w.type !== 'strength') continue;
     for (const e of w.exercises ?? []) {
-      if (e.mode === 'time' || !e.sets.some((s) => s.type === 'working' && s.reps >= 1 && s.weightKg > 0)) continue;
+      if (e.mode === 'time' || !e.sets.some((s) => s.type === 'working' && s.done !== false && s.reps >= 1 && s.weightKg > 0)) continue;
       const x = m.get(e.exerciseRef) ?? { ref: e.exerciseRef, name: e.exerciseName, days: new Set<Day>(), last: '' };
       x.days.add(w.day);
       if (w.day > x.last) {

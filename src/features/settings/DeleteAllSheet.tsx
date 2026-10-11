@@ -37,7 +37,7 @@ export function DeleteAllSheet({ onClose }: { onClose: () => void }) {
         <Field label={t('delete.type').replace('{word}', word)}>
           {(c) => <TextInput {...c} autocomplete="off" autocapitalize="off" value={typed} onInput={(e) => setTyped((e.target as HTMLInputElement).value)} />}
         </Field>
-        {failed && <Notice role="alert">{t('delete.failed')}</Notice>}
+        {failed && <Notice attention role="alert">{t('delete.failed')}</Notice>}
         <Button type="submit" variant="danger" block disabled={!ready || busy}>{t('delete.confirm')}</Button>
       </form>
     </Sheet>

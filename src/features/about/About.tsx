@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Card, LinkButton, Screen } from '../../ui';
+import { Card, Screen } from '../../ui';
 import { loadBundledFoods, type DatasetInfo } from '../../data/bundledFoods';
 import { loadExercises } from '../../data/exercises';
 import licenses from '../../about/generated/licenses.json';
@@ -41,8 +41,7 @@ export function About() {
   }, []);
 
   return (
-    <Screen title={t('about.title')} subtitle={`${t('app.name')} ${__APP_VERSION__}`}>
-      <LinkButton onClick={() => (location.hash = '#/settings')}>{t('about.back')}</LinkButton>
+    <Screen title={t('about.title')} subtitle={`${t('app.name')} ${__APP_VERSION__}`} back={{ label: t('about.back'), onBack: () => (location.hash = '#/settings') }}>
 
       <Card labelledBy="privacy-h">
         <div class="stack gap-2">

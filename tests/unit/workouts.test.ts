@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import { estimateKcal, bodyWeightKg } from '../../src/domain/met';
-import { addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '../../src/domain/workouts';
+import { suggestNextKg, workoutTally, addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '../../src/domain/workouts';
 import { displayDistance, displayWeight, kgToLb, lbToKg, miToKm, toKg, toKm, kmToMi } from '../../src/domain/units';
 import { openDatabase } from '../../src/db/open';
 import { ACTIVITIES } from '../../src/data/activities';
@@ -99,7 +99,7 @@ describe('copy and describe', () => {
     let n = 0;
     const src = [{ exerciseRef: 'ex:a', exerciseName: 'A', sets: [{ id: 's1', type: 'working' as const, reps: 5, weightKg: 50 }] }];
     const copy = copyExercises(src, () => `new${++n}`);
-    expect(copy[0]!.sets[0]).toEqual({ id: 'new1', type: 'working', reps: 5, weightKg: 50 });
+    expect(copy[0]!.sets[0]).toEqual({ id: 'new1', type: 'working', reps: 5, weightKg: 50, done: false }); // planned until you do it
     copy[0]!.sets[0]!.reps = 99;
     expect(src[0]!.sets[0]!.reps).toBe(5);
   });
@@ -146,10 +146,19 @@ describe('timed and bodyweight sets', () => {
     expect(isSetLogged({ reps: 0, weightKg: 90, bodyweightKg: 80 })).toBe(true);
   });
 
+  it('only counts sets that were done: planned ones are left out, older sets (no flag) count', () => {
+    expect(isSetLogged({ reps: 8, weightKg: 60, done: false })).toBe(false);
+    expect(isSetLogged({ reps: 8, weightKg: 60, done: true })).toBe(true);
+    expect(isSetLogged({ reps: 8, weightKg: 60 })).toBe(true);
+    const sets = [{ type: 'working' as const, reps: 8, weightKg: 60 }, { type: 'working' as const, reps: 8, weightKg: 60, done: false }];
+    expect(summarizeSets(sets, 'metric')).toBe('1×8 @ 60 kg');
+    expect(describeWorkout({ type: 'strength', exercises: [{ exerciseRef: 'x', exerciseName: 'X', sets: sets.map((s, i) => ({ ...s, id: String(i) })) }] }).detail).toBe('1 exercise · 1 set');
+  });
+
   it('new sets carry time and bodyweight from the previous one', () => {
-    expect(newSet('a', 'working', { reps: 0, weightKg: 0, durationSec: 40 })).toEqual({ id: 'a', type: 'working', reps: 0, weightKg: 0, durationSec: 40 });
-    expect(newSet('b', 'working', { reps: 5, weightKg: 85, bodyweightKg: 80 })).toEqual({ id: 'b', type: 'working', reps: 5, weightKg: 85, bodyweightKg: 80 });
-    expect(newSet('c')).toEqual({ id: 'c', type: 'working', reps: 0, weightKg: 0 });
+    expect(newSet('a', 'working', { reps: 0, weightKg: 0, durationSec: 40 })).toEqual({ id: 'a', type: 'working', reps: 0, weightKg: 0, durationSec: 40, done: false });
+    expect(newSet('b', 'working', { reps: 5, weightKg: 85, bodyweightKg: 80 })).toEqual({ id: 'b', type: 'working', reps: 5, weightKg: 85, bodyweightKg: 80, done: false });
+    expect(newSet('c')).toEqual({ id: 'c', type: 'working', reps: 0, weightKg: 0, done: false });
   });
 
   it('counts timed and bodyweight sets in workout descriptions', () => {
@@ -161,7 +170,7 @@ describe('timed and bodyweight sets', () => {
     const src = [{ uid: 'u1', supersetId: 's1', mode: 'time' as const, load: 'bodyweight' as const, exerciseRef: 'ex:plank', exerciseName: 'Plank', sets: [{ id: 'a', type: 'working' as const, reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45 }] }];
     const copy = copyExercises(src, () => 'n');
     expect(copy[0]).toMatchObject({ supersetId: 's1', mode: 'time', load: 'bodyweight' });
-    expect(copy[0]!.sets[0]).toEqual({ id: 'n', type: 'working', reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45 });
+    expect(copy[0]!.sets[0]).toEqual({ id: 'n', type: 'working', reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45, done: false });
   });
 });
 
@@ -279,3 +288,22 @@ describe('workout store queries', () => {
 });
 
 void openDatabase;
+
+describe('during a workout', () => {
+  const ws = (reps: number, weightKg: number, extra = {}) => ({ type: 'working' as const, reps, weightKg, ...extra });
+  it('suggests one small step up when every working set hit the same weight for 5+ reps', () => {
+    expect(suggestNextKg([ws(5, 80), ws(5, 80)], 'metric')).toBe(82.5);
+    expect(displayWeight(suggestNextKg([ws(8, lbToKg(135))], 'imperial')!, 'imperial')).toBe(140);
+    expect(suggestNextKg([ws(5, 80), ws(4, 80)], 'metric')).toBeUndefined(); // missed reps: no nudge
+    expect(suggestNextKg([ws(5, 80), ws(5, 85)], 'metric')).toBeUndefined(); // mixed weights
+    expect(suggestNextKg([ws(8, 90, { bodyweightKg: 80 })], 'metric')).toBeUndefined(); // bodyweight
+    expect(suggestNextKg([ws(5, 80, { done: false })], 'metric')).toBeUndefined(); // only done sets
+  });
+  it('tallies done sets and volume, leaving out planned sets, warm-ups and timed sets', () => {
+    const t = workoutTally([
+      { sets: [{ ...ws(5, 100), id: '1' }, { ...ws(5, 100, { done: false }), id: '2' }, { id: '3', type: 'warmup', reps: 10, weightKg: 40 }] },
+      { mode: 'time', sets: [{ id: '4', type: 'working', reps: 0, weightKg: 0, durationSec: 60 }] },
+    ]);
+    expect(t).toEqual({ done: 3, total: 4, volumeKg: 500 });
+  });
+});

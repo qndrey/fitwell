@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Button, Field, Icon, List, ListRow, Notice, SectionTitle, Sheet, TextInput } from '../../ui';
-import { cacheOnlineFood, cachedFoodItems, customFoodItems, favoritesRepo, recentFoods, savedMealsRepo, setFavorite, favoriteId, type RecentFood } from '../../db/foodStore';
+import { cacheOnlineFood, cachedFoodItems, customFoodItems, entriesRepo, favoritesRepo, recentFoods, savedMealsRepo, setFavorite, favoriteId, type RecentFood } from '../../db/foodStore';
 import type { SavedMeal, Slot } from '../../db/schema';
 import { refKey, type FoodItem } from '../../domain/foods';
 import { roundForDisplay, scale, sum, quantityGrams, type Quantity } from '../../domain/nutrition';
@@ -18,6 +18,7 @@ import { CustomFoodForm } from './CustomFoodForm';
 import { QuantityForm, defaultQuantity } from './QuantityForm';
 import { SlotPicker } from './SlotPicker';
 import { fmt, quantityText } from './format';
+import { showToast } from './toast';
 
 type Step =
   | { kind: 'search' }
@@ -53,6 +54,19 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
   const [onlineResult, setOnlineResult] = useState<Online>({ status: 'idle' });
   const [lists, setLists] = useState<Lists>(EMPTY);
   const [added, setAdded] = useState('');
+  const [addedCount, setAddedCount] = useState(0);
+  const noteAdded = (text: string) => {
+    setAdded(text);
+    setAddedCount((n) => n + 1);
+  };
+
+  /** One tap on a recent food: log it again with the amount you used last time, with Undo. */
+  async function quickAdd(r: RecentFood) {
+    const entry = await logFood(day, slot, r.food, r.quantity);
+    noteAdded(`${t('food.added')}: ${r.food.name}`);
+    showToast(`${t('food.added')}: ${r.food.name} · ${quantityText(r.quantity)}`, { label: t('food.undo'), run: () => void entriesRepo.remove(entry.id).then(() => setAddedCount((n) => Math.max(0, n - 1))) });
+    void reload();
+  }
 
   async function reload() {
     const [favs, recents, custom, cached, meals] = await Promise.all([favoritesRepo.list(), recentFoods(), customFoodItems(), cachedFoodItems(), savedMealsRepo.list()]);
@@ -86,7 +100,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
   const q = query.trim();
   const shown = new Set<string>();
   const take = (list: FoodItem[]) => list.filter((f) => !shown.has(refKey(f.ref)) && !!shown.add(refKey(f.ref)));
-  const sections: { title: string; foods?: FoodItem[]; meals?: SavedMeal[] }[] = q
+  const sections: { title: string; foods?: FoodItem[]; meals?: SavedMeal[]; recents?: boolean }[] = q
     ? [
         { title: t('food.favoritesRecent'), foods: take(search(favIndex, q, 10)) },
         { title: t('food.savedMeals'), meals: pickMode ? [] : search(mealIndex, q, 5) },
@@ -96,7 +110,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
       ]
     : [
         { title: t('food.favorites'), foods: take(lists.favorites.slice(0, 10)) },
-        { title: t('food.recent'), foods: take(lists.recents.slice(0, 12).map((r) => r.food)) },
+        { title: t('food.recent'), foods: take(lists.recents.slice(0, 12).map((r) => r.food)), recents: !pickMode },
         { title: t('food.savedMeals'), meals: pickMode ? [] : lists.meals },
         { title: t('food.yourFoods'), foods: take(lists.custom.slice(0, 8)) },
       ];
@@ -108,6 +122,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
   return (
     <Sheet
       title={title}
+      subtitle={step.kind === 'quantity' ? [step.food.brand, step.food.group].filter(Boolean).join(' · ') || undefined : undefined}
       onClose={onClose}
       tall={step.kind === 'search'}
       pinned={
@@ -162,7 +177,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
               : async (code) => {
                   setScanning(false);
                   await logPending(day, slot, code, 100);
-                  setAdded(t('scan.kept'));
+                  noteAdded(t('scan.kept'));
                 }
           }
         />
@@ -175,14 +190,33 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
             <section key={s.title} aria-label={s.title}>
               <SectionTitle>{s.title}</SectionTitle>
               <List>
-                {s.foods?.map((f) => (
-                  <ListRow
-                    key={refKey(f.ref)}
-                    main={f.name}
-                    sub={[f.brand, f.group, settings.value.habitOnly ? '' : `${Math.round(f.per100g.kcal)} ${t('unit.kcal')}/100 g`].filter(Boolean).join(' · ')}
-                    onClick={() => pick(f)}
-                  />
-                ))}
+                {s.foods?.map((f) => {
+                  const recent = s.recents ? lists.recents.find((r) => refKey(r.food.ref) === refKey(f.ref)) : undefined;
+                  if (recent) {
+                    const kcal = Math.round(scale(f.per100g, quantityGrams(recent.quantity, f.portions)).kcal);
+                    return (
+                      <ListRow
+                        key={refKey(f.ref)}
+                        main={f.name}
+                        sub={[quantityText(recent.quantity), settings.value.habitOnly ? '' : `${kcal} ${t('unit.kcal')}`].filter(Boolean).join(' · ')}
+                        onClick={() => pick(f)}
+                        action={
+                          <Button icon class="accent" aria-label={`${t('food.quickAdd')} ${f.name}, ${quantityText(recent.quantity)}`} onClick={() => void quickAdd(recent)}>
+                            <Icon name="plus" />
+                          </Button>
+                        }
+                      />
+                    );
+                  }
+                  return (
+                    <ListRow
+                      key={refKey(f.ref)}
+                      main={f.name}
+                      sub={[f.brand, f.group, settings.value.habitOnly ? '' : `${Math.round(f.per100g.kcal)} ${t('unit.kcal')}/100 g`].filter(Boolean).join(' · ')}
+                      onClick={() => pick(f)}
+                    />
+                  );
+                })}
                 {s.meals?.map((m) => (
                   <ListRow key={m.id} main={m.name} sub={`${m.items.length} ${t('food.items')}`} onClick={() => setStep({ kind: 'meal', meal: m })} />
                 ))}
@@ -234,9 +268,11 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
               {`${t('pending.log')} “${q}”`}
             </Button>
           )}
-          <div class="sticky-action">
-            <Button variant="primary" block onClick={onClose}>{pickMode ? t('common.cancel') : t('common.done')}</Button>
-          </div>
+          {(pickMode || addedCount > 0) && (
+            <div class="sticky-action">
+              <Button variant="primary" block onClick={onClose}>{pickMode ? t('common.cancel') : t('food.doneAdded').replace('{n}', String(addedCount))}</Button>
+            </div>
+          )}
         </>
       )}
 
@@ -249,7 +285,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
           onLogged={async (q2) => {
             if (step.food.ref.kind === 'off') await cacheOnlineFood(step.food);
             await logFood(day, slot, step.food, q2);
-            setAdded(`${t('food.added')}: ${step.food.name}`);
+            noteAdded(`${t('food.added')}: ${step.food.name}`);
             setQuery('');
             void reload();
             back();
@@ -263,7 +299,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
           submitLabel={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`}
           onSubmit={async (text, grams) => {
             await logPending(day, slot, text, grams);
-            setAdded(`${t('pending.added')}: ${text}`);
+            noteAdded(`${t('pending.added')}: ${text}`);
             setQuery('');
             back();
           }}
@@ -289,7 +325,7 @@ export function AddFoodSheet({ day, initialSlot, onClose, pickMode, initialQuery
           onBack={back}
           onAdd={async () => {
             await logMeal(day, slot, step.meal);
-            setAdded(`${t('food.added')}: ${step.meal.name}`);
+            noteAdded(`${t('food.added')}: ${step.meal.name}`);
             back();
           }}
           onDelete={async () => {
@@ -315,7 +351,6 @@ function FoodQuantity({ food, initial, slot, onBack, onLogged }: { food: FoodIte
   }, [food]);
   return (
     <>
-      <p class="muted mb-3">{[food.brand, food.group].filter(Boolean).join(' · ')}</p>
       <QuantityForm food={food} initial={initial} submitLabel={`${t('food.addTo')} ${t(`slot.${slot}` as Key)}`} onSubmit={onLogged} />
       <div class="cluster between mt-4">
         <Button onClick={onBack}>{t('common.back')}</Button>

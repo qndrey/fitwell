@@ -8,7 +8,7 @@ import { onChange } from '../../db/broadcast';
 import { routeDay } from '../../router';
 import { goals, settings } from '../../state';
 import { t, type Key } from '../../i18n';
-import { dayEntries, watchDay } from '../food/dayState';
+import { dayEntries, dayLoaded, watchDay } from '../food/dayState';
 import { displayDistance, distanceUnit } from '../../domain/units';
 import { AddFoodSheet } from '../food/AddFoodSheet';
 import { EntrySheet } from '../food/EntrySheet';
@@ -17,6 +17,7 @@ import { BodyCard } from '../body/BodyCard';
 import { InstallHint } from './InstallHint';
 import { WeekGoal } from './WeekGoal';
 import { Welcome } from './Welcome';
+import { collapsedMeals, setMealCollapsed } from './collapse';
 import { CardioSheet } from '../workout/CardioSheet';
 import { Elapsed } from '../workout/Elapsed';
 import { dayWorkouts, watchWorkouts } from '../workout/dayState';
@@ -62,6 +63,22 @@ export function Today() {
   const kcalShown = Math.round(useCountUp(kcal));
   const toConfirm = toConfirmCount();
   const g = goals.value;
+
+  // A meal that gains an entry opens by itself, whichever way it was added, so the new food is never hidden.
+  // The first load of a day is only the starting point: what was already there is not "added".
+  const counts = useRef<{ day: string; n: Record<string, number> | null }>({ day, n: null });
+  const loaded = dayLoaded.value === day;
+  useEffect(() => {
+    if (!loaded) {
+      counts.current = { day, n: null };
+      return;
+    }
+    const now: Record<string, number> = {};
+    for (const slot of SLOTS) now[slot] = entries.filter((e) => e.slot === slot).length;
+    const before = counts.current.day === day ? counts.current.n : null;
+    if (before) for (const slot of SLOTS) if (now[slot]! > (before[slot] ?? 0) && collapsedMeals.value.has(slot)) setMealCollapsed(slot, false);
+    counts.current = { day, n: now };
+  }, [entries, day, loaded]);
 
   const goStart = () => (location.hash = isToday ? '#/start' : `#/start/${day}`);
   const title = isToday ? t('nav.today') : day === addDays(todayStr, -1) ? t('today.yesterday') : day === addDays(todayStr, 1) ? t('today.tomorrow') : formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -126,10 +143,27 @@ export function Today() {
         const list = entries.filter((e) => e.slot === slot);
         const slotKcal = Math.round(slotTotals(entries, slot).kcal);
         const fromYesterday = list.length === 0 ? yesterday.filter((e) => e.slot === slot) : [];
+        const folded = list.length > 0 && collapsedMeals.value.has(slot);
+        const toConfirmHere = list.filter((e) => e.state !== 'resolved').length;
         return (
           <section key={slot} class={list.length ? 'slot stack gap-2' : 'slot empty-slot'} aria-labelledby={`slot-${slot}`}>
             <div class="slot-head">
-              <h2 id={`slot-${slot}`}>{t(`slot.${slot}` as Key)}</h2>
+              {list.length > 0 ? (
+                <button type="button" class="ex-toggle" aria-expanded={!folded} aria-controls={`meal-${slot}`} onClick={() => setMealCollapsed(slot, !folded)}>
+                  <span class="ex-title">
+                    <h2 id={`slot-${slot}`}>{t(`slot.${slot}` as Key)}</h2>
+                    {folded && (
+                      <span class="t-caption">
+                        {list.length} {t(list.length === 1 ? 'history.food.one' : 'history.food.many')}
+                        {toConfirmHere > 0 && <> · <Badge tone="attention">{toConfirmHere} {t('today.toConfirm')}</Badge></>}
+                      </span>
+                    )}
+                  </span>
+                  <span class={folded ? 'chev' : 'chev open'}><Icon name="expand" size="sm" /></span>
+                </button>
+              ) : (
+                <h2 id={`slot-${slot}`}>{t(`slot.${slot}` as Key)}</h2>
+              )}
               {list.length === 0 && fromYesterday.length > 0 && (
                 <LinkButton class="small" onClick={() => void sameAsYesterday(slot)} aria-label={`${t('today.sameAsYesterday')}: ${t(`slot.${slot}` as Key)}`}>
                   <Icon name="copy" size="sm" />{t('today.sameAsYesterday')}
@@ -142,28 +176,30 @@ export function Today() {
               </Button>
             </div>
             {list.length > 0 && (
-              <List>
-                {list.map((e) => (
-                  <ListRow
-                    key={e.id}
-                    main={entryLabel(e)}
-                    sub={
-                      e.state === 'resolved' ? (
-                        `${quantityText(e.quantity)}${!habitOnly && e.nutrition ? ` · ${Math.round(e.nutrition.kcal)} ${t('unit.kcal')}` : ''}${e.manual ? ` · ${t('manual.badge')}` : ''}`
-                      ) : (
-                        <>
-                          {quantityText(e.quantity)} ·{' '}
-                          <Badge tone="attention">{e.state === 'pending' ? t('pending.badge') : e.state === 'awaiting_confirmation' ? t('confirm.badge') : t('unmatched.badge')}</Badge>
-                          {e.state === 'pending' && ` ${pendingStatus(e)}`}
-                        </>
-                      )
-                    }
-                    onClick={() => (e.state === 'resolved' ? setSheet({ kind: 'edit', entry: e }) : e.state === 'pending' ? setSheet({ kind: 'pending', entry: e }) : void (location.hash = '#/review'))}
-                  />
-                ))}
-              </List>
+              <div id={`meal-${slot}`} class="stack gap-2" hidden={folded}>
+                <List>
+                  {list.map((e) => (
+                    <ListRow
+                      key={e.id}
+                      main={entryLabel(e)}
+                      sub={
+                        e.state === 'resolved' ? (
+                          `${quantityText(e.quantity)}${!habitOnly && e.nutrition ? ` · ${Math.round(e.nutrition.kcal)} ${t('unit.kcal')}` : ''}${e.manual ? ` · ${t('manual.badge')}` : ''}`
+                        ) : (
+                          <>
+                            {quantityText(e.quantity)} ·{' '}
+                            <Badge tone="attention">{e.state === 'pending' ? t('pending.badge') : e.state === 'awaiting_confirmation' ? t('confirm.badge') : t('unmatched.badge')}</Badge>
+                            {e.state === 'pending' && ` ${pendingStatus(e)}`}
+                          </>
+                        )
+                      }
+                      onClick={() => (e.state === 'resolved' ? setSheet({ kind: 'edit', entry: e }) : e.state === 'pending' ? setSheet({ kind: 'pending', entry: e }) : void (location.hash = '#/review'))}
+                    />
+                  ))}
+                </List>
+                {list.length > 1 && <LinkButton class="small align-start" onClick={() => setSheet({ kind: 'saveMeal', entries: list })}>{t('meal.saveAs')}</LinkButton>}
+              </div>
             )}
-            {list.length > 1 && <LinkButton class="small" onClick={() => setSheet({ kind: 'saveMeal', entries: list })}>{t('meal.saveAs')}</LinkButton>}
           </section>
         );
       })}

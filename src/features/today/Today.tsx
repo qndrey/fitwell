@@ -164,7 +164,12 @@ export function Today() {
       </section>
 
       <div class="primary-bar">
-        <Button variant="primary" size="lg" block onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</Button>
+        <div class="primary-actions">
+          <Button variant="primary" size="lg" block onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</Button>
+          <Button size="lg" onClick={() => setSheet({ kind: 'addWorkout' })} aria-label={t('workout.quickAdd')}>
+            <Icon name="plus" size="sm" />{t('workout.quickShort')}
+          </Button>
+        </div>
       </div>
 
       {sheet?.kind === 'add' && <AddFoodSheet day={day} initialSlot={sheet.slot} onClose={() => setSheet(null)} />}

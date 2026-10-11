@@ -2,6 +2,7 @@ import { a11yScan } from '../helpers/a11y';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { ean13Modules } from '../helpers/ean';
 import { openAddFood } from '../helpers/addFood';
+import { mockOff as offMock, setOffline, type OffReply } from '../helpers/off';
 
 const CODE = '4006381333931';
 const PRODUCT = { status: 1, code: CODE, product: { product_name: 'Test highlighter bar', brands: 'Acme', nutriments: { 'energy-kcal_100g': 120, proteins_100g: 3, carbohydrates_100g: 20, fat_100g: 2 } } };
@@ -9,12 +10,13 @@ const PRODUCT = { status: 1, code: CODE, product: { product_name: 'Test highligh
 /** A fake back camera: a canvas stream showing a real, decodable barcode. Optionally hides the native BarcodeDetector to force the WebAssembly path. */
 async function fakeCamera(page: Page, opts: { code?: string; deny?: boolean; wasm?: boolean } = {}) {
   const modules = ean13Modules(opts.code ?? CODE);
-  await page.addInitScript(
+  await page.context().addInitScript(
     ({ modules, deny, wasm }) => {
       if (wasm) delete (window as unknown as { BarcodeDetector?: unknown }).BarcodeDetector;
       const tracks: MediaStreamTrack[] = [];
       (window as unknown as { __tracks: MediaStreamTrack[] }).__tracks = tracks;
-      navigator.mediaDevices.getUserMedia = async () => {
+      // On the prototype: WebKit can drop properties set on the `navigator.mediaDevices` wrapper object.
+      MediaDevices.prototype.getUserMedia = async function () {
         if (deny) throw new DOMException('denied', 'NotAllowedError');
         const canvas = document.createElement('canvas');
         canvas.width = 640;
@@ -39,17 +41,8 @@ async function fakeCamera(page: Page, opts: { code?: string; deny?: boolean; was
   );
 }
 
-interface Seen { url: URL; headers: Record<string, string> }
-async function mockOff(context: BrowserContext, reply: (url: URL, n: number) => { status?: number; body?: unknown } = () => ({ body: PRODUCT })) {
-  const calls: Seen[] = [];
-  await context.route('https://world.openfoodfacts.org/**', async (route) => {
-    const url = new URL(route.request().url());
-    calls.push({ url, headers: route.request().headers() });
-    const r = reply(url, calls.length);
-    await route.fulfill({ status: r.status ?? 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body: JSON.stringify(r.body ?? {}) });
-  });
-  return calls;
-}
+/** Open Food Facts stand-in; every request answers with the synthetic product unless the reply says otherwise. */
+const mockOff = (context: BrowserContext, reply: (n: number, url: URL) => OffReply | Promise<OffReply> = () => ({ body: PRODUCT })) => offMock(context, reply, {});
 
 async function openScanner(page: Page) {
   await page.goto('/');
@@ -81,7 +74,8 @@ for (const wasm of [false, true]) {
     expect([...calls[0]!.url.searchParams.keys()]).toEqual(['fields']);
     expect(calls[0]!.headers['cookie']).toBeUndefined();
     expect(calls[0]!.headers['referer']).toBeUndefined();
-    expect([...origins].sort()).toEqual(['http://localhost:4173', 'https://world.openfoodfacts.org']); // no CDN for the decoder
+    // No CDN for the decoder: only this app, and Open Food Facts (WebKit and Firefox see that call in the page, not on the wire).
+    expect([...origins].filter((o) => o !== 'https://world.openfoodfacts.org')).toEqual(['http://localhost:4173']);
     const states = await page.evaluate(() => (window as unknown as { __tracks: MediaStreamTrack[] }).__tracks.map((t) => t.readyState));
     expect(states.length).toBeGreaterThan(0);
     expect(states.every((s) => s === 'ended')).toBe(true); // camera released
@@ -89,9 +83,8 @@ for (const wasm of [false, true]) {
 }
 
 test('closing the scanner releases the camera', async ({ page, context }) => {
-  await mockOff(context);
+  await mockOff(context, () => ({ abort: true }));
   await fakeCamera(page, { code: '3017620422003' });
-  await context.route('https://world.openfoodfacts.org/**', (r) => r.abort());
   const d = await openScanner(page);
   await expect(d.getByText('Hold the barcode inside the frame')).toBeVisible({ timeout: 15_000 }).catch(() => undefined);
   await d.getByRole('button', { name: 'Close' }).click();
@@ -121,7 +114,7 @@ test('offline: keep the barcode, it joins the queue and is looked up when back o
   await page.goto('/');
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
-  await context.setOffline(true);
+  await setOffline(context, true);
   await openAddFood(page);
   await page.getByRole('button', { name: 'Scan a barcode' }).click();
   const d = page.getByRole('dialog').last();
@@ -135,7 +128,7 @@ test('offline: keep the barcode, it joins the queue and is looked up when back o
   await expect(row).toBeVisible();
   expect(calls).toHaveLength(0);
 
-  await context.setOffline(false);
+  await setOffline(context, false);
   await expect(page.getByText('1 item to confirm')).toBeVisible();
   expect(calls).toHaveLength(1);
   expect(calls[0]!.url.pathname).toBe(`/api/v2/product/${CODE}.json`);

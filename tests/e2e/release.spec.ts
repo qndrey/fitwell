@@ -247,7 +247,8 @@ test.describe('Every screen, both themes', () => {
     });
   }
 
-  test('keyboard: sheets open from the keyboard, Escape closes them, focus returns to the opener', async ({ page }) => {
+  test('keyboard: sheets open from the keyboard, Escape closes them, focus returns to the opener', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Safari does not Tab to links and buttons unless the system setting is on.');
     await ready(page);
     const add = page.getByRole('button', { name: 'Add', exact: true });
     await add.focus();

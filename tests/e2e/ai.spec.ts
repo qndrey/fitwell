@@ -19,13 +19,13 @@ async function openAi(page: Page) {
   await expect(page.getByRole('heading', { level: 1, name: 'AI assistant' })).toBeVisible();
 }
 
-test.beforeEach(async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test.beforeEach(async ({ page, context, browserName }) => {
+  if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']); // the other browsers have no such permission
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });
 
-test('copy a food and workout prompt: you see exactly what is copied', async ({ page }) => {
+test('copy a food and workout prompt: you see exactly what is copied', async ({ page, browserName }) => {
   await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('banana');
@@ -40,8 +40,8 @@ test('copy a food and workout prompt: you see exactly what is copied', async ({ 
   await page.getByRole('radio', { name: 'Food' }).first().check();
   await expect(box).not.toHaveValue(/WORKOUTS/);
   await page.getByRole('button', { name: 'Copy prompt' }).first().click();
-  await expect(page.getByText('Copied. Paste it into your AI chat.')).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(await box.inputValue());
+  await expect(page.getByText(/Copied\. Paste it|Copying was blocked/)).toBeVisible();
+  if (browserName === 'chromium') expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(await box.inputValue());
 });
 
 test('ask for a workout, paste the reply, check it and add it', async ({ page }) => {

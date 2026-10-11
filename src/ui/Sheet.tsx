@@ -13,6 +13,26 @@ let counter = 0;
  * `pinned` stays fixed under the title (e.g. a search field); the rest scrolls. `tall` keeps the height
  * stable so results appearing never make the sheet jump (important with the on-screen keyboard open).
  */
+/** The last button or link pressed and when, kept weakly so a removed control can be collected. */
+let lastPressed: { el: WeakRef<HTMLElement>; at: number } | null = null;
+if (typeof document !== 'undefined') {
+  document.addEventListener(
+    'click',
+    (e) => {
+      const el = e.target instanceof Element ? e.target.closest<HTMLElement>('button, a, summary') : null;
+      if (el) lastPressed = { el: new WeakRef(el), at: Date.now() };
+    },
+    true,
+  );
+}
+
+/** What had focus when a sheet opened. Safari focuses the page area, not the button you clicked, so a control pressed a moment ago wins. */
+function openerFor(active: Element | null): HTMLElement | null {
+  const pressed = lastPressed && Date.now() - lastPressed.at < 1500 ? lastPressed.el.deref() : undefined;
+  if (pressed?.isConnected) return pressed;
+  return active instanceof HTMLElement && active !== document.body ? active : null;
+}
+
 export function Sheet({
   title,
   onClose,
@@ -32,7 +52,7 @@ export function Sheet({
   useEffect(() => {
     const d = ref.current;
     // Remember what had focus so it can go back there: the sheet is removed from the page, which loses the browser's own restore.
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const opener = openerFor(document.activeElement);
     if (d && !d.open) d.showModal();
     sheetStack.value = [...sheetStack.value, num.current];
     return () => {

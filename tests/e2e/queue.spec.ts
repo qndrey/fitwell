@@ -1,6 +1,7 @@
 import { a11yScan } from '../helpers/a11y';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { openAddFood } from '../helpers/addFood';
+import { mockOff as offMock, setOffline, type OffReply } from '../helpers/off';
 
 // Synthetic products in Open Food Facts' response shape (made-up values; no network is used).
 const PRODUCTS = [
@@ -8,24 +9,8 @@ const PRODUCTS = [
   { code: '222', product_name: 'Test oat drink barista', brands: 'Other', nutriments: { 'energy-kcal_100g': 57, proteins_100g: 1.1, carbohydrates_100g: 7.5, fat_100g: 2.7 } },
 ];
 
-interface Reply { status?: number; body?: unknown; wait?: Promise<void>; headers?: Record<string, string> }
-
-/** Intercepts Open Food Facts for a whole browser context (all tabs). Returns the list of requests seen. */
-async function mockOff(context: BrowserContext, reply: (n: number, url: URL) => Reply | Promise<Reply> = () => ({})) {
-  const calls: { url: URL; headers: Record<string, string> }[] = [];
-  await context.route('https://world.openfoodfacts.org/**', async (route) => {
-    const req = route.request();
-    calls.push({ url: new URL(req.url()), headers: req.headers() });
-    const r = await reply(calls.length, new URL(req.url()));
-    await r.wait;
-    await route.fulfill({
-      status: r.status ?? 200,
-      headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json', ...r.headers },
-      body: JSON.stringify(r.body ?? { products: PRODUCTS }),
-    });
-  });
-  return calls;
-}
+/** Open Food Facts stand-in; every request answers with the synthetic products unless the reply says otherwise. */
+const mockOff = (context: BrowserContext, reply: (n: number, url: URL) => OffReply | Promise<OffReply> = () => ({})) => offMock(context, reply, { products: PRODUCTS });
 
 async function ready(page: Page) {
   await page.goto('/');
@@ -50,7 +35,7 @@ const totals = (page: Page) => page.getByRole('region', { name: 'Daily totals' }
 test('offline: log without nutrition → survives reload → back online → suggestions → user confirms', async ({ page, context }) => {
   const calls = await mockOff(context);
   await ready(page);
-  await context.setOffline(true);
+  await setOffline(context, true);
   await logPending(page, 'oat drink');
 
   const row = page.locator('main .row').filter({ hasText: 'oat drink' });
@@ -63,7 +48,7 @@ test('offline: log without nutrition → survives reload → back online → sug
   await expect(page.locator('main .row').filter({ hasText: 'oat drink' })).toContainText('Pending');
   expect(calls).toHaveLength(0);
 
-  await context.setOffline(false); // fires the browser's "online" event
+  await setOffline(context, false); // fires the browser's "online" event
   await expect(page.getByText('1 item to confirm')).toBeVisible();
   expect(calls).toHaveLength(1);
   expect(calls[0]!.url.searchParams.get('search_terms')).toBe('oat drink');
@@ -86,7 +71,7 @@ test('offline: log without nutrition → survives reload → back online → sug
   await expect(page.getByText('to confirm')).toHaveCount(0);
 
   // The chosen food is kept on the device (recents + cache): found offline next time.
-  await context.setOffline(true);
+  await setOffline(context, true);
   await openAddFood(page);
   await page.getByRole('dialog').getByLabel('Search foods').fill('barista');
   await expect(page.getByRole('dialog').getByRole('button', { name: /^Test oat drink barista/ })).toBeVisible();
@@ -169,9 +154,9 @@ test('RACE: editing the text while a lookup is in flight discards the stale answ
 test('three identical foods cost one request', async ({ page, context }) => {
   const calls = await mockOff(context);
   await ready(page);
-  await context.setOffline(true);
+  await setOffline(context, true);
   for (let i = 0; i < 3; i++) await logPending(page, i === 1 ? ' Oat  Drink ' : 'oat drink', '100');
-  await context.setOffline(false);
+  await setOffline(context, false);
   await expect(page.getByText('3 items to confirm')).toBeVisible();
   expect(calls).toHaveLength(1);
 });
@@ -182,9 +167,9 @@ test('two tabs: only one runs the queue', async ({ page, context }) => {
   const other = await context.newPage();
   await other.goto('/');
   await expect(other.getByRole('heading', { level: 1 })).toBeVisible();
-  await context.setOffline(true);
+  await setOffline(context, true);
   await logPending(page, 'oat drink');
-  await context.setOffline(false);
+  await setOffline(context, false);
   await expect(page.getByText('1 item to confirm')).toBeVisible();
   await expect(other.getByText('1 item to confirm')).toBeVisible(); // the other tab sees the result too
   expect(calls).toHaveLength(1);
@@ -217,7 +202,7 @@ test('"Search online" is explicit, shows attribution, caches the choice, and sen
 test('offline, "Search online" is unavailable but logging without nutrition still works', async ({ page, context }) => {
   await mockOff(context);
   await ready(page);
-  await context.setOffline(true);
+  await setOffline(context, true);
   await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('oat drink');

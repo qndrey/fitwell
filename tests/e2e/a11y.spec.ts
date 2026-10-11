@@ -14,7 +14,8 @@ for (const scheme of ['light', 'dark'] as const) {
   }
 }
 
-test('main flow is keyboard reachable', async ({ page }) => {
+test('main flow is keyboard reachable', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'Safari does not Tab to links and buttons unless the system setting is on.');
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await page.keyboard.press('Tab');

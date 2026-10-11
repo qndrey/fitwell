@@ -5,6 +5,7 @@ A calm, private fitness and meal tracker. It runs entirely in your browser: **no
 ## Privacy, in plain words
 - Everything you log is stored **on your device** (IndexedDB). There is no Fitwell server to send it to.
 - Fitwell goes online **only** when you ask it to look up a food (Search online, scanning a barcode) or when a food you logged without nutrition is waiting for a lookup. It then sends only the words you typed, or the barcode digits, to [Open Food Facts](https://world.openfoodfacts.org), with no cookies and no referrer. You can switch this off in Settings.
+- The AI assistant (Settings) only **copies text to your clipboard** when you press Copy and reads text you paste. Fitwell never contacts an AI service; where you paste the text is your choice.
 - Camera images for barcode scanning are read on your device and never leave it.
 - No third-party scripts, fonts or CDNs: a strict Content-Security-Policy enforces this and tests check it.
 - Clearing your browser data erases your history, so save a backup file now and then (Settings → Your data). "Delete all data" erases everything on purpose.

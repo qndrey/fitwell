@@ -25,6 +25,13 @@ function LazyProgress() {
   return C ? <C /> : null;
 }
 
+/** The AI screen (prompts and import) loads only when opened. */
+function LazyAi() {
+  const [C, setC] = useState<ComponentType | null>(null);
+  useEffect(() => void import('./features/ai/AiPage').then((m) => setC(() => m.AiPage)), []);
+  return C ? <C /> : null;
+}
+
 const SCREENS = { today: Today, history: History, progress: LazyProgress, settings: Settings };
 
 /** The style guide is its own chunk: it is not in the tab bar and is never needed for everyday use. */
@@ -35,7 +42,7 @@ function LazyDesign() {
 }
 
 export function App() {
-  const Current = route.value === 'design' ? LazyDesign : route.value === 'review' ? Review : route.value === 'workout' ? StrengthPage : route.value === 'about' ? LazyAbout : SCREENS[route.value];
+  const Current = route.value === 'design' ? LazyDesign : route.value === 'review' ? Review : route.value === 'workout' ? StrengthPage : route.value === 'about' ? LazyAbout : route.value === 'ai' ? LazyAi : SCREENS[route.value];
   return (
     <>
       <a

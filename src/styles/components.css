@@ -105,6 +105,7 @@
 .fig-head { fill: var(--surface); stroke: var(--text); stroke-width: 2.4; }
 .fig-implement { fill: none; stroke: var(--accent); stroke-width: 2.4; }
 .fig-implement.solid { fill: var(--accent); }
+.prompt-box { height: auto; min-height: 8rem; padding: var(--space-3); font-family: ui-monospace, monospace; font-size: var(--text-sm); line-height: 1.4; resize: vertical; }
 .ex-figure { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-2) 0; }
 .row:hover:not(.static) { background: var(--surface-2); }
 .row-main { font-weight: var(--weight-semibold); overflow-wrap: anywhere; }

@@ -4,7 +4,7 @@ import { isDay, type Day } from './domain/dates';
 export const ROUTES = ['today', 'history', 'progress', 'settings'] as const;
 export type RouteName = (typeof ROUTES)[number];
 /** Reachable by URL only, never in the tab bar. */
-const HIDDEN = ['design', 'review', 'workout', 'about'] as const;
+const HIDDEN = ['design', 'review', 'workout', 'about', 'ai'] as const;
 export type AnyRoute = RouteName | (typeof HIDDEN)[number];
 
 interface Parsed {

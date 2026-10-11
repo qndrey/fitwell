@@ -65,6 +65,13 @@ export function Settings() {
       </Card>
       <InstallCard />
       <BackupSection />
+      <Card labelledBy="ai-h">
+        <div class="stack gap-3">
+          <h2 id="ai-h">{t('ai.title')}</h2>
+          <p class="t-caption">{t('ai.open.help')}</p>
+          <Button block onClick={() => (location.hash = '#/ai')}>{t('ai.open')}</Button>
+        </div>
+      </Card>
       <Card labelledBy="delete-h">
         <div class="stack gap-3">
           <h2 id="delete-h">{t('delete.title')}</h2>

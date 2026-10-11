@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import { estimateKcal, bodyWeightKg } from '../../src/domain/met';
-import { suggestNextKg, workoutTally, addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '../../src/domain/workouts';
+import { averageWorkoutTime } from '../../src/domain/stats';
+import { elapsedSeconds, exercisesAtFinish, formatClock, formatMinutes, plannedSets, reopenPatch, sessionMinutes, workoutStatus, suggestNextKg, workoutTally, addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '../../src/domain/workouts';
 import { displayDistance, displayWeight, kgToLb, lbToKg, miToKm, toKg, toKm, kmToMi } from '../../src/domain/units';
 import { openDatabase } from '../../src/db/open';
 import { ACTIVITIES } from '../../src/data/activities';
@@ -305,5 +306,77 @@ describe('during a workout', () => {
       { mode: 'time', sets: [{ id: '4', type: 'working', reps: 0, weightKg: 0, durationSec: 60 }] },
     ]);
     expect(t).toEqual({ done: 3, total: 4, volumeKg: 500 });
+  });
+});
+
+describe('workout lifecycle', () => {
+  const MIN = 60_000;
+  it('is open without a timer, active once started, finished once closed', () => {
+    expect(workoutStatus({})).toBe('open');
+    expect(workoutStatus({ startedAt: 1 })).toBe('active');
+    expect(workoutStatus({ startedAt: 1, finishedAt: 2 })).toBe('finished');
+    expect(workoutStatus({ finishedAt: 2 })).toBe('finished'); // finished without a timer (a past day)
+  });
+  it('reads the clock and the session length', () => {
+    expect(elapsedSeconds({ startedAt: 10_000 }, 75_500)).toBe(65);
+    expect(elapsedSeconds({ startedAt: 10_000 }, 5_000)).toBe(0); // clock set back: never negative
+    expect(elapsedSeconds({}, 5_000)).toBeUndefined();
+    expect(sessionMinutes({ startedAt: 0, finishedAt: 47.4 * MIN })).toBe(47);
+    expect(sessionMinutes({ startedAt: 0, finishedAt: 20_000 })).toBeUndefined(); // under a minute: a mis-tap, not a workout
+    expect(sessionMinutes({ startedAt: 0, finishedAt: 7 * 60 * MIN })).toBeUndefined(); // left running overnight
+    expect(sessionMinutes({ startedAt: 0 })).toBeUndefined();
+    expect(sessionMinutes({ finishedAt: 5 * MIN })).toBeUndefined();
+  });
+  it('formats the running clock and a duration', () => {
+    expect(formatClock(5)).toBe('0:05');
+    expect(formatClock(23 * 60 + 5)).toBe('23:05');
+    expect(formatClock(3600 + 2 * 60 + 7)).toBe('1:02:07');
+    expect(formatMinutes(42)).toBe('42 min');
+    expect(formatMinutes(65)).toBe('1 h 05 min');
+  });
+  it('shows the time in a finished workout\'s description', () => {
+    const ex = [{ exerciseRef: 'x', exerciseName: 'X', sets: [{ id: '1', type: 'working' as const, reps: 5, weightKg: 50 }] }];
+    expect(describeWorkout({ type: 'strength', exercises: ex, startedAt: 0, finishedAt: 42 * MIN }).detail).toBe('1 exercise · 1 set · 42 min');
+    expect(describeWorkout({ type: 'strength', exercises: ex }).detail).toBe('1 exercise · 1 set');
+  });
+  it('finishing drops sets that were never done, and exercises left empty, and keeps supersets tidy', () => {
+    let n = 0;
+    const set = (id: string, done?: boolean) => ({ id, type: 'working' as const, reps: 5, weightKg: 50, ...(done === undefined ? {} : { done }) });
+    const ex = [
+      { uid: 'a', supersetId: 's', exerciseRef: 'ex:a', exerciseName: 'A', sets: [set('1', true), set('2', false)] },
+      { uid: 'b', supersetId: 's', exerciseRef: 'ex:b', exerciseName: 'B', sets: [set('3', false)] },
+      { uid: 'c', exerciseRef: 'ex:c', exerciseName: 'C', sets: [set('4')] }, // no flag: an older set, counts as done
+    ];
+    expect(plannedSets(ex)).toBe(2);
+    const out = exercisesAtFinish(ex, () => `n${++n}`);
+    expect(out.map((e) => e.uid)).toEqual(['a', 'c']);
+    expect(out[0]!.sets.map((s) => s.id)).toEqual(['1']);
+    expect(out[0]!.supersetId).toBeUndefined(); // a superset of one is not a superset
+    expect(plannedSets(out)).toBe(0);
+  });
+  it('reopening carries the clock on from where it stopped', () => {
+    const p = reopenPatch({ startedAt: 1_000_000, finishedAt: 1_000_000 + 30 * MIN }, 9_000_000);
+    expect(p.finishedAt).toBeUndefined();
+    expect(p.startedAt).toBe(9_000_000 - 30 * MIN);
+    expect(reopenPatch({ finishedAt: 5 }, 9_000_000)).toEqual({ startedAt: undefined, finishedAt: undefined }); // no timer: stays untimed
+  });
+});
+
+describe('average workout time', () => {
+  const MIN = 60_000;
+  const strength = (day: string, mins: number | undefined) => ({ id: day + mins, createdAt: 0, updatedAt: 0, rev: 1, day, type: 'strength' as const, ...(mins === undefined ? {} : { startedAt: 0, finishedAt: mins * MIN }) });
+  const cardio = (day: string, durationMin: number) => ({ id: day + 'c', createdAt: 0, updatedAt: 0, rev: 1, day, type: 'cardio' as const, cardio: { activityRef: 'a', activityName: 'Run', met: 9, durationMin } });
+  it('averages timed strength sessions and cardio, leaving out workouts without a time', () => {
+    const r = averageWorkoutTime([strength('2026-10-01', 60), strength('2026-10-02', 40), strength('2026-10-03', undefined), cardio('2026-10-04', 20)], '2026-10-01', '2026-10-31')!;
+    expect(r.count).toBe(3);
+    expect(r.avgMin).toBeCloseTo(40);
+    expect(r.strengthAvgMin).toBe(50);
+    expect(r.strengthCount).toBe(2);
+    expect(r.cardioAvgMin).toBe(20);
+  });
+  it('respects the range and deleted workouts, and says nothing when there is nothing timed', () => {
+    expect(averageWorkoutTime([strength('2026-09-01', 60)], '2026-10-01', '2026-10-31')).toBeNull();
+    expect(averageWorkoutTime([{ ...strength('2026-10-01', 60), deletedAt: 1 }], '2026-10-01', '2026-10-31')).toBeNull();
+    expect(averageWorkoutTime([strength('2026-10-01', undefined)], '2026-10-01', '2026-10-31')).toBeNull();
   });
 });

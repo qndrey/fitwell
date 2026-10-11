@@ -6,10 +6,11 @@ import { LineChart, shortDay, type LineSeries } from '../../charts/LineChart';
 import { MARKERS } from '../../charts/markers';
 import { addDays, dayFromNumber, dayNumber, today as todayDay, type Day } from '../../domain/dates';
 import {
-  aggregateDays, cardioActivities, cardioPerWeek, compareFirstLatest, downsample, exerciseOptions, exerciseProgress, measurementPoints,
+  aggregateDays, averageWorkoutTime, cardioActivities, cardioPerWeek, compareFirstLatest, downsample, exerciseOptions, exerciseProgress, measurementPoints,
   movingAverage, RANGES, rangeStart, trendChange, weeklyAverage, weeksIn, workoutsPerWeek, type RangeKey,
 } from '../../domain/stats';
 import { displayLength, displayWeight, weightUnit, type UnitSystem } from '../../domain/units';
+import { formatMinutes } from '../../domain/workouts';
 import type { MeasurementType } from '../../db/schema';
 import { measurementTypes } from '../body/store';
 import { goals, settings } from '../../state';
@@ -93,6 +94,8 @@ function Summary({ data, from, end, units }: Props & { units: UnitSystem }) {
     const weeks = workoutsPerWeek(days, from, end);
     const perWeek = weeks.length ? weeks.reduce((n, w) => n + w.strength + w.cardio, 0) / weeks.length : 0;
     out.push({ label: t('progress.tile.workouts'), value: String(r1(perWeek)) });
+    const time = averageWorkoutTime(data.workouts, from, end);
+    out.push({ label: t('progress.tile.time'), value: time ? formatMinutes(time.avgMin) : '—' });
     return out;
   }, [data, from, end, units, s.hideBodyTracking, s.habitOnly]);
   return (
@@ -229,17 +232,27 @@ function CaloriesChart({ data, from, end, range: r }: Props & { range: RangeKey 
 }
 
 // ------------------------------------------------------------------ workouts per week
+/** Where the average comes from: strength sessions you timed with Start and Finish, and cardio durations. */
+function timeNote(time: NonNullable<ReturnType<typeof averageWorkoutTime>>): string {
+  const parts = [
+    time.strengthAvgMin !== undefined ? `${t('workout.strength')} ${formatMinutes(time.strengthAvgMin)} (${time.strengthCount})` : '',
+    time.cardioAvgMin !== undefined ? `${t('workout.cardio')} ${formatMinutes(time.cardioAvgMin)} (${time.cardioCount})` : '',
+  ].filter(Boolean);
+  return `${t('chart.time.how')} ${parts.join(' · ')}`;
+}
 function WorkoutsChart({ data, from, end }: Props) {
   const days = useMemo(() => aggregateDays(data), [data]);
   const weeks = workoutsPerWeek(days, from, end);
   const total = weeks.reduce((s, w) => s + w.strength + w.cardio, 0);
   const perWeek = weeks.length ? total / weeks.length : 0;
   const target = goals.value.workoutsPerWeek;
+  const time = useMemo(() => averageWorkoutTime(data.workouts, from, end), [data, from, end]);
   return (
     <ChartFrame
       id="workouts"
       title={t('chart.workouts.title')}
-      headline={`${total} ${t('chart.workouts.word')} · ${r1(perWeek)} ${t('chart.perWeek')}`}
+      headline={`${total} ${t('chart.workouts.word')} · ${r1(perWeek)} ${t('chart.perWeek')}${time ? ` · ${t('chart.avgTime')} ${formatMinutes(time.avgMin)}` : ''}`}
+      note={time ? timeNote(time) : t('chart.time.none')}
       empty={total === 0 ? t('chart.workouts.empty') : undefined}
       table={{ caption: t('chart.workouts.title'), columns: [t('chart.week'), t('workout.strength'), t('workout.cardio')], rows: () => weeks.map((w) => [dayLabel(w.start), w.strength, w.cardio]) }}
     >

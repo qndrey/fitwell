@@ -17,6 +17,7 @@ import { t } from './i18n';
 import { watchBody } from './features/body/store';
 import { ensureMeasurementTypes } from './db/bodyStore';
 import { watchUnresolved } from './features/review/store';
+import { watchActiveWorkout } from './features/workout/active';
 
 await initState();
 try {
@@ -30,6 +31,7 @@ try {
 render(<App />, document.getElementById('app')!);
 hideSplash();
 watchUnresolved();
+watchActiveWorkout();
 void ensureMeasurementTypes().then(watchBody).catch(() => undefined);
 startQueue();
 registerServiceWorker();

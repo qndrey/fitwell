@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Badge, Button, Card, Choice, EmptyState, Field, Icon, LinkButton, Menu, Screen, Segmented, Sheet, TextInput } from '../../ui';
+import { Badge, Button, Card, Choice, EmptyState, Field, Icon, LinkButton, Menu, Meter, Screen, Segmented, Sheet, TextInput } from '../../ui';
 import { lastPerformance, workoutsRepo } from '../../db/workoutStore';
 import type { Workout, WorkoutExercise, WorkoutSet } from '../../db/schema';
 import { formatDay, today } from '../../domain/dates';
 import { displayWeight, toKg, weightUnit } from '../../domain/units';
-import { addedLoadKg, formatDuration, isSetDone, newSet, normalizeSupersets, parseDuration, suggestNextKg, summarizeSets, supersetPosition, workoutTally } from '../../domain/workouts';
+import { addedLoadKg, elapsedSeconds, formatClock, formatDuration, formatMinutes, isSetDone, newSet, normalizeSupersets, parseDuration, plannedSets, sessionMinutes, suggestNextKg, summarizeSets, supersetPosition, workoutStatus, workoutTally } from '../../domain/workouts';
 import { routeId } from '../../router';
 import { currentWeightKg, settings } from '../../state';
 import { t } from '../../i18n';
-import { deleteWorkout, newId, saveAsTemplate } from './actions';
+import { deleteWorkout, finishWorkout, newId, reopenWorkout, saveAsTemplate, startWorkout } from './actions';
 import { ExercisePicker, HowToSteps } from './ExercisePicker';
 import { ExerciseThumb } from './ExerciseFigure';
 import { NumberCell } from './NumberCell';
@@ -33,13 +33,6 @@ const rememberRest = (sec: number) => {
   }
 };
 
-/** Elapsed time of a workout started today, in whole minutes; undefined for past days or long-forgotten sessions. */
-function elapsedMin(w: Workout, now: number): number | undefined {
-  if (w.day !== today()) return undefined;
-  const ms = now - w.createdAt;
-  return ms >= 0 && ms < 6 * 3600_000 ? Math.floor(ms / 60_000) : undefined;
-}
-
 /**
  * Strength workout: exercises → sets (weight, reps or time, warm-up or working). Every change is saved as you go.
  * Sets prefilled from last time are planned (muted) until ticked or edited; ticking starts a rest timer.
@@ -55,6 +48,7 @@ export function StrengthPage() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [running, setRunning] = useState<{ setId: string; uid: string; startedAt: number } | null>(null);
   const [rest, setRest] = useState<{ until: number; total: number } | null>(null);
+  const [finishing, setFinishing] = useState(false);
   const [now, setNow] = useState(Date.now());
   const latest = useRef<WorkoutExercise[] | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -88,11 +82,12 @@ export function StrengthPage() {
     };
   }, [id]);
 
-  // One clock for the stopwatch, the rest timer and the elapsed time. Faster while something is counting.
+  // One clock for the stopwatch, the rest timer and the workout timer. Faster while something is counting.
+  const ticking = !!w && w !== 'missing' && workoutStatus(w) === 'active';
   useEffect(() => {
-    const i = setInterval(() => setNow(Date.now()), running || rest ? 250 : 15_000);
+    const i = setInterval(() => setNow(Date.now()), running || rest ? 250 : ticking ? 1000 : 30_000);
     return () => clearInterval(i);
-  }, [!!running, !!rest]);
+  }, [!!running, !!rest, ticking]);
 
   // Rest is over: a short buzz where the device can, then the timer clears itself.
   useEffect(() => {
@@ -136,7 +131,11 @@ export function StrengthPage() {
   }
 
   const exercises = w.exercises ?? [];
+  const status = workoutStatus(w);
+  const locked = status === 'finished'; // closed: nothing can be added or changed unless it is reopened
+  const active = status === 'active';
   const commit = (next: WorkoutExercise[]) => {
+    if (locked) return;
     setW({ ...w, exercises: next });
     latest.current = next;
     clearTimeout(timer.current);
@@ -146,11 +145,36 @@ export function StrengthPage() {
   const unit = weightUnit(units);
   const bodyKg = () => currentWeightKg() ?? 0;
   const tally = workoutTally(exercises);
-  const mins = elapsedMin(w, now);
+  const planned = plannedSets(exercises);
+  const clock = active ? formatClock(elapsedSeconds(w, now) ?? 0) : undefined;
+  const tookMin = sessionMinutes(w);
+  const volumeText = tally.volumeKg > 0 ? `${Math.round(displayWeight(tally.volumeKg, units)).toLocaleString()} ${unit}` : '';
+  const setsText = tally.total ? t('workout.setsDone').replace('{done}', String(tally.done)).replace('{total}', String(tally.total)) : '';
   const leave = () => {
     flush();
     location.hash = dayHash(w.day);
   };
+
+  async function begin() {
+    flush();
+    const u = await startWorkout(w as Workout);
+    setW({ ...(w as Workout), startedAt: u.startedAt });
+    setNow(Date.now());
+  }
+  async function finish() {
+    flush();
+    const u = await finishWorkout(w as Workout, exercises);
+    const took = sessionMinutes(u);
+    showToast(t('workout.finished').replace('{sets}', `${tally.done} ${tally.done === 1 ? t('workout.setOne') : t('workout.sets')}`) + (took !== undefined ? ` · ${formatMinutes(took)}` : ''));
+    location.hash = dayHash((w as Workout).day);
+  }
+  async function reopen() {
+    const u = await reopenWorkout(w as Workout);
+    setW({ ...(w as Workout), startedAt: u.startedAt, finishedAt: undefined });
+    setNow(Date.now());
+  }
+  /** Finish asks first when it would throw something away: sets never done, or a workout with nothing done at all. */
+  const onFinish = () => (tally.done === 0 || planned > 0 ? setFinishing(true) : void finish());
 
   const setCollapsedFor = (uid: string, on: boolean) =>
     setCollapsed((c) => {
@@ -238,11 +262,7 @@ export function StrengthPage() {
 
   const sheetEx = sheet ? exercises.find((e) => e.uid === sheet.uid) : undefined;
   const sheetEi = sheetEx ? exercises.indexOf(sheetEx) : -1;
-  const statusParts = [
-    mins ? t('workout.minutes.short').replace('{n}', String(mins)) : '',
-    tally.total ? t('workout.setsDone').replace('{done}', String(tally.done)).replace('{total}', String(tally.total)) : '',
-    tally.volumeKg > 0 ? `${Math.round(displayWeight(tally.volumeKg, units)).toLocaleString()} ${unit}` : '',
-  ].filter(Boolean);
+  const statusParts = [clock ?? '', setsText, volumeText].filter(Boolean);
 
   return (
     <Screen
@@ -252,7 +272,27 @@ export function StrengthPage() {
       subtitleAction={t('workout.openDay')}
       back={{ label: backLabel, onBack: leave }}
     >
-      {exercises.length === 0 && <EmptyState>{t('workout.emptyStrength')}</EmptyState>}
+      {active && (
+        <Card label={t('workout.inProgress')} compact class="live-card">
+          <div class="stack gap-2">
+            <p class="t-overline">{t('workout.inProgress')}</p>
+            <p class="t-stat clock-big">{clock}</p>
+            {tally.total > 0 && <Meter value={tally.done / tally.total} />}
+            <p class="t-caption">{[setsText, volumeText].filter(Boolean).join(' · ') || t('workout.noSetsYet')}</p>
+          </div>
+        </Card>
+      )}
+      {locked && (
+        <Card labelledBy="done-h" compact class="live-card">
+          <div class="stack gap-2">
+            <h2 id="done-h" class="card-title"><Icon name="check" size="sm" /> {t('workout.finishedTitle')}</h2>
+            <p>{[tookMin !== undefined ? formatMinutes(tookMin) : '', `${tally.done} ${tally.done === 1 ? t('workout.setOne') : t('workout.sets')}`, volumeText].filter(Boolean).join(' · ')}</p>
+            <p class="t-caption">{t('workout.finishedHelp')}</p>
+            <Button variant="ghost" size="sm" class="align-start" onClick={() => void reopen()}>{t('workout.reopen')}</Button>
+          </div>
+        </Card>
+      )}
+      {exercises.length === 0 && !locked && <EmptyState>{t('workout.emptyStrength')}</EmptyState>}
 
       {exercises.map((ex, ei) => {
         const uid = ex.uid!;
@@ -283,14 +323,16 @@ export function StrengthPage() {
                   </span>
                   <span class={isCollapsed ? 'chev' : 'chev open'}><Icon name="expand" size="sm" /></span>
                 </button>
-                <Menu
-                  label={`${t('workout.exerciseMenu')}: ${ex.exerciseName}`}
-                  items={[
-                    { label: t('workout.options'), icon: 'settings', onSelect: () => setSheet({ kind: 'options', uid }) },
-                    ...(ex.exerciseRef.startsWith('ex:') ? [{ label: t('exercise.howTo'), icon: 'info' as const, onSelect: () => setSheet({ kind: 'howto', uid }) }] : []),
-                    { label: t('workout.removeExercise'), icon: 'trash', danger: true, onSelect: () => removeExercise(ei) },
-                  ]}
-                />
+                {(!locked || ex.exerciseRef.startsWith('ex:')) && (
+                  <Menu
+                    label={`${t('workout.exerciseMenu')}: ${ex.exerciseName}`}
+                    items={[
+                      ...(locked ? [] : [{ label: t('workout.options'), icon: 'settings' as const, onSelect: () => setSheet({ kind: 'options', uid }) }]),
+                      ...(ex.exerciseRef.startsWith('ex:') ? [{ label: t('exercise.howTo'), icon: 'info' as const, onSelect: () => setSheet({ kind: 'howto', uid }) }] : []),
+                      ...(locked ? [] : [{ label: t('workout.removeExercise'), icon: 'trash' as const, danger: true, onSelect: () => removeExercise(ei) }]),
+                    ]}
+                  />
+                )}
               </div>
               {pos && <p class="t-caption"><Badge tone="neutral">{t('workout.superset')} {pos.letter.charCodeAt(0) - 64} {t('workout.of')} {pos.size}</Badge></p>}
               <div id={`ex-body-${uid}`} class="stack gap-3" hidden={isCollapsed}>
@@ -299,7 +341,7 @@ export function StrengthPage() {
                     <p class="t-caption">
                       <Badge tone="neutral">{t('workout.lastTime')}</Badge> {l.summary} · {formatDay(l.day, { month: 'short', day: 'numeric' })}
                     </p>
-                    {suggestion !== undefined && plannedWorking && (
+                    {!locked && suggestion !== undefined && plannedWorking && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -325,33 +367,39 @@ export function StrengthPage() {
                     const patch = (p: Partial<WorkoutSet>) => edit(ei, (e) => ({ ...e, sets: e.sets.map((x) => (x.id === s.id ? { ...x, ...p } : x)) }));
                     return (
                       <div class={done ? 'set-row' : 'set-row planned'} key={s.id}>
-                        <Menu
-                          label={`${setName}: ${s.type === 'warmup' ? t('workout.warmup') : t('workout.working')}. ${t('workout.setMenu')}`}
-                          buttonClass={s.type === 'warmup' ? 'set-type warmup' : 'set-type'}
-                          items={[
-                            s.type === 'warmup'
-                              ? { label: t('workout.makeWorking'), onSelect: () => patch({ type: 'working' }) }
-                              : { label: t('workout.makeWarmup'), onSelect: () => patch({ type: 'warmup' }) },
-                            { label: t('workout.removeSet'), icon: 'trash', danger: true, onSelect: () => edit(ei, (e) => ({ ...e, sets: e.sets.filter((x) => x.id !== s.id) })) },
-                          ]}
-                        >
-                          {label}
-                        </Menu>
+                        {locked ? (
+                          <span class={s.type === 'warmup' ? 'set-type warmup' : 'set-type'} role="img" aria-label={`${setName}: ${s.type === 'warmup' ? t('workout.warmup') : t('workout.working')}`}>{label}</span>
+                        ) : (
+                          <Menu
+                            label={`${setName}: ${s.type === 'warmup' ? t('workout.warmup') : t('workout.working')}. ${t('workout.setMenu')}`}
+                            buttonClass={s.type === 'warmup' ? 'set-type warmup' : 'set-type'}
+                            items={[
+                              s.type === 'warmup'
+                                ? { label: t('workout.makeWorking'), onSelect: () => patch({ type: 'working' }) }
+                                : { label: t('workout.makeWarmup'), onSelect: () => patch({ type: 'warmup' }) },
+                              { label: t('workout.removeSet'), icon: 'trash', danger: true, onSelect: () => edit(ei, (e) => ({ ...e, sets: e.sets.filter((x) => x.id !== s.id) })) },
+                            ]}
+                          >
+                            {label}
+                          </Menu>
+                        )}
                         <NumberCell
                           label={`${setName} ${isBw ? t('workout.addedLoad') : ''} ${unit}`.replace('  ', ' ')}
                           value={displayWeight(isBw ? addedLoadKg(s) : s.weightKg, units, 2)}
                           placeholder={isBw ? 'BW' : '0'}
                           planned={!done}
+                          readOnly={locked}
                           onValue={(n) => patch({ ...(isBw ? { bodyweightKg: s.bodyweightKg ?? bodyKg(), weightKg: (s.bodyweightKg ?? bodyKg()) + toKg(n, units) } : { weightKg: toKg(n, units) }), done: true })}
                         />
                         {isTime ? (
-                          <DurationCell label={`${setName} ${t('workout.time')}`} planned={!done} seconds={live ? Math.round((now - running!.startedAt) / 1000) : (s.durationSec ?? 0)} onValue={(n) => patch({ durationSec: n, done: true })} />
+                          <DurationCell label={`${setName} ${t('workout.time')}`} planned={!done} readOnly={locked} seconds={live ? Math.round((now - running!.startedAt) / 1000) : (s.durationSec ?? 0)} onValue={(n) => patch({ durationSec: n, done: true })} />
                         ) : (
-                          <NumberCell label={`${setName} ${t('workout.reps')}`} value={s.reps} placeholder="0" planned={!done} onValue={(n) => patch({ reps: n, done: true })} />
+                          <NumberCell label={`${setName} ${t('workout.reps')}`} value={s.reps} placeholder="0" planned={!done} readOnly={locked} onValue={(n) => patch({ reps: n, done: true })} />
                         )}
                         <button
                           type="button"
                           class="set-done"
+                          disabled={locked}
                           aria-pressed={done}
                           aria-label={`${setName}: ${t('workout.markDone')}`}
                           onClick={() => {
@@ -361,7 +409,7 @@ export function StrengthPage() {
                         >
                           <Icon name="check" />
                         </button>
-                        {isTime && (
+                        {isTime && !locked && (
                           <div class="set-timer">
                             <Button
                               size="sm"
@@ -383,6 +431,7 @@ export function StrengthPage() {
                     );
                   })}
                 </div>
+                {!locked && (
                 <Button
                   block
                   variant="ghost"
@@ -393,6 +442,7 @@ export function StrengthPage() {
                 >
                   <Icon name="plus" size="sm" />{pos ? t('workout.addRound') : t('workout.addSet')}
                 </Button>
+                )}
               </div>
             </div>
           </Card>
@@ -415,40 +465,72 @@ export function StrengthPage() {
         </div>
       )}
 
-      <div class="primary-bar workout-bar">
-        {(rest || statusParts.length > 0) && (
-          <div class="workout-status" role={rest ? 'timer' : undefined} aria-live="off">
-            {rest ? (
-              <>
-                <Icon name="timer" size="sm" />
-                <span class="grow">{t('workout.rest')} <strong>{formatDuration(Math.max(0, Math.ceil((rest.until - now) / 1000)))}</strong></span>
-                <Button size="sm" variant="ghost" onClick={() => adjustRest(-15)} aria-label={t('workout.restLess')}>−15</Button>
-                <Button size="sm" variant="ghost" onClick={() => adjustRest(15)} aria-label={t('workout.restMore')}>+15</Button>
-                <Button size="sm" variant="ghost" onClick={() => setRest(null)}>{t('workout.restSkip')}</Button>
-              </>
-            ) : (
-              <span>{statusParts.join(' · ')}</span>
+      {locked ? (
+        <div class="primary-bar workout-bar">
+          <Button variant="primary" size="lg" block onClick={leave}><Icon name="back" />{t('workout.backToDay')}</Button>
+        </div>
+      ) : (
+        <div class="primary-bar workout-bar">
+          {(rest || statusParts.length > 0) && (
+            <div class="workout-status" role={rest ? 'timer' : undefined} aria-live="off">
+              {rest ? (
+                <>
+                  <Icon name="timer" size="sm" />
+                  <span class="grow">{t('workout.rest')} <strong>{formatDuration(Math.max(0, Math.ceil((rest.until - now) / 1000)))}</strong></span>
+                  <Button size="sm" variant="ghost" onClick={() => adjustRest(-15)} aria-label={t('workout.restLess')}>−15</Button>
+                  <Button size="sm" variant="ghost" onClick={() => adjustRest(15)} aria-label={t('workout.restMore')}>+15</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRest(null)}>{t('workout.restSkip')}</Button>
+                </>
+              ) : (
+                <span>{statusParts.join(' · ')}</span>
+              )}
+            </div>
+          )}
+          <div class="workout-actions">
+            <Button variant={exercises.length ? 'secondary' : 'primary'} size="lg" class="grow" onClick={() => setPicking(true)}>
+              <Icon name="plus" />{t('exercise.add')}
+            </Button>
+            {exercises.length > 0 && status === 'open' && w.day === today() && (
+              <Button variant="primary" size="lg" onClick={() => void begin()}>
+                <Icon name="play" />{t('workout.start')}
+              </Button>
+            )}
+            {exercises.length > 0 && (active || (status === 'open' && w.day !== today())) && (
+              <Button variant="primary" size="lg" onClick={onFinish}>
+                <Icon name="finish" />{t('workout.finish')}
+              </Button>
             )}
           </div>
-        )}
-        <div class="workout-actions">
-          <Button variant={exercises.length ? 'secondary' : 'primary'} size="lg" class="grow" onClick={() => setPicking(true)}>
-            <Icon name="plus" />{t('exercise.add')}
-          </Button>
-          {exercises.length > 0 && (
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={() => {
-                showToast(t('workout.finished').replace('{sets}', String(tally.done)) + (mins ? ` · ${t('workout.minutes.short').replace('{n}', String(mins))}` : ''));
-                leave();
-              }}
-            >
-              <Icon name="finish" />{t('workout.finish')}
-            </Button>
-          )}
         </div>
-      </div>
+      )}
+
+      {finishing && (
+        <Sheet title={tally.done === 0 ? t('workout.nothingDone') : t('workout.finishAsk')} onClose={() => setFinishing(false)}>
+          <div class="stack gap-3">
+            <p>{tally.done === 0 ? t('workout.nothingDone.body') : planned === 1 ? t('workout.finishUnfinished.one') : t('workout.finishUnfinished').replace('{n}', String(planned))}</p>
+            {tally.done === 0 ? (
+              <>
+                <Button variant="primary" block onClick={() => setFinishing(false)}>{t('workout.keepGoing')}</Button>
+                <LinkButton
+                  class="small danger align-start"
+                  onClick={async () => {
+                    flush();
+                    await deleteWorkout(w);
+                    location.hash = dayHash(w.day);
+                  }}
+                >
+                  <Icon name="trash" size="sm" />{t('workout.discard')}
+                </LinkButton>
+              </>
+            ) : (
+              <>
+                <Button variant="primary" block onClick={() => void finish()}>{t('workout.finish')}</Button>
+                <Button block onClick={() => setFinishing(false)}>{t('workout.keepGoing')}</Button>
+              </>
+            )}
+          </div>
+        </Sheet>
+      )}
 
       {picking && <ExercisePicker onClose={() => setPicking(false)} onPick={(e) => void addExercise({ ref: e.ref, name: e.name })} />}
       {sheet?.kind === 'options' && sheetEx && (
@@ -496,7 +578,7 @@ export function StrengthPage() {
 }
 
 /** Duration input: accepts "45", "1:30", "90s"; shows it the same way once you leave the field. */
-function DurationCell({ seconds, onValue, label, planned }: { seconds: number; onValue: (n: number) => void; label: string; planned?: boolean }) {
+function DurationCell({ seconds, onValue, label, planned, readOnly }: { seconds: number; onValue: (n: number) => void; label: string; planned?: boolean; readOnly?: boolean }) {
   const show = (n: number) => (n ? formatDuration(n) : '');
   const [text, setText] = useState(show(seconds));
   const focused = useRef(false);
@@ -509,6 +591,7 @@ function DurationCell({ seconds, onValue, label, planned }: { seconds: number; o
       inputMode="text"
       autocomplete="off"
       aria-label={label}
+      readOnly={readOnly}
       placeholder="0:00"
       value={text}
       onFocus={(e) => {

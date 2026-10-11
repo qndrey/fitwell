@@ -268,6 +268,7 @@
 }
 .set-done[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .set-done[aria-pressed='true'] .icon { animation: tick-in var(--dur-med) var(--ease-out); }
+.set-done:disabled { cursor: default; }
 .set-done:focus-visible { outline: var(--ring-w) solid var(--focus); outline-offset: 2px; }
 @keyframes tick-in { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .ex-head { display: flex; align-items: center; gap: var(--space-1); }
@@ -287,8 +288,25 @@
 .howto ol { padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
 .howto li { list-style: decimal; }
 
+/* ---- Start workout: two big ways in ---- */
+.start-card {
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--control-lg); padding: var(--space-3) var(--space-4);
+  background: var(--surface); color: var(--text); border: var(--border-w) solid var(--border); border-radius: var(--radius-m); text-align: left; cursor: pointer;
+}
+.start-card:hover { background: var(--surface-2); }
+.start-card:disabled { opacity: 0.6; cursor: default; }
+.start-card.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.start-card.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.start-text { flex: 1; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.start-title { font-weight: var(--weight-semibold); font-size: var(--text-lg); }
+.start-sub { font-size: var(--text-sm); opacity: 0.85; }
+.live-sub { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; }
+.clock { font-variant-numeric: tabular-nums; font-weight: var(--weight-semibold); color: var(--text); }
+.clock-big { font-variant-numeric: tabular-nums; }
+.live-card { border-color: var(--accent); }
+
 /* ---- Summary tiles (Progress) ---- */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--space-2); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--space-2); }
 .tile { display: flex; flex-direction: column-reverse; gap: var(--space-1); padding: var(--space-3); background: var(--surface); border: var(--border-w) solid var(--divider); border-radius: var(--radius-m); box-shadow: var(--shadow-1); min-width: 0; }
 .tile-value { font-size: var(--text-lg); font-weight: var(--weight-bold); line-height: var(--lh-tight); }
 .tile-label { font-size: var(--text-sm); color: var(--text-muted); line-height: var(--lh-snug); }

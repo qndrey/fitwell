@@ -12,9 +12,11 @@ async function setWeight(page: Page, kg: string) {
   await page.getByRole('link', { name: 'Today' }).click();
 }
 
+/** Opens the Start a workout screen from Today; returns its content for picking what to start. */
 async function addWorkout(page: Page) {
   await page.getByRole('button', { name: 'Add workout' }).click();
-  return page.getByRole('dialog');
+  await expect(page.getByRole('heading', { level: 1, name: 'Start a workout' })).toBeVisible();
+  return page.locator('main');
 }
 
 async function logCardio(page: Page, activity: string | RegExp, minutes: string, extra?: (d: ReturnType<Page['getByRole']>) => Promise<void>) {
@@ -124,7 +126,7 @@ test('cardio: your own activity, repeat last, templates, delete with undo', asyn
   await page.getByRole('dialog').last().getByRole('button', { name: 'Close' }).click();
   await page.getByRole('button', { name: 'Previous day' }).click();
   d = await addWorkout(page);
-  await d.getByRole('button', { name: /^Padel night/ }).click();
+  await d.getByRole('button', { name: /^Start Padel night/ }).click();
   await expect(wk(page).filter({ hasText: 'Padel' })).toBeVisible();
 
   // delete with undo
@@ -172,8 +174,13 @@ test('strength: search the library offline, log sets, see "Last time", repeat, w
   await expect(setInputs(page, 3).reps).toHaveValue('6.5');
   await expect(page.getByRole('button', { name: /^Set 1: warm-up/ })).toBeVisible();
 
+  // In progress: the day shows a running clock and how many sets are done. Finish closes it.
   await page.getByRole('button', { name: /Open this day/ }).click();
   const row = wk(page).filter({ hasText: 'Strength' });
+  await expect(row).toContainText('In progress');
+  await expect(row).toContainText('3 of 3 sets done');
+  await row.click();
+  await page.getByRole('button', { name: 'Finish' }).click();
   await expect(row).toContainText('1 exercise · 3 sets');
 
   // Next day: same exercise shows what you did last time, prefilled from it.
@@ -224,7 +231,7 @@ test('strength: filters, instructions, your own exercise, templates and repeat l
 
   await page.getByRole('button', { name: 'Previous day' }).click();
   d = await addWorkout(page);
-  await d.getByRole('button', { name: /^Arms and sled \d/ }).click();
+  await d.getByRole('button', { name: /^Start Arms and sled/ }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Sled push' })).toBeVisible();
   await expect(setInputs(page, 1, /Sled push/).weight).toHaveValue('40');
   await page.waitForTimeout(400);
@@ -263,7 +270,7 @@ test('workouts are part of backups and restore exactly', async ({ page }) => {
   await page.getByLabel('Set 1 kg').fill('100');
   await page.getByLabel('Set 1 reps').fill('5');
   await page.waitForTimeout(500);
-  await page.getByRole('button', { name: /Open this day/ }).click();
+  await page.getByRole('button', { name: 'Finish' }).click(); // closed, with its timer fields, before the backup
 
   await page.getByRole('link', { name: 'Settings' }).click();
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save a backup file' }).click()]);
@@ -305,9 +312,11 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByRole('dialog').last().getByRole('button', { name: /^Yoga, hatha/ }).click();
     await clean();
     await page.getByRole('dialog').last().getByRole('button', { name: 'Close' }).click();
+    await clean(); // the Start screen itself, with a saved-workout-free list
 
-    d = await addWorkout(page);
+    d = page.locator('main'); // still on the Start screen after closing the sheet
     await d.getByRole('button', { name: 'Strength workout', exact: true }).click();
+    await clean(); // a workout in progress: the clock card, the footer with Finish
     await page.getByRole('button', { name: 'Add exercise' }).click();
     await clean();
     await page.getByRole('dialog').getByLabel('Search exercises').fill('squat');
@@ -384,7 +393,7 @@ test('strength: supersets share a round, and unlinking splits them', async ({ pa
 test('strength: timed sets and bodyweight', async ({ page }) => {
   await startStrength(page);
   await addExercise(page, 'plank', /Plank/);
-  const card = page.locator('section.card').first();
+  const card = page.locator('section.card.exercise').first();
   await exerciseOptions(page, 0, async (d) => {
     await d.getByRole('radio', { name: 'Time' }).check();
     await d.getByRole('radio', { name: 'Bodyweight' }).check();
@@ -456,4 +465,145 @@ test('exercise drawings are accessible and fit a phone', async ({ page }) => {
   await page.getByRole('dialog').getByLabel('Search exercises').fill('squat');
   await expect(page.locator('dialog svg.fig-thumb').first()).toBeVisible();
   expect((await a11yScan(page)).violations.map((v) => v.id)).toEqual([]);
+});
+
+test('start screen: a new workout starts a timer; Finish closes it, and a finished workout can be reopened', async ({ page }) => {
+  const d = await addWorkout(page);
+  await d.getByRole('button', { name: 'Strength workout', exact: true }).click();
+  await expect(page.getByText('In progress')).toBeVisible();
+  // The clock runs.
+  const clock = page.locator('.live-card .clock-big');
+  await expect(clock).toHaveText(/^0:0\d$/);
+  const first = await clock.innerText();
+  await expect.poll(async () => clock.innerText(), { timeout: 5000 }).not.toBe(first);
+
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByLabel('Set 1 kg').fill('60');
+  await page.getByLabel('Set 1 reps').fill('8');
+  await expect(page.locator('.live-card')).toContainText('1 of 1 sets done');
+  await page.getByRole('button', { name: 'Finish' }).click();
+
+  // Back on the day: closed, with its set count (under a minute, so no time is claimed).
+  const row = wk(page).filter({ hasText: 'Strength' });
+  await expect(row).toContainText('1 exercise · 1 set');
+  await expect(row).not.toContainText('In progress');
+  await expect(page.getByText(/Workout saved · 1 set\b/)).toBeVisible();
+
+  // A finished workout is closed: nothing to add, values cannot be edited.
+  await row.click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Finished' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add exercise' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add set' })).toHaveCount(0);
+  await expect(page.getByLabel('Set 1 kg')).toHaveAttribute('readonly', '');
+  await expect(page.getByRole('button', { name: 'Set 1: done' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^More for this exercise/ }).first()).toBeVisible(); // How to only
+  await page.getByRole('button', { name: /^More for this exercise/ }).first().click();
+  await expect(page.getByRole('menuitem')).toHaveText(['How to']);
+  await page.keyboard.press('Escape');
+
+  // Reopen to fix something.
+  await page.getByRole('button', { name: 'Reopen workout' }).click();
+  await expect(page.getByRole('button', { name: 'Add exercise' })).toBeVisible();
+  await expect(page.getByLabel('Set 1 kg')).not.toHaveAttribute('readonly', '');
+  await expect(page.getByRole('button', { name: 'Finish' })).toBeVisible();
+});
+
+test('finishing asks first when sets were not done, and drops them', async ({ page }) => {
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByLabel('Set 1 kg').fill('60');
+  await page.getByLabel('Set 1 reps').fill('8');
+  await page.getByRole('button', { name: 'Add set' }).click(); // copied: planned, not done
+  await page.getByRole('button', { name: 'Finish' }).click();
+  const d = page.getByRole('dialog');
+  await expect(d.getByRole('heading', { name: 'Finish workout?' })).toBeVisible();
+  await expect(d).toContainText('1 set was not done');
+  await d.getByRole('button', { name: 'Keep going' }).click();
+  await expect(page.getByLabel('Set 2 kg')).toBeVisible(); // still there
+  await page.getByRole('button', { name: 'Finish' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Finish', exact: true }).click();
+  await wk(page).filter({ hasText: 'Strength' }).click();
+  await expect(page.getByLabel('Set 2 kg')).toHaveCount(0); // the planned set was removed
+  await expect(page.getByLabel('Set 1 kg')).toHaveValue('60');
+});
+
+test('finishing with nothing done offers to discard the workout', async ({ page }) => {
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByRole('button', { name: 'Finish' }).click();
+  const d = page.getByRole('dialog');
+  await expect(d.getByRole('heading', { name: 'Nothing done yet' })).toBeVisible();
+  await d.getByRole('button', { name: 'Discard workout' }).click();
+  await expect(wk(page).filter({ hasText: 'Strength' })).toHaveCount(0);
+});
+
+test('a workout in progress is shown on every screen, with its progress, and the bar leads back to it', async ({ page }) => {
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByLabel('Set 1 kg').fill('60');
+  await page.getByLabel('Set 1 reps').fill('8');
+  await page.getByRole('button', { name: 'Add set' }).click();
+  await expect(page.locator('.active-bar')).toHaveCount(0); // not on the workout itself
+  await page.getByRole('link', { name: 'History' }).click();
+  const bar = page.locator('.active-bar');
+  await expect(bar).toBeVisible();
+  await expect(bar).toContainText('1 of 2 sets done');
+  await bar.click();
+  await expect(page.getByRole('heading', { level: 2, name: /Barbell Bench Press/ })).toBeVisible();
+  // Today's row and the Start screen know about it too.
+  await page.getByRole('button', { name: /Open this day/ }).click();
+  await expect(wk(page).filter({ hasText: 'In progress' })).toContainText('1 of 2 sets done');
+  await page.getByRole('button', { name: 'Add workout' }).click();
+  await expect(page.getByText(/is already in progress/)).toBeVisible();
+});
+
+test('saved workouts: save one, see it on the start screen, preview, start it, delete it', async ({ page }) => {
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByLabel('Set 1 kg').fill('60');
+  await page.getByLabel('Set 1 reps').fill('8');
+  await page.getByRole('button', { name: 'Save as template' }).click();
+  await page.getByRole('dialog').getByLabel('Template name').fill('Push A');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save template' }).click();
+  await page.getByRole('button', { name: 'Finish' }).click();
+
+  // Its own screen: saved workouts are listed with what is in them.
+  let d = await addWorkout(page);
+  const saved = d.getByRole('region', { name: 'Saved workouts' });
+  await expect(saved).toContainText('Push A');
+  await expect(saved).toContainText('1 exercise · Barbell Bench Press - Medium Grip');
+
+  // Tap the row for a preview, start from there.
+  await saved.getByRole('button', { name: /^Push A/ }).click();
+  const preview = page.getByRole('dialog');
+  await expect(preview).toContainText('8 @ 60 kg');
+  await preview.getByRole('button', { name: /^Start Push A/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Push A' })).toBeVisible();
+  await expect(page.getByText('In progress')).toBeVisible(); // started with its timer
+  await expect(page.getByRole('button', { name: 'Set 1: done' })).toHaveAttribute('aria-pressed', 'false'); // planned, not done
+  await expect(page.getByLabel('Set 1 kg')).toHaveValue('60');
+
+  // Delete it (with Undo).
+  await page.getByRole('button', { name: /Open this day/ }).click();
+  d = await addWorkout(page);
+  await d.getByRole('region', { name: 'Saved workouts' }).getByRole('button', { name: /^Push A/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete template' }).click();
+  await expect(d.getByRole('region', { name: 'Saved workouts' })).toContainText('Nothing saved yet');
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(d.getByRole('region', { name: 'Saved workouts' })).toContainText('Push A');
+});
+
+test('a workout for another day is logged without a timer', async ({ page }) => {
+  await page.getByRole('button', { name: 'Previous day' }).click();
+  const d = await addWorkout(page);
+  await expect(d.getByText('not today')).toBeVisible();
+  await d.getByRole('button', { name: 'Strength workout', exact: true }).click();
+  await expect(page.getByText('In progress')).toHaveCount(0);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await page.getByLabel('Set 1 kg').fill('60');
+  await page.getByLabel('Set 1 reps').fill('8');
+  await expect(page.getByRole('button', { name: 'Start', exact: true })).toHaveCount(0); // no timer to start for a past day
+  await page.getByRole('button', { name: 'Finish' }).click(); // but it can be closed
+  await expect(wk(page).filter({ hasText: 'Strength' })).toContainText('1 exercise · 1 set');
+  await expect(page.locator('.active-bar')).toHaveCount(0);
 });

@@ -17,11 +17,10 @@ import { BodyCard } from '../body/BodyCard';
 import { InstallHint } from './InstallHint';
 import { WeekGoal } from './WeekGoal';
 import { Welcome } from './Welcome';
-import { AddWorkoutSheet } from '../workout/AddWorkoutSheet';
 import { CardioSheet } from '../workout/CardioSheet';
-import { createStrength } from '../workout/actions';
+import { Elapsed } from '../workout/Elapsed';
 import { dayWorkouts, watchWorkouts } from '../workout/dayState';
-import { cardioKcal, describeWorkout } from '../../domain/workouts';
+import { cardioKcal, describeWorkout, workoutStatus, workoutTally } from '../../domain/workouts';
 import type { Workout } from '../../db/schema';
 import { PendingEntrySheet, pendingStatus } from '../food/PendingEntrySheet';
 import { toConfirmCount } from '../review/store';
@@ -30,7 +29,7 @@ import { copyEntries } from '../food/actions';
 import { showToast } from '../food/toast';
 import { defaultSlot, entryLabel, fmt, quantityText } from '../food/format';
 
-type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'addWorkout' } | { kind: 'cardio'; workout: Workout } | { kind: 'cardioNew' } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
+type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'cardio'; workout: Workout } | { kind: 'cardioNew' } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
 
 const go = (day: string) => (location.hash = day === today() ? '#/today' : `#/today/${day}`);
 
@@ -64,6 +63,7 @@ export function Today() {
   const toConfirm = toConfirmCount();
   const g = goals.value;
 
+  const goStart = () => (location.hash = isToday ? '#/start' : `#/start/${day}`);
   const title = isToday ? t('nav.today') : day === addDays(todayStr, -1) ? t('today.yesterday') : day === addDays(todayStr, 1) ? t('today.tomorrow') : formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' });
 
   const macro = (label: string, value: number, goal: number | undefined, tone: 1 | 2 | 3 | 4) => ({
@@ -120,7 +120,7 @@ export function Today() {
 
       <BodyCard day={day} />
 
-      {isToday && <Welcome onFood={() => setSheet({ kind: 'add', slot: defaultSlot() })} onWorkout={() => setSheet({ kind: 'addWorkout' })} />}
+      {isToday && <Welcome onFood={() => setSheet({ kind: 'add', slot: defaultSlot() })} onWorkout={goStart} />}
 
       {SLOTS.map((slot) => {
         const list = entries.filter((e) => e.slot === slot);
@@ -172,7 +172,7 @@ export function Today() {
         <div class="slot-head">
           <h2 id="workouts-h">{t('workout.title')}</h2>
           {workouts.length === 0 && <span class="t-caption">{t('today.nothingYet')}</span>}
-          <Button icon class="accent" onClick={() => setSheet({ kind: 'addWorkout' })} aria-label={t('workout.add')}>
+          <Button icon class="accent" onClick={goStart} aria-label={t('workout.add')}>
             <Icon name="plus" />
           </Button>
         </div>
@@ -187,11 +187,21 @@ export function Today() {
                 dist ? `${displayDistance(dist, settings.value.units)} ${distanceUnit(settings.value.units)}` : '',
                 !habitOnly && kcal !== undefined ? `${w.cardio?.kcalOverride !== undefined ? '' : '≈ '}${kcal} ${t('unit.kcal')}` : '',
               ].filter(Boolean);
+              const live = w.type === 'strength' && workoutStatus(w) === 'active' ? workoutTally(w.exercises ?? []) : undefined;
               return (
                 <ListRow
                   key={w.id}
                   main={d.title}
-                  sub={[t(w.type === 'cardio' ? 'workout.cardio' : 'workout.strength'), d.detail, ...extras].join(' · ')}
+                  sub={
+                    live ? (
+                      <span class="live-sub">
+                        <span><Badge tone="attention">{t('workout.inProgress')}</Badge> <Elapsed startedAt={w.startedAt!} /> · {t('workout.setsDone').replace('{done}', String(live.done)).replace('{total}', String(live.total))}</span>
+                        {live.total > 0 && <Meter value={live.done / live.total} />}
+                      </span>
+                    ) : (
+                      [t(w.type === 'cardio' ? 'workout.cardio' : 'workout.strength'), d.detail, ...extras].join(' · ')
+                    )
+                  }
                   onClick={() => (w.type === 'strength' ? void (location.hash = `#/workout/${w.id}`) : setSheet({ kind: 'cardio', workout: w }))}
                 />
               );
@@ -215,12 +225,11 @@ export function Today() {
       <div class="fab-space" aria-hidden="true" />
       <AddMenu
         onFood={() => setSheet({ kind: 'add', slot: defaultSlot() })}
-        onStrength={async () => (location.hash = `#/workout/${(await createStrength(day)).id}`)}
+        onStrength={goStart}
         onCardio={() => setSheet({ kind: 'cardioNew' })}
       />
 
       {sheet?.kind === 'add' && <AddFoodSheet day={day} initialSlot={sheet.slot} onClose={() => setSheet(null)} />}
-      {sheet?.kind === 'addWorkout' && <AddWorkoutSheet day={day} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'cardioNew' && <CardioSheet day={day} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'cardio' && <CardioSheet day={day} existing={sheet.workout} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'pending' && <PendingEntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}
@@ -279,7 +288,7 @@ function AddMenu({ onFood, onStrength, onCardio }: { onFood: () => void; onStren
       {open && (
         <div class="fab-menu" id="add-menu">
           <button type="button" class="fab-item" onClick={pick(onFood)}><Icon name="food" />{t('food.add')}</button>
-          <button type="button" class="fab-item" onClick={pick(onStrength)}><Icon name="strength" />{t('workout.newStrength')}</button>
+          <button type="button" class="fab-item" onClick={pick(onStrength)}><Icon name="strength" />{t('workout.startTitle')}</button>
           <button type="button" class="fab-item" onClick={pick(onCardio)}><Icon name="cardio" />{t('workout.newCardio')}</button>
         </div>
       )}

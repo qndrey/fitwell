@@ -271,3 +271,18 @@ test.describe('Progress', () => {
     });
   }
 });
+
+test('Progress shows the average workout time, from timed strength workouts and cardio', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await seedHistory(page, { days: 90 });
+  await page.reload();
+  await page.getByRole('link', { name: 'Progress' }).click();
+  const tile = page.locator('.tile').filter({ hasText: 'Average workout time' });
+  await expect(tile).toContainText(/\d+ min|\d+ h \d\d min/);
+  const card = page.getByRole('region', { name: /Workouts per week/ });
+  await expect(card).toContainText(/average \d+ min|average \d+ h/);
+  await expect(card).toContainText('Average time per workout');
+  await expect(card).toContainText('Strength');
+  await expect(card).toContainText('Cardio');
+});

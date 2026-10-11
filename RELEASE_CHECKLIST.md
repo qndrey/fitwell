@@ -16,6 +16,7 @@ Legend: ✅ verified automatically (CI / local run) · 🧑 needs a person · �
 
 ## Needs a person
 - 🧑 **Real devices**: iPhone Safari (installed to Home Screen) and a low-end Android. Check: logging a day in under 30 s, offline logging, barcode scanning (focus, glare, low light), charts readable, nothing clipped by the notch or keyboard.
+- 🧑 **Android home-screen icon**: on a real Android phone, add Fitwell both ways ("Install app" and "Create shortcut") from Chrome and check the icon, its shape on your launcher and, on Android 13+, the themed (monochrome) icon. Remove an old shortcut first: Android keeps the icon it was given when it was created.
 - 🧑 **Screen reader pass**: VoiceOver (iOS) and TalkBack (Android) or NVDA on: Today, Add food (search, quantity), the review queue, a chart (summary, arrow keys, table), Settings, delete confirmation.
 - 🧑 **Timed task**: median of 3 people logs breakfast+lunch+dinner+snack from recents/search in ≤ 30 s; repeat-last strength workout and adjust in ≤ 30 s.
 - 🧑 **Update toast**: deploy two builds and confirm "A new version is ready" appears, never reloads mid-edit, and applies on tap.

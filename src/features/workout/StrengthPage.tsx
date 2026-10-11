@@ -101,7 +101,6 @@ export function StrengthPage() {
   const edit = (ei: number, fn: (e: WorkoutExercise) => WorkoutExercise) => commit(exercises.map((e, i) => (i === ei ? fn(e) : e)));
   const unit = weightUnit(units);
   const bodyKg = () => currentWeightKg() ?? 0;
-  const allCollapsed = exercises.length > 0 && exercises.every((e) => collapsed.has(e.uid!));
 
   const setCollapsedFor = (uid: string, on: boolean) =>
     setCollapsed((c) => {
@@ -177,20 +176,14 @@ export function StrengthPage() {
   };
 
   return (
-    <Screen title={w.name?.trim() || t('workout.strength')} subtitle={formatDay(w.day)}>
-      <LinkButton onClick={() => (location.hash = w.day === today() ? '#/today' : `#/today/${w.day}`)}>
-        <Icon name="prev" size="sm" />{t('review.back')}
-      </LinkButton>
+    <Screen
+      title={w.name?.trim() || t('workout.strength')}
+      subtitle={formatDay(w.day)}
+      onSubtitle={() => (location.hash = w.day === today() ? '#/today' : `#/today/${w.day}`)}
+      subtitleAction={t('workout.openDay')}
+    >
 
       {exercises.length === 0 && <EmptyState>{t('workout.emptyStrength')}</EmptyState>}
-
-      {exercises.length > 1 && (
-        <div class="cluster end">
-          <LinkButton onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(exercises.map((e) => e.uid!)))}>
-            {allCollapsed ? t('workout.expandAll') : t('workout.collapseAll')}
-          </LinkButton>
-        </div>
-      )}
 
       {exercises.map((ex, ei) => {
         const uid = ex.uid!;
@@ -255,14 +248,14 @@ export function StrengthPage() {
                         </Button>
                         <NumberCell
                           label={`${setName} ${isBw ? t('workout.addedLoad') : ''} ${unit}`.replace('  ', ' ')}
-                          value={displayWeight(isBw ? addedLoadKg(s) : s.weightKg, units)}
+                          value={displayWeight(isBw ? addedLoadKg(s) : s.weightKg, units, 2)}
                           placeholder={isBw ? 'BW' : '0'}
                           onValue={(n) => patch(isBw ? { bodyweightKg: s.bodyweightKg ?? bodyKg(), weightKg: (s.bodyweightKg ?? bodyKg()) + toKg(n, units) } : { weightKg: toKg(n, units) })}
                         />
                         {isTime ? (
                           <DurationCell label={`${setName} ${t('workout.time')}`} seconds={live ? Math.round((now - running!.startedAt) / 1000) : (s.durationSec ?? 0)} onValue={(n) => patch({ durationSec: n })} />
                         ) : (
-                          <NumberCell integer label={`${setName} ${t('workout.reps')}`} value={s.reps} placeholder="0" onValue={(n) => patch({ reps: n })} />
+                          <NumberCell label={`${setName} ${t('workout.reps')}`} value={s.reps} placeholder="0" onValue={(n) => patch({ reps: n })} />
                         )}
                         <Button icon aria-label={`${t('workout.removeSet')} ${si + 1}`} onClick={() => edit(ei, (e) => ({ ...e, sets: e.sets.filter((x) => x.id !== s.id) }))}>
                           <Icon name="close" size="sm" />
@@ -298,29 +291,31 @@ export function StrengthPage() {
                 >
                   <Icon name="plus" size="sm" />{pos ? t('workout.addRound') : t('workout.addSet')}
                 </Button>
-                <details class="howto">
-                  <summary>{t('workout.options')}</summary>
-                  <div class="stack gap-3 pad-top">
-                    <Segmented
-                      legend={t('workout.measureBy')}
-                      name={`mode-${uid}`}
-                      options={[{ value: 'reps', label: t('workout.repsOption') }, { value: 'time', label: t('workout.timeOption') }]}
-                      value={ex.mode ?? 'reps'}
-                      onChange={(m) => edit(ei, (e) => ({ ...e, mode: m }))}
-                    />
-                    <Segmented
-                      legend={t('workout.loadType')}
-                      name={`load-${uid}`}
-                      options={[{ value: 'weight', label: t('workout.weight') }, { value: 'bodyweight', label: t('workout.bodyweight') }]}
-                      value={ex.load ?? 'weight'}
-                      onChange={(m) => setLoad(ei, m)}
-                    />
-                    {ei > 0 && (
-                      <Choice type="checkbox" checked={!!pos && !pos.first} onChange={(on) => setLinked(ei, on)} label={t('workout.supersetWithAbove')} help={t('workout.supersetHelp')} />
-                    )}
-                  </div>
-                </details>
-                {ex.exerciseRef.startsWith('ex:') && <HowTo ex={{ ref: ex.exerciseRef, name: ex.exerciseName, equipment: '', primary: [], secondary: [] }} />}
+                <div class="ex-more">
+                  <details class="howto">
+                    <summary>{t('workout.options')}</summary>
+                    <div class="stack gap-3 pad-top">
+                      <Segmented
+                        legend={t('workout.measureBy')}
+                        name={`mode-${uid}`}
+                        options={[{ value: 'reps', label: t('workout.repsOption') }, { value: 'time', label: t('workout.timeOption') }]}
+                        value={ex.mode ?? 'reps'}
+                        onChange={(m) => edit(ei, (e) => ({ ...e, mode: m }))}
+                      />
+                      <Segmented
+                        legend={t('workout.loadType')}
+                        name={`load-${uid}`}
+                        options={[{ value: 'weight', label: t('workout.weight') }, { value: 'bodyweight', label: t('workout.bodyweight') }]}
+                        value={ex.load ?? 'weight'}
+                        onChange={(m) => setLoad(ei, m)}
+                      />
+                      {ei > 0 && (
+                        <Choice type="checkbox" checked={!!pos && !pos.first} onChange={(on) => setLinked(ei, on)} label={t('workout.supersetWithAbove')} help={t('workout.supersetHelp')} />
+                      )}
+                    </div>
+                  </details>
+                  {ex.exerciseRef.startsWith('ex:') && <HowTo ex={{ ref: ex.exerciseRef, name: ex.exerciseName, equipment: '', primary: [], secondary: [] }} />}
+                </div>
               </div>
             </div>
           </Card>

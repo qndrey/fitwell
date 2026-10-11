@@ -207,6 +207,8 @@
 .card.superset:not(.first) { border-top-left-radius: 0; border-top-right-radius: 0; }
 .set-timer { grid-column: 2 / 4; }
 .pad-top { padding-top: var(--space-2); }
+.ex-more { display: flex; flex-direction: column; }
+.add-btn { color: var(--accent); }
 .howto summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; color: var(--accent); font-weight: var(--weight-semibold); }
 .howto ol { padding-left: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
 .howto li { list-style: decimal; }

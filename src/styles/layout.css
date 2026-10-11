@@ -32,6 +32,12 @@ main {
 .daybar { display: flex; align-items: center; gap: var(--space-2); }
 main > header { margin-bottom: var(--space-4); }
 .daybar .screen-title { flex: 1; min-width: 0; text-align: center; }
+/* A date you can tap: back to today, or to the day a workout belongs to */
+.screen-date {
+  display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--tap); padding: 0;
+  background: none; border: 0; color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-semibold); cursor: pointer;
+}
+.screen-date:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 
 /* The one primary action, pinned in the thumb zone above the tab bar. Taps pass through everywhere but the button. */
 .primary-bar {

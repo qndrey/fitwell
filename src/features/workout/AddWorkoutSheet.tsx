@@ -85,7 +85,7 @@ export function AddWorkoutSheet({ day, onClose }: { day: string; onClose: () => 
                     }}
                   >
                     <span class="row-main">{tpl.name}</span>
-                    <span class="row-sub">{tpl.type === 'cardio' ? `${tpl.cardio?.activityName ?? ''} · ${Math.round(tpl.cardio?.durationMin ?? 0)} min` : `${tpl.exercises?.length ?? 0} ${t('workout.exercisesWord')}`}</span>
+                    <span class="row-sub">{tpl.type === 'cardio' ? `${tpl.cardio?.activityName ?? ''} · ${Math.round((tpl.cardio?.durationMin ?? 0) * 10) / 10} min` : `${tpl.exercises?.length ?? 0} ${t('workout.exercisesWord')}`}</span>
                   </button>
                   <Button
                     icon

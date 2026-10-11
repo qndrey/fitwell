@@ -2,19 +2,20 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Button, Icon } from '../../ui';
 import { figureFor } from '../../illustrations/match';
 import { figureAt } from '../../illustrations/svg';
+import { keyPoses } from '../../illustrations/figure';
 import { t } from '../../i18n';
 
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const PERIOD_MS = 2600;
 
-/** Small start-position picture for lists. Exercises without a drawing get an empty box so the text still lines up. */
+/** Small picture for lists: the telling end of the motion over a faint copy of the other end. Exercises without a drawing get an empty box so the text still lines up. */
 export function ExerciseThumb({ name }: { name: string }) {
   const fig = useMemo(() => figureFor(name), [name]);
   if (!fig) return <span class="fig-blank" />;
-  return <svg class="fig fig-thumb" viewBox="0 0 120 80" aria-hidden="true" dangerouslySetInnerHTML={{ __html: figureAt(fig.template, fig.template.thumb ?? 1) }} />;
+  return <svg class="fig fig-thumb" viewBox="0 0 120 80" aria-hidden="true" dangerouslySetInnerHTML={{ __html: figureAt(fig.template, fig.template.thumb ?? 1, { ghost: true }) }} />;
 }
 
-/** The movement as a slow loop between start and end. Pause it, or step by hand when you prefer less motion. */
+/** The movement as a slow loop between start and end, over the dotted path it takes. Pause it, or step by hand when you prefer less motion. */
 export function ExerciseFigure({ name }: { name: string }) {
   const fig = useMemo(() => figureFor(name), [name]);
   const reduced = reducedMotion();
@@ -35,10 +36,10 @@ export function ExerciseFigure({ name }: { name: string }) {
   }, [playing, fig?.id]);
 
   if (!fig) return null;
-  const still = JSON.stringify(fig.template.start) === JSON.stringify(fig.template.end);
+  const still = keyPoses(fig.template).every((p) => JSON.stringify(p) === JSON.stringify(fig.template.start));
   return (
     <figure class="ex-figure">
-      <svg class="fig" viewBox="0 0 120 80" role="img" aria-label={`${name}: ${t('exercise.fig.alt')}`} dangerouslySetInnerHTML={{ __html: figureAt(fig.template, pos) }} />
+      <svg class="fig" viewBox="0 0 120 80" role="img" aria-label={`${name}: ${t('exercise.fig.alt')}`} dangerouslySetInnerHTML={{ __html: figureAt(fig.template, pos, { trace: true, ghost: reduced }) }} />
       {!still && (
         <figcaption class="cluster between">
           <span class="t-caption">{pos < 0.5 ? t('exercise.fig.start') : t('exercise.fig.end')}</span>

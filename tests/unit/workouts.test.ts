@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import { estimateKcal, bodyWeightKg } from '../../src/domain/met';
-import { cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, summarizeSets } from '../../src/domain/workouts';
+import { addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '../../src/domain/workouts';
 import { displayDistance, displayWeight, kgToLb, lbToKg, miToKm, toKg, toKm, kmToMi } from '../../src/domain/units';
 import { openDatabase } from '../../src/db/open';
 import { ACTIVITIES } from '../../src/data/activities';
@@ -100,6 +100,103 @@ describe('copy and describe', () => {
   });
 });
 
+describe('timed and bodyweight sets', () => {
+  const ts = (durationSec: number, type: 'working' | 'warmup' = 'working') => ({ type, reps: 0, weightKg: 0, durationSec });
+  const bw = (reps: number, added: number, body = 80) => ({ type: 'working' as const, reps, weightKg: body + added, bodyweightKg: body });
+
+  it('formats and parses durations', () => {
+    expect(formatDuration(45)).toBe('45 s');
+    expect(formatDuration(60)).toBe('1:00');
+    expect(formatDuration(95)).toBe('1:35');
+    expect(formatDuration(3605)).toBe('60:05');
+    for (const [text, sec] of [['45', 45], ['45s', 45], ['90 sec', 90], ['1:30', 90], ['0:45', 45], ['1m30', 90], ['1m 30s', 90], ['2m', 120], ['1.5m', 90], ['1,5m', 90], [' 2:05 ', 125]] as const) expect(parseDuration(text), text).toBe(sec);
+    for (const bad of ['', 'abc', '1:75', '-5', '1:2:3', 'm']) expect(parseDuration(bad), bad).toBeNull();
+  });
+
+  it('timed sets are summarised in time, not reps', () => {
+    expect(summarizeSets([ts(45), ts(45), ts(45)], 'metric')).toBe('3×45 s');
+    expect(summarizeSets([ts(45), ts(60), ts(75)], 'metric')).toBe('45 s, 1:00, 1:15');
+    expect(summarizeSets([ts(30, 'warmup')], 'metric')).toBe('');
+    expect(summarizeSets([{ type: 'working', reps: 0, weightKg: 20, durationSec: 30 }], 'metric')).toBe('1×30 s @ 20 kg');
+  });
+
+  it('bodyweight sets read as BW, with added load shown when there is some', () => {
+    expect(summarizeSets([bw(8, 0), bw(8, 0), bw(8, 0)], 'metric')).toBe('3×8 @ BW');
+    expect(summarizeSets([bw(6, 10), bw(6, 10)], 'metric')).toBe('2×6 @ BW + 10 kg');
+    expect(summarizeSets([bw(8, 0), bw(6, 5)], 'metric')).toBe('8 @ BW, 6 @ BW + 5 kg');
+    expect(summarizeSets([bw(8, 0), bw(6, 5)], 'imperial')).toBe('8 @ BW, 6 @ BW + 11 lb');
+    expect(addedLoadKg(bw(5, 12.5, 79.4))).toBe(12.5);
+    expect(addedLoadKg({ weightKg: 60 })).toBe(60);
+  });
+
+  it('knows when a set has something in it', () => {
+    expect(isSetLogged({ reps: 0, weightKg: 0 })).toBe(false);
+    expect(isSetLogged({ reps: 8, weightKg: 0 })).toBe(true);
+    expect(isSetLogged({ reps: 0, weightKg: 0, durationSec: 30 })).toBe(true);
+    expect(isSetLogged({ reps: 0, weightKg: 80, bodyweightKg: 80 })).toBe(false); // empty bodyweight set: only your own weight
+    expect(isSetLogged({ reps: 0, weightKg: 90, bodyweightKg: 80 })).toBe(true);
+  });
+
+  it('new sets carry time and bodyweight from the previous one', () => {
+    expect(newSet('a', 'working', { reps: 0, weightKg: 0, durationSec: 40 })).toEqual({ id: 'a', type: 'working', reps: 0, weightKg: 0, durationSec: 40 });
+    expect(newSet('b', 'working', { reps: 5, weightKg: 85, bodyweightKg: 80 })).toEqual({ id: 'b', type: 'working', reps: 5, weightKg: 85, bodyweightKg: 80 });
+    expect(newSet('c')).toEqual({ id: 'c', type: 'working', reps: 0, weightKg: 0 });
+  });
+
+  it('counts timed and bodyweight sets in workout descriptions', () => {
+    const w = { type: 'strength' as const, exercises: [{ exerciseRef: 'x', exerciseName: 'Plank', mode: 'time' as const, sets: [{ id: '1', ...ts(40) }, { id: '2', type: 'working' as const, reps: 0, weightKg: 0 }] }] };
+    expect(describeWorkout(w).detail).toBe('1 exercise · 1 set');
+  });
+
+  it('keeps the timed/bodyweight/superset settings when a workout is copied', () => {
+    const src = [{ uid: 'u1', supersetId: 's1', mode: 'time' as const, load: 'bodyweight' as const, exerciseRef: 'ex:plank', exerciseName: 'Plank', sets: [{ id: 'a', type: 'working' as const, reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45 }] }];
+    const copy = copyExercises(src, () => 'n');
+    expect(copy[0]).toMatchObject({ supersetId: 's1', mode: 'time', load: 'bodyweight' });
+    expect(copy[0]!.sets[0]).toEqual({ id: 'n', type: 'working', reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45 });
+  });
+});
+
+describe('supersets', () => {
+  const x = (name: string, supersetId?: string) => ({ exerciseRef: `ex:${name}`, exerciseName: name, supersetId, sets: [] });
+  let n = 0;
+  const id = () => `new${++n}`;
+
+  it('a superset needs neighbours: lonely ids are dropped, runs keep theirs', () => {
+    const out = normalizeSupersets([x('a', 's1'), x('b', 's1'), x('c'), x('d', 's2')], id);
+    expect(out.map((e) => e.supersetId)).toEqual(['s1', 's1', undefined, undefined]);
+  });
+
+  it('unlinking in the middle splits the group instead of leaving a ghost link', () => {
+    const out = normalizeSupersets([x('a', 's1'), x('b'), x('c', 's1'), x('d', 's1')], id);
+    expect(out[0]!.supersetId).toBeUndefined(); // a is alone now
+    expect(out[2]!.supersetId).toBeDefined();
+    expect(out[2]!.supersetId).toBe(out[3]!.supersetId);
+  });
+
+  it('three in a row stay together; two separate runs sharing an id get distinct ids', () => {
+    expect(new Set(normalizeSupersets([x('a', 's'), x('b', 's'), x('c', 's')], id).map((e) => e.supersetId)).size).toBe(1);
+    const split = normalizeSupersets([x('a', 's'), x('b', 's'), x('c'), x('d', 's'), x('e', 's')], id);
+    expect(split[0]!.supersetId).toBe(split[1]!.supersetId);
+    expect(split[3]!.supersetId).toBe(split[4]!.supersetId);
+    expect(split[0]!.supersetId).not.toBe(split[3]!.supersetId);
+  });
+
+  it('does not change its input', () => {
+    const input = [x('a', 's1'), x('b')];
+    normalizeSupersets(input, id);
+    expect(input[0]!.supersetId).toBe('s1');
+  });
+
+  it('labels each exercise A, B, C within its group', () => {
+    const list = [x('a'), x('b', 's'), x('c', 's'), x('d', 's'), x('e')];
+    expect(supersetPosition(list, 0)).toBeNull();
+    expect(supersetPosition(list, 1)).toEqual({ letter: 'A', size: 3, first: true, last: false });
+    expect(supersetPosition(list, 2)).toEqual({ letter: 'B', size: 3, first: false, last: false });
+    expect(supersetPosition(list, 3)).toEqual({ letter: 'C', size: 3, first: false, last: true });
+    expect(supersetPosition(list, 4)).toBeNull();
+  });
+});
+
 // ---- previous performance, repeat-last and recents against a real (fake) IndexedDB ----
 vi.mock('../../src/db/open', async (orig) => {
   const real = await orig<typeof import('../../src/db/open')>();
@@ -154,6 +251,16 @@ describe('workout store queries', () => {
     expect(ex.length).toBeGreaterThan(2);
     const act = await store.recentRefs('activity', 5);
     expect(act[0]!.ref).toBe('act:run-10');
+  });
+
+  it('"last time" understands timed sets and ignores a bodyweight set with nothing in it', async () => {
+    const timed = await store.workoutsRepo.create({ day: '2026-12-01', type: 'strength', exercises: [{ exerciseRef: 'ex:plank', exerciseName: 'Plank', mode: 'time', sets: [{ id: 'p', type: 'working', reps: 0, weightKg: 0, durationSec: 60 }] }] });
+    await tick();
+    const later = await store.workoutsRepo.create({ day: '2026-12-02', type: 'strength', exercises: [{ exerciseRef: 'ex:plank', exerciseName: 'Plank', mode: 'time', sets: [] }] });
+    expect((await store.lastPerformance('ex:plank', later))?.workout.id).toBe(timed.id);
+    const empty = await store.workoutsRepo.create({ day: '2026-12-03', type: 'strength', exercises: [{ exerciseRef: 'ex:plank', exerciseName: 'Plank', sets: [{ id: 'e', type: 'working', reps: 0, weightKg: 0 }] }] });
+    const after = await store.workoutsRepo.create({ day: '2026-12-04', type: 'strength', exercises: [] });
+    expect((await store.lastPerformance('ex:plank', after))?.workout.id).not.toBe(empty.id);
   });
 
   it('lists a day in creation order', async () => {

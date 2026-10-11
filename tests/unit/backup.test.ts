@@ -116,6 +116,28 @@ describe('unresolved entries survive a backup', () => {
   });
 });
 
+describe('superset, time and bodyweight settings survive a backup', () => {
+  it('round-trips workouts and templates that use them', async () => {
+    const a = await freshDb();
+    const base2 = { createdAt: 1, updatedAt: 2, rev: 1 };
+    await a.put('workouts', {
+      id: 'w1', day: '2026-10-01', type: 'strength', ...base2,
+      exercises: [
+        { uid: 'u1', supersetId: 's1', mode: 'time', load: 'bodyweight', exerciseRef: 'ex:plank', exerciseName: 'Plank', sets: [{ id: 'a', type: 'working', reps: 0, weightKg: 81, bodyweightKg: 80, durationSec: 45 }] },
+        { uid: 'u2', supersetId: 's1', mode: 'reps', load: 'weight', exerciseRef: 'ex:row', exerciseName: 'Row', sets: [{ id: 'b', type: 'working', reps: 8, weightKg: 50 }] },
+      ],
+    });
+    await a.put('workoutTemplates', { id: 't1', name: 'Core', type: 'strength', ...base2, exercises: [{ exerciseRef: 'ex:plank', exerciseName: 'Plank', supersetId: 's9', mode: 'time', load: 'bodyweight', sets: [{ type: 'working', reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 30 }] }] });
+    const b = await freshDb();
+    await applyImport(b, roundtrip(await buildBackup(a)), 'replace');
+    expect(await dump(b)).toEqual(await dump(a));
+  });
+  it('still reads older backups without the new fields', () => {
+    const old = { app: 'fitwell', schemaVersion: 6, exportedAt: 1, installId: 'x', data: { workouts: [{ id: 'w', day: '2026-10-01', type: 'strength', createdAt: 1, updatedAt: 1, rev: 1, exercises: [{ exerciseRef: 'ex:a', exerciseName: 'A', sets: [{ id: 's', type: 'working', reps: 5, weightKg: 40 }] }] }] } };
+    expect(parseBackup(JSON.stringify(old)).ok).toBe(true);
+  });
+});
+
 describe('body data survives a backup', () => {
   it('weights, measurement types (presets and custom) and entries round-trip', async () => {
     const a = await freshDb();

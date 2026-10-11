@@ -180,6 +180,23 @@ describe('strength progress', () => {
   });
 });
 
+describe('bodyweight exercises in progress charts', () => {
+  it('count the whole load (body weight + added), snapshotted per set, so old workouts do not change when you weigh in', () => {
+    const w = (day: string, reps: number, added: number, body: number): Workout => ({
+      ...base, id: day, day, type: 'strength',
+      exercises: [{ exerciseRef: 'ex:pullups', exerciseName: 'Pullups', load: 'bodyweight', sets: [{ id: '1', type: 'working', reps, weightKg: body + added, bodyweightKg: body }] }],
+    });
+    const p = exerciseProgress([w('2026-09-01', 8, 0, 82), w('2026-10-01', 8, 10, 79)], 'ex:pullups');
+    expect(p.map((x) => x.bestKg)).toEqual([82, 89]);
+    expect(p[1]!.e1rmKg).toBeCloseTo(89 * (1 + 8 / 30), 8);
+  });
+  it('timed sets have no reps, so they never produce a 1RM', () => {
+    const w: Workout = { ...base, id: 'p', day: '2026-10-01', type: 'strength', exercises: [{ exerciseRef: 'ex:plank', exerciseName: 'Plank', mode: 'time', sets: [{ id: '1', type: 'working', reps: 0, weightKg: 20, durationSec: 60 }] }] };
+    expect(exerciseProgress([w], 'ex:plank')).toEqual([]);
+    expect(exerciseOptions([w])).toEqual([]);
+  });
+});
+
 describe('measurements', () => {
   const type = (id: string): MeasurementType => ({ ...base, id, key: id, label: id, kind: 'length', enabled: true, preset: true, order: 0 });
   const m = (day: string, values: Record<string, number>, over: Partial<MeasurementEntry> = {}): MeasurementEntry => ({ ...base, id: day, day, values, ...over });

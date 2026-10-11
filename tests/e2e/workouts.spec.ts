@@ -293,5 +293,94 @@ for (const scheme of ['light', 'dark'] as const) {
     await fits();
     const small = await page.evaluate(() => [...document.querySelectorAll('main button, main input:not([readonly])')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.height < 43.5 || r.width < 43.5); }).map((b) => `${(b as HTMLElement).tagName} ${(b as HTMLElement).getAttribute('aria-label') ?? b.textContent}`));
     expect(small).toEqual([]);
+
+    // Timed + bodyweight + superset, expanded and folded.
+    await page.getByRole('button', { name: 'Add exercise' }).click();
+    await page.getByRole('dialog').getByLabel('Search exercises').fill('plank');
+    await page.getByRole('dialog').getByRole('button', { name: /Plank/ }).first().click();
+    await page.getByRole('button', { name: /Squat/ }).first().click(); // fold away the first one
+    const card = page.locator('section.card').nth(1);
+    await card.getByText('Exercise options').click();
+    await card.getByRole('radio', { name: 'Time' }).check();
+    await card.getByRole('radio', { name: 'Bodyweight' }).check();
+    await card.getByLabel('Superset with the exercise above').check();
+    await clean();
+    await fits();
+    const tight = await page.evaluate(() => [...document.querySelectorAll('main button, main input:not([readonly]):not([type=radio]):not([type=checkbox])')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.height < 43.5 || r.width < 43.5); }).map((b) => `${(b as HTMLElement).tagName} ${(b as HTMLElement).getAttribute('aria-label') ?? b.textContent}`));
+    expect(tight).toEqual([]);
   });
 }
+
+async function startStrength(page: Page) {
+  const d = await addWorkout(page);
+  await d.getByRole('button', { name: 'Strength workout', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Strength workout', exact: true })).toBeVisible();
+}
+
+test('strength: exercises fold away, the new one stays open, collapse/expand all', async ({ page }) => {
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await setInputs(page, 1).weight.fill('60');
+  await setInputs(page, 1).reps.fill('8');
+  await addExercise(page, 'squat', /Squat/);
+  // The first card folded when the second was added, and says what is in it.
+  const first = page.getByRole('button', { name: /Barbell Bench Press/ }).first();
+  const open = page.locator('input[aria-label="Set 1 kg"]:visible');
+  await expect(first).toHaveAttribute('aria-expanded', 'false');
+  await expect(first).toContainText('1×8 @ 60 kg');
+  await expect(open).toHaveCount(1); // only the new card is open
+  await first.click();
+  await expect(first).toHaveAttribute('aria-expanded', 'true');
+  await expect(open).toHaveCount(2);
+  await page.getByRole('button', { name: 'Collapse all' }).click();
+  await expect(open).toHaveCount(0);
+  await page.getByRole('button', { name: 'Expand all' }).click();
+  await expect(open).toHaveCount(2);
+});
+
+test('strength: supersets share a round, and unlinking splits them', async ({ page }) => {
+  await startStrength(page);
+  await addExercise(page, 'bench press', /^Barbell Bench Press - Medium Grip/);
+  await addExercise(page, 'squat', /Squat/);
+  await page.getByRole('button', { name: /Barbell Bench Press/ }).first().click();
+  const card = page.locator('section.card').nth(1);
+  await card.getByText('Exercise options').click();
+  await card.getByLabel('Superset with the exercise above').check();
+  await expect(page.getByText('Superset 1 of 2')).toBeVisible();
+  await expect(page.getByText('Superset 2 of 2')).toBeVisible();
+  await page.getByRole('button', { name: 'Add round' }).first().click();
+  await expect(page.locator('input[aria-label="Set 2 kg"]:visible')).toHaveCount(2); // one new set in each exercise
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(page.getByText('Superset 2 of 2')).toBeVisible();
+  const again = page.locator('section.card').nth(1);
+  await again.getByText('Exercise options').click();
+  await again.getByLabel('Superset with the exercise above').uncheck();
+  await expect(page.getByText(/Superset \d of/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add set' }).filter({ visible: true })).toHaveCount(2);
+});
+
+test('strength: timed sets and bodyweight', async ({ page }) => {
+  await startStrength(page);
+  await addExercise(page, 'plank', /Plank/);
+  const card = page.locator('section.card').first();
+  await card.getByText('Exercise options').click();
+  await card.getByRole('radio', { name: 'Time' }).check();
+  await card.getByRole('radio', { name: 'Bodyweight' }).check();
+  await expect(card.getByLabel(/^Set 1 time/)).toBeVisible();
+  await card.getByLabel(/^Set 1 time/).fill('1:30');
+  await card.getByLabel(/^Set 1 time/).blur();
+  await expect(card.getByLabel(/^Set 1 time/)).toHaveValue('1:30');
+  await card.getByLabel(/^Set 1 added kg/).fill('10');
+  await card.getByRole('button', { name: 'Add set' }).click();
+  await expect(card.getByLabel(/^Set 2 time/)).toHaveValue('1:30'); // copied from the previous set
+  await card.getByRole('button', { name: /^Set 2: Start timer/ }).click();
+  await page.waitForTimeout(1200);
+  await card.getByRole('button', { name: /^Set 2: Stop/ }).click();
+  await expect(card.getByLabel(/^Set 2 time/)).toHaveValue(/^\d+ s$/);
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(card.getByLabel(/^Set 1 time/)).toHaveValue('1:30');
+  await page.getByRole('link', { name: 'Back to today' }).or(page.getByRole('button', { name: 'Back to today' })).first().click();
+  await expect(wk(page).filter({ hasText: 'Strength' })).toContainText('2 sets');
+});

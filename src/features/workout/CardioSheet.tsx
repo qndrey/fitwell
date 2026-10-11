@@ -52,7 +52,7 @@ function CustomActivityForm({ initialName, onCreated, onBack }: { initialName: s
 }
 
 /** Add or edit a cardio / activity entry: pick an activity, enter time (and distance), see an energy estimate. */
-export function CardioSheet({ day, existing, preset, onClose }: { day: string; existing?: Workout; preset?: Pick; onClose: () => void }) {
+export function CardioSheet({ day, existing, preset, onClose, onSaved }: { day: string; existing?: Workout; preset?: Pick; onClose: () => void; onSaved?: () => void }) {
   const units = settings.value.units;
   const habitOnly = settings.value.habitOnly;
   const c0 = existing?.cardio;
@@ -165,7 +165,8 @@ export function CardioSheet({ day, existing, preset, onClose }: { day: string; e
     const input = { activityRef: activity!.ref, activityName: activity!.name, met: activity!.met, durationMin: m!, distanceKm: d ? toKm(d, units) : undefined, kcalOverride: k ?? undefined };
     if (existing) await updateCardio(existing, input);
     else await createCardio(day, input);
-    onClose();
+    if (onSaved) onSaved();
+    else onClose();
   }
 
   const dUnit = distanceUnit(units);

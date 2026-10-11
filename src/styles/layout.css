@@ -108,6 +108,17 @@ main > header { margin-bottom: var(--space-4); }
 .empty-slot .slot-head h2 { font-size: var(--text-md); }
 .slot + .slot { margin-top: calc(var(--space-2) * -1); }
 .slot.empty-slot + .slot.empty-slot { margin-top: calc(var(--space-4) * -1); }
+.active-bar {
+  position: sticky; top: var(--space-2); z-index: var(--z-primary); display: flex; align-items: center; gap: var(--space-3); width: 100%;
+  min-height: var(--tap); margin-bottom: var(--space-3); padding: var(--space-2) var(--space-3);
+  background: var(--accent-soft); color: var(--on-accent-soft); border: var(--border-w) solid var(--accent); border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1); text-align: left; cursor: pointer;
+}
+.active-text { flex: 1; display: flex; flex-direction: column; min-width: 0; line-height: var(--lh-snug); }
+.active-name { font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.active-sub { font-size: var(--text-sm); }
+.active-sub .clock { color: inherit; }
+.active-meter { width: 3.5rem; flex: none; }
 .settings-group { display: flex; flex-direction: column; gap: var(--space-3); }
 .settings-group + .settings-group { margin-top: var(--space-4); }
 .settings-group > .t-overline { margin: 0 0 calc(var(--space-1) * -1) var(--space-1); }

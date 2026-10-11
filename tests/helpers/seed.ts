@@ -10,7 +10,7 @@ export interface SeedOptions {
 
 /**
  * Writes believable history straight into IndexedDB (the app must already have opened the database).
- * Deterministic for a given seed: food on ~85% of days, cardio every other day, strength every third day
+ * Deterministic for a given seed: food on ~85% of days, cardio every other day, strength every third day (every other one timed)
  * with slowly rising weights, a daily weight drifting from 80 to ~74 kg with noise, waist/hips weekly.
  */
 export async function seedHistory(page: Page, opts: SeedOptions): Promise<void> {
@@ -62,6 +62,8 @@ export async function seedHistory(page: Page, opts: SeedOptions): Promise<void> 
               const kg = 50 + progress * 25 + Math.round(rnd() * 2) * 2.5;
               workouts.put({
                 ...base(`s-${day}`, t0 + 20), day, type: 'strength', name: 'Push day',
+                // Every other strength workout was timed (40–70 min); the rest are older, untimed ones. Today's is left untimed.
+                ...(back % 6 === 3 ? { startedAt: t0, finishedAt: t0 + (40 + (back % 4) * 10) * 60_000 } : {}),
                 exercises: [
                   { exerciseRef: 'ex:Barbell_Bench_Press_-_Medium_Grip', exerciseName: 'Barbell Bench Press - Medium Grip', sets: [{ id: 'a', type: 'warmup', reps: 10, weightKg: 20 }, { id: 'b', type: 'working', reps: 5 + Math.floor(rnd() * 4), weightKg: kg }, { id: 'c', type: 'working', reps: 5, weightKg: kg }] },
                   { exerciseRef: 'ex:Barbell_Full_Squat', exerciseName: 'Barbell Full Squat', sets: [{ id: 'd', type: 'working', reps: 5, weightKg: kg + 20 }] },

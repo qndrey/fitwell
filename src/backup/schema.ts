@@ -61,6 +61,8 @@ const workout = v.object({
   type: v.picklist(['cardio', 'strength']),
   name: v.optional(v.string()),
   cardio: v.optional(cardio),
+  startedAt: v.optional(num),
+  finishedAt: v.optional(num),
   exercises: v.optional(
     v.array(
       v.object({ uid: v.optional(v.string()), supersetId: v.optional(v.string()), mode: exerciseMode, load: exerciseLoad, exerciseRef: v.string(), exerciseName: v.string(), sets: v.array(workoutSet) }),

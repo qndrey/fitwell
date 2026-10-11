@@ -85,7 +85,7 @@ test('logged weight feeds cardio estimates (and beats the Settings fallback)', a
   await page.getByRole('link', { name: 'Today' }).click();
   await logWeight(page, '70');
   await page.getByRole('button', { name: 'Add workout' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Cardio or activity', exact: true }).click();
+  await page.getByRole('button', { name: 'Cardio or activity', exact: true }).click();
   const d = page.getByRole('dialog').last();
   await d.getByRole('button', { name: /^Running, about 10 km\/h/ }).click();
   await d.getByLabel('Duration (minutes)').fill('30');

@@ -24,5 +24,6 @@ export const SECURITY_HEADERS: Record<string, string> = {
 
 export function headersFile(): string {
   const lines = Object.entries(SECURITY_HEADERS).map(([k, v]) => `  ${k}: ${v}`);
-  return ['/*', ...lines, '', '/sw.js', '  Cache-Control: no-cache', ''].join('\n');
+  // Some hosts send .webmanifest as plain text or octet-stream; say what it is so Android reads it as an app manifest.
+  return ['/*', ...lines, '', '/sw.js', '  Cache-Control: no-cache', '', '/manifest.webmanifest', '  Content-Type: application/manifest+json', ''].join('\n');
 }

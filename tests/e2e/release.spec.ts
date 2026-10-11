@@ -85,7 +85,7 @@ test.describe('Goals', () => {
 
     // a logged workout moves the plain count, nothing else
     await page.getByRole('button', { name: 'Add workout' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Cardio or activity', exact: true }).click();
+    await page.getByRole('button', { name: 'Cardio or activity', exact: true }).click();
     await page.getByRole('dialog').last().getByRole('button', { name: /^Yoga, hatha/ }).click();
     await page.getByRole('dialog').last().getByRole('button', { name: 'Add workout' }).click();
     await expect(page.getByText('This week 1 · target 3')).toBeVisible();

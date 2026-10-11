@@ -1,6 +1,7 @@
 import { workoutsRepo, templatesRepo } from '../../db/workoutStore';
 import type { CardioDetails, Workout, WorkoutExercise, WorkoutTemplate } from '../../db/schema';
-import { copyExercises, normalizeSupersets } from '../../domain/workouts';
+import { today } from '../../domain/dates';
+import { copyExercises, exercisesAtFinish, normalizeSupersets, reopenPatch } from '../../domain/workouts';
 import { estimateKcal } from '../../domain/met';
 import { currentWeightKg } from '../../state';
 import { t } from '../../i18n';
@@ -8,9 +9,23 @@ import { showToast } from '../food/toast';
 
 const id = () => crypto.randomUUID();
 
-export function createStrength(day: string, exercises: WorkoutExercise[] = [], name?: string): Promise<Workout> {
-  return workoutsRepo.create({ day, type: 'strength', name, exercises });
+/**
+ * A new strength workout. `start` begins its timer now. Only today's workouts are timed: one logged for another
+ * day has no real start, so it stays untimed rather than inventing a duration.
+ */
+export function createStrength(day: string, exercises: WorkoutExercise[] = [], name?: string, start = false): Promise<Workout> {
+  return workoutsRepo.create({ day, type: 'strength', name, exercises, ...(start && day === today() ? { startedAt: Date.now() } : {}) });
 }
+
+/** Starts the timer of a workout that was planned (an imported plan, an untimed one). */
+export const startWorkout = (w: Workout): Promise<Workout> => workoutsRepo.update(w.id, { startedAt: Date.now() });
+
+/** Closes the workout: sets that were never done are dropped, the time is stored, and no more exercises or sets can be added. */
+export const finishWorkout = (w: Workout, exercises: WorkoutExercise[]): Promise<Workout> =>
+  workoutsRepo.update(w.id, { exercises: exercisesAtFinish(exercises, id), finishedAt: Date.now() });
+
+/** Opens a finished workout again (to fix something); its clock carries on from the time it had. */
+export const reopenWorkout = (w: Workout): Promise<Workout> => workoutsRepo.update(w.id, reopenPatch(w, Date.now()));
 
 export interface CardioInput {
   activityRef: string;
@@ -37,9 +52,9 @@ export async function deleteWorkout(w: Workout): Promise<void> {
 }
 
 /** A new workout on `day` with the same content. Strength sets get new ids, weights and reps are kept as a starting point. */
-export function repeatWorkout(day: string, source: Workout): Promise<Workout> {
+export function repeatWorkout(day: string, source: Workout, start = false): Promise<Workout> {
   if (source.type === 'cardio' && source.cardio) return createCardio(day, { ...source.cardio, kcalOverride: undefined });
-  return createStrength(day, copyExercises(source.exercises ?? [], id), source.name);
+  return createStrength(day, copyExercises(source.exercises ?? [], id), source.name, start);
 }
 
 export function saveAsTemplate(w: Workout, name: string): Promise<WorkoutTemplate> {
@@ -61,7 +76,7 @@ export function saveAsTemplate(w: Workout, name: string): Promise<WorkoutTemplat
   });
 }
 
-export function startFromTemplate(day: string, tpl: WorkoutTemplate): Promise<Workout> {
+export function startFromTemplate(day: string, tpl: WorkoutTemplate, start = false): Promise<Workout> {
   if (tpl.type === 'cardio' && tpl.cardio) return createCardio(day, tpl.cardio);
   return createStrength(
     day,
@@ -70,6 +85,7 @@ export function startFromTemplate(day: string, tpl: WorkoutTemplate): Promise<Wo
       id,
     ),
     tpl.name,
+    start,
   );
 }
 

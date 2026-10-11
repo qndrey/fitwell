@@ -9,6 +9,8 @@ import { History } from './features/history/History';
 import { Settings } from './features/settings/Settings';
 import { Review } from './features/review/Review';
 import { StrengthPage } from './features/workout/StrengthPage';
+import { StartWorkout } from './features/workout/StartWorkout';
+import { ActiveBar } from './features/workout/ActiveBar';
 import { t } from './i18n';
 
 /** The About screen carries every licence text, so it loads only when opened. */
@@ -42,7 +44,7 @@ function LazyDesign() {
 }
 
 export function App() {
-  const Current = route.value === 'design' ? LazyDesign : route.value === 'review' ? Review : route.value === 'workout' ? StrengthPage : route.value === 'about' ? LazyAbout : route.value === 'ai' ? LazyAi : SCREENS[route.value];
+  const Current = route.value === 'design' ? LazyDesign : route.value === 'review' ? Review : route.value === 'workout' ? StrengthPage : route.value === 'start' ? StartWorkout : route.value === 'about' ? LazyAbout : route.value === 'ai' ? LazyAi : SCREENS[route.value];
   return (
     <>
       <a
@@ -59,6 +61,7 @@ export function App() {
         <TabBar />
         <main id="main" tabIndex={-1}>
           {!storageAvailable.value && <Notice attention role="status">{t('storage.unavailable')}</Notice>}
+          <ActiveBar />
           <Current />
         </main>
       </div>

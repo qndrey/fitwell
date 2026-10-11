@@ -157,6 +157,10 @@ export interface Workout extends Base {
   name?: string;
   cardio?: CardioDetails;
   exercises?: WorkoutExercise[];
+  /** Strength only. When the timer was started (epoch ms). Missing: no timer, e.g. a workout logged afterwards. */
+  startedAt?: number;
+  /** Strength only. Set by Finish; a finished workout is closed (no more exercises or sets). */
+  finishedAt?: number;
 }
 
 export interface WorkoutTemplate extends Base {

@@ -1,6 +1,6 @@
 import type { FoodEntry, MeasurementEntry, MeasurementType, Workout, WeightEntry } from '../db/schema';
 import { addDays, addMonths, dayFromNumber, dayNumber, weekStart, type Day } from './dates';
-import { cardioKcal, estimatedOneRepMax } from './workouts';
+import { cardioKcal, estimatedOneRepMax, sessionMinutes } from './workouts';
 
 // ---------------------------------------------------------------- ranges
 export type RangeKey = '1m' | '3m' | '6m' | '1y' | 'all';
@@ -240,6 +240,39 @@ export interface ExercisePoint {
   bestKg: number;
   /** Highest Epley estimate of a one-rep max from a working set of up to 12 reps (kg). */
   e1rmKg?: number;
+}
+
+export interface WorkoutTime {
+  /** Average over every workout that has a time: timed strength sessions and cardio entries. */
+  avgMin: number;
+  count: number;
+  strengthAvgMin?: number;
+  strengthCount: number;
+  cardioAvgMin?: number;
+  cardioCount: number;
+}
+
+/**
+ * How long workouts take on average between two days. Strength counts only sessions that were timed and finished
+ * (workouts logged afterwards or older ones have no time and are left out, not counted as zero); cardio uses its duration.
+ * Returns null when no workout in the range has a time.
+ */
+export function averageWorkoutTime(workouts: Workout[], from: Day, to: Day): WorkoutTime | null {
+  const strength: number[] = [];
+  const cardio: number[] = [];
+  for (const w of workouts) {
+    if (w.deletedAt !== undefined || w.day < from || w.day > to) continue;
+    if (w.type === 'strength') {
+      const m = sessionMinutes(w);
+      if (m !== undefined) strength.push(m);
+    } else if (w.cardio && w.cardio.durationMin > 0) {
+      cardio.push(w.cardio.durationMin);
+    }
+  }
+  const all = [...strength, ...cardio];
+  if (all.length === 0) return null;
+  const avg = (l: number[]) => (l.length ? l.reduce((a, b) => a + b, 0) / l.length : undefined);
+  return { avgMin: avg(all)!, count: all.length, strengthAvgMin: avg(strength), strengthCount: strength.length, cardioAvgMin: avg(cardio), cardioCount: cardio.length };
 }
 
 /** One point per day the exercise was done. Warm-ups never count. */

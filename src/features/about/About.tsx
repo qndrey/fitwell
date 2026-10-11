@@ -49,6 +49,7 @@ export function About() {
           <h2 id="privacy-h">{t('about.privacy.title')}</h2>
           <p>{t('about.privacy.1')}</p>
           <p>{t('about.privacy.2')}</p>
+          <p>{t('about.privacy.ai')}</p>
           <p>{t('about.privacy.3')}</p>
         </div>
       </Card>

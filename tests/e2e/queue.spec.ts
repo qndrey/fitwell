@@ -1,5 +1,6 @@
 import { a11yScan } from '../helpers/a11y';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { openAddFood } from '../helpers/addFood';
 
 // Synthetic products in Open Food Facts' response shape (made-up values; no network is used).
 const PRODUCTS = [
@@ -34,7 +35,7 @@ async function ready(page: Page) {
 }
 
 async function logPending(page: Page, text: string, grams = '150') {
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill(text);
   await d.getByRole('button', { name: /^Log without nutrition for now/ }).click();
@@ -86,7 +87,7 @@ test('offline: log without nutrition → survives reload → back online → sug
 
   // The chosen food is kept on the device (recents + cache): found offline next time.
   await context.setOffline(true);
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   await page.getByRole('dialog').getByLabel('Search foods').fill('barista');
   await expect(page.getByRole('dialog').getByRole('button', { name: /^Test oat drink barista/ })).toBeVisible();
   expect(calls).toHaveLength(1); // and nothing was requested again
@@ -192,7 +193,7 @@ test('two tabs: only one runs the queue', async ({ page, context }) => {
 test('"Search online" is explicit, shows attribution, caches the choice, and sends only the search words', async ({ page, context }) => {
   const calls = await mockOff(context);
   await ready(page);
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('test oat');
   await page.waitForTimeout(400);
@@ -217,7 +218,7 @@ test('offline, "Search online" is unavailable but logging without nutrition stil
   await mockOff(context);
   await ready(page);
   await context.setOffline(true);
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('oat drink');
   await expect(d.getByRole('button', { name: 'Search online' })).toBeDisabled();
@@ -235,7 +236,7 @@ test('online lookup can be switched off: no button, no background requests', asy
   await page.waitForTimeout(800);
   expect(calls).toHaveLength(0);
   await expect(page.locator('main .row').filter({ hasText: 'oat drink' })).toContainText('Pending');
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   await page.getByRole('dialog').getByLabel('Search foods').fill('oat');
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Search online' })).toHaveCount(0);
   await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();

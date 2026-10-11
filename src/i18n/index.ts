@@ -77,8 +77,6 @@ const en = {
   'common.loading': 'Loading…',
   'workout.title': 'Workouts',
   'workout.add': 'Add workout',
-  'workout.quickAdd': 'Log a workout',
-  'workout.quickShort': 'Workout',
   'workout.newStrength': 'Strength workout',
   'workout.newCardio': 'Cardio or activity',
   'workout.repeat': 'Repeat',

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openAddFood } from '../helpers/addFood';
 
 // Phones are the baseline: smallest common width, touch, no horizontal scroll, reachable primary action.
 test.use({ viewport: { width: 320, height: 640 }, hasTouch: true, isMobile: true });
@@ -33,7 +34,7 @@ test('no horizontal scroll on any screen at 320 px', async ({ page }) => {
 
 test('touch targets are at least 44 px on Today and in the add sheet', async ({ page }) => {
   expect(await smallTargets(page, 'body')).toEqual([]);
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('banana');
   await expect(d.getByRole('button', { name: /^Banana, raw/ })).toBeVisible();
@@ -44,14 +45,14 @@ test('touch targets are at least 44 px on Today and in the add sheet', async ({ 
 });
 
 test('primary action stays in the thumb zone, even with a long day', async ({ page }) => {
-  const add = page.getByRole('button', { name: 'Add food', exact: true });
+  const add = page.getByRole('button', { name: 'Add', exact: true });
   const vh = 640;
   let box = (await add.boundingBox())!;
   expect(box.y).toBeGreaterThan(vh * 0.6); // empty day: pinned low, not mid-page
   expect(box.y + box.height).toBeLessThanOrEqual(vh);
 
   for (let i = 0; i < 8; i++) {
-    await add.click();
+    await openAddFood(page);
     const d = page.getByRole('dialog');
     await d.getByLabel('Search foods').fill('banana');
     await d.getByRole('button', { name: /^Banana, raw/ }).first().click();
@@ -69,7 +70,7 @@ test('primary action stays in the thumb zone, even with a long day', async ({ pa
 });
 
 test('the add sheet keeps a stable height and a reachable Done button', async ({ page }) => {
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   const h0 = (await d.boundingBox())!.height;
   await d.getByLabel('Search foods').fill('milk');
@@ -82,7 +83,7 @@ test('the add sheet keeps a stable height and a reachable Done button', async ({
 });
 
 test('quick amounts log without opening the keyboard', async ({ page }) => {
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('banana');
   await d.getByRole('button', { name: /^Banana, raw/ }).first().click();

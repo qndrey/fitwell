@@ -7,7 +7,7 @@ export function TabBar() {
     <nav class="tabbar" aria-label={t('a11y.nav')}>
       {ROUTES.map((r) => (
         <a key={r} href={`#/${r}`} aria-current={route.value === r ? 'page' : undefined}>
-          <Icon name={r} />
+          <span class="tab-pill"><Icon name={r} /></span>
           <span>{t(`nav.${r}` as Key)}</span>
         </a>
       ))}

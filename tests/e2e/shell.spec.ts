@@ -39,7 +39,7 @@ test('theme choice persists across reloads (IndexedDB)', async ({ page }) => {
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByLabel('Dark')).toBeChecked();
-  await page.getByLabel('Match my device').check();
+  await page.getByLabel('Device', { exact: true }).check();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
 });
 

@@ -69,7 +69,7 @@ test('primary action stays in the thumb zone, even with a long day', async ({ pa
   expect(last.y + last.height).toBeLessThanOrEqual(bar.y + 1);
 });
 
-test('the add sheet keeps a stable height and a reachable Done button', async ({ page }) => {
+test('the add sheet keeps a stable height, and Done (once something is added) is in reach', async ({ page }) => {
   await openAddFood(page);
   const d = page.getByRole('dialog');
   const h0 = (await d.boundingBox())!.height;
@@ -77,7 +77,10 @@ test('the add sheet keeps a stable height and a reachable Done button', async ({
   await expect(d.getByRole('button', { name: /^Milk/ }).first()).toBeVisible();
   const h1 = (await d.boundingBox())!;
   expect(Math.abs(h1.height - h0)).toBeLessThan(1);
-  const done = (await d.getByRole('button', { name: 'Done' }).boundingBox())!;
+  await expect(d.getByRole('button', { name: /^Done/ })).toHaveCount(0); // nothing added yet: the ✕ closes
+  await d.getByRole('button', { name: /^Milk/ }).first().click();
+  await d.getByRole('button', { name: /^Add to/ }).click();
+  const done = (await d.getByRole('button', { name: 'Done · 1 added' }).boundingBox())!;
   expect(done.y + done.height).toBeLessThanOrEqual(640);
   expect(done.y).toBeGreaterThan(640 * 0.7);
 });
@@ -87,7 +90,7 @@ test('quick amounts log without opening the keyboard', async ({ page }) => {
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('banana');
   await d.getByRole('button', { name: /^Banana, raw/ }).first().click();
-  await d.getByRole('button', { name: '150', exact: true }).tap();
+  await d.getByRole('button', { name: '150 g', exact: true }).tap();
   await expect(d.getByLabel('Amount')).toHaveValue('150');
   await d.getByRole('button', { name: /^Add to/ }).tap();
   await d.getByRole('button', { name: 'Done' }).tap();

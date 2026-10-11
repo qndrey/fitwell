@@ -65,7 +65,9 @@ test('custom food per serving, favorites, recents and saved meals', async ({ pag
   await dialog.getByRole('button', { name: 'Save food' }).click();
 
   // Lands on quantity step with the serving portion available
-  await dialog.getByLabel('Unit').selectOption({ label: 'serving (50 g)' });
+  await dialog.getByRole('group', { name: 'Unit' }).getByRole('button', { name: 'serving · 50 g' }).click();
+  await dialog.getByRole('button', { name: 'More' }).click(); // 1 → 1.5 servings
+  await expect(dialog.getByLabel('Amount')).toHaveValue('1.5');
   await dialog.getByLabel('Amount').fill('2');
   await expect(dialog.getByText(/^500 kcal/)).toBeVisible();
   await dialog.getByRole('button', { name: /^Favorite/ }).click();

@@ -58,7 +58,7 @@ export function App() {
       <div class="shell">
         <TabBar />
         <main id="main" tabIndex={-1}>
-          {!storageAvailable.value && <Notice role="status">{t('storage.unavailable')}</Notice>}
+          {!storageAvailable.value && <Notice attention role="status">{t('storage.unavailable')}</Notice>}
           <Current />
         </main>
       </div>

@@ -224,7 +224,7 @@ test('online lookup can be switched off: no button, no background requests', asy
   await openAddFood(page);
   await page.getByRole('dialog').getByLabel('Search foods').fill('oat');
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Search online' })).toHaveCount(0);
-  await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
 
   await page.getByRole('link', { name: 'Settings' }).click();
   await page.getByLabel('Look up foods online').check(); // turning it back on resumes the queue

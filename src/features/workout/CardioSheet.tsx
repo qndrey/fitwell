@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { Button, Field, Icon, List, ListRow, Notice, SectionTitle, Sheet, TextInput } from '../../ui';
+import { Button, Field, Icon, LinkButton, List, ListRow, Notice, SectionTitle, Sheet, TextInput } from '../../ui';
 import { ACTIVITIES, type Activity } from '../../data/activities';
 import { customActivitiesRepo, recentRefs } from '../../db/workoutStore';
 import type { Workout } from '../../db/schema';
@@ -15,6 +15,8 @@ import { TemplateSheet } from './StrengthPage';
 import { showToast } from '../food/toast';
 
 interface Pick { ref: string; name: string; met: number }
+/** Shown before "Show all": what most people log. */
+const COMMON = ['act:walk-moderate', 'act:run-10', 'act:bike-moderate', 'act:swim-light', 'act:yoga', 'act:strength-light'];
 const fromActivity = (a: Activity): Pick => ({ ref: a.id, name: a.name, met: a.met });
 
 function CustomActivityForm({ initialName, onCreated, onBack }: { initialName: string; onCreated: (p: Pick) => void; onBack: () => void }) {
@@ -57,6 +59,7 @@ export function CardioSheet({ day, existing, preset, onClose }: { day: string; e
   const [activity, setActivity] = useState<Pick | null>(c0 ? { ref: c0.activityRef, name: c0.activityName, met: c0.met } : (preset ?? null));
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [mine, setMine] = useState<Pick[]>([]);
   const [recent, setRecent] = useState<{ ref: string; name: string }[]>([]);
   const [minutes, setMinutes] = useState(c0 ? String(c0.durationMin) : '30');
@@ -122,12 +125,20 @@ export function CardioSheet({ day, existing, preset, onClose }: { day: string; e
                     <List>{mine.map(row)}</List>
                   </section>
                 )}
-                {groups.map((g) => (
-                  <section key={g} aria-label={g}>
-                    <SectionTitle>{g}</SectionTitle>
-                    <List>{ACTIVITIES.filter((a) => a.group === g).map((a) => row(fromActivity(a)))}</List>
+                {!showAll && (
+                  <section aria-label={t('activity.common')}>
+                    <SectionTitle>{t('activity.common')}</SectionTitle>
+                    <List>{COMMON.filter((ref) => !recent.some((r) => r.ref === ref)).map((ref) => byRef.get(ref)).filter((a): a is Pick => !!a).map(row)}</List>
+                    <Button block variant="ghost" class="mt-2" onClick={() => setShowAll(true)}>{t('activity.showAll')}</Button>
                   </section>
-                ))}
+                )}
+                {showAll &&
+                  groups.map((g) => (
+                    <section key={g} aria-label={g}>
+                      <SectionTitle>{g}</SectionTitle>
+                      <List>{ACTIVITIES.filter((a) => a.group === g).map((a) => row(fromActivity(a)))}</List>
+                    </section>
+                  ))}
               </>
             )}
             <Button block class="mt-4" onClick={() => setCreating(true)}>
@@ -166,7 +177,7 @@ export function CardioSheet({ day, existing, preset, onClose }: { day: string; e
           {(c) => <TextInput {...c} inputMode="decimal" autocomplete="off" autofocus value={minutes} onInput={(e) => (setMinutes((e.target as HTMLInputElement).value), setErrors({}))} onFocus={(e) => (e.target as HTMLInputElement).select()} />}
         </Field>
         <div class="quick" role="group" aria-label={t('food.quick')}>
-          {[15, 20, 30, 45, 60, 90].map((n) => <Button key={n} size="sm" aria-pressed={mins === n} onClick={() => setMinutes(String(n))}>{n}</Button>)}
+          {[15, 30, 45, 60, 90].map((n) => <Button key={n} size="sm" aria-pressed={mins === n} onClick={() => setMinutes(String(n))}>{n}</Button>)}
         </div>
         <Field label={`${t('workout.distance')} (${dUnit})`} hint={t('exercise.optional')} error={errors.distance}>
           {(c) => <TextInput {...c} inputMode="decimal" autocomplete="off" value={distance} onInput={(e) => (setDistance((e.target as HTMLInputElement).value), setErrors({}))} />}
@@ -188,16 +199,17 @@ export function CardioSheet({ day, existing, preset, onClose }: { day: string; e
         </div>
       </form>
       {existing && (
-        <div class="cluster between mt-4">
-          <Button onClick={() => setTemplating(true)}>{t('workout.saveTemplate')}</Button>
-          <Button
+        <div class="cluster between mt-3">
+          <LinkButton class="small" onClick={() => setTemplating(true)}>{t('workout.saveTemplate')}</LinkButton>
+          <LinkButton
+            class="small danger"
             onClick={async () => {
               await deleteWorkout(existing);
               onClose();
             }}
           >
             <Icon name="trash" size="sm" />{t('food.remove')}
-          </Button>
+          </LinkButton>
         </div>
       )}
       {templating && existing && (
@@ -216,7 +228,7 @@ export function CardioSheet({ day, existing, preset, onClose }: { day: string; e
 }
 
 function LinkChange({ onClick }: { onClick: () => void }) {
-  return <Button size="sm" onClick={onClick}>{t('activity.change')}</Button>;
+  return <LinkButton class="small align-start" onClick={onClick}>{t('activity.change')}</LinkButton>;
 }
 
 export { cardioKcal };

@@ -87,7 +87,7 @@ export function BackupSection() {
           </Button>
         )}
         <input ref={fileInput} type="file" accept="application/json,.json" class="sr-only" tabIndex={-1} aria-label={t('backup.restore')} onChange={(e) => void onFile(e)} />
-        {error && <Notice role="alert">{error}</Notice>}
+        {error && <Notice attention role="alert">{error}</Notice>}
       </div>
       {pending && <ImportSheet backup={pending.backup} current={pending.current} onClose={() => setPending(null)} />}
     </Card>

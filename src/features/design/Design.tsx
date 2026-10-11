@@ -3,7 +3,7 @@ import '../../styles/design.css';
 import { contrastRatio, rgbToHex } from '../../domain/contrast';
 import type { ThemePreference } from '../../db/schema';
 import { settings, updateSettings } from '../../state';
-import { Badge, BigNumber, Button, Card, Choice, EmptyState, Field, Icon, ICON_NAMES, LinkButton, List, ListRow, Notice, Screen, SectionTitle, Segmented, Select, Sheet, StatGrid, TextInput } from '../../ui';
+import { Badge, BigNumber, Button, Card, Choice, EmptyState, Field, Icon, ICON_NAMES, LinkButton, List, ListRow, Menu, Meter, Notice, Screen, SectionTitle, Segmented, Select, Sheet, Sparkline, StatGrid, TextInput } from '../../ui';
 
 /** Re-reads computed tokens whenever the theme changes (setting or device). */
 function useThemeTick(): number {
@@ -293,8 +293,21 @@ export function Design() {
           <div class="demo">
             <Notice>Info: a calm message in the accent tint.</Notice>
             <Notice quiet>Quiet: neutral, for supporting detail.</Notice>
-            <div class="demo-row"><Badge>pending</Badge><Badge>3 to confirm</Badge></div>
+            <Notice attention>Attention: amber with an icon, for something waiting on you (items to confirm, a backup due, an error).</Notice>
+            <div class="demo-row"><Badge>accent</Badge><Badge tone="neutral">Last time</Badge><Badge tone="attention">To confirm</Badge></div>
             <div class="toast"><span>Removed.</span><Button size="sm">Undo</Button></div>
+            <div class="demo-row">
+              <span>Menu</span>
+              <Menu label="Demo menu" items={[{ label: 'Options', icon: 'settings', onSelect: () => undefined }, { label: 'Remove', icon: 'trash', danger: true, onSelect: () => undefined }]} />
+              <Button icon aria-label="Icon button"><Icon name="plus" /></Button>
+              <Button icon class="outlined" aria-label="Outlined icon button"><Icon name="minus" /></Button>
+            </div>
+            <div class="stack gap-2">
+              <span class="t-caption">Meter (goal progress) and sparkline (trend), both decorative next to their numbers</span>
+              <Meter value={0.62} />
+              <Meter value={0.4} tone={2} />
+              <Sparkline values={[74.6, 74.4, 74.5, 74.1, 74.2, 73.9, 73.8, 73.9, 73.6]} />
+            </div>
             <Button onClick={() => setSheet(true)}>Open a sheet</Button>
           </div>
         </section>

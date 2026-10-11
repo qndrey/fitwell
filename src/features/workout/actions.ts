@@ -66,7 +66,7 @@ export function startFromTemplate(day: string, tpl: WorkoutTemplate): Promise<Wo
   return createStrength(
     day,
     normalizeSupersets(
-      (tpl.exercises ?? []).map((e) => ({ ...e, uid: id(), sets: e.sets.map((s) => ({ ...s, id: id() })) })),
+      (tpl.exercises ?? []).map((e) => ({ ...e, uid: id(), sets: e.sets.map((s) => ({ ...s, id: id(), done: false })) })),
       id,
     ),
     tpl.name,

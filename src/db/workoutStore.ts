@@ -64,7 +64,7 @@ export async function lastPerformance(
   const hit = await newestMatch((w): LoggedExercise | undefined => {
     if (w.id === before.id || w.type !== 'strength') return undefined;
     if (w.day === before.day && w.createdAt > before.createdAt) return undefined;
-    return w.exercises?.find((e) => e.exerciseRef === exerciseRef && e.sets.some((s) => s.type === 'working' && (s.reps > 0 || (s.durationSec ?? 0) > 0)));
+    return w.exercises?.find((e) => e.exerciseRef === exerciseRef && e.sets.some((s) => s.type === 'working' && s.done !== false && (s.reps > 0 || (s.durationSec ?? 0) > 0)));
   }, before.day);
   return hit && { workout: hit.workout, exercise: hit.value };
 }

@@ -13,6 +13,8 @@ const view = signal<View>('calendar');
 /** First day of the month being looked at; remembered while the app is open. */
 const shownMonth = signal<Day | null>(null);
 const listMonths = signal(3);
+/** The day whose preview is shown under the calendar. */
+const selected = signal<Day | null>(null);
 
 const open = (day: Day) => (location.hash = day === todayDay() ? '#/today' : `#/today/${day}`);
 const fmtKcal = (n: number) => new Intl.NumberFormat().format(Math.round(n));
@@ -89,6 +91,34 @@ function Calendar() {
   );
 }
 
+/** What a day held, and its week at a glance, before opening it. */
+function DayPreview({ day }: { day: Day }) {
+  const start = weekStart(day);
+  const data = useRangeData(start, addDays(start, 6));
+  const week = useMemo(() => (data ? [...aggregateDays(data).values()] : []), [data]);
+  const agg = week.find((a) => a.day === day);
+  const s = settings.value;
+  const parts = describe(agg);
+  const foodDays = week.filter((a) => a.foodCount > 0);
+  const workouts = week.reduce((n, a) => n + a.strength + a.cardio, 0);
+  const avgKcal = foodDays.length ? foodDays.reduce((n, a) => n + a.kcal, 0) / foodDays.length : 0;
+  const weekParts = [
+    `${week.filter((a) => a.foodCount + a.strength + a.cardio > 0 || a.weightKg !== undefined).length} ${t('history.week.days')}`,
+    `${workouts} ${t(workouts === 1 ? 'history.workout.one' : 'history.workout.many')}`,
+    !s.habitOnly && foodDays.length ? `${t('history.week.avg')} ${fmtKcal(avgKcal)} ${t('unit.kcal')}` : '',
+  ].filter(Boolean);
+  return (
+    <Card labelledBy="preview-h" compact>
+      <div class="stack gap-2">
+        <h2 id="preview-h" class="card-title">{formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
+        <p>{parts.length ? parts.join(' · ') : t('history.nothing')}</p>
+        <p class="t-caption">{t('history.week.of').replace('{d}', formatDay(start, { month: 'short', day: 'numeric' }))}: {weekParts.join(' · ')}</p>
+        <Button variant="primary" class="align-start" onClick={() => open(day)}>{t('history.openDay')}</Button>
+      </div>
+    </Card>
+  );
+}
+
 function DayCell({ day, agg, isToday }: { day: Day; agg: DayAgg | undefined; isToday: boolean }) {
   const s = settings.value;
   const parts = describe(agg);
@@ -96,14 +126,18 @@ function DayCell({ day, agg, isToday }: { day: Day; agg: DayAgg | undefined; isT
   const work = !!agg && agg.strength + agg.cardio > 0;
   const body = !s.hideBodyTracking && !!agg && (agg.weightKg !== undefined || agg.measured);
   const pending = !!agg && agg.pendingCount > 0;
+  const has = food || work || body || pending;
+  const isSelected = selected.value === day;
   return (
     <button
       type="button"
-      class="cal-day"
+      class={has ? 'cal-day has' : 'cal-day'}
       data-pending={pending ? '' : undefined}
       aria-current={isToday ? 'date' : undefined}
+      aria-pressed={isSelected}
       aria-label={`${formatDay(day)}${parts.length ? `: ${parts.join(', ')}` : `: ${t('history.nothing')}`}`}
-      onClick={() => open(day)}
+      // First tap shows the day below the calendar; a second tap (or "Open this day") goes there.
+      onClick={() => (isSelected ? open(day) : (selected.value = day))}
     >
       <span class="cal-num">{Number(day.slice(8))}</span>
       <span class="cal-marks" aria-hidden="true">
@@ -139,7 +173,7 @@ function DayList() {
                 sub={
                   <>
                     {describe(a).filter((p) => !p.includes(t('history.pending'))).join(' · ')}
-                    {a.pendingCount > 0 && <> {' '}<Badge>{a.pendingCount} {t('history.pending')}</Badge></>}
+                    {a.pendingCount > 0 && <> {' '}<Badge tone="attention">{a.pendingCount} {t('history.pending')}</Badge></>}
                   </>
                 }
                 onClick={() => open(a.day)}
@@ -163,7 +197,14 @@ export function History() {
         onChange={(v) => (view.value = v)}
         options={[{ value: 'calendar', label: t('history.calendar') }, { value: 'list', label: t('history.list') }]}
       />
-      {view.value === 'calendar' ? <Calendar /> : <DayList />}
+      {view.value === 'calendar' ? (
+        <>
+          <Calendar />
+          {selected.value && <DayPreview day={selected.value} />}
+        </>
+      ) : (
+        <DayList />
+      )}
     </Screen>
   );
 }

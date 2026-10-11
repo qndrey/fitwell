@@ -1,4 +1,6 @@
 import { prepare, search, type Searchable } from '../search/rank';
+import { tokenize } from '../search/text';
+import { templateIdFor } from '../illustrations/match';
 import type { CustomExercise } from '../db/schema';
 
 export interface Exercise {
@@ -54,11 +56,48 @@ export interface ExerciseFilter {
   equipment?: string;
 }
 
-/** Name search (typo-tolerant), narrowed by muscle and equipment. Filters apply to primary and secondary muscles. */
-export function searchExercises(index: Searchable<Exercise>[], all: Exercise[], f: ExerciseFilter, limit = 40): Exercise[] {
+/** Variants most people are not looking for when they type the plain movement. */
+/** The staples most people mean (names as in the library): a nudge up so they lead their search. */
+const STAPLES = new Set(
+  [
+    'Barbell Squat', 'Bodyweight Squat', 'Goblet Squat', 'Front Barbell Squat', 'Barbell Bench Press - Medium Grip', 'Dumbbell Bench Press', 'Incline Dumbbell Press',
+    'Barbell Deadlift', 'Romanian Deadlift', 'Pullups', 'Chin-Up', 'Pushups', 'Barbell Curl', 'Dumbbell Bicep Curl', 'Hammer Curls', 'Bent Over Barbell Row',
+    'One-Arm Dumbbell Row', 'Standing Military Press', 'Dumbbell Shoulder Press', 'Dumbbell Lunges', 'Barbell Hip Thrust', 'Plank', 'Crunches', 'Triceps Pushdown',
+    'Wide-Grip Lat Pulldown', 'Seated Cable Rows', 'Leg Press', 'Lying Leg Curls', 'Leg Extensions', 'Standing Calf Raises', 'Side Lateral Raise',
+    'Dips - Triceps Version', 'Hanging Leg Raise', 'Face Pull',
+  ].map((n) => n.toLowerCase()),
+);
+/** "Squat To A Bench": the words after to/with/on describe the variant, not the movement. */
+const MODIFIER = /\b(?:to|with|on|off|from|over|behind|against)\b(.*)$/i;
+
+const UNUSUAL = /\b(bands?|chains?|jerk|sled|plate movers|reverse band|speed|pins?|board|deficit|rack|anderson|jefferson|frankenstein|bradford|rocky|kneeling|suspended|isometric|with a twist)\b/i;
+
+/**
+ * Name search (typo-tolerant), narrowed by muscle and equipment. Filters apply to primary and secondary muscles.
+ * Text matches are then re-ranked for how people look for exercises: ones you have done (`yours`) first, then common
+ * movements (those we can draw) and names that end in the word you typed ("Barbell Squat"), odd variants (bands, chains,
+ * jerks) last. The plain text order breaks ties.
+ */
+export function searchExercises(index: Searchable<Exercise>[], all: Exercise[], f: ExerciseFilter, limit = 40, yours: ReadonlySet<string> = new Set()): Exercise[] {
   const keep = (e: Exercise) => (!f.muscle || e.primary.includes(f.muscle) || e.secondary.includes(f.muscle)) && (!f.equipment || e.equipment === f.equipment);
-  if (f.query.trim()) return search(index, f.query, 400).filter(keep).slice(0, limit);
-  return all.filter(keep).slice(0, limit);
+  if (!f.query.trim()) return all.filter(keep).slice(0, limit);
+  const words = tokenize(f.query);
+  const lastWord = words[words.length - 1] ?? '';
+  const hits = search(index, f.query, 400).filter(keep);
+  const scored = hits.map((e, i) => {
+    const tokens = tokenize(e.name);
+    let score = -i * 0.05;
+    if (yours.has(e.ref)) score += 6;
+    if (templateIdFor(e.name)) score += 1.5;
+    if (tokens[tokens.length - 1]?.startsWith(lastWord)) score += 1.5;
+    if (UNUSUAL.test(e.name)) score -= 2.5;
+    if (STAPLES.has(e.name.toLowerCase())) score += 3;
+    const tail = MODIFIER.exec(e.name)?.[1];
+    if (tail && words.every((w) => tokenize(tail).some((t) => t.startsWith(w))) && !words.every((w) => tokenize(e.name.slice(0, e.name.length - tail.length)).some((t) => t.startsWith(w)))) score -= 3;
+    return { e, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map((x) => x.e);
 }
 
 export const prepareExercises = (list: Exercise[]) => prepare(list, (e) => e.name);

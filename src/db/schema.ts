@@ -109,11 +109,23 @@ export interface WorkoutSet {
   id: string;
   type: SetType;
   reps: number;
-  /** Always kilograms; shown in the unit chosen in Settings. */
+  /** Always kilograms; shown in the unit chosen in Settings. For a bodyweight set this is body weight + added load. */
   weightKg: number;
+  /** Time under tension / hold for exercises measured in time (e.g. a plank), in seconds. `reps` is 0 for these. */
+  durationSec?: number;
+  /** Body weight (kg) at the time, kept only for sets of a bodyweight exercise so history doesn't change when you weigh in later. */
+  bodyweightKg?: number;
 }
 
 export interface WorkoutExercise {
+  /** Identifies this entry inside the workout (the same exercise can appear twice). Added when missing. */
+  uid?: string;
+  /** Exercises in a row that share a superset id are done back to back, round by round. */
+  supersetId?: string;
+  /** How the sets are measured: repetitions (default) or time. */
+  mode?: 'reps' | 'time';
+  /** `bodyweight`: the load is your own body weight, plus any added weight. */
+  load?: 'weight' | 'bodyweight';
   /** "ex:<id>" for the bundled library, "cx:<id>" for your own. */
   exerciseRef: string;
   /** Name at the time of logging, so history survives library updates. */
@@ -146,7 +158,14 @@ export interface WorkoutTemplate extends Base {
   name: string;
   type: 'cardio' | 'strength';
   cardio?: Pick<CardioDetails, 'activityRef' | 'activityName' | 'met' | 'durationMin' | 'distanceKm'>;
-  exercises?: { exerciseRef: string; exerciseName: string; sets: { type: SetType; reps: number; weightKg: number }[] }[];
+  exercises?: {
+    exerciseRef: string;
+    exerciseName: string;
+    supersetId?: string;
+    mode?: 'reps' | 'time';
+    load?: 'weight' | 'bodyweight';
+    sets: { type: SetType; reps: number; weightKg: number; durationSec?: number; bodyweightKg?: number }[];
+  }[];
 }
 
 export interface CustomExercise extends Base {

@@ -1,9 +1,10 @@
 import { a11yScan } from '../helpers/a11y';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { openAddFood } from '../helpers/addFood';
 
 async function logBanana(page: Page, grams: string) {
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByLabel('Search foods').fill('banana');
   await d.getByRole('button', { name: /^Banana, raw/ }).first().click();

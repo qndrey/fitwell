@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { BigNumber, Badge, Button, Card, Icon, LinkButton, List, ListRow, Notice, Screen, StatGrid } from '../../ui';
 import { addDays, formatDay, today } from '../../domain/dates';
 import { roundForDisplay } from '../../domain/nutrition';
@@ -17,6 +17,7 @@ import { InstallHint } from './InstallHint';
 import { WeekGoal } from './WeekGoal';
 import { AddWorkoutSheet } from '../workout/AddWorkoutSheet';
 import { CardioSheet } from '../workout/CardioSheet';
+import { createStrength } from '../workout/actions';
 import { dayWorkouts, watchWorkouts } from '../workout/dayState';
 import { cardioKcal, describeWorkout } from '../../domain/workouts';
 import type { Workout } from '../../db/schema';
@@ -25,7 +26,7 @@ import { toConfirmCount } from '../review/store';
 import { SaveMealSheet } from '../food/SaveMealSheet';
 import { defaultSlot, entryLabel, fmt, quantityText } from '../food/format';
 
-type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'addWorkout' } | { kind: 'cardio'; workout: Workout } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
+type Sheet = { kind: 'add'; slot: Slot } | { kind: 'edit'; entry: FoodEntry } | { kind: 'pending'; entry: FoodEntry } | { kind: 'addWorkout' } | { kind: 'cardio'; workout: Workout } | { kind: 'cardioNew' } | { kind: 'saveMeal'; entries: FoodEntry[] } | null;
 
 const go = (day: string) => (location.hash = day === today() ? '#/today' : `#/today/${day}`);
 
@@ -163,16 +164,58 @@ export function Today() {
         )}
       </section>
 
-      <div class="primary-bar">
-        <Button variant="primary" size="lg" block onClick={() => setSheet({ kind: 'add', slot: defaultSlot() })}>{t('food.add')}</Button>
-      </div>
+      <div class="fab-space" aria-hidden="true" />
+      <AddMenu
+        onFood={() => setSheet({ kind: 'add', slot: defaultSlot() })}
+        onStrength={async () => (location.hash = `#/workout/${(await createStrength(day)).id}`)}
+        onCardio={() => setSheet({ kind: 'cardioNew' })}
+      />
 
       {sheet?.kind === 'add' && <AddFoodSheet day={day} initialSlot={sheet.slot} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'addWorkout' && <AddWorkoutSheet day={day} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'cardioNew' && <CardioSheet day={day} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'cardio' && <CardioSheet day={day} existing={sheet.workout} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'pending' && <PendingEntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'edit' && <EntrySheet entry={sheet.entry} onClose={() => setSheet(null)} />}
       {sheet?.kind === 'saveMeal' && <SaveMealSheet entries={sheet.entries} onClose={() => setSheet(null)} />}
     </Screen>
+  );
+}
+
+/** Floating + at the bottom right: pick what to log. Closes on Escape or a tap anywhere else. */
+function AddMenu({ onFood, onStrength, onCardio }: { onFood: () => void; onStrength: () => void; onCardio: () => void }) {
+  const [open, setOpen] = useState(false);
+  const fab = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        fab.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+  // Sheets return focus to whatever was focused when they opened: make that the + button, not a menu item that is gone.
+  const pick = (fn: () => void) => () => {
+    fab.current?.focus();
+    setOpen(false);
+    fn();
+  };
+  return (
+    <div class="fab-wrap">
+      {open && <div class="fab-backdrop" onClick={() => setOpen(false)} />}
+      <button ref={fab} type="button" class={open ? 'fab open' : 'fab'} aria-label={t('common.add')} aria-expanded={open} aria-controls="add-menu" onClick={() => setOpen(!open)}>
+        <Icon name="plus" />
+      </button>
+      {open && (
+        <div class="fab-menu" id="add-menu">
+          <Button size="lg" onClick={pick(onFood)}>{t('food.add')}</Button>
+          <Button size="lg" onClick={pick(onStrength)}>{t('workout.newStrength')}</Button>
+          <Button size="lg" onClick={pick(onCardio)}>{t('workout.newCardio')}</Button>
+        </div>
+      )}
+    </div>
   );
 }

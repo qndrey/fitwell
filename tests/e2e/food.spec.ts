@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openAddFood } from '../helpers/addFood';
 
 async function addFood(page: Page, query: string, pick: string | RegExp, amount?: string, slot?: string) {
-  await page.getByRole('button', { name: 'Add food', exact: true }).first().click();
+  await openAddFood(page);
   const dialog = page.getByRole('dialog');
   if (slot) await dialog.getByRole('radio', { name: slot }).check(); // the default meal depends on the time of day
   await dialog.getByLabel('Search foods').fill(query);
@@ -53,7 +54,7 @@ test('works offline: search, log, edit, delete with undo', async ({ page, contex
 
 test('custom food per serving, favorites, recents and saved meals', async ({ page }) => {
   // Create a custom food: 250 kcal per serving of 50 g -> 500 kcal/100 g
-  await page.getByRole('button', { name: 'Add food', exact: true }).first().click();
+  await openAddFood(page);
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Create custom food' }).click();
   await dialog.getByLabel('Name').fill('Granola bar');
@@ -83,7 +84,7 @@ test('custom food per serving, favorites, recents and saved meals', async ({ pag
   await page.getByRole('dialog').getByRole('button', { name: 'Save meal' }).click();
 
   // Empty search lists favorites, recents and the saved meal
-  await page.getByRole('button', { name: 'Add food', exact: true }).first().click();
+  await openAddFood(page);
   const d2 = page.getByRole('dialog');
   await expect(d2.getByRole('region', { name: 'Favorites' }).getByText('Granola bar')).toBeVisible();
   await expect(d2.getByRole('region', { name: 'Recent' })).toBeVisible();
@@ -119,7 +120,7 @@ test('a full day can be logged quickly from recents', async ({ page }) => {
   }
   const start = Date.now();
   // Re-log from the empty search (recents) in a different slot: 3 foods, 2 taps each
-  await page.getByRole('button', { name: 'Add food', exact: true }).first().click();
+  await openAddFood(page);
   const d = page.getByRole('dialog');
   await d.getByRole('radio', { name: 'Dinner' }).check();
   for (const re of [/Banana, raw/, /Egg/, /Milk, whole/]) {

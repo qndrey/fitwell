@@ -1,6 +1,6 @@
 import { workoutsRepo, templatesRepo } from '../../db/workoutStore';
 import type { CardioDetails, Workout, WorkoutExercise, WorkoutTemplate } from '../../db/schema';
-import { copyExercises } from '../../domain/workouts';
+import { copyExercises, normalizeSupersets } from '../../domain/workouts';
 import { estimateKcal } from '../../domain/met';
 import { currentWeightKg } from '../../state';
 import { t } from '../../i18n';
@@ -50,7 +50,14 @@ export function saveAsTemplate(w: Workout, name: string): Promise<WorkoutTemplat
   return templatesRepo.create({
     name: name.trim(),
     type: 'strength',
-    exercises: (w.exercises ?? []).map((e) => ({ exerciseRef: e.exerciseRef, exerciseName: e.exerciseName, sets: e.sets.map((s) => ({ type: s.type, reps: s.reps, weightKg: s.weightKg })) })),
+    exercises: (w.exercises ?? []).map((e) => ({
+      exerciseRef: e.exerciseRef,
+      exerciseName: e.exerciseName,
+      ...(e.supersetId ? { supersetId: e.supersetId } : {}),
+      ...(e.mode ? { mode: e.mode } : {}),
+      ...(e.load ? { load: e.load } : {}),
+      sets: e.sets.map((s) => ({ type: s.type, reps: s.reps, weightKg: s.weightKg, ...(s.durationSec ? { durationSec: s.durationSec } : {}), ...(s.bodyweightKg !== undefined ? { bodyweightKg: s.bodyweightKg } : {}) })),
+    })),
   });
 }
 
@@ -58,7 +65,10 @@ export function startFromTemplate(day: string, tpl: WorkoutTemplate): Promise<Wo
   if (tpl.type === 'cardio' && tpl.cardio) return createCardio(day, tpl.cardio);
   return createStrength(
     day,
-    (tpl.exercises ?? []).map((e) => ({ exerciseRef: e.exerciseRef, exerciseName: e.exerciseName, sets: e.sets.map((s) => ({ ...s, id: id() })) })),
+    normalizeSupersets(
+      (tpl.exercises ?? []).map((e) => ({ ...e, uid: id(), sets: e.sets.map((s) => ({ ...s, id: id() })) })),
+      id,
+    ),
     tpl.name,
   );
 }

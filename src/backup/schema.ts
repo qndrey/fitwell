@@ -42,7 +42,9 @@ const lookup = v.object({
   completedAt: v.optional(num),
 });
 const setType = v.picklist(['warmup', 'working']);
-const workoutSet = v.object({ id: v.string(), type: setType, reps: nonNeg, weightKg: nonNeg });
+const workoutSet = v.object({ id: v.string(), type: setType, reps: nonNeg, weightKg: nonNeg, durationSec: v.optional(nonNeg), bodyweightKg: v.optional(nonNeg) });
+const exerciseMode = v.optional(v.picklist(['reps', 'time']));
+const exerciseLoad = v.optional(v.picklist(['weight', 'bodyweight']));
 const cardio = v.object({
   activityRef: v.string(),
   activityName: v.string(),
@@ -59,7 +61,11 @@ const workout = v.object({
   type: v.picklist(['cardio', 'strength']),
   name: v.optional(v.string()),
   cardio: v.optional(cardio),
-  exercises: v.optional(v.array(v.object({ exerciseRef: v.string(), exerciseName: v.string(), sets: v.array(workoutSet) }))),
+  exercises: v.optional(
+    v.array(
+      v.object({ uid: v.optional(v.string()), supersetId: v.optional(v.string()), mode: exerciseMode, load: exerciseLoad, exerciseRef: v.string(), exerciseName: v.string(), sets: v.array(workoutSet) }),
+    ),
+  ),
 });
 const template = v.object({
   ...base,
@@ -67,7 +73,16 @@ const template = v.object({
   type: v.picklist(['cardio', 'strength']),
   cardio: v.optional(v.object({ activityRef: v.string(), activityName: v.string(), met: nonNeg, durationMin: nonNeg, distanceKm: v.optional(nonNeg) })),
   exercises: v.optional(
-    v.array(v.object({ exerciseRef: v.string(), exerciseName: v.string(), sets: v.array(v.object({ type: setType, reps: nonNeg, weightKg: nonNeg })) })),
+    v.array(
+      v.object({
+        exerciseRef: v.string(),
+        exerciseName: v.string(),
+        supersetId: v.optional(v.string()),
+        mode: exerciseMode,
+        load: exerciseLoad,
+        sets: v.array(v.object({ type: setType, reps: nonNeg, weightKg: nonNeg, durationSec: v.optional(nonNeg), bodyweightKg: v.optional(nonNeg) })),
+      }),
+    ),
   ),
 });
 const customExercise = v.object({ ...base, name: v.string(), primary: v.array(v.string()), equipment: v.optional(v.string()) });

@@ -112,7 +112,7 @@ Where this document or PLAN.md says "USDA", read "Frida" for the bundled food da
 - Dedup: in-flight map by normalized query; identical queries share one request.
 
 ### 3.6 Workouts (`src/features/workout`)
-- Strength: workout → exercises (ordered) → sets `{type, reps, weightKg}`; "Last time" shown from the most recent prior workout containing the exercise, via `exerciseSets` index.
+- Strength: workout → exercises (ordered, optional `supersetId` linking neighbours, `mode` reps|time, `load` weight|bodyweight) → sets `{type, reps, weightKg, durationSec?, bodyweightKg?}` (for bodyweight sets `weightKg` = body weight snapshot + added load; no schema migration, all fields optional); "Last time" shown from the most recent prior workout containing the exercise, via `exerciseSets` index.
 - "Repeat last workout" copies structure into a new workout on the selected day with weights prefilled and `done=false`.
 - Templates save/load structure; deleting a template MUST NOT affect logged workouts.
 - Bundled vs. custom exercises/activities: separate ID namespaces (`ex:`, `act:`, `cx:`, `ca:`); workouts store both ref and name snapshot.

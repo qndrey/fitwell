@@ -1,6 +1,7 @@
 import { a11yScan } from '../helpers/a11y';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { ean13Modules } from '../helpers/ean';
+import { openAddFood } from '../helpers/addFood';
 
 const CODE = '4006381333931';
 const PRODUCT = { status: 1, code: CODE, product: { product_name: 'Test highlighter bar', brands: 'Acme', nutriments: { 'energy-kcal_100g': 120, proteins_100g: 3, carbohydrates_100g: 20, fat_100g: 2 } } };
@@ -54,7 +55,7 @@ async function openScanner(page: Page) {
   await page.goto('/');
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   await page.getByRole('button', { name: 'Scan a barcode' }).click();
   return page.getByRole('dialog').last();
 }
@@ -121,7 +122,7 @@ test('offline: keep the barcode, it joins the queue and is looked up when back o
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
   await context.setOffline(true);
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   await page.getByRole('button', { name: 'Scan a barcode' }).click();
   const d = page.getByRole('dialog').last();
   await expect(d.getByText("You're offline")).toBeVisible({ timeout: 15_000 });
@@ -172,7 +173,7 @@ test('no scan button when online lookup is switched off', async ({ page }) => {
   await page.goto('/#/settings');
   await page.getByLabel('Look up foods online').uncheck();
   await page.getByRole('link', { name: 'Today' }).click();
-  await page.getByRole('button', { name: 'Add food', exact: true }).click();
+  await openAddFood(page);
   await expect(page.getByRole('button', { name: 'Scan a barcode' })).toHaveCount(0);
 });
 

@@ -1,5 +1,6 @@
 import { a11yScan } from '../helpers/a11y';
 import { expect, test } from '@playwright/test';
+import { openAddFood } from '../helpers/addFood';
 
 for (const scheme of ['light', 'dark'] as const) {
   for (const screen of ['today', 'history', 'progress', 'settings']) {
@@ -33,7 +34,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`axe: add-food sheet steps (${scheme})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Add food', exact: true }).first().click();
+    await openAddFood(page);
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Search foods').fill('banana');
     await expect(dialog.getByRole('button', { name: /^Banana, raw/ })).toBeVisible();

@@ -249,8 +249,10 @@ test.describe('Every screen, both themes', () => {
 
   test('keyboard: sheets open from the keyboard, Escape closes them, focus returns to the opener', async ({ page }) => {
     await ready(page);
-    const add = page.getByRole('button', { name: 'Add food', exact: true });
+    const add = page.getByRole('button', { name: 'Add', exact: true });
     await add.focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Tab'); // first menu item: Add food
     await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByLabel('Search foods')).toBeFocused();

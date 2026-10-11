@@ -98,6 +98,21 @@ describe('exercise drawings', () => {
     expect(svg).toContain('fig-trace');
     expect(figureAt(TEMPLATES.plank!, 1, { ghost: true, trace: true })).not.toContain('fig-ghost');
   });
+
+  it('marks where the figure is on the path while it moves', () => {
+    expect(figureAt(TEMPLATES.curl!, 0.5, { trace: true })).toContain('fig-trace-dot');
+    expect(figureAt(TEMPLATES.curl!, 0.5)).not.toContain('fig-trace-dot');
+    expect(figureAt(TEMPLATES['squat-barbell']!, 0.5, { trace: true })).not.toContain('fig-trace'); // trace: 'none'
+  });
+
+  it.each(Object.keys(TEMPLATES))('%s names the body parts doing the work, and only those are highlighted', (id) => {
+    const tpl = TEMPLATES[id]!;
+    expect(tpl.work?.length, id).toBeGreaterThan(0);
+    const svg = figureAt(tpl, 1, { ghost: true });
+    const hot = [...svg.matchAll(/class="fig-seg fig-(\w+) hot"/g)].map((m) => m[1]);
+    expect(new Set(hot)).toEqual(new Set(tpl.work));
+    expect(svg).not.toMatch(/fig-ghost-g">[^]*?hot[^]*?<\/g>/); // the faint copy stays plain
+  });
 });
 
 describe('matching exercises to drawings', () => {

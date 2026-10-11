@@ -30,6 +30,8 @@ export interface Pose {
 }
 
 export type Hold = 'barbell' | 'dumbbell' | 'kettlebell' | 'wheel' | 'cable-low' | 'cable-mid' | 'cable-high' | 'cable-over';
+/** Body parts a template can mark as doing the work; they are drawn in the accent colour. */
+export type Segment = 'torso' | 'thigh' | 'shin' | 'uarm' | 'farm';
 export type Prop = 'bench' | 'seat' | 'incline' | 'hand-bench' | 'back-bench' | 'rear-bench' | 'pullup-bar' | 'dip-bars' | 'low-bar' | 'step' | 'preacher' | 'hyper';
 
 export interface Template {
@@ -49,6 +51,8 @@ export interface Template {
   trace?: 'wrist' | 'ankle' | 'knee' | 'hip' | 'head' | 'none';
   /** Which end of the motion tells it apart best in a small picture (default: the end position). */
   thumb?: 0 | 1;
+  /** The body parts doing the work, drawn in the accent colour. */
+  work?: Segment[];
   /** The near hand goes to this joint (holding a shin, a bar on the hips), whatever the arm angles say. `bend` picks the elbow side. */
   reach?: { to: 'hip' | 'knee' | 'ankle' | 'toe'; bend?: 1 | -1 };
 }
@@ -336,9 +340,12 @@ export function draw(tpl: Template, t: number): Drawing {
   return out;
 }
 
+/** The joint whose path shows the direction of the motion, if any. */
+export const traceJoint = (tpl: Template) => tpl.trace ?? (tpl.hold ? 'wrist' : 'none');
+
 /** The path one joint takes from start to end, for drawing the direction of the motion. */
 export function tracePath(tpl: Template): Pt[] | undefined {
-  const joint = tpl.trace ?? (tpl.hold ? 'wrist' : 'none');
+  const joint = traceJoint(tpl);
   if (joint === 'none') return undefined;
   const at = placement(tpl);
   const pts = Array.from({ length: 25 }, (_, i) => at(i / 24)[joint]);

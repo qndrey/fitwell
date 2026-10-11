@@ -206,7 +206,7 @@ const en = {
   'exercise.noEquipment': 'No equipment',
   'exercise.howTo': 'How to',
   'exercise.noSteps': 'No instructions for this one.',
-  'exercise.fig.alt': 'stick figure showing the movement from start to end',
+  'exercise.fig.alt': 'stick figure showing the movement from start to end, with the working muscles highlighted',
   'exercise.fig.start': 'Start position',
   'exercise.fig.end': 'End position',
   'exercise.fig.play': 'Play',

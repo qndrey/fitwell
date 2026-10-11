@@ -15,45 +15,53 @@ const plankHigh = { torso: 109.8, uarm: 0, farm: 0, thigh: 289.8, shin: 289.8, f
 export const TEMPLATES: Record<string, Template> = {
   // ── Squats and lunges ────────────────────────────────────────────
   'squat-bodyweight': {
+    work: ['thigh'],
     trace: 'hip',
     start: { ...stand, uarm: 90, farm: 90 },
     end: { torso: 145, uarm: 95, farm: 95, thigh: 95, shin: 330 },
   },
   'squat-barbell': {
+    work: ['thigh'],
     hold: 'barbell',
     trace: 'none',
     start: { ...stand, uarm: 350, farm: 190 },
     end: { torso: 145, uarm: 315, farm: 155, thigh: 95, shin: 330 },
   },
   'front-squat': {
+    work: ['thigh'],
     hold: 'barbell',
     trace: 'none',
     start: { ...stand, uarm: 95, farm: 245 },
     end: { torso: 162, uarm: 77, farm: 227, thigh: 100, shin: 328 },
   },
   'overhead-squat': {
+    work: ['thigh'],
     hold: 'barbell',
     trace: 'none',
     start: { ...stand, uarm: 182, farm: 182 },
     end: { torso: 148, uarm: 192, farm: 192, thigh: 98, shin: 328 },
   },
   'squat-goblet': {
+    work: ['thigh'],
     hold: 'dumbbell',
     trace: 'none',
     start: { ...stand, uarm: 20, farm: 160 },
     end: { torso: 162, uarm: 5, farm: 145, thigh: 98, shin: 332 },
   },
   'jump-squat': {
+    work: ['thigh'],
     trace: 'hip',
     start: { torso: 145, uarm: -30, farm: -25, thigh: 95, shin: 330 },
     end: { ...stand, uarm: 135, farm: 140, foot: 25, rise: 6 },
   },
   lunge: {
+    work: ['thigh'],
     trace: 'hip',
     start: { ...stand, thigh2: 0, shin2: 0, foot2: 90 },
     end: { ...stand, thigh: 85, shin: 0, thigh2: -35, shin2: -90, foot2: -47 },
   },
   'step-up': {
+    work: ['thigh'],
     props: ['step'],
     trace: 'hip',
     start: { ...stand, thigh: 68.6, shin: 354.7, thigh2: 0, shin2: 0 },
@@ -62,34 +70,40 @@ export const TEMPLATES: Record<string, Template> = {
 
   // ── Hinges ───────────────────────────────────────────────────────
   deadlift: {
+    work: ['torso', 'thigh'],
     thumb: 0,
     hold: 'barbell',
     start: { torso: 120, uarm: 0, farm: 0, thigh: 73, shin: 345 },
     end: stand,
   },
   'romanian-deadlift': {
+    work: ['thigh'],
     hold: 'barbell',
     start: stand,
     end: { torso: 100, uarm: 0, farm: 0, thigh: 12, shin: 355 },
   },
   'good-morning': {
+    work: ['thigh'],
     hold: 'barbell',
     trace: 'head',
     start: { ...stand, uarm: 350, farm: 190 },
     end: { torso: 100, uarm: 270, farm: 110, thigh: 12, shin: 355 },
   },
   'kettlebell-swing': {
+    work: ['thigh'],
     hold: 'kettlebell',
     start: { torso: 122, uarm: -20, farm: -28, thigh: 38, shin: 345 },
     end: { ...stand, uarm: 95, farm: 95 },
   },
   clean: {
+    work: ['thigh', 'torso'],
     hold: 'barbell',
     start: { torso: 120, uarm: 0, farm: 0, thigh: 73, shin: 345 },
     via: [{ ...stand, torso: 185, foot: 40 }],
     end: { torso: 172, uarm: 100, farm: 245, thigh: 40, shin: 340 },
   },
   'hip-thrust': {
+    work: ['thigh'],
     hold: 'barbell',
     props: ['back-bench'],
     reach: { to: 'hip', bend: -1 },
@@ -98,12 +112,14 @@ export const TEMPLATES: Record<string, Template> = {
     end: { torso: 270, head: 262, uarm: 0, farm: 0, thigh: 94, shin: -0.8 },
   },
   'glute-bridge': {
+    work: ['thigh'],
     pin: 'shoulder',
     trace: 'hip',
     start: { ...supine, uarm: 90, farm: 90 },
     end: { torso: 292, head: 280, uarm: 90, farm: 90, thigh: 102, shin: 15 },
   },
   'back-extension': {
+    work: ['torso'],
     props: ['hyper'],
     trace: 'head',
     start: { torso: 15, uarm: 185, farm: 25, thigh: 300, shin: 300, foot: 30 },
@@ -112,40 +128,47 @@ export const TEMPLATES: Record<string, Template> = {
 
   // ── Pushing ──────────────────────────────────────────────────────
   'bench-press': {
+    work: ['uarm', 'torso'],
     hold: 'barbell',
     props: ['bench'],
     start: { torso: 270, head: 268, uarm: 80, farm: 170, thigh: 90, shin: 0 },
     end: { torso: 270, head: 268, uarm: 178, farm: 180, thigh: 90, shin: 0 },
   },
   'incline-press': {
+    work: ['uarm', 'torso'],
     hold: 'dumbbell',
     props: ['incline'],
     start: { torso: 225, uarm: 45, farm: 165, thigh: 90, shin: 0 },
     end: { torso: 225, uarm: 160, farm: 165, thigh: 90, shin: 0 },
   },
   'overhead-press': {
+    work: ['uarm'],
     hold: 'barbell',
     start: { ...stand, uarm: 20, farm: 170 },
     end: { ...stand, uarm: 175, farm: 180 },
   },
   'seated-press': {
+    work: ['uarm'],
     hold: 'dumbbell',
     props: ['seat'],
     start: { ...sit, uarm: 20, farm: 170 },
     end: { ...sit, uarm: 175, farm: 180 },
   },
   'push-press': {
+    work: ['uarm', 'thigh'],
     hold: 'barbell',
     start: { ...stand, uarm: 20, farm: 170 },
     via: [{ torso: 175, uarm: 20, farm: 170, thigh: 32, shin: 335 }],
     end: { ...stand, uarm: 175, farm: 180 },
   },
   thruster: {
+    work: ['uarm', 'thigh'],
     hold: 'barbell',
     start: { torso: 160, uarm: 77, farm: 227, thigh: 98, shin: 328 },
     end: { ...stand, uarm: 175, farm: 180 },
   },
   'push-up': {
+    work: ['uarm', 'torso'],
     thumb: 0,
     pin: 'toe',
     trace: 'head',
@@ -155,6 +178,7 @@ export const TEMPLATES: Record<string, Template> = {
     end: { torso: 94, uarm: -79.75, farm: 53.25, thigh: 274, shin: 274, foot: 0 },
   },
   dip: {
+    work: ['uarm'],
     anchor: 'bar',
     barY: 36,
     pin: 'wrist',
@@ -164,6 +188,7 @@ export const TEMPLATES: Record<string, Template> = {
     end: { torso: 162, uarm: 300, farm: 20, thigh: 25, shin: 320 },
   },
   'bench-dip': {
+    work: ['uarm'],
     props: ['hand-bench'],
     trace: 'hip',
     start: { torso: 180, uarm: -33, farm: 10.4, thigh: 88, shin: 0 },
@@ -172,17 +197,20 @@ export const TEMPLATES: Record<string, Template> = {
 
   // ── Pulling ──────────────────────────────────────────────────────
   row: {
+    work: ['torso', 'uarm'],
     thumb: 0,
     hold: 'barbell',
     start: { torso: 115, uarm: 0, farm: 0, thigh: 20, shin: 345 },
     end: { torso: 115, uarm: 235, farm: 5, thigh: 20, shin: 345 },
   },
   'upright-row': {
+    work: ['uarm'],
     hold: 'barbell',
     start: stand,
     end: { ...stand, uarm: 100, farm: 275 },
   },
   'pull-up': {
+    work: ['torso', 'uarm'],
     anchor: 'bar',
     pin: 'wrist',
     props: ['pullup-bar'],
@@ -191,6 +219,7 @@ export const TEMPLATES: Record<string, Template> = {
     end: { torso: 185, uarm: 312, farm: 180, thigh: 10, shin: 310 },
   },
   'inverted-row': {
+    work: ['torso', 'uarm'],
     pin: 'ankle',
     props: ['low-bar'],
     trace: 'head',
@@ -199,28 +228,33 @@ export const TEMPLATES: Record<string, Template> = {
     end: { torso: 224.4, head: 224.4, uarm: 270, farm: 123.3, thigh: 44.4, shin: 44.4, foot: 140 },
   },
   'lat-pulldown': {
+    work: ['torso', 'uarm'],
     hold: 'cable-over',
     props: ['seat'],
     start: { ...sit, torso: 188, uarm: 178, farm: 178 },
     end: { ...sit, torso: 192, uarm: 355, farm: 160 },
   },
   'seated-cable-row': {
+    work: ['torso', 'uarm'],
     hold: 'cable-mid',
     props: ['seat'],
     start: { torso: 165, uarm: 90, farm: 90, thigh: 82, shin: 75 },
     end: { torso: 185, uarm: 325, farm: 85, thigh: 82, shin: 75 },
   },
   'straight-arm-pulldown': {
+    work: ['torso'],
     hold: 'cable-high',
     start: { torso: 165, uarm: 140, farm: 140, thigh: 8, shin: 355 },
     end: { torso: 165, uarm: 5, farm: 5, thigh: 8, shin: 355 },
   },
   'face-pull': {
+    work: ['uarm'],
     hold: 'cable-mid',
     start: { ...stand, uarm: 100, farm: 100 },
     end: { ...stand, uarm: 100, farm: 250 },
   },
   'hanging-leg-raise': {
+    work: ['torso', 'thigh'],
     anchor: 'bar',
     pin: 'wrist',
     props: ['pullup-bar'],
@@ -231,28 +265,33 @@ export const TEMPLATES: Record<string, Template> = {
 
   // ── Arms and shoulders ───────────────────────────────────────────
   curl: {
+    work: ['uarm'],
     hold: 'dumbbell',
     start: stand,
     end: { ...stand, farm: 160 },
   },
   'preacher-curl': {
+    work: ['uarm'],
     hold: 'barbell',
     props: ['preacher'],
     start: { ...sit, torso: 168, uarm: 42, farm: 55 },
     end: { ...sit, torso: 168, uarm: 42, farm: 168 },
   },
   'concentration-curl': {
+    work: ['uarm'],
     hold: 'dumbbell',
     props: ['seat'],
     start: { ...sit, torso: 128, uarm: 2, farm: 0 },
     end: { ...sit, torso: 128, uarm: 2, farm: 150 },
   },
   'triceps-extension': {
+    work: ['uarm'],
     hold: 'dumbbell',
     start: { ...stand, uarm: 180, farm: 330 },
     end: { ...stand, uarm: 180, farm: 180 },
   },
   'skull-crusher': {
+    work: ['uarm'],
     hold: 'barbell',
     props: ['bench'],
     thumb: 0,
@@ -260,27 +299,32 @@ export const TEMPLATES: Record<string, Template> = {
     end: { torso: 270, head: 268, uarm: 175, farm: 180, thigh: 90, shin: 0 },
   },
   kickback: {
+    work: ['uarm'],
     hold: 'dumbbell',
     start: { torso: 105, uarm: 285, farm: 0, thigh: 15, shin: 345 },
     end: { torso: 105, uarm: 285, farm: 285, thigh: 15, shin: 345 },
   },
   'triceps-pushdown': {
+    work: ['uarm'],
     hold: 'cable-high',
     start: { ...stand, torso: 175, uarm: 0, farm: 140 },
     end: { ...stand, torso: 175, uarm: 0, farm: 0 },
   },
   pullover: {
+    work: ['torso'],
     hold: 'dumbbell',
     props: ['bench'],
     start: { torso: 270, head: 268, uarm: 178, farm: 178, thigh: 90, shin: 0 },
     end: { torso: 270, head: 268, uarm: 268, farm: 275, thigh: 90, shin: 0 },
   },
   raise: {
+    work: ['uarm'],
     hold: 'dumbbell',
     start: stand,
     end: { ...stand, uarm: 90, farm: 90 },
   },
   'arm-circles': {
+    work: ['uarm'],
     trace: 'wrist',
     start: { ...stand, uarm: 20, farm: 20 },
     via: [{ ...stand, uarm: 110, farm: 110 }, { ...stand, uarm: 200, farm: 200 }, { ...stand, uarm: 290, farm: 290 }],
@@ -289,11 +333,13 @@ export const TEMPLATES: Record<string, Template> = {
 
   // ── Core ─────────────────────────────────────────────────────────
   plank: {
+    work: ['torso'],
     pin: 'toe',
     start: { torso: 99, uarm: 0, farm: 90, thigh: 279, shin: 279, foot: 0 },
     end: { torso: 99, uarm: 0, farm: 90, thigh: 279, shin: 279, foot: 0 },
   },
   'mountain-climber': {
+    work: ['thigh'],
     pin: 'wrist',
     trace: 'knee',
     start: { ...plankHigh, thigh2: 289.8, shin2: 289.8, foot2: 0 },
@@ -301,47 +347,55 @@ export const TEMPLATES: Record<string, Template> = {
     end: { ...plankHigh, thigh: 420, shin: 265, foot: 300, thigh2: 289.8, shin2: 289.8, foot2: 0 },
   },
   crunch: {
+    work: ['torso'],
     pin: 'hip',
     trace: 'head',
     start: { ...supine, uarm: 225, farm: 20 },
     end: { ...supine, torso: 240, head: 225, uarm: 200, farm: 0 },
   },
   'sit-up': {
+    work: ['torso'],
     pin: 'hip',
     trace: 'head',
     start: { ...supine, uarm: 225, farm: 20 },
     end: { ...supine, torso: 195, head: 185, uarm: 160, farm: 330 },
   },
   'reverse-crunch': {
+    work: ['torso'],
     pin: 'shoulder',
     trace: 'knee',
     start: { torso: 270, head: 266, uarm: 90, farm: 90, thigh: 175, shin: 90 },
     end: { torso: 285, head: 272, uarm: 90, farm: 90, thigh: 225, shin: 130 },
   },
   'lying-leg-raise': {
+    work: ['torso'],
     pin: 'hip',
     trace: 'ankle',
     start: { ...flat, uarm: 90, farm: 90, thigh: 95, shin: 95 },
     end: { ...flat, uarm: 90, farm: 90, thigh: 178, shin: 178 },
   },
   'flutter-kick': {
+    work: ['thigh'],
     pin: 'hip',
     start: { ...flat, uarm: 90, farm: 90, thigh: 108, shin: 108, thigh2: 128, shin2: 128 },
     end: { ...flat, uarm: 90, farm: 90, thigh: 128, shin: 128, thigh2: 108, shin2: 108 },
   },
   'dead-bug': {
+    work: ['torso'],
     pin: 'hip',
     trace: 'wrist',
     start: { torso: 270, head: 266, uarm: 180, farm: 180, uarm2: 180, thigh: 180, shin: 90, thigh2: 180, shin2: 90 },
     end: { torso: 270, head: 266, uarm: 268, farm: 268, uarm2: 180, thigh: 180, shin: 90, thigh2: 98, shin2: 98 },
   },
   'ab-rollout': {
+    work: ['torso'],
     hold: 'wheel',
     pin: 'knee',
     start: { torso: 118, uarm: 22.2, farm: 22.2, thigh: 18, shin: 270, foot: 270 },
     end: { torso: 97, uarm: 81.8, farm: 81.8, thigh: 72, shin: 270, foot: 270 },
   },
   'hanging-knee-raise': {
+    work: ['torso'],
     anchor: 'bar',
     pin: 'wrist',
     props: ['pullup-bar'],
@@ -350,6 +404,7 @@ export const TEMPLATES: Record<string, Template> = {
     end: { torso: 178, uarm: 180, farm: 180, thigh: 110, shin: 5 },
   },
   superman: {
+    work: ['torso'],
     pin: 'hip',
     trace: 'head',
     start: { torso: 90, head: 90, uarm: 90, farm: 90, thigh: 270, shin: 270, foot: 270 },
@@ -358,23 +413,27 @@ export const TEMPLATES: Record<string, Template> = {
 
   // ── Glutes and legs ──────────────────────────────────────────────
   'glute-kickback': {
+    work: ['thigh'],
     pin: 'wrist',
     trace: 'ankle',
     start: { torso: 108.4, uarm: 0, farm: 0, thigh: 0, shin: 270, foot: 270, thigh2: 0, shin2: 270, foot2: 270 },
     end: { torso: 108.4, uarm: 0, farm: 0, thigh: -98, shin: 170, foot: 170, thigh2: 0, shin2: 270, foot2: 270 },
   },
   'calf-raise': {
+    work: ['shin'],
     pin: 'toe',
     trace: 'head',
     start: { ...stand, foot: 90 },
     end: { ...stand, foot: 35 },
   },
   'tuck-jump': {
+    work: ['thigh'],
     trace: 'knee',
     start: { torso: 165, uarm: -20, farm: -20, thigh: 40, shin: 335 },
     end: { torso: 175, uarm: 60, farm: 110, thigh: 110, shin: 10, foot: 30, rise: 14 },
   },
   'farmers-walk': {
+    work: ['farm'],
     hold: 'dumbbell',
     pin: 'hip',
     trace: 'none',
@@ -384,34 +443,40 @@ export const TEMPLATES: Record<string, Template> = {
 
   // ── Stretches ────────────────────────────────────────────────────
   'toe-touch': {
+    work: ['thigh'],
     trace: 'wrist',
     start: { ...stand, uarm: 175, farm: 175 },
     end: { torso: 38, head: 30, uarm: 12, farm: 12, thigh: -14, shin: 8 },
   },
   'seated-hamstring-stretch': {
+    work: ['thigh'],
     pin: 'hip',
     reach: { to: 'toe', bend: -1 },
     start: { ...flat, torso: 180, head: 180, uarm: 90, farm: 90, grip: 0 },
     end: { ...flat, torso: 122, head: 112, uarm: 90, farm: 90 },
   },
   'quad-stretch': {
+    work: ['thigh'],
     reach: { to: 'ankle', bend: 1 },
     start: { ...stand, grip: 0, thigh2: 0, shin2: 0 },
     end: { ...stand, thigh: 12, shin: -160, foot: -100, thigh2: 0, shin2: 0 },
   },
   'knee-to-chest': {
+    work: ['torso'],
     pin: 'hip',
     reach: { to: 'knee', bend: -1 },
     start: { ...flat, uarm: 90, farm: 90, grip: 0 },
     end: { ...flat, uarm: 150, farm: 150, thigh: 210, shin: 120, foot: 150 },
   },
   'childs-pose': {
+    work: ['torso'],
     pin: 'knee',
     trace: 'hip',
     start: { torso: 180, uarm: 175, farm: 175, thigh: 0, shin: 270, foot: 270 },
     end: { torso: 84, head: 75, uarm: 92, farm: 90, thigh: 75, shin: 270, foot: 270 },
   },
   'leg-swing': {
+    work: ['thigh'],
     trace: 'ankle',
     start: { ...stand, uarm: 30, farm: 30, thigh: -25, shin: -25, foot: 70, thigh2: 0, shin2: 0 },
     end: { ...stand, uarm: 330, farm: 330, thigh: 80, shin: 80, foot: 130, thigh2: 0, shin2: 0 },

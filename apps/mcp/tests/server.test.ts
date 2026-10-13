@@ -105,7 +105,7 @@ describe('fitwell MCP server', () => {
     expect(res.isError).toBe(true);
   });
 
-  it('start_workout resolves library ids into a plan and points at the player view', async () => {
+  it('start_workout resolves library ids into a stored plan and points at the player view', async () => {
     const client = await connect();
     const { tools } = await client.listTools();
     const start = tools.find((t) => t.name === 'start_workout')!;
@@ -118,12 +118,16 @@ describe('fitwell MCP server', () => {
       ],
     });
     expect(isError).toBe(false);
-    const plan = data.workout as { workoutId: string; exercises: { name: string; restSec: number; sets: { reps: number; weightKg?: number }[] }[] };
+    const plan = data.workout as { workoutId: string; exercises: { name: string; restSec: number; bodyweight: boolean; sets: { id: string; targetReps: number; weightKg?: number; done: boolean }[] }[] };
     expect(plan.workoutId).toMatch(/^[0-9a-f-]{36}$/);
     expect(plan.exercises.map((e) => e.name)).toEqual(['Barbell Squat', 'Pullups']);
-    expect(plan.exercises[0]!.sets).toEqual([{ reps: 5, weightKg: 80 }, { reps: 5, weightKg: 80 }, { reps: 5, weightKg: 80 }]);
+    expect(plan.exercises[0]!.sets).toEqual([
+      { id: 's1.1', targetReps: 5, weightKg: 80, done: false },
+      { id: 's1.2', targetReps: 5, weightKg: 80, done: false },
+      { id: 's1.3', targetReps: 5, weightKg: 80, done: false },
+    ]);
+    expect(plan.exercises[1]).toMatchObject({ bodyweight: true, restSec: 90 });
     expect(plan.exercises[1]!.sets[0]!.weightKg).toBeUndefined();
-    expect(plan.exercises[0]!.restSec).toBe(90);
   });
 
   it('start_workout names unknown exercise ids', async () => {
@@ -143,9 +147,11 @@ describe('fitwell MCP server', () => {
     expect(item.text).not.toMatch(/<script[^>]+src=|<link[^>]+stylesheet/); // nothing external to load
   });
 
-  it('log_set acknowledges a set from the player', async () => {
+  it('log_set saves a set of a stored workout and refuses unknown sets', async () => {
     const client = await connect();
-    const { data } = await call(client, 'log_set', { workoutId: crypto.randomUUID(), exerciseId: 'ex:Barbell_Squat', setNumber: 1, reps: 5, weightKg: 80 });
-    expect(data.saved).toBe(true);
+    const { data } = await call(client, 'start_workout', { exercises: [{ id: 'ex:Barbell_Squat', sets: 1, reps: 5, weight_kg: 80 }] });
+    const workoutId = (data.workout as { workoutId: string }).workoutId;
+    expect((await call(client, 'log_set', { workoutId, setId: 's1.1', reps: 5, weightKg: 82.5 })).data.saved).toBe(true);
+    expect((await call(client, 'log_set', { workoutId, setId: 's9.9', reps: 5 })).isError).toBe(true);
   });
 });

@@ -5,6 +5,8 @@ import { json } from './result';
 
 export interface AccountDeps {
   data: UserData;
+  /** Everything else the person stored (workouts, templates), merged into the export. */
+  extraExport: () => Promise<Record<string, unknown>>;
   email: string;
   /** Erases the person's data and signs them out everywhere (revokes every OAuth grant). */
   deleteAccount: () => Promise<void>;
@@ -17,11 +19,11 @@ export function registerAccountTools(server: McpServer, deps: AccountDeps) {
     'export_my_data',
     {
       title: 'Export my data',
-      description: 'Everything Fitwell stores about the person (profile, goals, food log, own foods) as JSON, for their own copy.',
+      description: 'Everything Fitwell stores about the person (profile, goals, food log, own foods, workouts, templates) as JSON, for their own copy.',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
-    async () => json({ exportedAt: new Date().toISOString(), email: deps.email, ...(await deps.data.exportAll()) }),
+    async () => json({ exportedAt: new Date().toISOString(), email: deps.email, ...(await deps.data.exportAll()), ...(await deps.extraExport()) }),
   );
 
   server.registerTool(

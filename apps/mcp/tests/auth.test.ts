@@ -236,6 +236,8 @@ describe('email sign-in', () => {
   it('serves the privacy notice', async () => {
     const res = await worker.fetch(new Request(`${ORIGIN}/privacy`), env, ctx);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('EU');
+    const text = await res.text();
+    expect(text).toContain('EU');
+    expect(text).toContain('privacy@fitwell.test');
   });
 });

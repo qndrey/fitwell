@@ -43,7 +43,7 @@ const site = {
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
       return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL });
     }
-    if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL ?? env.MAIL_FROM));
+    if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
     if (url.pathname === '/') return new Response(`Fitwell MCP server. Add ${env.PUBLIC_URL}/mcp to Claude as a custom connector.\n`, { headers: { 'content-type': 'text/plain' } });
     return new Response('Not found', { status: 404 });
   },

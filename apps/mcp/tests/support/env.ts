@@ -15,6 +15,7 @@ export function createTestEnv(overrides: Partial<Env> = {}) {
       },
     },
     MAIL_FROM: 'login@fitwell.fyi',
+    CONTACT_EMAIL: 'privacy@fitwell.test',
     PUBLIC_URL: 'https://mcp.fitwell.test',
     DEV_UNAUTHENTICATED: '',
     ...overrides,

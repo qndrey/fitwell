@@ -1,8 +1,14 @@
-/** The workout the player view runs. Built by `start_workout` from library ids; shared by the server and the view. */
+/** The workout the player view runs. Built by `start_workout`; shared by the server and the view. */
 export interface PlannedSet {
-  reps: number;
+  /** Stable id inside the workout; `log_set` refers to it. */
+  id: string;
+  targetReps: number;
   /** Absent for bodyweight exercises. */
   weightKg?: number;
+  done: boolean;
+  skipped?: boolean;
+  /** What was actually done, once logged. */
+  reps?: number;
 }
 
 export interface PlannedExercise {
@@ -10,22 +16,20 @@ export interface PlannedExercise {
   name: string;
   equipment: string;
   restSec: number;
+  bodyweight: boolean;
   sets: PlannedSet[];
+  /** "3×5 @ 80 kg" from the last session with this exercise. */
+  lastTime?: string;
+  /** Why the planned weight is what it is (progression rule), when the server chose it. */
+  note?: string;
 }
 
 export interface WorkoutPlan {
   workoutId: string;
   name: string;
+  startedAt: number;
+  finished: boolean;
   exercises: PlannedExercise[];
-}
-
-/** What the view sends to `log_set` after each set. */
-export interface LoggedSet {
-  workoutId: string;
-  exerciseId: string;
-  setNumber: number;
-  reps: number;
-  weightKg?: number;
 }
 
 export const WORKOUT_VIEW_URI = 'ui://fitwell/workout.html';

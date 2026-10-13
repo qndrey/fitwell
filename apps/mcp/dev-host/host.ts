@@ -6,9 +6,9 @@ import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/
 const SAMPLE = {
   name: 'Full body',
   exercises: [
-    { id: 'ex:Barbell_Squat', sets: 3, reps: 5, weight_kg: 80, rest_sec: 5 },
-    { id: 'ex:Pullups', sets: 2, reps: 8, rest_sec: 5 },
-    { id: 'ex:Barbell_Bench_Press_-_Medium_Grip', sets: 3, reps: 8, weight_kg: 60, rest_sec: 5 },
+    { id: 'ex:Barbell_Squat', sets: 2, reps: 5, rest_sec: 3 },
+    { id: 'ex:Pullups', sets: 1, reps: 8, rest_sec: 3 },
+    { id: 'ex:Barbell_Bench_Press_-_Medium_Grip', sets: 1, reps: 8, weight_kg: 60, rest_sec: 3 },
   ],
 };
 

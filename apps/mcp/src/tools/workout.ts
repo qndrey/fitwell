@@ -1,20 +1,110 @@
-import { loadExercises } from '@fitwell/core/data/exercises';
+import { ACTIVITIES } from '@fitwell/core/data/activities';
+import { loadExercises, type Exercise } from '@fitwell/core/data/exercises';
+import { addDays, isDay } from '@fitwell/core/domain/dates';
+import { estimateKcal } from '@fitwell/core/domain/met';
+import { suggestProgression, type Progression, type SessionSets } from '@fitwell/core/domain/progression';
+import { estimatedOneRepMax, formatDuration, summarizeSets } from '@fitwell/core/domain/workouts';
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import { todayIn } from '../data/time';
+import type { UserData } from '../data/userData';
+import type { StoredExercise, StoredSet, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
 import workoutHtml from '../ui/generated/workout';
-import { WORKOUT_VIEW_URI, type WorkoutPlan } from '../workout/plan';
+import { WORKOUT_VIEW_URI, type PlannedExercise, type WorkoutPlan } from '../workout/plan';
 import { json, toolError } from './result';
 
-/**
- * Phase 0b spike: the interactive workout player. Sets are acknowledged but not stored yet (no database
- * until phase 1); the point is to prove the view renders and calls back in every Claude client.
- */
-export async function registerWorkoutTools(server: McpServer) {
+export interface WorkoutDeps {
+  data: UserData;
+  workouts: WorkoutData;
+}
+
+const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
+const exerciseId = z.string().regex(/^ex:/, 'Library ids start with "ex:"');
+const planItem = z.object({
+  id: exerciseId,
+  sets: z.number().int().min(1).max(10),
+  reps: z.number().int().min(1).max(50),
+  weight_kg: z.number().min(0).max(500).optional().describe('Omit to use the suggestion from past sessions (or last time\'s weight)'),
+  rest_sec: z.number().int().min(0).max(600).default(90),
+});
+
+const r1 = (n: number) => Math.round(n * 10) / 10;
+const isBodyweight = (ex: Exercise) => ex.equipment === 'body only';
+const sessionOf = (d: string, e: StoredExercise): SessionSets => ({ day: d, sets: e.sets });
+
+/** "3×5 @ 80 kg", "8, 8, 6 @ BW", or one line for a cardio session. */
+function summarizeExercise(e: StoredExercise): string {
+  return summarizeSets(e.sets, 'metric', { load: e.load });
+}
+
+function summarizeWorkout(w: Workout) {
+  if (w.type === 'cardio' && w.cardio) {
+    const c = w.cardio;
+    return { id: w.id, day: w.day, type: 'cardio' as const, activity: c.activityName, minutes: c.durationMin, ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}), ...(c.kcalOverride ?? c.kcalEstimated ? { kcal: c.kcalOverride ?? c.kcalEstimated } : {}) };
+  }
+  const minutes = w.startedAt && w.finishedAt ? Math.round((w.finishedAt - w.startedAt) / 60000) : undefined;
+  return {
+    id: w.id,
+    day: w.day,
+    type: 'strength' as const,
+    name: w.name,
+    finished: w.finishedAt !== null,
+    ...(minutes !== undefined ? { minutes } : {}),
+    exercises: w.exercises.map((e) => ({ id: e.exerciseRef, name: e.exerciseName, done: summarizeExercise(e) || 'nothing logged' })),
+  };
+}
+
+/** The player's view of a stored workout (also used to resume one). */
+function toPlan(w: Workout): WorkoutPlan {
+  return {
+    workoutId: w.id,
+    name: w.name ?? 'Workout',
+    startedAt: w.startedAt ?? w.createdAt,
+    finished: w.finishedAt !== null,
+    exercises: w.exercises.map(
+      (e): PlannedExercise => ({
+        id: e.exerciseRef,
+        name: e.exerciseName,
+        equipment: e.equipment ?? '',
+        restSec: e.restSec ?? 90,
+        bodyweight: e.load === 'bodyweight',
+        sets: e.sets.map((s) => ({
+          id: s.id,
+          targetReps: s.targetReps ?? s.reps,
+          ...(e.load === 'bodyweight' ? {} : { weightKg: s.weightKg }),
+          done: s.done !== false,
+          ...(s.done !== false ? { reps: s.reps } : {}),
+          ...(s.skipped ? { skipped: true } : {}),
+        })),
+        ...(e.lastTime ? { lastTime: e.lastTime } : {}),
+        ...(e.note ? { note: e.note } : {}),
+      }),
+    ),
+  };
+}
+
+export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps) {
   const lib = await loadExercises();
   const byId = new Map(lib.exercises.map((e) => [e.ref, e]));
+  const { data, workouts } = deps;
 
-  registerAppResource(server, 'Workout player', WORKOUT_VIEW_URI, { description: 'Runs a workout: sets, reps, weights and rest timer.' }, async () => ({
+  /** Last time + suggestion for each exercise id. */
+  async function history(ids: string[], exclude?: string) {
+    const sessions = await workouts.recentSessions(ids, 3, exclude);
+    const out = new Map<string, { lastTime?: string; lastDay?: string; progression: Progression | null }>();
+    for (const id of ids) {
+      const list = sessions.get(id) ?? [];
+      const last = list[0];
+      out.set(id, {
+        ...(last ? { lastTime: summarizeExercise(last.exercise), lastDay: last.day } : {}),
+        progression: suggestProgression(list.map((s) => sessionOf(s.day, s.exercise)), byId.get(id)?.equipment),
+      });
+    }
+    return out;
+  }
+
+  registerAppResource(server, 'Workout player', WORKOUT_VIEW_URI, { description: 'Runs a workout: sets, reps, weights, rest timer, last time.' }, async () => ({
     contents: [{ uri: WORKOUT_VIEW_URI, mimeType: RESOURCE_MIME_TYPE, text: workoutHtml }],
   }));
 
@@ -24,41 +114,91 @@ export async function registerWorkoutTools(server: McpServer) {
     {
       title: 'Start a workout',
       description:
-        'Opens the interactive workout player for a workout you planned. Use exercise ids from search_exercises. ' +
-        'Give each exercise its sets, target reps, weight in kg (omit for bodyweight) and rest. The person logs each set in the player; ' +
-        'when they finish, the player sends you a summary.',
+        'Opens the interactive workout player and saves the workout. Give either a saved template (template_id from list_workout_templates) or exercises ' +
+        '(ids from search_exercises) with sets, target reps, weight in kg and rest. Leave weight_kg out to let Fitwell fill it from past sessions ' +
+        '(progression rule: add a step when every set hit its reps, repeat after a miss, deload after two). Bodyweight exercises need no weight. ' +
+        'Each exercise shows "last time" in the player. The person logs sets there; at the end the player sends you a summary. ' +
+        'save_as_template stores the plan under a name for next time.',
       inputSchema: z.object({
-        name: z.string().min(1).max(60).default('Workout'),
-        exercises: z
-          .array(
-            z.object({
-              id: z.string().regex(/^ex:/, 'Library ids start with "ex:"'),
-              sets: z.number().int().min(1).max(10),
-              reps: z.number().int().min(1).max(50),
-              weight_kg: z.number().min(0).max(500).optional(),
-              rest_sec: z.number().int().min(0).max(600).default(90),
-            }),
-          )
-          .min(1)
-          .max(15),
+        name: z.string().min(1).max(60).optional(),
+        template_id: z.uuid().optional(),
+        exercises: z.array(planItem).min(1).max(15).optional(),
+        save_as_template: z.string().min(1).max(60).optional(),
       }),
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI } },
     },
-    async ({ name, exercises }) => {
-      const unknown = exercises.filter((e) => !byId.has(e.id)).map((e) => e.id);
+    async (args) => {
+      let items: TemplateExercise[];
+      let templateId: string | null = null;
+      let name = args.name;
+      if (args.template_id) {
+        const t = await workouts.template(args.template_id);
+        if (!t) return toolError('No such template. Use list_workout_templates.');
+        items = t.exercises;
+        templateId = t.id;
+        name ??= t.name;
+        await workouts.touchTemplate(t.id);
+      } else if (args.exercises) {
+        items = args.exercises.map((e) => ({ id: e.id, sets: e.sets, reps: e.reps, ...(e.weight_kg !== undefined ? { weightKg: e.weight_kg } : {}), restSec: e.rest_sec }));
+      } else {
+        return toolError('Give template_id or exercises.');
+      }
+      const unknown = items.filter((e) => !byId.has(e.id)).map((e) => e.id);
       if (unknown.length) return toolError(`Unknown exercise ids: ${unknown.join(', ')}. Use search_exercises to find valid ids.`);
-      const plan: WorkoutPlan = {
-        workoutId: crypto.randomUUID(),
-        name,
-        exercises: exercises.map((e) => {
-          const ex = byId.get(e.id)!;
-          return { id: e.id, name: ex.name, equipment: ex.equipment, restSec: e.rest_sec, sets: Array.from({ length: e.sets }, () => ({ reps: e.reps, weightKg: e.weight_kg })) };
-        }),
-      };
-      const summary = plan.exercises.map((e) => `${e.name} ${e.sets.length}×${e.sets[0]!.reps}${e.sets[0]!.weightKg ? ` @ ${e.sets[0]!.weightKg} kg` : ''}`).join('; ');
-      const result = json({ workout: plan });
-      result.content = [{ type: 'text', text: `Workout "${name}" is open in the player: ${summary}.` }];
+      if (args.save_as_template) templateId = (await workouts.saveTemplate(args.save_as_template, items)).id;
+
+      const past = await history(items.map((e) => e.id));
+      const profile = await data.profile();
+      const exercises: StoredExercise[] = items.map((item, i) => {
+        const ex = byId.get(item.id)!;
+        const bodyweight = isBodyweight(ex);
+        const h = past.get(item.id)!;
+        const p = h.progression;
+        // An explicit weight wins; otherwise the progression suggestion; otherwise last time's working weight.
+        const weightKg = bodyweight ? (profile.weightKg ?? 0) : (item.weightKg ?? p?.weightKg ?? 0);
+        const note = item.weightKg !== undefined || bodyweight ? undefined : (p?.reason ?? 'No earlier sessions to go on: choose a starting weight.');
+        const sets: StoredSet[] = Array.from({ length: item.sets }, (_, k) => ({
+          id: `s${i + 1}.${k + 1}`,
+          type: 'working',
+          reps: item.reps,
+          targetReps: item.reps,
+          weightKg,
+          ...(bodyweight && profile.weightKg ? { bodyweightKg: profile.weightKg } : {}),
+          done: false,
+        }));
+        return {
+          uid: `e${i + 1}`,
+          exerciseRef: item.id,
+          exerciseName: ex.name,
+          equipment: ex.equipment,
+          load: bodyweight ? 'bodyweight' : 'weight',
+          restSec: item.restSec,
+          sets,
+          ...(h.lastTime ? { lastTime: `${h.lastTime} (${h.lastDay})` } : {}),
+          ...(note ? { note } : {}),
+        };
+      });
+      const w = await workouts.create({ day: todayIn(profile.timeZone), type: 'strength', name: name ?? 'Workout', startedAt: Date.now(), finishedAt: null, exercises, cardio: null, templateId });
+      const lines = exercises.map((e) => `${e.exerciseName} ${e.sets.length}×${e.sets[0]!.targetReps}${e.load === 'bodyweight' ? '' : ` @ ${e.sets[0]!.weightKg} kg`}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`);
+      const result = json({ workout: toPlan(w), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
+      result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.` }];
       return result;
+    },
+  );
+
+  registerAppTool(
+    server,
+    'get_workout',
+    {
+      title: 'Current state of a workout',
+      description: 'The stored state of a workout, so the player can pick up where it left off after a reload or on another device.',
+      inputSchema: z.object({ workoutId: z.uuid() }),
+      annotations: { readOnlyHint: true },
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
+    },
+    async ({ workoutId }) => {
+      const w = await workouts.get(workoutId);
+      return w && w.type === 'strength' ? json({ workout: toPlan(w) }) : toolError('No such workout.');
     },
   );
 
@@ -67,16 +207,195 @@ export async function registerWorkoutTools(server: McpServer) {
     'log_set',
     {
       title: 'Log a set',
-      description: 'Called by the workout player when a set is done.',
+      description: 'Called by the workout player when a set is done or skipped. Saves it to the workout.',
       inputSchema: z.object({
         workoutId: z.uuid(),
-        exerciseId: z.string().regex(/^ex:/),
-        setNumber: z.number().int().min(1).max(10),
+        setId: z.string().max(20),
         reps: z.number().int().min(0).max(100),
         weightKg: z.number().min(0).max(500).optional(),
+        skip: z.boolean().default(false),
       }),
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
-    async (set) => json({ saved: true, stored: false, loggedAt: new Date().toISOString(), set }),
+    async ({ workoutId, setId, reps, weightKg, skip }) => {
+      const w = await workouts.get(workoutId);
+      if (!w || w.type !== 'strength') return toolError('No such workout.');
+      let found = false;
+      const exercises = w.exercises.map((e) => ({
+        ...e,
+        sets: e.sets.map((s) => {
+          if (s.id !== setId) return s;
+          found = true;
+          if (skip) return { ...s, done: false, skipped: true };
+          const bodyweight = e.load === 'bodyweight';
+          const next: StoredSet = { ...s, reps, weightKg: bodyweight ? s.weightKg : (weightKg ?? s.weightKg), done: true };
+          delete next.skipped;
+          return next;
+        }),
+      }));
+      if (!found) return toolError('No such set in this workout.');
+      await workouts.saveExercises(workoutId, exercises);
+      return json({ saved: true, setId });
+    },
+  );
+
+  registerAppTool(
+    server,
+    'finish_workout',
+    {
+      title: 'Finish a workout',
+      description: 'Marks a workout finished and returns its summary: sets per exercise, volume, time, and personal records (best estimated 1RM, Epley). The player calls it; call it yourself if the person says they are done in chat.',
+      inputSchema: z.object({ workoutId: z.uuid() }),
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI } },
+    },
+    async ({ workoutId }) => {
+      const w = await workouts.get(workoutId);
+      if (!w || w.type !== 'strength') return toolError('No such workout.');
+      const finishedAt = w.finishedAt ?? Date.now();
+      if (!w.finishedAt) await workouts.saveExercises(workoutId, w.exercises, finishedAt);
+      const prior = await workouts.recentSessions(w.exercises.map((e) => e.exerciseRef), 20, workoutId);
+      const best = (sets: StoredSet[]) => Math.max(0, ...sets.filter((s) => s.done !== false && s.type === 'working').map((s) => estimatedOneRepMax(s.weightKg, s.reps) ?? 0));
+      let volumeKg = 0;
+      const exercises = w.exercises.map((e) => {
+        const done = e.sets.filter((s) => s.done !== false && s.type === 'working');
+        if (e.load !== 'bodyweight') volumeKg += done.reduce((n, s) => n + s.weightKg * s.reps, 0);
+        const now = best(e.sets);
+        const before = Math.max(0, ...(prior.get(e.exerciseRef) ?? []).map((p) => best(p.exercise.sets)));
+        return {
+          name: e.exerciseName,
+          done: summarizeExercise(e) || 'skipped',
+          ...(e.load !== 'bodyweight' && now > 0 ? { estimated1rmKg: r1(now) } : {}),
+          ...(e.load !== 'bodyweight' && now > 0 && before > 0 && now > before + 0.01 ? { personalRecord: `New best estimated 1RM: ${r1(now)} kg (was ${r1(before)} kg)` } : {}),
+        };
+      });
+      const minutes = Math.round((finishedAt - (w.startedAt ?? w.createdAt)) / 60000);
+      return json({ workoutId, name: w.name, day: w.day, minutes, volumeKg: Math.round(volumeKg), exercises });
+    },
+  );
+
+  server.registerTool(
+    'get_workout_history',
+    {
+      title: 'Workout history',
+      description: 'Past workouts (strength and cardio) over a period, newest first, or the sessions of one exercise with its best set and estimated 1RM.',
+      inputSchema: z.object({ days: z.number().int().min(1).max(365).default(30), to: day.optional(), exercise_id: exerciseId.optional() }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ days, to, exercise_id }) => {
+      const end = to ?? todayIn((await data.profile()).timeZone);
+      const list = await workouts.between(addDays(end, -(days - 1)), end);
+      if (!exercise_id) return json({ from: addDays(end, -(days - 1)), to: end, workouts: list.map(summarizeWorkout) });
+      const sessions = list.flatMap((w) =>
+        w.exercises
+          .filter((e) => e.exerciseRef === exercise_id)
+          .map((e) => {
+            const working = e.sets.filter((s) => s.done !== false && s.type === 'working' && s.reps > 0);
+            const top = working.reduce<StoredSet | null>((b, s) => ((estimatedOneRepMax(s.weightKg, s.reps) ?? 0) > (b ? (estimatedOneRepMax(b.weightKg, b.reps) ?? 0) : -1) ? s : b), null);
+            return { day: w.day, done: summarizeExercise(e), ...(top && e.load !== 'bodyweight' ? { bestSet: `${top.reps} @ ${top.weightKg} kg`, estimated1rmKg: r1(estimatedOneRepMax(top.weightKg, top.reps) ?? 0) } : {}) };
+          }),
+      );
+      return json({ exercise: byId.get(exercise_id)?.name ?? exercise_id, sessions });
+    },
+  );
+
+  server.registerTool(
+    'suggest_progression',
+    {
+      title: 'Suggest next weights',
+      description: 'For each exercise (or every exercise of a template): what was done last time and what to do next, from a fixed rule (add 2.5 kg, 2 kg for dumbbells, when every set hit its reps; repeat after a miss; deload ~10 % after two misses; bodyweight: one more rep).',
+      inputSchema: z.object({ exercise_ids: z.array(exerciseId).min(1).max(15).optional(), template_id: z.uuid().optional() }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ exercise_ids, template_id }) => {
+      const ids = template_id ? (await workouts.template(template_id))?.exercises.map((e) => e.id) : exercise_ids;
+      if (!ids?.length) return toolError('Give exercise_ids or a valid template_id.');
+      const h = await history(ids);
+      return json({
+        exercises: ids.map((id) => {
+          const x = h.get(id)!;
+          return { id, name: byId.get(id)?.name ?? id, ...(x.lastTime ? { lastTime: x.lastTime, lastDay: x.lastDay } : { lastTime: null }), next: x.progression };
+        }),
+      });
+    },
+  );
+
+  server.registerTool(
+    'save_workout_template',
+    {
+      title: 'Save a workout template',
+      description: 'Save a named workout plan ("Push day") to start later with start_workout. Saving under an existing name replaces it. Leave weights out to use progression each time.',
+      inputSchema: z.object({ name: z.string().min(1).max(60), exercises: z.array(planItem).min(1).max(15) }),
+    },
+    async ({ name, exercises }) => {
+      const unknown = exercises.filter((e) => !byId.has(e.id)).map((e) => e.id);
+      if (unknown.length) return toolError(`Unknown exercise ids: ${unknown.join(', ')}.`);
+      const t = await workouts.saveTemplate(name, exercises.map((e) => ({ id: e.id, sets: e.sets, reps: e.reps, ...(e.weight_kg !== undefined ? { weightKg: e.weight_kg } : {}), restSec: e.rest_sec })));
+      return json({ template: { id: t.id, name: t.name, exercises: t.exercises.map((e) => ({ ...e, name: byId.get(e.id)?.name })) } });
+    },
+  );
+
+  server.registerTool(
+    'list_workout_templates',
+    { title: 'Workout templates', description: 'Saved workout templates, most recently used first.', inputSchema: z.object({}), annotations: { readOnlyHint: true } },
+    async () => json({ templates: (await workouts.templates()).map((t) => ({ id: t.id, name: t.name, exercises: t.exercises.map((e) => `${byId.get(e.id)?.name ?? e.id} ${e.sets}×${e.reps}${e.weightKg !== undefined ? ` @ ${e.weightKg} kg` : ''}`) })) }),
+  );
+
+  server.registerTool(
+    'delete_workout_template',
+    { title: 'Delete a workout template', description: 'Remove a saved template (past workouts are kept).', inputSchema: z.object({ id: z.uuid() }), annotations: { destructiveHint: true, idempotentHint: true } },
+    async ({ id }) => ((await workouts.deleteTemplate(id)) ? json({ deleted: id }) : toolError('No such template.')),
+  );
+
+  server.registerTool(
+    'delete_workout',
+    { title: 'Delete a workout', description: 'Remove one workout (strength or cardio) from the history.', inputSchema: z.object({ id: z.uuid() }), annotations: { destructiveHint: true, idempotentHint: true } },
+    async ({ id }) => ((await workouts.delete(id)) ? json({ deleted: id }) : toolError('No such workout. Use get_workout_history to see ids.')),
+  );
+
+  const activityIds = ACTIVITIES.map((a) => a.id) as [string, ...string[]];
+  server.registerTool(
+    'log_cardio',
+    {
+      title: 'Log cardio',
+      description:
+        'Record a cardio session or activity. activity_id is one of the listed Compendium activities (MET values); calories are estimated as MET × body weight × hours ' +
+        "from the profile weight, unless the person gives a number (e.g. from a watch) as kcal. day defaults to today. " +
+        `Activities: ${ACTIVITIES.map((a) => `${a.id} = ${a.name}`).join('; ')}.`,
+      inputSchema: z.object({
+        activity_id: z.enum(activityIds),
+        duration_min: z.number().min(1).max(1440),
+        distance_km: z.number().min(0).max(1000).optional(),
+        kcal: z.number().min(0).max(10000).optional().describe('Only if the person has a measured number'),
+        day: day.optional(),
+      }),
+    },
+    async ({ activity_id, duration_min, distance_km, kcal, day: d }) => {
+      const a = ACTIVITIES.find((x) => x.id === activity_id)!;
+      const profile = await data.profile();
+      const estimated = estimateKcal(a.met, profile.weightKg ?? undefined, duration_min);
+      const w = await workouts.create({
+        day: d ?? todayIn(profile.timeZone),
+        type: 'cardio',
+        name: a.name,
+        startedAt: null,
+        finishedAt: Date.now(),
+        exercises: [],
+        cardio: {
+          activityRef: a.id,
+          activityName: a.name,
+          met: a.met,
+          durationMin: duration_min,
+          ...(distance_km !== undefined ? { distanceKm: distance_km } : {}),
+          ...(estimated !== undefined ? { kcalEstimated: estimated, weightKgUsed: profile.weightKg! } : {}),
+          ...(kcal !== undefined ? { kcalOverride: kcal } : {}),
+        },
+        templateId: null,
+      });
+      return json({
+        logged: summarizeWorkout(w),
+        ...(distance_km ? { pace: `${formatDuration(Math.round((duration_min * 60) / distance_km))} per km` } : {}),
+        ...(kcal === undefined && estimated === undefined ? { note: 'No body weight in the profile, so no calorie estimate. Save it with update_profile.' } : {}),
+      });
+    },
   );
 }

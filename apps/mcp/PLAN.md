@@ -71,7 +71,8 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 
 **Phase 1: accounts and food logging**
 - [ ] OAuth (workers-oauth-provider) with email sign-in: `/authorize` asks for an email; invited addresses get a link + 6-digit code (single use, 10 min, stored hashed, bound to the pending authorization request); same answer whether or not the address is invited; rate limits per email and IP; 5 wrong codes void the request. Consent screen on first sign-in.
-- [ ] Email sender: see open items.
+- [ ] Email sender: **Cloudflare Email Routing on the free plan, sending only to verified destination addresses** from an own domain on Cloudflare (decided 2026-10-13). Inviting someone = adding their address as a destination; they confirm Cloudflare's verification email once. The invite list in the Worker and the verified list must agree; sign-in for an unverified address fails closed with the same neutral message.
+- [ ] Domain: bought by the user at Cloudflare Registrar; Email Routing enabled on it (adds MX/SPF records). The MCP server itself may stay on `workers.dev` or move to the domain.
 - [ ] D1 in EU jurisdiction, migrations in `apps/mcp/migrations`, per-user scoping enforced in one data-access layer and tested (user A can never read user B).
 - [ ] Profile, goals, food log tools; OFF cache in D1; `export_my_data`, `delete_my_account`.
 - [ ] Exit: log a day of food from Claude on a phone; totals match `@fitwell/core` `dayTotals`.
@@ -95,5 +96,5 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
 - **Exercise search ranking** puts variants ("Bench Press with Chains") before the plain lift; the web import matcher already prefers plain versions; reuse it for `search_exercises`.
 - **EU jurisdiction for D1**: confirm the current setting and that it is available on the free plan before creating the database.
-- **Email sender for sign-in** (to decide): Cloudflare Email Sending needs Workers Paid for arbitrary recipients; on Free it can send only to verified destination addresses, which fits invite-only use (inviting = adding the address; the person confirms once). All options need a domain for sender authentication (SPF/DKIM). EU alternatives: Brevo (Paris, free tier). Others: Resend (EU region, free tier), MailChannels API (free 100/day).
+- **Email sending on the free plan** works only to verified destination addresses, and Cloudflare marks outbound sending as beta. Confirm the `send_email` binding behaviour when building phase 1. Fallback: Workers Paid (about $5/month, sends to anyone).
 - **GDPR**: privacy notice, consent record, export and delete in phase 1; Cloudflare DPA applies.

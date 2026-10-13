@@ -3,6 +3,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 import { handleAuthorize, SCOPE } from './auth/login';
 import { cloudflareMailer } from './auth/mailer';
 import { page, privacyBody } from './auth/pages';
+import { handleImport } from './import/routes';
 import { cachedOff } from './data/offCache';
 import { deleteUser, findUser, inviteUser, recordLogin, type User } from './data/users';
 import { offClient } from './off';
@@ -25,6 +26,7 @@ async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'ema
       createServer({
         off: cachedOff(env.DB, offClient()),
         db: env.DB,
+        publicUrl: env.PUBLIC_URL,
         user,
         deleteAccount: async () => {
           // Sign out everywhere first, then erase the data.
@@ -43,6 +45,7 @@ const site = {
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
       return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL });
     }
+    if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
     if (url.pathname === '/') return new Response(`Fitwell MCP server. Add ${env.PUBLIC_URL}/mcp to Claude as a custom connector.\n`, { headers: { 'content-type': 'text/plain' } });
     return new Response('Not found', { status: 404 });

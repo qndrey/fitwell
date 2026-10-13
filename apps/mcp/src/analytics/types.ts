@@ -1,0 +1,52 @@
+// The shape of the progress numbers. Pure types, shared with the dashboard view (which can't see server code).
+import type { Day } from '@fitwell/core/domain/dates';
+
+export interface WeightProgress {
+  daily: { day: Day; kg: number }[];
+  /** 7-day trailing average; only where the window holds at least 3 weigh-ins (gaps stay gaps). */
+  average: { day: Day; kg: number }[];
+  latestKg: number | null;
+  latestDay: Day | null;
+  /** Change of the smoothed line over the period. */
+  trendChangeKg: number | null;
+  goalKg: number | null;
+  /** Distance from the goal weight, always positive; the direction is the person's to read. */
+  fromGoalKg: number | null;
+}
+
+export interface NutritionProgress {
+  daily: { day: Day; kcal: number; protein: number; carbs: number; fat: number }[];
+  daysLogged: number;
+  averagePerLoggedDay: { kcal: number; protein: number; carbs: number; fat: number } | null;
+  goals: { kcal: number | null; proteinG: number | null; carbsG: number | null; fatG: number | null };
+  /** Calories within 10 % of the goal, protein at 90 % of the goal or more; only when that goal is set. */
+  adherence: { kcalWithin10Pct: number | null; proteinReached: number | null; ofDays: number };
+}
+
+export interface TrainingProgress {
+  weeks: { week: Day; strength: number; cardio: number; cardioMin: number; sets: Record<string, number> }[];
+  sessions: { strength: number; cardio: number };
+  averageStrengthMin: number | null;
+  /** Working sets per primary muscle, averaged over the weeks in the period. */
+  setsPerWeekByMuscle: { muscle: string; sets: number }[];
+  goalWorkoutsPerWeek: number | null;
+}
+
+export interface RecordsProgress {
+  exercises: { id: string; name: string; sessions: number; firstE1rmKg: number; latestE1rmKg: number; bestE1rmKg: number; bestDay: Day; points: { day: Day; e1rmKg: number }[] }[];
+}
+
+export interface MeasurementProgress {
+  types: { key: string; label: string; unit: 'cm' | '%'; firstDay: Day; first: number; latestDay: Day; latest: number; change: number }[];
+}
+
+export interface Progress {
+  from: Day;
+  to: Day;
+  days: number;
+  weight: WeightProgress;
+  nutrition: NutritionProgress;
+  training: TrainingProgress;
+  records: RecordsProgress;
+  measurements: MeasurementProgress;
+}

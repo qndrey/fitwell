@@ -13,6 +13,7 @@ label{display:grid;gap:6px}input[type=email],input[type=text]{font:inherit;font-
 input.code{font-size:1.6rem;letter-spacing:.4em;text-align:center;font-variant-numeric:tabular-nums}
 .check{display:flex;gap:10px;align-items:flex-start}.check input{width:22px;height:22px;margin-top:2px;flex:none}
 button{font:inherit;min-height:48px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;padding:0 16px}
+button:disabled{opacity:.5;cursor:not-allowed}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
 .actions{display:grid;gap:8px}a{color:inherit}
 `;

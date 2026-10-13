@@ -81,6 +81,39 @@ describe('strength workouts', () => {
   });
 });
 
+describe('past workouts', () => {
+  const past = (day: string, sets: [number, number][], id = SQUAT) => call(client, 'log_past_workout', { day, exercises: [{ id, sets: sets.map(([reps, weight_kg]) => ({ reps, weight_kg })) }] });
+
+  it('stores a finished workout on the given day, with the summary of finishing one', async () => {
+    const { data, isError } = await call(client, 'log_past_workout', { day: '2026-09-01', name: 'Legs', minutes: 50, exercises: [{ id: SQUAT, sets: [{ reps: 5, weight_kg: 80 }, { reps: 5, weight_kg: 80 }] }, { id: PULLUP, sets: [{ reps: 8 }, { reps: 7 }] }] });
+    expect(isError).toBe(false);
+    expect(data).toMatchObject({ name: 'Legs', day: '2026-09-01', minutes: 50, volumeKg: 800, exercises: [{ name: 'Barbell Squat', done: '2×5 @ 80 kg', estimated1rmKg: 93.3 }, { name: 'Pullups', done: '8 @ BW, 7 @ BW' }] });
+    const hist = (await call(client, 'get_workout_history', { days: 60, to: '2026-09-30' })).data.workouts as { day: string; finished: boolean; minutes?: number }[];
+    expect(hist).toEqual([expect.objectContaining({ day: '2026-09-01', finished: true, minutes: 50 })]);
+  });
+
+  it('measures a personal record only against sessions up to that day', async () => {
+    await past('2026-09-01', [[5, 80]]);
+    const later = await past('2026-09-10', [[5, 85]]);
+    expect((later.data.exercises as { personalRecord?: string }[])[0]!.personalRecord).toContain('was 93.3 kg');
+    // Backdated between the two: beats the first session (80), not the later one (85).
+    const between = await past('2026-09-05', [[5, 82.5]]);
+    expect((between.data.exercises as { personalRecord?: string }[])[0]!.personalRecord).toBe('New best estimated 1RM: 96.3 kg (was 93.3 kg)');
+    // And a lighter one before everything has nothing to beat.
+    const first = await past('2026-08-20', [[5, 60]]);
+    expect((first.data.exercises as { personalRecord?: string }[])[0]!.personalRecord).toBeUndefined();
+  });
+
+  it('feeds last time and progression like any workout, and rejects unknown ids', async () => {
+    await past('2026-09-01', [[5, 80], [5, 80], [5, 80]]);
+    const next = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5 }] });
+    expect(next.exercises[0]!.sets[0]!.weightKg).toBe(82.5);
+    expect(next.exercises[0]!.lastTime).toContain('3×5 @ 80 kg (2026-09-01)');
+    const bad = await call(client, 'log_past_workout', { day: '2026-09-01', exercises: [{ id: 'ex:Nope', sets: [{ reps: 5 }] }] });
+    expect(bad.isError).toBe(true);
+  });
+});
+
 describe('templates', () => {
   it('saves, lists, starts from and deletes a template', async () => {
     const saved = await call(client, 'save_workout_template', { name: 'Push day', exercises: [{ id: SQUAT, sets: 3, reps: 5 }, { id: PULLUP, sets: 3, reps: 8, rest_sec: 120 }] });

@@ -13,14 +13,14 @@ A remote MCP server so Claude (claude.ai, desktop and mobile) can track food and
 | Food data | Frida 5.5 (DTU, CC BY 4.0) + Open Food Facts (ODbL). Claude may estimate a food only when it says so. | European sources, same as the web app. |
 | Who reasons | Claude plans meals and workouts; the server stores, validates and calculates (macro totals, grocery list, volume, e1RM, trends). | The server never calls an LLM; deterministic numbers. |
 | Interactive UI | MCP Apps (`@modelcontextprotocol/ext-apps`): workout player and dashboard as `ui://` resources. Every tool also works as plain text. | Renders inline in Claude; text fallback where a client has no UI. |
-| Sign-in | `@cloudflare/workers-oauth-provider` (MCP OAuth 2.1 + dynamic client registration) with Google as the identity provider and an email allow-list. | No passwords stored; free; invite-only by allow-list. Alternative: email magic link (needs an email sender). |
+| Sign-in | `@cloudflare/workers-oauth-provider` (MCP OAuth 2.1 + dynamic client registration) with **email sign-in** for invited addresses: one email carrying a magic link **and** a 6-digit code (decided 2026-10-13, replaces Google sign-in). | No passwords, no third-party identity provider. The code covers the common phone case where the emailed link opens in a different browser than Claude's sign-in sheet. |
 | Language | TypeScript, strict. | Same as the rest of the repo. |
 
 ## 2. Architecture
 
 ```
 Claude ──HTTPS──▶ Worker (apps/mcp)
-                   ├─ /authorize, /token, /register   workers-oauth-provider ──▶ Google sign-in, allow-list
+                   ├─ /authorize, /token, /register   workers-oauth-provider ──▶ email link + code, invite list
                    ├─ /mcp                             createMcpHandler(factory, authInfo = signed-in user)
                    │    └─ tools ──▶ @fitwell/core (domain, Frida, exercises, OFF client)
                    │              ──▶ D1 (EU): user data, OFF lookup cache
@@ -70,7 +70,8 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [ ] Verify it renders and calls back in Claude **desktop, web, iOS and Android**. Record results here. If mobile does not render it, the workout runs as a text flow there.
 
 **Phase 1: accounts and food logging**
-- [ ] OAuth (workers-oauth-provider + Google, allow-list in a secret), consent screen on first sign-in.
+- [ ] OAuth (workers-oauth-provider) with email sign-in: `/authorize` asks for an email; invited addresses get a link + 6-digit code (single use, 10 min, stored hashed, bound to the pending authorization request); same answer whether or not the address is invited; rate limits per email and IP; 5 wrong codes void the request. Consent screen on first sign-in.
+- [ ] Email sender: see open items.
 - [ ] D1 in EU jurisdiction, migrations in `apps/mcp/migrations`, per-user scoping enforced in one data-access layer and tested (user A can never read user B).
 - [ ] Profile, goals, food log tools; OFF cache in D1; `export_my_data`, `delete_my_account`.
 - [ ] Exit: log a day of food from Claude on a phone; totals match `@fitwell/core` `dayTotals`.
@@ -94,4 +95,5 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
 - **Exercise search ranking** puts variants ("Bench Press with Chains") before the plain lift; the web import matcher already prefers plain versions; reuse it for `search_exercises`.
 - **EU jurisdiction for D1**: confirm the current setting and that it is available on the free plan before creating the database.
+- **Email sender for sign-in** (to decide): Cloudflare Email Sending needs Workers Paid for arbitrary recipients; on Free it can send only to verified destination addresses, which fits invite-only use (inviting = adding the address; the person confirms once). All options need a domain for sender authentication (SPF/DKIM). EU alternatives: Brevo (Paris, free tier). Others: Resend (EU region, free tier), MailChannels API (free 100/day).
 - **GDPR**: privacy notice, consent record, export and delete in phase 1; Cloudflare DPA applies.

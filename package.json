@@ -1,65 +1,26 @@
 {
-  "name": "fitwell",
+  "name": "fitwell-monorepo",
   "private": true,
-  "version": "1.0.0-rc.1",
   "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --port 4173",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "vitest run",
-    "test:e2e": "playwright test",
-    "contrast": "tsx scripts/check-contrast.ts",
-    "licenses": "license-checker-rseidelsohn --production --excludePrivatePackages --onlyAllow \"MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;OFL-1.1\"",
-    "size": "size-limit",
-    "build:foods": "tsx scripts/build-foods.ts",
-    "tokens": "tsx scripts/check-tokens.ts",
-    "check": "npm run typecheck && npm run lint && npm test && npm run contrast && npm run tokens",
-    "smoke:off": "tsx scripts/smoke-off.ts",
-    "build:exercises": "tsx scripts/build-exercises.ts",
-    "build:licenses": "tsx scripts/build-licenses.ts",
-    "check:about": "tsx scripts/build-licenses.ts --check",
-    "lighthouse": "tsx scripts/lighthouse.ts"
-  },
-  "dependencies": {
-    "@fontsource-variable/figtree": "^5.3.0",
-    "@preact/signals": "^2.11.3",
-    "barcode-detector": "^3.2.2",
-    "idb": "^8.0.4",
-    "lucide-preact": "^1.54.0",
-    "preact": "^11.0.1",
-    "valibot": "^1.5.0"
-  },
-  "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
-    "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.64.0",
-    "@preact/preset-vite": "^2.10.6",
-    "@size-limit/file": "^14.2.0",
-    "@types/node": "^26.6.4",
-    "eslint": "^10.12.0",
-    "fake-indexeddb": "^6.2.5",
-    "license-checker-rseidelsohn": "^5.0.1",
-    "lighthouse": "^13.5.0",
-    "read-excel-file": "^9.3.12",
-    "size-limit": "^14.2.0",
-    "tsx": "^4.23.15",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.1",
-    "vite": "^8.3.4",
-    "vite-plugin-pwa": "^2.0.0",
-    "vitest": "^5.0.3"
-  },
-  "size-limit": [
-    {
-      "path": [
-        "dist/assets/index-*.js",
-        "dist/assets/ui-*.js"
-      ],
-      "limit": "90 kB",
-      "gzip": true
-    }
-  ]
+    "dev": "npm run dev -w @fitwell/web --",
+    "dev:mcp": "npm run dev -w @fitwell/mcp --",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "check": "npm run check --workspaces --if-present",
+    "build": "npm run build -w @fitwell/web",
+    "preview": "npm run preview -w @fitwell/web --",
+    "test:e2e": "npm run test:e2e -w @fitwell/web",
+    "contrast": "npm run contrast -w @fitwell/web",
+    "tokens": "npm run tokens -w @fitwell/web",
+    "licenses": "npm run licenses -w @fitwell/web",
+    "check:about": "npm run check:about -w @fitwell/web",
+    "size": "npm run size -w @fitwell/web",
+    "lighthouse": "npm run lighthouse -w @fitwell/web"
+  }
 }

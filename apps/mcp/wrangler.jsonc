@@ -1,0 +1,30 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "fitwell-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Required by the OAuth provider for Client ID Metadata Documents (SSRF protection on outbound fetches).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "observability": { "enabled": true },
+  // One public address on the own domain; no *.workers.dev URL.
+  "routes": [{ "pattern": "mcp.fitwell.fyi", "custom_domain": true }],
+  "workers_dev": false,
+  // Without this, `wrangler dev` presents requests as mcp.fitwell.fyi (the route host); local dev needs localhost.
+  "dev": { "ip": "127.0.0.1", "port": 8787, "host": "127.0.0.1:8787" },
+  // Views (ui/*) are bundled into src/ui/generated before every dev session and deploy.
+  "build": { "command": "npm run build:ui", "watch_dir": ["ui", "src", "../../packages/core/src"] },
+  "vars": {
+    // The public origin; .dev.vars overrides it for local development.
+    "PUBLIC_URL": "https://mcp.fitwell.fyi",
+    // Sign-in emails come from here (Email Routing must be enabled on fitwell.fyi).
+    "MAIL_FROM": "login@fitwell.fyi",
+    // Contact on the privacy notice (/privacy).
+    "CONTACT_EMAIL": "fitwell.fyi@pm.me"
+  },
+  // Created with --jurisdiction eu on 2026-10-13 (data stays in the EU). Local dev uses a local SQLite copy.
+  "d1_databases": [{ "binding": "DB", "database_name": "fitwell", "database_id": "5cc25386-c8a7-480d-9f79-155155abb62c", "migrations_dir": "migrations" }],
+  // OAuth clients, grants and tokens (stored hashed/encrypted by the library).
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "1caef8faebdb4c3081d4dfef8602773c" }],
+  // Sign-in emails. On the free plan only verified destination addresses (the invite list) can receive them.
+  "send_email": [{ "name": "EMAIL" }]
+}

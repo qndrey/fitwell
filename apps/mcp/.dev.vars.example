@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `npm run dev -w @fitwell/mcp`. Never set DEV_UNAUTHENTICATED on a deployed Worker
+# (it is ignored on non-localhost hosts anyway).
+DEV_UNAUTHENTICATED=true
+PUBLIC_URL=http://127.0.0.1:8787

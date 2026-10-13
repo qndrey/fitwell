@@ -1,0 +1,42 @@
+{
+  "name": "@fitwell/mcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Fitwell for Claude: a remote MCP server on Cloudflare Workers.",
+  "scripts": {
+    "build:ui": "tsx scripts/build-ui.ts",
+    "dev": "wrangler dev",
+    "dev:host": "tsx scripts/dev-host.ts",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply fitwell --local",
+    "invite": "tsx scripts/invite.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "types": "wrangler types",
+    "pretypecheck": "npm run build:ui",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p ui/workout && tsc --noEmit -p dev-host",
+    "lint": "eslint .",
+    "pretest": "npm run build:ui",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^1.2.3",
+    "@fitwell/core": "*",
+    "@modelcontextprotocol/ext-apps": "^2.0.3",
+    "@modelcontextprotocol/server": "^2.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/node": "^26.6.4",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.149.0"
+  }
+}

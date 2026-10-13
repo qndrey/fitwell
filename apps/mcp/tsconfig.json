@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    // Workers runtime types come from worker-configuration.d.ts (`npm run types`); node only for the SDK's Buffer references and tests.
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "scripts", "worker-configuration.d.ts", "vitest.config.ts", "eslint.config.js"]
+}

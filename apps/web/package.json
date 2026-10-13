@@ -1,0 +1,62 @@
+{
+  "name": "@fitwell/web",
+  "private": true,
+  "version": "1.0.0-rc.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "contrast": "tsx scripts/check-contrast.ts",
+    "licenses": "tsx scripts/check-licenses.ts",
+    "size": "size-limit",
+    "tokens": "tsx scripts/check-tokens.ts",
+    "check": "npm run typecheck && npm run lint && npm test && npm run contrast && npm run tokens",
+    "smoke:off": "tsx scripts/smoke-off.ts",
+    "build:licenses": "tsx scripts/build-licenses.ts",
+    "check:about": "tsx scripts/build-licenses.ts --check",
+    "lighthouse": "tsx scripts/lighthouse.ts"
+  },
+  "dependencies": {
+    "@fitwell/core": "*",
+    "@fontsource-variable/figtree": "^5.3.0",
+    "@preact/signals": "^2.11.3",
+    "barcode-detector": "^3.2.2",
+    "idb": "^8.0.4",
+    "lucide-preact": "^1.54.0",
+    "preact": "^11.0.1",
+    "valibot": "^1.5.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "@preact/preset-vite": "^2.10.6",
+    "@size-limit/file": "^14.2.0",
+    "@types/node": "^26.6.4",
+    "eslint": "^10.12.0",
+    "fake-indexeddb": "^6.2.5",
+    "lighthouse": "^13.5.0",
+    "size-limit": "^14.2.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.4",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.3"
+  },
+  "size-limit": [
+    {
+      "path": [
+        "dist/assets/index-*.js",
+        "dist/assets/ui-*.js"
+      ],
+      "limit": "90 kB",
+      "gzip": true
+    }
+  ]
+}

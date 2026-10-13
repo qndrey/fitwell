@@ -1,7 +1,7 @@
 node_modules
 dist
 dev-dev-dist
-data/raw
+**/data/raw
 playwright-report
 test-results
 *.local

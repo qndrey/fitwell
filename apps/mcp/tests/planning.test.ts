@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { todayIn } from '../src/data/time';
 import type { User } from '../src/data/users';
 import { createTestEnv } from './support/env';
-import { call, connectAs, signedInUser } from './support/mcp';
+import { call, connectAs, jsonInText, signedInUser } from './support/mcp';
 
 let env: Env;
 let ana: User;
@@ -39,13 +39,13 @@ describe('recipes', () => {
   it('works out nutrition per serving from the foods\' own values, and replaces a recipe saved under the same name', async () => {
     const { recipe } = await chickenRecipe();
     expect(recipe.totalGrams).toBe(1480);
-    const list = (await call(client, 'list_recipes', {})).data.recipes as { id: string; name: string; servings: number; perServing: { kcal: number }; ingredients: number }[];
+    const list = (await call(client, 'get_recipes', {})).data.recipes as { id: string; name: string; servings: number; perServing: { kcal: number }; ingredients: number }[];
     expect(list).toEqual([expect.objectContaining({ id: recipe.id, name: 'Chicken and rice', servings: 4, ingredients: 3 })]);
     // The recipe for 4 as a whole is worth 4 servings' calories.
     const again = await call(client, 'save_recipe', { name: 'chicken AND rice', servings: 2, ingredients: [{ food_id: RYE, grams: 200 }] }); // same name, any case
     expect((again.data.recipe as { id: string }).id).toBe(recipe.id);
     expect((again.data.recipe as { perServing: { kcal: number } }).perServing.kcal).toBe(209);
-    expect(((await call(client, 'list_recipes', {})).data.recipes as unknown[]).length).toBe(1);
+    expect(((await call(client, 'get_recipes', {})).data.recipes as unknown[]).length).toBe(1);
   });
 
   it('saves nothing when one ingredient is unknown, and accepts a marked estimate', async () => {
@@ -55,16 +55,16 @@ describe('recipes', () => {
     const est = await call(client, 'save_recipe', { name: "Grandma's stew", servings: 2, ingredients: [{ name: 'Stew', grams: 600, estimate_per100g: { kcal: 120, protein: 8, carbs: 10, fat: 5 } }] });
     expect((est.data.recipe as { perServing: { kcal: number }; ingredients: { estimated?: boolean }[] }).perServing.kcal).toBe(360);
     expect((est.data.recipe as { ingredients: { estimated?: boolean }[] }).ingredients[0]!.estimated).toBe(true);
-    expect(((await call(client, 'list_recipes', {})).data.recipes as unknown[]).length).toBe(1);
+    expect(((await call(client, 'get_recipes', {})).data.recipes as unknown[]).length).toBe(1);
   });
 
   it('shows and deletes a recipe', async () => {
     const { recipe } = await chickenRecipe();
-    const byName = (await call(client, 'get_recipe', { name: 'chicken and rice' })).data.recipe as { ingredients: unknown[]; notes: string };
+    const byName = (await call(client, 'get_recipes', { name: 'chicken and rice' })).data.recipe as { ingredients: unknown[]; notes: string };
     expect(byName.ingredients.length).toBe(3);
     expect(byName.notes).toContain('Bake the chicken');
-    expect((await call(client, 'delete_recipe', { id: recipe.id })).data.deleted).toBe(recipe.id);
-    expect((await call(client, 'get_recipe', { id: recipe.id })).isError).toBe(true);
+    expect((await call(client, 'delete_item', { kind: 'recipe', id: recipe.id })).data.deleted).toEqual({ kind: 'recipe', id: recipe.id });
+    expect((await call(client, 'get_recipes', { id: recipe.id })).isError).toBe(true);
   });
 });
 
@@ -176,14 +176,14 @@ describe('showing a plan', () => {
   it('says so when there is no plan, and deletes one', async () => {
     expect((await call(client, 'get_meal_plan', { week_start: WEEK })).text).toContain('No meal plan');
     await week(fullWeek());
-    expect((await call(client, 'delete_meal_plan', { week_start: WEEK })).data.deleted).toBe(WEEK);
-    expect((await call(client, 'delete_meal_plan', { week_start: WEEK })).isError).toBe(true);
+    expect((await call(client, 'delete_item', { kind: 'meal_plan', week_start: WEEK })).data.deleted).toEqual({ kind: 'meal_plan', week_start: WEEK });
+    expect((await call(client, 'delete_item', { kind: 'meal_plan', week_start: WEEK })).isError).toBe(true);
   });
 });
 
 describe('grocery list', () => {
   type Section = { aisle: string; items: { name: string; grams: number; buy: string; usedIn: string[] }[] };
-  const list = async (args: Record<string, unknown> = {}) => (await call(client, 'get_grocery_list', { week_start: WEEK, ...args })).data as { sections: Section[]; leftOut: string[]; markdown: string; meals: number; skippedAsEaten?: number };
+  const list = async (args: Record<string, unknown> = {}) => jsonInText<{ sections: Section[]; leftOut: string[]; markdown: string; meals: number; skippedAsEaten?: number }>((await call(client, 'show_grocery_list', { week_start: WEEK, ...args })).text) as unknown as { sections: Section[]; leftOut: string[]; markdown: string; meals: number; skippedAsEaten?: number };
   const find = (l: { sections: Section[] }, name: string) => l.sections.flatMap((s) => s.items.map((i) => ({ ...i, aisle: s.aisle }))).find((i) => i.name === name)!;
 
   async function plan() {
@@ -229,14 +229,14 @@ describe('grocery list', () => {
 
   it('says when the list is made of cooked foods, in the data and in the checklist', async () => {
     await week([{ day: MON, slot: 'dinner', food_id: (await pick('rice boiled')).id, grams: 200 }]);
-    const l = (await call(client, 'get_grocery_list', { week_start: WEEK })).data as { notes: string[]; markdown: string };
+    const l = jsonInText<{ notes: string[]; markdown: string }>((await call(client, 'show_grocery_list', { week_start: WEEK })).text);
     expect(l.notes[0]).toContain('Rice, boiled');
     expect(l.markdown).toContain('- [ ] Rice, boiled: 200 g (cooked weight)');
   });
 
   it('needs a plan, and a Monday', async () => {
-    expect((await call(client, 'get_grocery_list', { week_start: '2026-10-21' })).isError).toBe(true);
-    expect((await call(client, 'get_grocery_list', { week_start: WEEK })).text).toContain('No meal plan');
+    expect((await call(client, 'show_grocery_list', { week_start: '2026-10-21' })).isError).toBe(true);
+    expect((await call(client, 'show_grocery_list', { week_start: WEEK })).text).toContain('No meal plan');
   });
 });
 
@@ -251,7 +251,7 @@ describe('logging a planned meal', () => {
     const logged = res.data.logged as { slot: string; food: string; grams: number; kcal: number }[];
     expect(logged.map((e) => [e.slot, e.food])).toEqual([['breakfast', 'Rye bread, light'], ['dinner', 'Chicken and rice (2 servings)']]);
     expect(logged[0]).toMatchObject({ grams: 150, kcal: 314 });
-    const day = (await call(client, 'get_day', { day: MON })).data as { entries: { slot: string; foodId?: string }[]; totals: { kcal: number } };
+    const day = (await call(client, 'get_food_log', { day: MON })).data as { entries: { slot: string; foodId?: string }[]; totals: { kcal: number } };
     expect(day.entries.length).toBe(2);
     expect(day.entries.find((e) => e.slot === 'breakfast')!.foodId).toBe(RYE);
     expect(res.data.kcalRemaining).toBe(2000 - day.totals.kcal);
@@ -260,9 +260,9 @@ describe('logging a planned meal', () => {
     const again = await call(client, 'log_planned_meal', { day: MON });
     expect(again.isError).toBe(true);
     expect(again.text).toContain('already logged');
-    expect(((await call(client, 'get_day', { day: MON })).data.entries as unknown[]).length).toBe(2);
+    expect(((await call(client, 'get_food_log', { day: MON })).data.entries as unknown[]).length).toBe(2);
     expect(((await call(client, 'log_planned_meal', { day: MON, slot: 'breakfast', again: true })).data.logged as unknown[]).length).toBe(1);
-    expect(((await call(client, 'get_day', { day: MON })).data.entries as unknown[]).length).toBe(3);
+    expect(((await call(client, 'get_food_log', { day: MON })).data.entries as unknown[]).length).toBe(3);
   });
 
   it('logs one slot, and says when nothing is planned', async () => {
@@ -289,11 +289,11 @@ describe('privacy', () => {
     await week([{ day: MON, slot: 'dinner', recipe_id: recipe.id, servings: 1 }]);
     const bo = await connectAs(env, await signedInUser(env, 'bo@example.com'));
 
-    expect((await call(bo, 'list_recipes', {})).data.recipes).toEqual([]);
-    expect((await call(bo, 'get_recipe', { id: recipe.id })).isError).toBe(true);
-    expect((await call(bo, 'delete_recipe', { id: recipe.id })).isError).toBe(true);
+    expect((await call(bo, 'get_recipes', {})).data.recipes).toEqual([]);
+    expect((await call(bo, 'get_recipes', { id: recipe.id })).isError).toBe(true);
+    expect((await call(bo, 'delete_item', { kind: 'recipe', id: recipe.id })).isError).toBe(true);
     expect((await call(bo, 'get_meal_plan', { week_start: WEEK })).isError).toBe(true);
-    expect((await call(bo, 'get_grocery_list', { week_start: WEEK })).isError).toBe(true);
+    expect((await call(bo, 'show_grocery_list', { week_start: WEEK })).isError).toBe(true);
     expect((await call(bo, 'log_planned_meal', { day: MON })).isError).toBe(true);
     // Bo cannot plan with Ana's recipe by id or by name.
     expect((await call(bo, 'save_meal_plan', { week_start: WEEK, items: [{ day: MON, slot: 'dinner', recipe_id: recipe.id }] })).isError).toBe(true);

@@ -28,6 +28,7 @@ async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'ema
         db: env.DB,
         publicUrl: env.PUBLIC_URL,
         user,
+        isAdmin: (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean).includes(user.email.toLowerCase()),
         deleteAccount: async () => {
           // Sign out everywhere first, then erase the data.
           if (oauth) for (const g of (await oauth.listUserGrants(user.id)).items) await oauth.revokeGrant(g.id, user.id);

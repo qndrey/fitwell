@@ -37,7 +37,14 @@ export interface RecordsProgress {
 }
 
 export interface MeasurementProgress {
-  types: { key: string; label: string; unit: 'cm' | '%'; firstDay: Day; first: number; latestDay: Day; latest: number; change: number }[];
+  types: { key: string; label: string; unit: 'cm' | '%'; firstDay: Day; first: number; latestDay: Day; latest: number; change: number; points: { day: Day; value: number }[] }[];
+}
+
+/** Sleep, steps and water: the days the person logged them. Averages are over those days only. */
+export interface MetricsProgress {
+  sleep: { daily: { day: Day; hours: number }[]; averageHours: number | null };
+  steps: { daily: { day: Day; steps: number }[]; average: number | null };
+  water: { daily: { day: Day; ml: number }[]; averageMl: number | null };
 }
 
 export interface Progress {
@@ -49,4 +56,5 @@ export interface Progress {
   training: TrainingProgress;
   records: RecordsProgress;
   measurements: MeasurementProgress;
+  metrics: MetricsProgress;
 }

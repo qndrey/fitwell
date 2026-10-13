@@ -18,16 +18,16 @@ const TO = '2026-10-13';
 /** 83.0 down to 80.6 over two weeks, every other day. */
 async function logWeights() {
   const rows: [string, number][] = [['2026-10-01', 83], ['2026-10-03', 82.6], ['2026-10-05', 82.2], ['2026-10-07', 81.8], ['2026-10-09', 81.4], ['2026-10-11', 81], ['2026-10-13', 80.6]];
-  for (const [day, kg] of rows) await call(client, 'log_weight', { kg, day });
+  for (const [day, kg] of rows) await call(client, 'log_body', { weight_kg: kg, day });
 }
 
 describe('weight', () => {
   it('replaces a weigh-in on the same day, and only the latest one updates the profile weight', async () => {
-    await call(client, 'log_weight', { kg: 80, day: '2026-10-10' });
-    await call(client, 'log_weight', { kg: 81, day: '2026-10-10' });
+    await call(client, 'log_body', { weight_kg: 80, day: '2026-10-10' });
+    await call(client, 'log_body', { weight_kg: 81, day: '2026-10-10' });
     expect(((await call(client, 'get_profile', {})).data.profile as { weightKg: number }).weightKg).toBe(81);
-    await call(client, 'log_weight', { kg: 79, day: '2026-10-12' });
-    await call(client, 'log_weight', { kg: 90, day: '2026-10-01' }); // an old weigh-in, entered late
+    await call(client, 'log_body', { weight_kg: 79, day: '2026-10-12' });
+    await call(client, 'log_body', { weight_kg: 90, day: '2026-10-01' }); // an old weigh-in, entered late
     expect(((await call(client, 'get_profile', {})).data.profile as { weightKg: number }).weightKg).toBe(79);
     const rows = await env.DB.prepare('SELECT COUNT(*) AS n FROM weights WHERE user_id = ?').bind(ana.id).first<{ n: number }>();
     expect(rows!.n).toBe(3);
@@ -35,41 +35,42 @@ describe('weight', () => {
 
   it('reports the 7-day average, not the raw reading, once there are enough weigh-ins', async () => {
     await logWeights();
-    const last = await call(client, 'log_weight', { kg: 80.6, day: TO });
-    expect(last.data).toMatchObject({ logged: { day: TO, kg: 80.6 } });
+    const last = await call(client, 'log_body', { weight_kg: 80.6, day: TO });
+    expect(last.data).toMatchObject({ logged: { day: TO, weightKg: 80.6, sevenDayAverageKg: 81.2 } });
     const p = (await call(client, 'get_progress', { days: 30, to: TO })).data as { weight: { latestKg: number; trendChangeKg: number; weighIns: number } };
     // Average of 10-07..10-13 = (81.8 + 81.4 + 81 + 80.6) / 4 = 81.2; first average (10-05) = 82.6.
     expect(p.weight).toMatchObject({ latestKg: 80.6, weighIns: 7, trendChangeKg: -1.4 });
   });
 
   it('says a trend needs more weigh-ins, and validates the weight', async () => {
-    const first = await call(client, 'log_weight', { kg: 80, day: TO });
-    expect(first.data.sevenDayAverageKg).toBeNull();
-    expect(first.data.note).toContain('3 weigh-ins');
-    expect((await call(client, 'log_weight', { kg: 8 })).isError).toBe(true);
-    expect((await call(client, 'log_weight', { kg: 80, day: '13-10-2026' })).isError).toBe(true);
+    const first = await call(client, 'log_body', { weight_kg: 80, day: TO });
+    const logged = first.data.logged as { sevenDayAverageKg: number | null; note: string };
+    expect(logged.sevenDayAverageKg).toBeNull();
+    expect(logged.note).toContain('3 weigh-ins');
+    expect((await call(client, 'log_body', { weight_kg: 8 })).isError).toBe(true);
+    expect((await call(client, 'log_body', { weight_kg: 80, day: '13-10-2026' })).isError).toBe(true);
   });
 
   it('deletes a weigh-in', async () => {
-    await call(client, 'log_weight', { kg: 80, day: TO });
-    expect((await call(client, 'delete_weight_entry', { day: TO })).data.deleted).toBe(TO);
-    expect((await call(client, 'delete_weight_entry', { day: TO })).isError).toBe(true);
+    await call(client, 'log_body', { weight_kg: 80, day: TO });
+    expect((await call(client, 'delete_item', { kind: 'weigh_in', day: TO })).data.deleted).toEqual({ kind: 'weigh_in', day: TO });
+    expect((await call(client, 'delete_item', { kind: 'weigh_in', day: TO })).isError).toBe(true);
   });
 });
 
 describe('measurements', () => {
   it('merges values logged on the same day and rejects unknown types and impossible body fat', async () => {
-    await call(client, 'log_measurements', { values: { waist: 84 }, day: TO });
-    const second = await call(client, 'log_measurements', { values: { hips: 99.5, waist: 83.5 }, day: TO });
-    expect(second.data.logged).toEqual({ day: TO, values: { waist: 83.5, hips: 99.5 } });
-    expect((await call(client, 'log_measurements', { values: { wings: 30 } })).isError).toBe(true);
-    expect((await call(client, 'log_measurements', { values: {} })).isError).toBe(true);
-    expect((await call(client, 'log_measurements', { values: { 'body-fat': 120 } })).isError).toBe(true);
+    await call(client, 'log_body', { measurements: { waist: 84 }, day: TO });
+    const second = await call(client, 'log_body', { measurements: { hips: 99.5, waist: 83.5 }, day: TO });
+    expect((second.data.logged as { measurements: unknown }).measurements).toEqual({ waist: 83.5, hips: 99.5 });
+    expect((await call(client, 'log_body', { measurements: { wings: 30 } })).isError).toBe(true);
+    expect((await call(client, 'log_body', { measurements: {} })).isError).toBe(true);
+    expect((await call(client, 'log_body', { measurements: { 'body-fat': 120 } })).isError).toBe(true);
   });
 
   it('shows first-to-latest change per type in the progress report', async () => {
-    await call(client, 'log_measurements', { values: { waist: 86, 'body-fat': 22 }, day: '2026-09-20' });
-    await call(client, 'log_measurements', { values: { waist: 84.5 }, day: TO });
+    await call(client, 'log_body', { measurements: { waist: 86, 'body-fat': 22 }, day: '2026-09-20' });
+    await call(client, 'log_body', { measurements: { waist: 84.5 }, day: TO });
     const p = (await call(client, 'get_progress', { days: 60, to: TO })).data as { measurements: { key: string; unit: string; first: number; latest: number; change: number }[] };
     expect(p.measurements.find((m) => m.key === 'waist')).toMatchObject({ unit: 'cm', first: 86, latest: 84.5, change: -1.5 });
     expect(p.measurements.find((m) => m.key === 'body-fat')).toMatchObject({ unit: '%', first: 22, latest: 22, change: 0 });
@@ -142,12 +143,12 @@ describe('progress and dashboard', () => {
 describe('privacy', () => {
   it('keeps weights and measurements per person, and exports and erases them', async () => {
     await logWeights();
-    await call(client, 'log_measurements', { values: { waist: 84 }, day: TO });
+    await call(client, 'log_body', { measurements: { waist: 84 }, day: TO });
     const bo = await connectAs(env, await signedInUser(env, 'bo@example.com'));
     const theirs = (await call(bo, 'get_progress', { days: 30, to: TO })).data as { weight: { weighIns: number }; measurements: unknown[] };
     expect(theirs.weight.weighIns).toBe(0);
     expect(theirs.measurements).toEqual([]);
-    expect((await call(bo, 'delete_weight_entry', { day: TO })).isError).toBe(true); // Bo has no weigh-in that day; Ana's is untouched
+    expect((await call(bo, 'delete_item', { kind: 'weigh_in', day: TO })).isError).toBe(true); // Bo has no weigh-in that day; Ana's is untouched
     expect(((await call(client, 'get_progress', { days: 30, to: TO })).data.weight as { weighIns: number }).weighIns).toBe(7);
 
     const exported = (await call(client, 'export_my_data', {})).data as { weights: unknown[]; measurements: unknown[] };

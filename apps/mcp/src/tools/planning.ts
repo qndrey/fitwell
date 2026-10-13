@@ -6,8 +6,8 @@ import { perServing, type PlanData, type Recipe } from '../data/planData';
 import { todayIn } from '../data/time';
 import type { NewFoodEntry } from '../data/userData';
 import { checkPlan, SLOT_NAMES, type PlannedItem, type SlotName } from '../planning/check';
-import { buildGroceryList, type Ingredient } from '../planning/grocery';
-import { FoodMemo, per100gSchema } from '../planning/resolve';
+import { type Ingredient } from '../planning/grocery';
+import { allergenFields, FoodMemo, per100gSchema } from '../planning/resolve';
 import type { FoodDeps } from './foods';
 import { json, toolError } from './result';
 
@@ -15,11 +15,11 @@ const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
 const slot = z.enum(SLOT_NAMES);
 const r0 = (n: number) => Math.round(n);
 const weekday = (d: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
-const label = (it: Pick<PlannedItem, 'day' | 'slot'>) => `${weekday(it.day)} ${it.slot}`;
+export const label = (it: Pick<PlannedItem, 'day' | 'slot'>) => `${weekday(it.day)} ${it.slot}`;
 const weekDaysOf = (start: string) => Array.from({ length: 7 }, (_, i) => addDays(start, i));
-const isMonday = (d: string) => mondayOf(d) === d;
+export const isMonday = (d: string) => mondayOf(d) === d;
 /** Today if it is a Monday, else the coming Monday. */
-const nextMonday = (today: string) => (isMonday(today) ? today : addDays(mondayOf(today), 7));
+export const nextMonday = (today: string) => (isMonday(today) ? today : addDays(mondayOf(today), 7));
 
 const SLOT_SHARE: Record<SlotName, number> = { breakfast: 0.25, lunch: 0.3, dinner: 0.3, snacks: 0.15 };
 const bySlot = (a: PlannedItem, b: PlannedItem) => (a.day === b.day ? SLOT_NAMES.indexOf(a.slot) - SLOT_NAMES.indexOf(b.slot) : a.day < b.day ? -1 : 1);
@@ -132,17 +132,17 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
         if (i.food_id && i.grams) {
           const hit = await foods.get(i.food_id);
           if (!hit) return toolError(`Nothing was saved. Unknown food id ${i.food_id}. Search again with search_foods.`);
-          planned.push({ day: i.day, slot: i.slot, kind: 'food', name: hit.name, foodId: hit.id, grams: i.grams, ...scale(hit.per100g, i.grams), ingredients: [{ foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), grams: i.grams }] });
+          planned.push({ day: i.day, slot: i.slot, kind: 'food', name: hit.name, foodId: hit.id, grams: i.grams, ...scale(hit.per100g, i.grams), ingredients: [{ foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), ...allergenFields(hit), grams: i.grams }] });
         } else if (i.recipe_id || i.recipe_name) {
           const key = i.recipe_id ?? `name:${i.recipe_name!.toLowerCase()}`;
           if (!recipes.has(key)) {
             const r = i.recipe_id ? await plans.recipe(i.recipe_id) : await plans.recipeByName(i.recipe_name!);
-            if (!r) return toolError(`Nothing was saved. No saved recipe ${i.recipe_id ?? `"${i.recipe_name}"`}. Use list_recipes or save_recipe first.`);
+            if (!r) return toolError(`Nothing was saved. No saved recipe ${i.recipe_id ?? `"${i.recipe_name}"`}. Use get_recipes or save_recipe first.`);
             recipes.set(key, r);
           }
           const r = recipes.get(key)!;
           const f = i.servings / r.servings;
-          const ingredients: Ingredient[] = r.items.map((x) => ({ ...(x.foodId ? { foodId: x.foodId } : {}), name: x.name, ...(x.group ? { group: x.group } : {}), grams: x.grams * f }));
+          const ingredients: Ingredient[] = r.items.map((x) => ({ ...(x.foodId ? { foodId: x.foodId } : {}), name: x.name, ...(x.group ? { group: x.group } : {}), ...allergenFields(x), grams: x.grams * f }));
           const total = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => r.items.reduce((n, x) => n + x[k], 0) * f;
           planned.push({ day: i.day, slot: i.slot, kind: 'recipe', name: r.name, recipeId: r.id, servings: i.servings, grams: ingredients.reduce((n, x) => n + x.grams, 0), kcal: total('kcal'), protein: total('protein'), carbs: total('carbs'), fat: total('fat'), ingredients });
         } else {
@@ -163,7 +163,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
       await plans.savePlan(week, planned);
       const profile = await data.profile();
       const check = checkPlan(days, planned, await data.goals(), profile.diet.allergies, profile.diet.dislikes);
-      return json({ saved: { weekStart: week, items: planned.length }, ok: check.problems.length === 0, problems: check.problems, warnings: check.warnings, days: check.days, ...(check.problems.length ? { next: 'Fix the problems and call save_meal_plan again with the whole week.' } : {}) });
+      return json({ saved: { weekStart: week, items: planned.length }, ok: check.problems.length === 0, problems: check.problems, warnings: check.warnings, ...(check.notes.length ? { notes: check.notes } : {}), days: check.days, ...(check.problems.length ? { next: 'Fix the problems and call save_meal_plan again with the whole week.' } : {}) });
     },
   );
 
@@ -195,34 +195,6 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
         batchCooking: batchCooking(plan.items),
         ...(wantEditable ? { editable: plan.items.map(editable) } : {}),
       });
-    },
-  );
-
-  server.registerTool(
-    'get_grocery_list',
-    {
-      title: 'Grocery list for a meal plan',
-      description:
-        "The shopping list for a week's plan: every ingredient added up, rounded up to what a shop sells, grouped by section in shopping order, with where each is used. " +
-        'people multiplies the quantities (cooking for two = 2); already_have leaves out foods by name (e.g. ["olive oil","salt"]); meals already logged as eaten are skipped unless include_eaten. ' +
-        'Also returns the list as a markdown checklist to show or copy. Amounts are the weights of the foods as planned: plan with foods in the form they are bought (rice, pasta and meat raw, not boiled), otherwise the amounts are cooked weights and the notes say so.',
-      inputSchema: z.object({
-        week_start: day.optional(),
-        people: z.number().min(0.5).max(10).default(1),
-        already_have: z.array(z.string().max(60)).max(60).default([]),
-        include_eaten: z.boolean().default(false),
-      }),
-      annotations: { readOnlyHint: true },
-    },
-    async ({ week_start, people, already_have, include_eaten }) => {
-      const week = await resolveWeek(week_start);
-      if (typeof week !== 'string') return toolError(week.error);
-      const plan = await plans.plan(week);
-      if (!plan) return toolError(`No meal plan for the week of ${week}. Plan one with save_meal_plan.`);
-      const items = plan.items.filter((i) => include_eaten || !i.loggedAt);
-      const list = buildGroceryList(items.map((i) => ({ label: label(i), ingredients: i.ingredients })), people, already_have);
-      const markdown = list.sections.map((s) => `## ${s.aisle}\n${s.items.map((e) => `- [ ] ${e.name}: ${e.buy}${e.cooked ? ' (cooked weight)' : ''}`).join('\n')}`).join('\n\n');
-      return json({ weekStart: week, people, meals: items.length, ...(plan.items.length - items.length ? { skippedAsEaten: plan.items.length - items.length } : {}), ...list, markdown });
     },
   );
 
@@ -264,9 +236,4 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
     },
   );
 
-  server.registerTool(
-    'delete_meal_plan',
-    { title: 'Delete a meal plan', description: 'Remove the plan of a week. Food already logged from it stays.', inputSchema: z.object({ week_start: day }), annotations: { destructiveHint: true, idempotentHint: true } },
-    async ({ week_start }) => ((await plans.deletePlan(week_start)) ? json({ deleted: week_start }) : toolError('No plan for that week.')),
-  );
 }

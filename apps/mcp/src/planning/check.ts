@@ -1,5 +1,6 @@
 // Checks a week's plan against the person's goals and food rules, so Claude can fix problems before presenting it.
 // Pure.
+import { checkAllergens } from '../safety/allergens';
 import type { Ingredient } from './grocery';
 
 export const SLOT_NAMES = ['breakfast', 'lunch', 'dinner', 'snacks'] as const;
@@ -46,6 +47,8 @@ export interface Warning {
   item: string;
   kind: 'allergy' | 'dislike';
   matches: string[];
+  /** Allergy found only as a "may contain" trace on the label. */
+  trace?: boolean;
 }
 
 export interface PlanCheck {
@@ -55,6 +58,8 @@ export interface PlanCheck {
   warnings: Warning[];
   /** Plain-language problems to fix, most important first (allergies first). */
   problems: string[];
+  /** Things worth knowing that are not problems, e.g. packaged foods with no allergen data. */
+  notes: string[];
 }
 
 const r0 = (n: number) => Math.round(n);
@@ -67,8 +72,9 @@ function matchTerms(item: PlannedItem, terms: string[]): string[] {
 
 /**
  * Per day: totals against the calorie goal (within 10 % is fine) and the protein goal (at least 90 %). Across items:
- * allergies and dislikes found in names. This is a text match on names, so it catches "peanut butter" for "peanut" but
- * not an allergen the name does not mention; Claude still has to think about the ingredients.
+ * allergies and dislikes found in names, and for packaged products the allergens and traces Open Food Facts lists.
+ * Names are a text match ("peanut butter" for "peanut"), and foods without allergen data (Frida, own foods) can only be
+ * matched by name, so Claude still has to think about the ingredients.
  */
 export function checkPlan(weekDays: string[], items: PlannedItem[], goals: GoalsLike | null, allergies: string[] = [], dislikes: string[] = []): PlanCheck {
   const allergyTerms = allergies.map((a) => a.trim().toLowerCase()).filter(Boolean);
@@ -78,14 +84,25 @@ export function checkPlan(weekDays: string[], items: PlannedItem[], goals: Goals
   const problems: string[] = [];
 
   const warnings: Warning[] = [];
+  const notes: string[] = [];
+  const unchecked = new Set<string>();
   for (const it of items) {
     const a = matchTerms(it, allergyTerms);
+    let traced: string[] = [];
+    for (const ing of it.ingredients) {
+      const c = checkAllergens(allergyTerms, ing);
+      for (const t of c.contains) if (!a.includes(t)) a.push(t);
+      traced = [...traced, ...c.traces.filter((t) => !traced.includes(t) && !a.includes(t))];
+      if (allergyTerms.length && c.unknown && ing.foodId?.startsWith('off:')) unchecked.add(ing.name);
+    }
     if (a.length) warnings.push({ day: it.day, slot: it.slot, item: it.name, kind: 'allergy', matches: a });
+    if (traced.length) warnings.push({ day: it.day, slot: it.slot, item: it.name, kind: 'allergy', matches: traced, trace: true });
     const d = matchTerms(it, dislikeTerms);
     if (d.length) warnings.push({ day: it.day, slot: it.slot, item: it.name, kind: 'dislike', matches: d });
   }
   warnings.sort((x, y) => (x.kind === y.kind ? (x.day < y.day ? -1 : 1) : x.kind === 'allergy' ? -1 : 1));
-  for (const w of warnings) problems.push(`${w.kind === 'allergy' ? 'ALLERGY' : 'Disliked food'}: ${w.item} (${w.day} ${w.slot}) contains ${w.matches.join(', ')}.`);
+  for (const w of warnings) problems.push(`${w.kind === 'allergy' ? (w.trace ? 'ALLERGY (may contain traces)' : 'ALLERGY') : 'Disliked food'}: ${w.item} (${w.day} ${w.slot}) ${w.trace ? 'may contain traces of' : 'contains'} ${w.matches.join(', ')}.`);
+  if (unchecked.size) notes.push(`No allergen data for the packaged food ${[...unchecked].join('; ')}: read the label.`);
 
   for (const day of weekDays) {
     const list = items.filter((i) => i.day === day);
@@ -108,5 +125,5 @@ export function checkPlan(weekDays: string[], items: PlannedItem[], goals: Goals
     days.push(check);
   }
   if (emptyDays.length) problems.push(`Nothing planned on ${emptyDays.join(', ')}.`);
-  return { days, emptyDays, warnings, problems };
+  return { days, emptyDays, warnings, problems, notes };
 }

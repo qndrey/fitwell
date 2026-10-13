@@ -26,12 +26,15 @@ export class FoodMemo {
   }
 }
 
+/** The allergen tags a packaged product carries, to store with the ingredient. */
+export const allergenFields = (f: { allergens?: string[]; traces?: string[] }) => ({ ...(f.allergens ? { allergens: f.allergens } : {}), ...(f.traces?.length ? { traces: f.traces } : {}) });
+
 /** Values come from the food's source, never from the conversation. Returns a message when the id is unknown. */
 export async function resolveIngredient(spec: IngredientSpec, foods: FoodMemo): Promise<RecipeItem | string> {
   if (spec.food_id) {
     const hit = await foods.get(spec.food_id);
     if (!hit) return `Unknown food id ${spec.food_id}. Search again with search_foods.`;
-    return { foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), grams: spec.grams, ...scale(hit.per100g, spec.grams) };
+    return { foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), ...allergenFields(hit), grams: spec.grams, ...scale(hit.per100g, spec.grams) };
   }
   return { name: spec.name!, grams: spec.grams, ...scale(spec.estimate_per100g!, spec.grams) };
 }

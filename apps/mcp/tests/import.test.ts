@@ -135,16 +135,16 @@ describe('the link', () => {
     const boClient = await connectAs(env, bo);
     const url = await linkOf(boClient);
     await upload(url);
-    expect(((await call(boClient, 'get_day', { day: '2026-10-12' })).data.entries as unknown[]).length).toBe(4);
-    expect(((await call(client, 'get_day', { day: '2026-10-12' })).data.entries as unknown[]).length).toBe(0); // Ana got nothing
-    expect((await call(client, 'get_last_import', {})).isError).toBe(true);
+    expect(((await call(boClient, 'get_food_log', { day: '2026-10-12' })).data.entries as unknown[]).length).toBe(4);
+    expect(((await call(client, 'get_food_log', { day: '2026-10-12' })).data.entries as unknown[]).length).toBe(0); // Ana got nothing
+    expect((await call(client, 'import_fitwell_backup', { check_result: true })).isError).toBe(true);
   });
 });
 
 describe('what an import brings in', () => {
   it('imports food entries with grams from the file, from portions, or from calories, and reports what it skipped', async () => {
     const lines = await upload(await linkOf());
-    const day = (await call(client, 'get_day', { day: '2026-10-12' })).data as { entries: { food: string; grams: number; kcal: number; slot: string; foodId?: string; brand?: string }[]; totals: { kcal: number } };
+    const day = (await call(client, 'get_food_log', { day: '2026-10-12' })).data as { entries: { food: string; grams: number; kcal: number; slot: string; foodId?: string; brand?: string }[]; totals: { kcal: number } };
     const by = (grams: number) => day.entries.find((e) => e.grams === grams)!;
     expect(by(150)).toMatchObject({ food: 'Rye bread, light', kcal: 314, slot: 'breakfast', foodId: 'frida:413' });
     expect(by(160)).toMatchObject({ food: 'Protein oats', kcal: 608 }); // 2 bowls of 80 g
@@ -185,8 +185,8 @@ describe('what an import brings in', () => {
 
   it('can be repeated without adding anything twice, and never overwrites what the person already has', async () => {
     // Already in the account before the import: a weigh-in on the same day, a waist measurement, a calorie goal.
-    await call(client, 'log_weight', { kg: 79.9, day: '2026-10-13' });
-    await call(client, 'log_measurements', { values: { waist: 85 }, day: '2026-10-13' });
+    await call(client, 'log_body', { weight_kg: 79.9, day: '2026-10-13' });
+    await call(client, 'log_body', { measurements: { waist: 85 }, day: '2026-10-13' });
     await call(client, 'set_goals', { kcal: 2000 });
 
     await upload(await linkOf());
@@ -204,9 +204,9 @@ describe('what an import brings in', () => {
     expect(lines.find((l) => l.startsWith('workouts'))).toContain('0 added, 2 already there');
   });
 
-  it('works in small chunks and reports through get_last_import', async () => {
+  it('works in small chunks and reports through check_result', async () => {
     await upload(await linkOf(), makeBackup(), 2);
-    const last = (await call(client, 'get_last_import', {})).data as { summary: string[]; finishedAt: string };
+    const last = (await call(client, 'import_fitwell_backup', { check_result: true })).data as { summary: string[]; finishedAt: string };
     expect(last.summary.find((l) => l.startsWith('food entries'))).toContain('4 added');
     expect(new Date(last.finishedAt).getTime()).toBeGreaterThan(0);
   });

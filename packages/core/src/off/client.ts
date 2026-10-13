@@ -22,7 +22,7 @@ export interface OffClient {
 
 // OFF's 503s are often short-lived load shedding, so don't punish the user with a long default pause.
 const DEFAULT_PAUSE_MS = 30_000;
-const FIELDS = 'code,product_name,brands,nutriments,serving_quantity';
+const FIELDS = 'code,product_name,brands,nutriments,serving_quantity,allergens_tags,traces_tags';
 export const OFF_ORIGIN = 'https://world.openfoodfacts.org';
 
 function retryAfter(res: Response): number | undefined {

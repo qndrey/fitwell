@@ -20,7 +20,9 @@
     // Sign-in emails come from here (Email Routing must be enabled on fitwell.fyi).
     "MAIL_FROM": "login@fitwell.fyi",
     // Contact on the privacy notice (/privacy).
-    "CONTACT_EMAIL": "fitwell.fyi@pm.me"
+    "CONTACT_EMAIL": "fitwell.fyi@pm.me",
+    // Comma-separated: these people also get manage_invites (add or remove invitations from Claude).
+    "ADMIN_EMAILS": "qndrey@proton.me"
   },
   // Created with --jurisdiction eu on 2026-10-13 (data stays in the EU). Local dev uses a local SQLite copy.
   "d1_databases": [{ "binding": "DB", "database_name": "fitwell", "database_id": "5cc25386-c8a7-480d-9f79-155155abb62c", "migrations_dir": "migrations" }],

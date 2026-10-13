@@ -35,3 +35,7 @@ export interface WorkoutPlan {
 export const WORKOUT_VIEW_URI = 'ui://fitwell/workout.html';
 
 export const DASHBOARD_VIEW_URI = 'ui://fitwell/dashboard.html';
+
+export const REVIEW_VIEW_URI = 'ui://fitwell/review.html';
+
+export const SHOPPING_VIEW_URI = 'ui://fitwell/shopping.html';

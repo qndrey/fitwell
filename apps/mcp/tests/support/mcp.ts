@@ -36,3 +36,8 @@ export async function call(client: Client, name: string, args: Record<string, un
   const res = await client.callTool({ name, arguments: args });
   return { isError: res.isError === true, data: res.structuredContent as Structured, text: (res.content as { text?: string }[])[0]?.text ?? '' };
 }
+
+/** Tools that open a view answer the model with a sentence followed by JSON; this reads the JSON. */
+export function jsonInText<T = Structured>(text: string): T {
+  return JSON.parse(text.slice(text.indexOf('{'))) as T;
+}

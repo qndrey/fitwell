@@ -126,7 +126,7 @@ describe('templates', () => {
     // Saving under the same name replaces it.
     await call(client, 'save_workout_template', { name: 'Push day', exercises: [{ id: SQUAT, sets: 5, reps: 5 }] });
     expect(((await call(client, 'list_workout_templates', {})).data.templates as unknown[]).length).toBe(1);
-    expect((await call(client, 'delete_workout_template', { id })).data.deleted).toBe(id);
+    expect((await call(client, 'delete_item', { kind: 'workout_template', id })).data.deleted).toEqual({ kind: 'workout_template', id });
   });
 
   it('can save the plan as a template while starting', async () => {
@@ -157,7 +157,7 @@ describe('cardio and history', () => {
     expect(all.find((w) => w.type === 'strength')!.exercises![0]!.done).toBe('5 @ 80, 4 @ 80 kg');
     const squat = (await call(client, 'get_workout_history', { exercise_id: SQUAT })).data;
     expect(squat).toMatchObject({ exercise: 'Barbell Squat', sessions: [{ bestSet: '5 @ 80 kg', estimated1rmKg: 93.3 }] });
-    expect((await call(client, 'delete_workout', { id: plan.workoutId })).data.deleted).toBe(plan.workoutId);
+    expect((await call(client, 'delete_item', { kind: 'workout', id: plan.workoutId })).data.deleted).toEqual({ kind: 'workout', id: plan.workoutId });
     expect(((await call(client, 'get_workout_history', {})).data.workouts as unknown[]).length).toBe(1);
   });
 });
@@ -169,7 +169,7 @@ describe('privacy', () => {
     expect((await call(bo, 'log_set', { workoutId: plan.workoutId, setId: 's1.1', reps: 99 })).isError).toBe(true);
     expect((await call(bo, 'get_workout', { workoutId: plan.workoutId })).isError).toBe(true);
     expect((await call(bo, 'finish_workout', { workoutId: plan.workoutId })).isError).toBe(true);
-    expect((await call(bo, 'delete_workout', { id: plan.workoutId })).isError).toBe(true);
+    expect((await call(bo, 'delete_item', { kind: 'workout', id: plan.workoutId })).isError).toBe(true);
     expect((await call(bo, 'get_workout_history', {})).data.workouts).toEqual([]);
     expect((await call(bo, 'list_workout_templates', {})).data.templates).toEqual([]);
 

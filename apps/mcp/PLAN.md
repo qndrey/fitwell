@@ -83,11 +83,11 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [ ] Templates, sessions, sets; "last time" values per exercise; supersets and timed sets as in the web app.
 - [ ] Workout player UI: current set, rest timer, log/skip, next exercise; state saved on every set so a dropped connection loses nothing.
 
-**Phase 3: body, analytics, dashboard (built 2026-10-13; deploy pending)**
+**Phase 3: body, analytics, dashboard, import (built 2026-10-13)**
 - [x] Weight (one per day; 7-day average and trend in the reply; profile weight follows the latest weigh-in) and measurements (cm, body fat %, merged per day); migration 0004; export and delete include them.
 - [x] `get_progress` (numbers for Claude) and `show_dashboard` (MCP Apps view `ui://fitwell/dashboard.html`): weight with 7-day average and goal, calories against goals with adherence, workouts per week, sets per muscle, strength records (Epley e1RM) with sparklines, measurement changes; 30/90/365-day switch. `analytics/progress.ts` is pure and tested against hand-computed numbers.
-- [ ] Fitwell backup import. Design question: a backup is too large to pass through a tool call, so the plan is a one-time upload page (`import_fitwell_backup` returns a link bound to the signed-in person, 15 min, single use) that validates the file with the web app's schema (move `backup/schema.ts` into core first).
-- [ ] Log a workout done earlier without the player (`day`, exercises with the sets actually done), so history can be filled in by chat.
+- [x] Fitwell backup import: `import_fitwell_backup` returns a one-time link (30 min, one person, token hashed, replaced by a newer link) to an upload page. The browser reads the backup file and sends it in chunks of 150 records, so no request strains the free plan's CPU (heaviest chunk about 1.4 ms) and the file never passes through the chat. `import/convert.ts` converts defensively and counts what it skips with a reason; writes are `INSERT OR IGNORE` on ids scoped to the person, so repeats add nothing, two people importing one file each get everything, and nothing already in the account is overwritten (the file only fills gaps: a day's weigh-in, goals not yet set, missing measurement types). `get_last_import` reports the result. Pending lookups, deleted records, own exercises/measurement types and cardio templates are not imported. Checked in a real browser with a 700-entry file (about 200 ms). Migration 0005.
+- [x] `log_past_workout`: a workout already done, by chat, on any day; personal records compare only with sessions up to that day.
 
 **Phase 4: meal planning**
 - [ ] Meal plan storage and validation against goals (per-day macro deltas returned to Claude to fix).

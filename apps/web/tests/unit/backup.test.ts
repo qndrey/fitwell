@@ -6,7 +6,7 @@ import { buildBackup, backupFilename, countRecords } from '../../src/backup/expo
 import { applyImport, countsOf, currentCounts, mergeWins, parseBackup } from '../../src/backup/import';
 import { backupReminderDue } from '../../src/domain/backupReminder';
 import { LATEST_VERSION } from '../../src/db/migrations';
-import type { FoodEntry } from '../../src/db/schema';
+import type { FoodEntry } from '@fitwell/core/schema';
 import { BACKUP_STORES } from '../../src/backup/schema';
 
 let n = 0;

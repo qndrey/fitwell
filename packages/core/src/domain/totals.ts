@@ -1,5 +1,5 @@
 import { sum, type Nutrients } from './nutrition';
-import type { FoodEntry } from '../db/schema';
+import type { FoodEntry } from '../schema';
 
 export interface DayTotals extends Nutrients {
   resolvedCount: number;

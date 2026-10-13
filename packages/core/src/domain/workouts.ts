@@ -1,4 +1,4 @@
-import type { CardioDetails, SetType, Workout, WorkoutExercise, WorkoutSet } from '../db/schema';
+import type { CardioDetails, SetType, Workout, WorkoutExercise, WorkoutSet } from '../schema';
 import { displayWeight, weightUnit, type UnitSystem } from './units';
 
 /** What counts toward the calorie total for a cardio workout: the user's own number wins over the estimate. */

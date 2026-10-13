@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { ExerciseFigure, ExerciseThumb } from './ExerciseFigure';
 import { Button, Field, Icon, List, ListRow, SectionTitle, Select, Sheet, TextInput } from '../../ui';
 import { customExercisesRepo, recentRefs } from '../../db/workoutStore';
-import { fromCustom, loadExercises, loadInstructions, prepareExercises, searchExercises, type Exercise } from '../../data/exercises';
+import { fromCustom, loadExercises, loadInstructions, prepareExercises, searchExercises, type Exercise } from '@fitwell/core/data/exercises';
 import { t } from '../../i18n';
 import { newId } from './actions';
 

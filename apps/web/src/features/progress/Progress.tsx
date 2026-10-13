@@ -4,13 +4,13 @@ import { BarChart, type BarGroup } from '../../charts/BarChart';
 import { ChartFrame } from '../../charts/ChartFrame';
 import { LineChart, shortDay, type LineSeries } from '../../charts/LineChart';
 import { MARKERS } from '../../charts/markers';
-import { addDays, dayFromNumber, dayNumber, today as todayDay, type Day } from '../../domain/dates';
+import { addDays, dayFromNumber, dayNumber, today as todayDay, type Day } from '@fitwell/core/domain/dates';
 import {
   aggregateDays, cardioActivities, cardioPerWeek, compareFirstLatest, downsample, exerciseOptions, exerciseProgress, measurementPoints,
   movingAverage, RANGES, rangeStart, trendChange, weeklyAverage, weeksIn, workoutsPerWeek, type RangeKey,
-} from '../../domain/stats';
-import { displayLength, displayWeight, weightUnit, type UnitSystem } from '../../domain/units';
-import type { MeasurementType } from '../../db/schema';
+} from '@fitwell/core/domain/stats';
+import { displayLength, displayWeight, weightUnit, type UnitSystem } from '@fitwell/core/domain/units';
+import type { MeasurementType } from '@fitwell/core/schema';
 import { measurementTypes } from '../body/store';
 import { goals, settings } from '../../state';
 import { Button, Fieldset, Screen, Segmented, Select } from '../../ui';

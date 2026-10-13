@@ -1,8 +1,8 @@
-import type { Candidate } from '../db/schema';
+import type { Candidate } from '@fitwell/core/schema';
 import { normalizeQuery } from '../queue/machine';
-import { looksLikeBarcode, normalizeBarcode } from '../scan/ean';
-import type { OffClient } from './client';
-import type { Priority } from './rateLimiter';
+import { looksLikeBarcode, normalizeBarcode } from '@fitwell/core/ean';
+import type { OffClient } from '@fitwell/core/off/client';
+import type { Priority } from '@fitwell/core/off/rateLimiter';
 
 export interface CacheRow {
   key: string;

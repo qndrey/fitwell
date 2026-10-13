@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { prepare, search } from '../../src/search/rank';
-import { tokenize, withinOneEdit } from '../../src/search/text';
-import { loadBundledFoods } from '../../src/data/bundledFoods';
+import { prepare, search } from '../src/search/rank';
+import { tokenize, withinOneEdit } from '../src/search/text';
+import { loadBundledFoods } from '../src/data/bundledFoods';
 
 const idx = (names: string[]) => prepare(names, (n) => n);
 

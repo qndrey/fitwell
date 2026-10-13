@@ -3,7 +3,7 @@
 // Output: src/data/generated/exercises.index.json         search + filters (loaded when picking an exercise)
 //         src/data/generated/exercises.instructions.json  how-to text (loaded only when someone opens "How to")
 // Images are deliberately NOT included (bundle size, no third-party requests). The original `id` is the stable key
-// ("ex:<id>") so images can be added later without touching user data. Run: npm run build:exercises
+// ("ex:<id>") so images can be added later without touching user data. Run: npm run build:exercises -w @fitwell/core
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 

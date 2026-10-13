@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { CameraFailure, startCamera, type Camera, type CameraError } from '../../scan/camera';
 import { createDetector } from '../../scan/detector';
-import { gtinValid, normalizeBarcode } from '../../scan/ean';
-import { OffError } from '../../off/client';
+import { gtinValid, normalizeBarcode } from '@fitwell/core/ean';
+import { OffError } from '@fitwell/core/off/client';
 import { offLookup } from '../../off';
 import { online } from '../../state';
 import { Button, Field, Icon, Notice, Sheet, TextInput } from '../../ui';
 import { t } from '../../i18n';
-import type { FoodItem } from '../../domain/foods';
+import type { FoodItem } from '@fitwell/core/domain/foods';
 import { candidateToFood } from './online';
 
 type Phase =

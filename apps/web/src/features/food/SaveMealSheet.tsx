@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import type { FoodEntry } from '../../db/schema';
+import type { FoodEntry } from '@fitwell/core/schema';
 import { Button, Field, Sheet, TextInput } from '../../ui';
 import { t } from '../../i18n';
 import { saveSlotAsMeal } from './actions';

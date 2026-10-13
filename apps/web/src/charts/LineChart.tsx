@@ -1,5 +1,5 @@
 import { useRef, useState } from 'preact/hooks';
-import { dayFromNumber } from '../domain/dates';
+import { dayFromNumber } from '@fitwell/core/domain/dates';
 import { linear, niceDomain, niceTicks, spreadTicks } from './scale';
 import { Marker, type MarkerShape } from './markers';
 

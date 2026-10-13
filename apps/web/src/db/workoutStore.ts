@@ -1,6 +1,6 @@
 import { getDb } from './open';
 import { Repository } from './repository';
-import type { CustomActivity, CustomExercise, Workout, WorkoutTemplate } from './schema';
+import type { CustomActivity, CustomExercise, Workout, WorkoutTemplate } from '@fitwell/core/schema';
 
 const deps = { getDb };
 export const workoutsRepo = new Repository<Workout>('workouts', deps);

@@ -1,4 +1,4 @@
-import type { FoodEntry, MeasurementEntry, MeasurementType, Workout, WeightEntry } from '../db/schema';
+import type { FoodEntry, MeasurementEntry, MeasurementType, Workout, WeightEntry } from '../schema';
 import { addDays, addMonths, dayFromNumber, dayNumber, weekStart, type Day } from './dates';
 import { cardioKcal, estimatedOneRepMax } from './workouts';
 

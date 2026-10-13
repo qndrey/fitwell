@@ -2,8 +2,8 @@
 // Verifies, for both endpoints we use: JSON answer, browsers allowed to read it (CORS), and our parser accepts the shape.
 // The text search is known to answer 503 intermittently, so it is retried a few times, spaced out.
 // Run: npm run smoke:off -- "oat drink"
-import { toCandidate, toCandidates } from '../src/off/normalize.ts';
-import { OFF_ORIGIN } from '../src/off/client.ts';
+import { toCandidate, toCandidates } from '@fitwell/core/off/normalize';
+import { OFF_ORIGIN } from '@fitwell/core/off/client';
 
 const term = process.argv[2] ?? 'oat drink';
 const FIELDS = 'code,product_name,brands,nutriments,serving_quantity';

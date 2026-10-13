@@ -1,7 +1,7 @@
 import { getDb } from './open';
 import { Repository } from './repository';
-import type { MeasurementEntry, MeasurementType, WeightEntry } from './schema';
-import { PRESETS, presetId } from '../data/measurements';
+import type { MeasurementEntry, MeasurementType, WeightEntry } from '@fitwell/core/schema';
+import { PRESETS, presetId } from '@fitwell/core/data/measurements';
 
 const deps = { getDb };
 export const weightRepo = new Repository<WeightEntry>('weightEntries', deps);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, dayDiff, isDay, parseDay, toDay, today } from '../../src/domain/dates';
+import { addDays, dayDiff, isDay, parseDay, toDay, today } from '../src/domain/dates';
 
 describe('dates (TZ=America/New_York)', () => {
   it('round-trips a day', () => {

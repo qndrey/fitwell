@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Badge, Button, Field, Notice, Select, Sheet, TextInput } from '../../ui';
 import { buildExercises, defaultChoice, suggest, type AiWorkout, type Choice, type Suggestion } from '../../ai/importWorkout';
-import { fromCustom, loadExercises, prepareExercises, type Exercise } from '../../data/exercises';
+import { fromCustom, loadExercises, prepareExercises, type Exercise } from '@fitwell/core/data/exercises';
 import { customExercisesRepo } from '../../db/workoutStore';
-import { isDay } from '../../domain/dates';
-import { weightUnit, type UnitSystem } from '../../domain/units';
-import { formatDuration } from '../../domain/workouts';
+import { isDay } from '@fitwell/core/domain/dates';
+import { weightUnit, type UnitSystem } from '@fitwell/core/domain/units';
+import { formatDuration } from '@fitwell/core/domain/workouts';
 import { currentWeightKg, settings } from '../../state';
 import { t } from '../../i18n';
 import { createStrength, newId } from '../workout/actions';

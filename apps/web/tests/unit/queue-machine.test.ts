@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_ATTEMPTS, MAX_CANDIDATES, backoffMs, freshLookup, isDue, normalizeQuery, reduce, type QueueEvent } from '../../src/queue/machine';
-import type { Candidate, EntryState, FoodEntry } from '../../src/db/schema';
+import type { Candidate, EntryState, FoodEntry } from '@fitwell/core/schema';
 
 const cand = (i: number): Candidate => ({ source: 'off', sourceId: String(i), name: `Oat milk ${i}`, per100g: { kcal: 40, protein: 1, carbs: 6, fat: 1.5 }, portions: [] });
 type Slice = Pick<FoodEntry, 'state' | 'queryText' | 'lookup'>;

@@ -1,5 +1,5 @@
-import type { Candidate } from '../../db/schema';
-import type { FoodItem } from '../../domain/foods';
+import type { Candidate } from '@fitwell/core/schema';
+import type { FoodItem } from '@fitwell/core/domain/foods';
 
 export const candidateToFood = (c: Candidate): FoodItem => ({
   ref: { kind: 'off', id: c.sourceId },

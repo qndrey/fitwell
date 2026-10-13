@@ -1,7 +1,7 @@
 // Builds the bundled food dataset from the Frida 5.5 spreadsheet (CC BY 4.0, DTU National Food Institute).
 // Input:  data/raw/frida/Frida_5.5_Dataset.xlsx   (gitignored; see data/README.md)
 // Output: src/data/generated/foods.frida.json     (committed; deterministic)
-// Run:    npm run build:foods
+// Run:    npm run build:foods -w @fitwell/core
 import readXlsxFile from 'read-excel-file/node';
 import { writeFileSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';

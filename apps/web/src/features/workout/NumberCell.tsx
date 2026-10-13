@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { parseAmount } from '../../domain/nutrition';
+import { parseAmount } from '@fitwell/core/domain/nutrition';
 
 /** A numeric input that keeps what you type ("6.", "") while you type, and only reports finite numbers. */
 export function NumberCell({ value, onValue, label, placeholder, integer }: { value: number; onValue: (n: number) => void; label: string; placeholder?: string; integer?: boolean }) {

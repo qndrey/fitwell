@@ -1,5 +1,5 @@
-import { addDays, weekStart, type Day } from '../../domain/dates';
-import { aggregateDays } from '../../domain/stats';
+import { addDays, weekStart, type Day } from '@fitwell/core/domain/dates';
+import { aggregateDays } from '@fitwell/core/domain/stats';
 import { goals } from '../../state';
 import { t } from '../../i18n';
 import { useRangeData } from '../stats/data';

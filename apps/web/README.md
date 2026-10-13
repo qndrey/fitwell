@@ -14,7 +14,7 @@ A calm, private fitness and meal tracker. It runs entirely in your browser: **no
 Install from the browser menu ("Install" / "Add to Home Screen") for an app-like, offline-first experience. See [About](#about-the-data) in the app for sources and licences.
 
 ## Develop
-This app is the `@fitwell/web` workspace of the Fitwell monorepo (see the [root README](../../README.md)). Run the commands below from the repository root; the ones without a root alias (`build:*`, `smoke:off`) run as `npm run <name> -w @fitwell/web`.
+This app is the `@fitwell/web` workspace of the Fitwell monorepo (see the [root README](../../README.md)). Run the commands below from the repository root; the ones without a root alias (`build:licenses`, `smoke:off`) run as `npm run <name> -w @fitwell/web`.
 
 | Command | What it does |
 |---|---|
@@ -24,7 +24,9 @@ This app is the `@fitwell/web` workspace of the Fitwell monorepo (see the [root 
 | `npm run test:e2e` | Playwright (builds and serves the app itself) |
 | `npm run lighthouse` | Lighthouse (mobile) against the build; fails under the thresholds |
 | `npm run licenses` · `check:about` · `size` | Licence allow-list · About screen licences are current · bundle budget |
-| `npm run build:foods` · `build:exercises` · `build:licenses` | Regenerate bundled data (see `data/README.md`) |
+| `npm run build:licenses` | Regenerate the About screen licences |
+
+The bundled food and exercise data now live in [`packages/core`](../../packages/core/README.md) (`npm run build:foods -w @fitwell/core`, `build:exercises`).
 | `npm run smoke:off` | Manual check of the real Open Food Facts API (be polite) |
 
 Docs: [PLAN.md](PLAN.md) (architecture), [TECH_SPEC.md](TECH_SPEC.md) (specs, decisions, gate status), [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) (live at `/#/design`), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).

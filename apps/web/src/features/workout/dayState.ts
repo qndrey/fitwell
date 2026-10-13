@@ -1,7 +1,7 @@
 import { signal } from '@preact/signals';
 import { workoutsForDay } from '../../db/workoutStore';
 import { onChange } from '../../db/broadcast';
-import type { Workout } from '../../db/schema';
+import type { Workout } from '@fitwell/core/schema';
 
 export const dayWorkouts = signal<Workout[]>([]);
 

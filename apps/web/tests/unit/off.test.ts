@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { toCandidate, toCandidates } from '../../src/off/normalize';
-import { RateLimiter } from '../../src/off/rateLimiter';
-import { OffError, createOffClient } from '../../src/off/client';
+import { toCandidate, toCandidates } from '@fitwell/core/off/normalize';
+import { RateLimiter } from '@fitwell/core/off/rateLimiter';
+import { OffError, createOffClient } from '@fitwell/core/off/client';
 import { createLookup, EMPTY_TTL_MS, TTL_MS, type CacheRow } from '../../src/off/lookup';
 
 // Synthetic products shaped like Open Food Facts' documented response (values are made up for tests).

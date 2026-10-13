@@ -1,7 +1,7 @@
 import { signal } from '@preact/signals';
 import { unresolvedEntries } from '../../db/foodStore';
 import { onChange } from '../../db/broadcast';
-import type { FoodEntry } from '../../db/schema';
+import type { FoodEntry } from '@fitwell/core/schema';
 
 /** Everything not yet resolved, any day. Drives the "N items to confirm" badge and the review screen. */
 export const unresolved = signal<FoodEntry[]>([]);

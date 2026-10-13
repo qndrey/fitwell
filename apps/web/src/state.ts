@@ -1,13 +1,13 @@
 import { signal } from '@preact/signals';
 import type { IDBPDatabase } from 'idb';
-import { DEFAULT_SETTINGS, type Goals, type Settings } from './db/schema';
+import { DEFAULT_SETTINGS, type Goals, type Settings } from '@fitwell/core/schema';
 import { loadGoals, saveGoals } from './db/goals';
 import { getDb } from './db/open';
 import { ensureMeta } from './db/meta';
 import { loadSettings, saveSettings } from './db/settings';
 import { onChange } from './db/broadcast';
 import { installErrorHandling } from './errors';
-import { bodyWeightKg } from './domain/met';
+import { bodyWeightKg } from '@fitwell/core/domain/met';
 import { latestWeightEntry } from './features/body/store';
 
 export const settings = signal<Settings>(DEFAULT_SETTINGS);

@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
-import type { FoodItem } from '../../domain/foods';
-import { parseAmount, quantityGrams, roundForDisplay, scale, type Quantity } from '../../domain/nutrition';
+import type { FoodItem } from '@fitwell/core/domain/foods';
+import { parseAmount, quantityGrams, roundForDisplay, scale, type Quantity } from '@fitwell/core/domain/nutrition';
 import { settings } from '../../state';
 import { Button, Field, Select, TextInput } from '../../ui';
 import { t } from '../../i18n';

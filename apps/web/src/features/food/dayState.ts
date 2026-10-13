@@ -1,7 +1,7 @@
 import { signal } from '@preact/signals';
 import { entriesForDay } from '../../db/foodStore';
 import { onChange } from '../../db/broadcast';
-import type { FoodEntry } from '../../db/schema';
+import type { FoodEntry } from '@fitwell/core/schema';
 
 export const dayEntries = signal<FoodEntry[]>([]);
 

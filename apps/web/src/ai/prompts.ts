@@ -1,10 +1,10 @@
-import type { CardioDetails, FoodEntry, Goals, Slot, WeightEntry, Workout } from '../db/schema';
-import { SLOTS } from '../db/schema';
-import { addDays, formatDay, type Day } from '../domain/dates';
-import { roundForDisplay } from '../domain/nutrition';
-import { dayTotals } from '../domain/totals';
-import { displayDistance, displayWeight, distanceUnit, weightUnit, type UnitSystem } from '../domain/units';
-import { cardioKcal, summarizeSets } from '../domain/workouts';
+import type { CardioDetails, FoodEntry, Goals, Slot, WeightEntry, Workout } from '@fitwell/core/schema';
+import { SLOTS } from '@fitwell/core/schema';
+import { addDays, formatDay, type Day } from '@fitwell/core/domain/dates';
+import { roundForDisplay } from '@fitwell/core/domain/nutrition';
+import { dayTotals } from '@fitwell/core/domain/totals';
+import { displayDistance, displayWeight, distanceUnit, weightUnit, type UnitSystem } from '@fitwell/core/domain/units';
+import { cardioKcal, summarizeSets } from '@fitwell/core/domain/workouts';
 
 /**
  * Text that people paste into an AI chat of their own choosing. Plain English on purpose (not in the UI strings):

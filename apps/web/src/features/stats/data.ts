@@ -2,8 +2,8 @@ import { signal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { getDb } from '../../db/open';
 import { onChange } from '../../db/broadcast';
-import type { Day } from '../../domain/dates';
-import type { RangeData } from '../../domain/stats';
+import type { Day } from '@fitwell/core/domain/dates';
+import type { RangeData } from '@fitwell/core/domain/stats';
 
 const STORES = ['foodEntries', 'workouts', 'weightEntries', 'measurementEntries'] as const;
 

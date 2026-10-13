@@ -1,10 +1,10 @@
 import * as v from 'valibot';
-import type { WorkoutExercise, WorkoutSet } from '../db/schema';
-import { isDay } from '../domain/dates';
-import { toKg, type UnitSystem } from '../domain/units';
-import { normalizeSupersets } from '../domain/workouts';
-import { search, type Searchable } from '../search/rank';
-import type { Exercise } from '../data/exercises';
+import type { WorkoutExercise, WorkoutSet } from '@fitwell/core/schema';
+import { isDay } from '@fitwell/core/domain/dates';
+import { toKg, type UnitSystem } from '@fitwell/core/domain/units';
+import { normalizeSupersets } from '@fitwell/core/domain/workouts';
+import { search, type Searchable } from '@fitwell/core/search/rank';
+import type { Exercise } from '@fitwell/core/data/exercises';
 
 /** The reply format the "ask for a workout" prompt describes. Lenient about what an AI is likely to add, strict about numbers. */
 const amount = (max: number) => v.pipe(v.number(), v.minValue(0), v.maxValue(max));

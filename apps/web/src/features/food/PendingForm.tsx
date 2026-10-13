@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { parseAmount } from '../../domain/nutrition';
+import { parseAmount } from '@fitwell/core/domain/nutrition';
 import { Button, Field, TextInput } from '../../ui';
 import { t } from '../../i18n';
 

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Badge, Button, Card, Choice, EmptyState, Field, Icon, LinkButton, Screen, Segmented, Sheet, TextInput } from '../../ui';
 import { lastPerformance, workoutsRepo } from '../../db/workoutStore';
-import type { Workout, WorkoutExercise, WorkoutSet } from '../../db/schema';
-import { formatDay, today } from '../../domain/dates';
-import { displayWeight, toKg, weightUnit } from '../../domain/units';
-import { addedLoadKg, formatDuration, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '../../domain/workouts';
+import type { Workout, WorkoutExercise, WorkoutSet } from '@fitwell/core/schema';
+import { formatDay, today } from '@fitwell/core/domain/dates';
+import { displayWeight, toKg, weightUnit } from '@fitwell/core/domain/units';
+import { addedLoadKg, formatDuration, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '@fitwell/core/domain/workouts';
 import { routeId } from '../../router';
 import { currentWeightKg, settings } from '../../state';
 import { t } from '../../i18n';

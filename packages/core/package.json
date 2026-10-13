@@ -1,0 +1,29 @@
+{
+  "name": "@fitwell/core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Shared, platform-neutral Fitwell code: data model, domain logic, bundled datasets, search, Open Food Facts client.",
+  "exports": {
+    "./*.json": "./src/*.json",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "build:foods": "tsx scripts/build-foods.ts",
+    "build:exercises": "tsx scripts/build-exercises.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.4",
+    "eslint": "^10.12.0",
+    "read-excel-file": "^9.3.12",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
+  }
+}

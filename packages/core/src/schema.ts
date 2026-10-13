@@ -1,5 +1,5 @@
-import type { FoodItem } from '../domain/foods';
-import type { Nutrients, Portion, Quantity } from '../domain/nutrition';
+import type { FoodItem } from './domain/foods';
+import type { Nutrients, Portion, Quantity } from './domain/nutrition';
 
 /** Fields every user-owned record carries (sync-ready; see TECH_SPEC §3.1). */
 export interface Base {

@@ -1,8 +1,8 @@
 import { getDb } from './open';
 import { Repository } from './repository';
-import type { CachedFood, CustomFood, Favorite, FoodEntry, SavedMeal } from './schema';
-import { refKey, type FoodItem } from '../domain/foods';
-import type { Quantity } from '../domain/nutrition';
+import type { CachedFood, CustomFood, Favorite, FoodEntry, SavedMeal } from '@fitwell/core/schema';
+import { refKey, type FoodItem } from '@fitwell/core/domain/foods';
+import type { Quantity } from '@fitwell/core/domain/nutrition';
 
 const deps = { getDb };
 export const entriesRepo = new Repository<FoodEntry>('foodEntries', deps);

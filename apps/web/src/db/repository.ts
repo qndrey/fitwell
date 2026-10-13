@@ -1,5 +1,5 @@
 import type { IDBPDatabase } from 'idb';
-import type { Base } from './schema';
+import type { Base } from '@fitwell/core/schema';
 import { publishChange } from './broadcast';
 
 type Fields<T extends Base> = Omit<T, keyof Base>;

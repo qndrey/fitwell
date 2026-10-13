@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Button, Card, Choice, Field, Fieldset, Icon, Screen, Segmented, TextInput } from '../../ui';
-import { parseAmount } from '../../domain/nutrition';
-import { displayWeight, toKg, weightUnit, type UnitSystem } from '../../domain/units';
+import { parseAmount } from '@fitwell/core/domain/nutrition';
+import { displayWeight, toKg, weightUnit, type UnitSystem } from '@fitwell/core/domain/units';
 import { BackupSection } from './BackupSection';
 import { DeleteAllSheet } from './DeleteAllSheet';
 import { GoalsCard } from './GoalsCard';
 import { InstallCard } from './InstallCard';
 import { goals, settings, updateGoals, updateSettings } from '../../state';
 import { ManageMeasurements } from '../body/ManageMeasurements';
-import type { ThemePreference } from '../../db/schema';
+import type { ThemePreference } from '@fitwell/core/schema';
 import { t, type Key } from '../../i18n';
 
 const THEMES: ThemePreference[] = ['system', 'light', 'dark'];

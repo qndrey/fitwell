@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Card, LinkButton, Screen } from '../../ui';
-import { loadBundledFoods, type DatasetInfo } from '../../data/bundledFoods';
-import { loadExercises } from '../../data/exercises';
+import { loadBundledFoods, type DatasetInfo } from '@fitwell/core/data/bundledFoods';
+import { loadExercises } from '@fitwell/core/data/exercises';
 import licenses from '../../about/generated/licenses.json';
 import { OTHER_CREDITS, type Credit } from '../../about/attributions';
 import { t } from '../../i18n';

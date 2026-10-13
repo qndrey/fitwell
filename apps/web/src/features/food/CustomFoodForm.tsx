@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { customFoodsRepo } from '../../db/foodStore';
-import type { FoodItem } from '../../domain/foods';
-import { parseAmount, type Nutrients, type Portion } from '../../domain/nutrition';
+import type { FoodItem } from '@fitwell/core/domain/foods';
+import { parseAmount, type Nutrients, type Portion } from '@fitwell/core/domain/nutrition';
 import { Button, Choice, Field, Fieldset, TextInput } from '../../ui';
 import { t } from '../../i18n';
 

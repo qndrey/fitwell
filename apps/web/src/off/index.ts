@@ -1,7 +1,7 @@
 import { getDb } from '../db/open';
-import { createOffClient } from './client';
+import { createOffClient } from '@fitwell/core/off/client';
 import { createLookup, type LookupCache } from './lookup';
-import { RateLimiter } from './rateLimiter';
+import { RateLimiter } from '@fitwell/core/off/rateLimiter';
 
 const cache: LookupCache = {
   async get(key) {

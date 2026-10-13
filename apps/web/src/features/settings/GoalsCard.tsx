@@ -1,6 +1,6 @@
 import { useRef, useState } from 'preact/hooks';
-import { parseAmount } from '../../domain/nutrition';
-import type { Goals } from '../../db/schema';
+import { parseAmount } from '@fitwell/core/domain/nutrition';
+import type { Goals } from '@fitwell/core/schema';
 import { goals, updateGoals } from '../../state';
 import { Card, Field, TextInput } from '../../ui';
 import { t } from '../../i18n';

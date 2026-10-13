@@ -1,6 +1,6 @@
-import type { Base, FoodEntry, Slot } from '../../db/schema';
-import type { FoodItem } from '../../domain/foods';
-import { quantityGrams, scale, type Quantity } from '../../domain/nutrition';
+import type { Base, FoodEntry, Slot } from '@fitwell/core/schema';
+import type { FoodItem } from '@fitwell/core/domain/foods';
+import { quantityGrams, scale, type Quantity } from '@fitwell/core/domain/nutrition';
 
 type Fields = Omit<FoodEntry, keyof Base>;
 

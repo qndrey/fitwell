@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
 import { lastValues, measurementEntriesRepo, measurementId, measurementsFor, saveMeasurements } from '../../db/bodyStore';
-import type { MeasurementType } from '../../db/schema';
-import { PRESETS } from '../../data/measurements';
-import { formatDay } from '../../domain/dates';
-import { parseAmount } from '../../domain/nutrition';
-import { displayLength, lengthUnit, toCm } from '../../domain/units';
+import type { MeasurementType } from '@fitwell/core/schema';
+import { PRESETS } from '@fitwell/core/data/measurements';
+import { formatDay } from '@fitwell/core/domain/dates';
+import { parseAmount } from '@fitwell/core/domain/nutrition';
+import { displayLength, lengthUnit, toCm } from '@fitwell/core/domain/units';
 import { settings } from '../../state';
 import { Button, Field, Icon, Notice, Sheet, TextInput } from '../../ui';
 import { t } from '../../i18n';

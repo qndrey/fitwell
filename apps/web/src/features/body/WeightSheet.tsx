@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import { saveWeight, weightBefore, weightFor, weightRepo, weightId } from '../../db/bodyStore';
-import { formatDay } from '../../domain/dates';
-import { parseAmount } from '../../domain/nutrition';
-import { displayWeight, toKg, weightUnit } from '../../domain/units';
+import { formatDay } from '@fitwell/core/domain/dates';
+import { parseAmount } from '@fitwell/core/domain/nutrition';
+import { displayWeight, toKg, weightUnit } from '@fitwell/core/domain/units';
 import { currentWeightKg, settings } from '../../state';
 import { Button, Field, Icon, Sheet, TextInput } from '../../ui';
 import { t } from '../../i18n';

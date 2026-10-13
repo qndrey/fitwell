@@ -1,5 +1,5 @@
-import type { Candidate, FoodEntry } from '../db/schema';
-import { OffError } from '../off/client';
+import type { Candidate, FoodEntry } from '@fitwell/core/schema';
+import { OffError } from '@fitwell/core/off/client';
 import { MAX_ATTEMPTS, isDue, reduce, type Patch } from './machine';
 
 export interface RunnerDeps {

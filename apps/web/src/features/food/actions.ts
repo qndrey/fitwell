@@ -3,9 +3,9 @@ import { requestPersistence } from '../../db/persistence';
 import { cacheOnlineFood, entriesRepo, savedMealsRepo, setFavorite } from '../../db/foodStore';
 import { freshLookup, reduce } from '../../queue/machine';
 import { kickQueue } from '../../queue';
-import type { FoodEntry, SavedMeal, Slot } from '../../db/schema';
-import type { FoodItem } from '../../domain/foods';
-import { quantityGrams, scale, type Nutrients, type Quantity } from '../../domain/nutrition';
+import type { FoodEntry, SavedMeal, Slot } from '@fitwell/core/schema';
+import type { FoodItem } from '@fitwell/core/domain/foods';
+import { quantityGrams, scale, type Nutrients, type Quantity } from '@fitwell/core/domain/nutrition';
 import { t } from '../../i18n';
 import { showToast } from './toast';
 

@@ -2,11 +2,11 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import { createRunner, type RunnerDeps } from '../../src/queue/runner';
 import { MAX_ATTEMPTS, freshLookup, reduce } from '../../src/queue/machine';
-import { OffError } from '../../src/off/client';
+import { OffError } from '@fitwell/core/off/client';
 import { createLookup } from '../../src/off/lookup';
 import { Repository } from '../../src/db/repository';
 import { openDatabase } from '../../src/db/open';
-import type { Candidate, FoodEntry } from '../../src/db/schema';
+import type { Candidate, FoodEntry } from '@fitwell/core/schema';
 
 const cand = (id: string, name = 'Oat drink'): Candidate => ({ source: 'off', sourceId: id, name, per100g: { kcal: 46, protein: 1, carbs: 6, fat: 1.5 }, portions: [] });
 

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { openDatabase } from '../../src/db/open';
 import { Repository } from '../../src/db/repository';
 import { onChange } from '../../src/db/broadcast';
-import type { Base } from '../../src/db/schema';
+import type { Base } from '@fitwell/core/schema';
 
 // The `goals` store is a convenient keyPath:'id' store for exercising the generic repo.
 interface Thing extends Base { label: string }

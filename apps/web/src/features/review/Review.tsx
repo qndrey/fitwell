@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
-import { formatDay } from '../../domain/dates';
-import { roundForDisplay, scale } from '../../domain/nutrition';
-import type { FoodEntry } from '../../db/schema';
+import { formatDay } from '@fitwell/core/domain/dates';
+import { roundForDisplay, scale } from '@fitwell/core/domain/nutrition';
+import type { FoodEntry } from '@fitwell/core/schema';
 import { online, settings } from '../../state';
 import { Badge, Button, Card, Choice, EmptyState, Icon, LinkButton, List, ListRow, Screen, SectionTitle, Sheet } from '../../ui';
 import { t, type Key } from '../../i18n';

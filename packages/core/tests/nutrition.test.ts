@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseAmount, quantityGrams, roundForDisplay, scale, sum } from '../../src/domain/nutrition';
-import { dayTotals } from '../../src/domain/totals';
-import type { FoodEntry } from '../../src/db/schema';
+import { parseAmount, quantityGrams, roundForDisplay, scale, sum } from '../src/domain/nutrition';
+import { dayTotals } from '../src/domain/totals';
+import type { FoodEntry } from '../src/schema';
 
 const oats = { kcal: 373, protein: 13.8, carbs: 58.9, fat: 6.9 };
 
@@ -40,7 +40,7 @@ describe('dayTotals', () => {
 
 describe('hand-verified day (values per 100 g from the bundled dataset)', () => {
   it('totals a mixed day exactly as a calculator would', async () => {
-    const { loadBundledFoods } = await import('../../src/data/bundledFoods');
+    const { loadBundledFoods } = await import('../src/data/bundledFoods');
     const { foods } = await loadBundledFoods();
     const by = (n: string) => foods.find((f) => f.name === n)!;
     const log: [string, number][] = [['Banana, raw', 120], ['Oats, rolled, average values', 60], ['Olive oil', 10]];

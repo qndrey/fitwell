@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Button, Icon, List, ListRow, SectionTitle, Sheet } from '../../ui';
 import { lastWorkout, templatesRepo } from '../../db/workoutStore';
-import type { Workout, WorkoutTemplate } from '../../db/schema';
-import { formatDay } from '../../domain/dates';
-import { describeWorkout } from '../../domain/workouts';
+import type { Workout, WorkoutTemplate } from '@fitwell/core/schema';
+import { formatDay } from '@fitwell/core/domain/dates';
+import { describeWorkout } from '@fitwell/core/domain/workouts';
 import { t } from '../../i18n';
 import { createStrength, deleteTemplate, repeatWorkout, startFromTemplate } from './actions';
 import { CardioSheet } from './CardioSheet';

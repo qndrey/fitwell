@@ -1,4 +1,4 @@
-import type { FoodEntry } from '../../db/schema';
+import type { FoodEntry } from '@fitwell/core/schema';
 import { MAX_ATTEMPTS } from '../../queue/machine';
 import { online } from '../../state';
 import { Button, Icon, Sheet } from '../../ui';

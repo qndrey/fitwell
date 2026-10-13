@@ -1,4 +1,4 @@
-import type { Candidate, EntryState, FoodEntry, LookupInfo } from '../db/schema';
+import type { Candidate, EntryState, FoodEntry, LookupInfo } from '@fitwell/core/schema';
 
 /**
  * Pure state machine for entries that are not resolved yet (PLAN §8).

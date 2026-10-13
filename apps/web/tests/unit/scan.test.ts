@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readBarcodes } from 'zxing-wasm/reader';
 import { ean13Modules, ean13Pixels } from '../helpers/ean';
-import { gtinValid } from '../../src/scan/ean';
+import { gtinValid } from '@fitwell/core/ean';
 
 describe('barcode decoding (the same ZXing engine the app ships)', () => {
   it('the test encoder produces valid, 95-module EAN-13 patterns', () => {

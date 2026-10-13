@@ -19,6 +19,7 @@ interface LsNode {
 }
 
 interface PackageJson {
+  private?: boolean;
   license?: string | { type?: string };
   repository?: string | { url?: string };
 }
@@ -60,6 +61,11 @@ export function prodDeps(): ProdDep[] {
       const key = `${name}@${node.version}`;
       if (seen.has(key)) continue;
       const pkg = JSON.parse(readFileSync(join(node.path, 'package.json'), 'utf8')) as PackageJson;
+      // Our own private workspace packages (@fitwell/core) are not third-party code.
+      if (pkg.private) {
+        walk(node.dependencies);
+        continue;
+      }
       const license = typeof pkg.license === 'string' ? pkg.license : (pkg.license?.type ?? 'UNKNOWN');
       seen.set(key, { name, version: node.version, license, url: repoUrl(pkg.repository), licenseFile: findLicenseFile(node.path) });
       walk(node.dependencies);

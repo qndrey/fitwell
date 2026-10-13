@@ -1,5 +1,5 @@
 import * as v from 'valibot';
-import { isDay } from '../domain/dates';
+import { isDay } from '@fitwell/core/domain/dates';
 
 const num = v.pipe(v.number(), v.finite());
 const nonNeg = v.pipe(num, v.minValue(0));

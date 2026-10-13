@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { analysisPrompt, foodSection, workoutRequestPrompt, workoutSection, WORKOUT_JSON_EXAMPLE } from '../../src/ai/prompts';
 import { buildExercises, defaultChoice, parseAiReply, suggest } from '../../src/ai/importWorkout';
-import { prepareExercises, type Exercise } from '../../src/data/exercises';
-import type { FoodEntry, Workout } from '../../src/db/schema';
+import { prepareExercises, type Exercise } from '@fitwell/core/data/exercises';
+import type { FoodEntry, Workout } from '@fitwell/core/schema';
 
 const base = { id: 'x', createdAt: 1, updatedAt: 1, rev: 1 };
 const food = (day: string, slot: FoodEntry['slot'], name: string, grams: number, kcal: number): FoodEntry => ({

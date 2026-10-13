@@ -1,11 +1,11 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
-import { estimateKcal, bodyWeightKg } from '../../src/domain/met';
-import { addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '../../src/domain/workouts';
-import { displayDistance, displayWeight, kgToLb, lbToKg, miToKm, toKg, toKm, kmToMi } from '../../src/domain/units';
+import { estimateKcal, bodyWeightKg } from '@fitwell/core/domain/met';
+import { addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '@fitwell/core/domain/workouts';
+import { displayDistance, displayWeight, kgToLb, lbToKg, miToKm, toKg, toKm, kmToMi } from '@fitwell/core/domain/units';
 import { openDatabase } from '../../src/db/open';
-import { ACTIVITIES } from '../../src/data/activities';
-import type { Workout } from '../../src/db/schema';
+import { ACTIVITIES } from '@fitwell/core/data/activities';
+import type { Workout } from '@fitwell/core/schema';
 
 describe('MET energy estimate', () => {
   it('MET × kg × hours, rounded', () => {

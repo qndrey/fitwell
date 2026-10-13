@@ -1,8 +1,8 @@
 import { signal } from '@preact/signals';
 import { useMemo } from 'preact/hooks';
-import { addDays, addMonths, formatDay, monthKey, parseDay, toDay, today as todayDay, weekStart, type Day } from '../../domain/dates';
-import { aggregateDays, type DayAgg } from '../../domain/stats';
-import { displayWeight, weightUnit } from '../../domain/units';
+import { addDays, addMonths, formatDay, monthKey, parseDay, toDay, today as todayDay, weekStart, type Day } from '@fitwell/core/domain/dates';
+import { aggregateDays, type DayAgg } from '@fitwell/core/domain/stats';
+import { displayWeight, weightUnit } from '@fitwell/core/domain/units';
 import { settings } from '../../state';
 import { Badge, Button, Card, EmptyState, Icon, LinkButton, List, ListRow, Screen, SectionTitle, Segmented } from '../../ui';
 import { t } from '../../i18n';

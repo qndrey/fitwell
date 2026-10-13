@@ -1,4 +1,4 @@
-import type { Candidate } from '../db/schema';
+import type { Candidate } from '../schema';
 
 interface RawProduct {
   code?: unknown;

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, dayFromNumber, dayNumber, weekStart } from '../../src/domain/dates';
+import { addMonths, dayFromNumber, dayNumber, weekStart } from '../src/domain/dates';
 import {
   aggregateDays, cardioActivities, cardioPerWeek, compareFirstLatest, downsample, exerciseOptions, exerciseProgress, measurementPoints,
   movingAverage, rangeStart, trendChange, weeklyAverage, weeksIn, workoutsPerWeek, type RangeData,
-} from '../../src/domain/stats';
-import type { FoodEntry, MeasurementEntry, MeasurementType, Workout, WeightEntry } from '../../src/db/schema';
+} from '../src/domain/stats';
+import type { FoodEntry, MeasurementEntry, MeasurementType, Workout, WeightEntry } from '../src/schema';
 
 const base = { createdAt: 1, updatedAt: 1, rev: 1 };
 const pts = (...v: [string, number][]) => v.map(([day, value]) => ({ day, value }));

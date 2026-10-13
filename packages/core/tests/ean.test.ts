@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gtinValid, looksLikeBarcode, normalizeBarcode } from '../../src/scan/ean';
+import { gtinValid, looksLikeBarcode, normalizeBarcode } from '../src/ean';
 
 describe('barcodes', () => {
   it('validates GTIN check digits (EAN-13, UPC-A, EAN-8)', () => {

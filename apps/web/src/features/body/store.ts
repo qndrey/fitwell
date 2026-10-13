@@ -1,7 +1,7 @@
 import { signal } from '@preact/signals';
 import { latestMeasurementDay, latestWeight, listMeasurementTypes } from '../../db/bodyStore';
 import { onChange } from '../../db/broadcast';
-import type { MeasurementType, WeightEntry } from '../../db/schema';
+import type { MeasurementType, WeightEntry } from '@fitwell/core/schema';
 
 /** The most recent logged weight (drives calorie estimates), the measurement types, and when you last measured. */
 export const latestWeightEntry = signal<WeightEntry | undefined>(undefined);

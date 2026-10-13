@@ -3,7 +3,7 @@ import { Button, Card, Field, Icon, LinkButton, Notice, Screen, Segmented, TextI
 import { copyText } from '../../ai/clipboard';
 import { parseAiReply, type AiWorkout, type ParseResult } from '../../ai/importWorkout';
 import { analysisPrompt, workoutRequestPrompt, type AnalysisKind, type LoggedData } from '../../ai/prompts';
-import { addDays, today } from '../../domain/dates';
+import { addDays, today } from '@fitwell/core/domain/dates';
 import { goals, settings } from '../../state';
 import { t } from '../../i18n';
 import { loadRange } from '../stats/data';

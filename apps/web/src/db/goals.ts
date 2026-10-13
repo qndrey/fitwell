@@ -1,5 +1,5 @@
 import type { IDBPDatabase } from 'idb';
-import type { Goals } from './schema';
+import type { Goals } from '@fitwell/core/schema';
 import { publishChange } from './broadcast';
 
 export async function loadGoals(db: IDBPDatabase): Promise<Goals> {

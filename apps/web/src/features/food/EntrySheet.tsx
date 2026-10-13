@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { favoritesRepo, favoriteId } from '../../db/foodStore';
-import type { FoodEntry, Slot } from '../../db/schema';
+import type { FoodEntry, Slot } from '@fitwell/core/schema';
 import { Button, Icon, Sheet } from '../../ui';
 import { t } from '../../i18n';
 import { changeEntry, deleteEntry, setFavorite, updateManualValues } from './actions';

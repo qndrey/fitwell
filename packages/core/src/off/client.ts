@@ -1,4 +1,4 @@
-import type { Candidate } from '../db/schema';
+import type { Candidate } from '../schema';
 import { toCandidate, toCandidates } from './normalize';
 import type { Priority, RateLimiter } from './rateLimiter';
 

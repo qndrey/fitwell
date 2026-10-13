@@ -1,7 +1,7 @@
 import { workoutsRepo, templatesRepo } from '../../db/workoutStore';
-import type { CardioDetails, Workout, WorkoutExercise, WorkoutTemplate } from '../../db/schema';
-import { copyExercises, normalizeSupersets } from '../../domain/workouts';
-import { estimateKcal } from '../../domain/met';
+import type { CardioDetails, Workout, WorkoutExercise, WorkoutTemplate } from '@fitwell/core/schema';
+import { copyExercises, normalizeSupersets } from '@fitwell/core/domain/workouts';
+import { estimateKcal } from '@fitwell/core/domain/met';
 import { currentWeightKg } from '../../state';
 import { t } from '../../i18n';
 import { showToast } from '../food/toast';

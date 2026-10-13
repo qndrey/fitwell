@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
-import { measurementReminderDue, distanceFromGoal } from '../../src/domain/body';
-import { cmToIn, displayLength, inToCm, toCm } from '../../src/domain/units';
-import { PRESETS, presetId } from '../../src/data/measurements';
+import { measurementReminderDue, distanceFromGoal } from '@fitwell/core/domain/body';
+import { cmToIn, displayLength, inToCm, toCm } from '@fitwell/core/domain/units';
+import { PRESETS, presetId } from '@fitwell/core/data/measurements';
 
 describe('measurement reminder', () => {
   const NOW = new Date(2026, 9, 9, 12).getTime();

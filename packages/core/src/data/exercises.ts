@@ -1,5 +1,5 @@
 import { prepare, search, type Searchable } from '../search/rank';
-import type { CustomExercise } from '../db/schema';
+import type { CustomExercise } from '../schema';
 
 export interface Exercise {
   /** "ex:<id>" (bundled) or "cx:<id>" (yours). Stable: user data refers to this. */

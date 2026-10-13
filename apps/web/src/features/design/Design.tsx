@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import '../../styles/design.css';
 import { contrastRatio, rgbToHex } from '../../domain/contrast';
-import type { ThemePreference } from '../../db/schema';
+import type { ThemePreference } from '@fitwell/core/schema';
 import { settings, updateSettings } from '../../state';
 import { Badge, BigNumber, Button, Card, Choice, EmptyState, Field, Icon, ICON_NAMES, LinkButton, List, ListRow, Notice, Screen, SectionTitle, Segmented, Select, Sheet, StatGrid, TextInput } from '../../ui';
 

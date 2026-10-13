@@ -1,4 +1,4 @@
-import { SLOTS, type Slot } from '../../db/schema';
+import { SLOTS, type Slot } from '@fitwell/core/schema';
 import { Segmented } from '../../ui';
 import { t, type Key } from '../../i18n';
 

@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals';
-import { isDay, type Day } from './domain/dates';
+import { isDay, type Day } from '@fitwell/core/domain/dates';
 
 export const ROUTES = ['today', 'history', 'progress', 'settings'] as const;
 export type RouteName = (typeof ROUTES)[number];

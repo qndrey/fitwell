@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { measurementTypesRepo } from '../../db/bodyStore';
-import type { MeasurementType } from '../../db/schema';
+import type { MeasurementType } from '@fitwell/core/schema';
 import { Button, Choice, Field, Icon, SectionTitle, Sheet, TextInput } from '../../ui';
 import { t } from '../../i18n';
 import { showToast } from '../food/toast';

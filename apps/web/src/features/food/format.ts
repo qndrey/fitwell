@@ -1,6 +1,6 @@
-import type { Quantity } from '../../domain/nutrition';
-import type { FoodEntry } from '../../db/schema';
-import { looksLikeBarcode } from '../../scan/ean';
+import type { Quantity } from '@fitwell/core/domain/nutrition';
+import type { FoodEntry } from '@fitwell/core/schema';
+import { looksLikeBarcode } from '@fitwell/core/ean';
 import { t } from '../../i18n';
 
 const num = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });

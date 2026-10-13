@@ -1,5 +1,5 @@
 import type { IDBPDatabase } from 'idb';
-import { DEFAULT_SETTINGS, type Settings } from './schema';
+import { DEFAULT_SETTINGS, type Settings } from '@fitwell/core/schema';
 import { publishChange } from './broadcast';
 
 export async function loadSettings(db: IDBPDatabase): Promise<Settings> {

@@ -3,7 +3,7 @@ import { SIZE, draw } from '../../src/illustrations/figure';
 import { figureFor, templateIdFor } from '../../src/illustrations/match';
 import { figureAt } from '../../src/illustrations/svg';
 import { TEMPLATES } from '../../src/illustrations/templates';
-import exercises from '../../src/data/generated/exercises.index.json';
+import exercises from '@fitwell/core/data/generated/exercises.index.json';
 
 describe('exercise drawings', () => {
   it.each(Object.keys(TEMPLATES))('%s stays inside the picture, start to end', (id) => {

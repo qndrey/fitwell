@@ -38,7 +38,7 @@ describe('fitwell MCP server', () => {
   it('lists the reference tools with instructions', async () => {
     const client = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['get_exercise', 'log_set', 'lookup_barcode', 'search_exercises', 'search_foods', 'start_workout', 'log_food', 'get_profile']));
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['log_set', 'lookup_barcode', 'search_exercises', 'search_foods', 'start_workout', 'log_food', 'get_profile']));
     const search = tools.find((t) => t.name === 'search_exercises')!;
     // Muscles and equipment are enums taken from the dataset, so Claude sees the valid values.
     expect(JSON.stringify(search.inputSchema)).toContain('quadriceps');
@@ -98,7 +98,7 @@ describe('fitwell MCP server', () => {
     const exercises = data.exercises as { id?: string; ref: string; equipment: string }[];
     expect(exercises.length).toBeGreaterThan(0);
     expect(exercises.every((e) => e.equipment === 'barbell')).toBe(true);
-    const detail = await call(client, 'get_exercise', { id: exercises[0]!.ref });
+    const detail = await call(client, 'search_exercises', { id: exercises[0]!.ref });
     expect((detail.data.exercise as { instructions: string[] }).instructions.length).toBeGreaterThan(0);
   });
 

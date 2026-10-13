@@ -37,7 +37,7 @@ describe('food log', () => {
     const { isError, text } = await call(client, 'log_food', { items: [{ food_id: 'frida:413', grams: 100 }, { food_id: 'frida:999999', grams: 10 }] });
     expect(isError).toBe(true);
     expect(text).toContain('frida:999999');
-    expect(((await call(client, 'get_day', {})).data.entries as Entry[]).length).toBe(0);
+    expect(((await call(client, 'get_food_log', {})).data.entries as Entry[]).length).toBe(0);
   });
 
   it('stores an estimate only when marked as one, and needs a name and values for it', async () => {
@@ -59,8 +59,8 @@ describe('food log', () => {
     const id = (data.logged as Entry[])[0]!.id;
     const edited = await call(client, 'edit_food_entry', { id, grams: 200, slot: 'dinner' });
     expect(edited.data.updated).toMatchObject({ grams: 200, kcal: 418, slot: 'dinner' });
-    expect((await call(client, 'delete_food_entry', { id })).data.deleted).toBe(id);
-    expect((await call(client, 'delete_food_entry', { id })).isError).toBe(true);
+    expect((await call(client, 'delete_item', { kind: 'food_entry', id })).data.deleted).toEqual({ kind: 'food_entry', id });
+    expect((await call(client, 'delete_item', { kind: 'food_entry', id })).isError).toBe(true);
   });
 
   it('saves own foods, finds them first in search and logs them', async () => {
@@ -76,7 +76,7 @@ describe('food log', () => {
   it('summarises several days with averages over logged days', async () => {
     await call(client, 'log_food', { day: '2026-10-11', items: [{ food_id: 'frida:413', grams: 100 }] });
     await call(client, 'log_food', { day: '2026-10-13', items: [{ food_id: 'frida:413', grams: 300 }] });
-    const { data } = await call(client, 'get_nutrition_summary', { to: '2026-10-13', days: 7 });
+    const { data } = await call(client, 'get_food_log', { day: '2026-10-13', days: 7 });
     expect(data.from).toBe('2026-10-07');
     expect(data.daysLogged).toBe(2);
     expect(data.averagePerLoggedDay).toMatchObject({ kcal: 418 });
@@ -108,7 +108,7 @@ describe('profile and goals', () => {
     const off = await call(client, 'set_goals', { fat_g: 120 });
     expect(off.data.note).toContain('add up');
     await call(client, 'log_food', { day: '2026-10-13', items: [{ food_id: 'frida:413', grams: 100 }] });
-    const day = await call(client, 'get_day', { day: '2026-10-13' });
+    const day = await call(client, 'get_food_log', { day: '2026-10-13' });
     expect(day.data.remaining).toMatchObject({ kcal: 1791, protein: 144 });
   });
 });
@@ -122,15 +122,15 @@ describe('privacy', () => {
     await call(client, 'save_custom_food', { name: 'Ana secret recipe', per100g: { kcal: 100, protein: 1, carbs: 1, fat: 1 } });
     await call(client, 'set_goals', { kcal: 1800 });
 
-    expect(((await call(boClient, 'get_day', { day: '2026-10-13' })).data.entries as Entry[]).length).toBe(0);
+    expect(((await call(boClient, 'get_food_log', { day: '2026-10-13' })).data.entries as Entry[]).length).toBe(0);
     expect((await call(boClient, 'edit_food_entry', { id: anaEntry, grams: 1 })).isError).toBe(true);
-    expect((await call(boClient, 'delete_food_entry', { id: anaEntry })).isError).toBe(true);
+    expect((await call(boClient, 'delete_item', { kind: 'food_entry', id: anaEntry })).isError).toBe(true);
     expect(JSON.stringify((await call(boClient, 'search_foods', { query: 'secret recipe' })).data)).not.toContain('Ana secret');
     const exported = (await call(boClient, 'export_my_data', {})).data;
     expect(exported.foodEntries).toEqual([]);
     expect(exported.goals).toBeNull();
     // Ana's entry is untouched.
-    expect(((await call(client, 'get_day', { day: '2026-10-13' })).data.entries as Entry[])[0]!.grams).toBe(100);
+    expect(((await call(client, 'get_food_log', { day: '2026-10-13' })).data.entries as Entry[])[0]!.grams).toBe(100);
   });
 
   it('exports everything and deletes the account only with the exact confirmation', async () => {

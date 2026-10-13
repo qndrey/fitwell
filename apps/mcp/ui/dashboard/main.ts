@@ -2,7 +2,7 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { Progress } from '../../src/analytics/types';
 
 const RANGES = [30, 90, 365] as const;
-const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '' };
+const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '', measure: '', habit: 'sleep' as 'sleep' | 'steps' | 'water' };
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell dashboard', version: '0.1.0' }, {}, { autoResize: true });
@@ -103,6 +103,39 @@ function trainingChart(p: Progress): SVGElement | null {
   return svg;
 }
 
+/** A line through (day, value) points with a few grid labels; one point is drawn as a dot. */
+function lineChart(points: { day: string; value: number }[], from: string, to: string, label: string, digits = 1): SVGElement {
+  const H = 120;
+  const vals = points.map((q) => q.value);
+  const pad = Math.max(digits === 0 ? 1 : 0.2, (Math.max(...vals) - Math.min(...vals)) * 0.15);
+  const lo = Math.min(...vals) - pad;
+  const hi = Math.max(...vals) + pad;
+  const y = scale(lo, hi, H - M.b, M.t);
+  const x = scale(dayNum(from), dayNum(to), M.l, W - M.r);
+  const svg = s('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': label });
+  for (const v of [lo + (hi - lo) * 0.15, (lo + hi) / 2, hi - (hi - lo) * 0.15]) svg.append(s('line', { class: 'grid', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) }), s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
+  if (points.length > 1) svg.append(s('polyline', { class: 'line', points: points.map((q) => `${x(dayNum(q.day))},${y(q.value)}`).join(' ') }));
+  for (const q of points) svg.append(s('circle', { class: points.length > 1 ? 'dot' : 'dotfull', cx: x(dayNum(q.day)), cy: y(q.value), r: points.length > 1 ? 2.2 : 3.5 }));
+  axisLabels(svg, from, to, H);
+  return svg;
+}
+
+/** One bar per logged day, from zero; an optional dashed reference line (a target). */
+function barChart(points: { day: string; value: number }[], from: string, to: string, days: number, label: string, digits = 0, reference?: number): SVGElement {
+  const H = 110;
+  const top = Math.max(...points.map((q) => q.value), reference ?? 0, 1) * 1.1;
+  const y = scale(0, top, H - M.b, M.t);
+  const x = scale(dayNum(from), dayNum(to), M.l, W - M.r);
+  const bw = Math.max(1.5, Math.min(14, ((W - M.l - M.r) / days) * 0.75));
+  const svg = s('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': label });
+  svg.append(s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
+  for (const v of [top / 2, top * 0.92]) svg.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
+  for (const q of points) svg.append(s('rect', { class: 'bar', x: x(dayNum(q.day)) - bw / 2, y: y(q.value), width: bw, height: Math.max(0, H - M.b - y(q.value)), rx: 1.5 }));
+  if (reference) svg.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(reference), y2: y(reference) }));
+  axisLabels(svg, from, to, H);
+  return svg;
+}
+
 function sparkline(points: { day: string; e1rmKg: number }[]): SVGElement {
   const svg = s('svg', { viewBox: '0 0 90 28', width: 90, height: 28, 'aria-hidden': 'true' });
   if (points.length < 2) return svg;
@@ -200,11 +233,38 @@ function recordsCard(p: Progress) {
 function measurementsCard(p: Progress) {
   const m = p.measurements.types;
   if (m.length === 0) return null;
+  const picked = m.find((t) => t.key === state.measure) ?? m[0]!;
   return h(
     'section',
     { className: 'card', 'aria-label': 'Measurements' },
     h('h2', {}, 'Measurements'),
-    h('div', { className: 'rows' }, ...m.map((t) => h('div', { className: 'row' }, h('span', { className: 'name' }, t.label), h('span', { className: 'val' }, t.firstDay === t.latestDay ? `${num(t.latest)} ${t.unit}` : `${num(t.first)} → ${num(t.latest)} ${t.unit} (${signed(t.change)})`)))),
+    m.length > 1 && h('div', { className: 'seg wrap', role: 'group', 'aria-label': 'Measurement' }, ...m.map((t) => h('button', { type: 'button', 'aria-pressed': String(t.key === picked.key), onclick: () => { state.measure = t.key; render(); } }, t.label))),
+    h('p', { className: 'headline' }, `${num(picked.latest)} ${picked.unit} `, picked.points.length > 1 && h('small', {}, `${signed(picked.change)} ${picked.unit} since ${fmtDay(picked.firstDay)}`)),
+    lineChart(picked.points, p.from, p.to, `${picked.label} from ${fmtDay(p.from)} to ${fmtDay(p.to)}: ${picked.points.length} measurements, ${num(picked.first)} to ${num(picked.latest)} ${picked.unit}.`),
+    picked.points.length < 2 && empty('A line needs at least two measurements.'),
+    m.length > 1 && h('div', { className: 'rows' }, ...m.filter((t) => t.key !== picked.key).map((t) => h('div', { className: 'row' }, h('span', { className: 'name' }, t.label), h('span', { className: 'val' }, t.firstDay === t.latestDay ? `${num(t.latest)} ${t.unit}` : `${num(t.first)} → ${num(t.latest)} ${t.unit} (${signed(t.change)})`)))),
+  );
+}
+
+const SLEEP_TARGET_H = 8;
+
+function habitsCard(p: Progress) {
+  const x = p.metrics;
+  if (!x.sleep.daily.length && !x.steps.daily.length && !x.water.daily.length) return null;
+  const tabs = ([['sleep', 'Sleep', x.sleep.daily.length], ['steps', 'Steps', x.steps.daily.length], ['water', 'Water', x.water.daily.length]] as const).filter((t) => t[2] > 0);
+  const picked = tabs.find((t) => t[0] === state.habit) ?? tabs[0]!;
+  const kind = picked[0];
+  const series = kind === 'sleep' ? x.sleep.daily.map((d) => ({ day: d.day, value: d.hours })) : kind === 'steps' ? x.steps.daily.map((d) => ({ day: d.day, value: d.steps })) : x.water.daily.map((d) => ({ day: d.day, value: d.ml / 1000 }));
+  const unit = kind === 'sleep' ? 'h' : kind === 'steps' ? 'steps' : 'L';
+  const avg = kind === 'sleep' ? x.sleep.averageHours : kind === 'steps' ? x.steps.average : x.water.averageMl === null ? null : x.water.averageMl / 1000;
+  return h(
+    'section',
+    { className: 'card', 'aria-label': 'Sleep, steps and water' },
+    h('h2', {}, 'Sleep, steps and water'),
+    tabs.length > 1 && h('div', { className: 'seg', role: 'group', 'aria-label': 'Habit' }, ...tabs.map((t) => h('button', { type: 'button', 'aria-pressed': String(t[0] === kind), onclick: () => { state.habit = t[0]; render(); } }, t[1]))),
+    avg !== null && h('p', { className: 'headline' }, `${num(avg, kind === 'steps' ? 0 : 1)} ${unit} `, h('small', {}, `average on ${series.length} logged ${series.length === 1 ? 'day' : 'days'}`)),
+    barChart(series, p.from, p.to, p.days, `${picked[1]} per logged day, ${series.length} days, average ${avg === null ? 'unknown' : num(avg, kind === 'steps' ? 0 : 1)} ${unit}.`, kind === 'steps' ? 0 : 1, kind === 'sleep' ? SLEEP_TARGET_H : undefined),
+    kind === 'sleep' && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), 'hours slept'), h('span', {}, h('i', { className: 'goalsw' }), `${SLEEP_TARGET_H} h`)),
   );
 }
 
@@ -232,7 +292,7 @@ function draw() {
     return;
   }
   const ctx = app.getHostContext();
-  const cards = [weightCard(p), nutritionCard(p), trainingCard(p), recordsCard(p), measurementsCard(p)].filter((c): c is HTMLElement => c !== null);
+  const cards = [weightCard(p), nutritionCard(p), trainingCard(p), recordsCard(p), habitsCard(p), measurementsCard(p)].filter((c): c is HTMLElement => c !== null);
   root.replaceChildren(
     controls,
     h('p', { className: 'muted small' }, `${fmtDay(p.from)} to ${fmtDay(p.to)}${state.loading ? ' · updating…' : ''}`),

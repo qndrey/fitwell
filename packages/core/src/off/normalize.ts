@@ -6,7 +6,12 @@ interface RawProduct {
   brands?: unknown;
   nutriments?: Record<string, unknown>;
   serving_quantity?: unknown;
+  allergens_tags?: unknown;
+  traces_tags?: unknown;
 }
+
+/** ["en:milk", "en:nuts"] → ["milk", "nuts"]; undefined when the field is missing (unknown, not "none"). */
+const tags = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string').map((t) => t.replace(/^[a-z]{2}:/, '').toLowerCase()) : undefined);
 
 const num = (v: unknown): number | null => {
   const n = typeof v === 'string' ? Number(v) : v;
@@ -46,6 +51,8 @@ export function toCandidate(raw: unknown): Candidate | null {
     brand: brand || undefined,
     per100g: { kcal: Math.round(kcal), protein: round1(protein), carbs: round1(carbs), fat: round1(fat) },
     portions: serving && serving > 0 && serving <= 2000 ? [{ label: 'serving', grams: serving }] : [],
+    ...(tags(p.allergens_tags) ? { allergens: tags(p.allergens_tags) } : {}),
+    ...(tags(p.traces_tags) ? { traces: tags(p.traces_tags) } : {}),
   };
 }
 

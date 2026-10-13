@@ -67,6 +67,10 @@ export interface Candidate {
   brand?: string;
   per100g: Nutrients;
   portions: Portion[];
+  /** Allergens Open Food Facts lists for the product, without the language prefix (e.g. "milk", "gluten"). Absent = unknown. */
+  allergens?: string[];
+  /** "May contain" traces, same form. */
+  traces?: string[];
 }
 
 /** Bookkeeping for the background lookup (see src/queue). */

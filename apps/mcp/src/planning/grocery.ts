@@ -8,6 +8,9 @@ export interface Ingredient {
   /** Frida food group; absent for packaged or own foods and estimates. */
   group?: string;
   grams: number;
+  /** Allergen tags of a packaged product (Open Food Facts), kept so plans can be checked without asking again. */
+  allergens?: string[];
+  traces?: string[];
 }
 
 export const AISLES = ['Produce', 'Meat', 'Fish and seafood', 'Dairy and eggs', 'Bakery', 'Plant-based', 'Pantry', 'Frozen', 'Snacks and sweets', 'Drinks', 'Ready meals', 'Other'] as const;
@@ -46,6 +49,8 @@ export function formatGrams(g: number): string {
 }
 
 export interface GroceryEntry {
+  /** Stable id of the item across regenerations of the list: the food id, or "name:<lowercase name>". Ticks are stored under it. */
+  key: string;
   name: string;
   /** The food is listed as cooked: its weight is after cooking, so what you buy raw weighs less. */
   cooked?: true;
@@ -102,9 +107,10 @@ export function buildGroceryList(usages: Usage[], multiplier = 1, have: string[]
     }
   }
   const sections = new Map<Aisle, GroceryEntry[]>();
-  for (const e of byKey.values()) {
+  for (const [key, e] of byKey) {
     const buy = buyableGrams(e.grams);
     const entry: GroceryEntry = {
+      key,
       name: e.name,
       grams: Math.round(e.grams),
       buy: formatGrams(buy),

@@ -21,6 +21,9 @@ export interface FoodHit {
   source: 'frida' | 'openfoodfacts' | 'custom';
   per100g: Nutrients;
   portions: Portion[];
+  /** Packaged products: allergens and traces from Open Food Facts (absent = not known). */
+  allergens?: string[];
+  traces?: string[];
 }
 
 const ATTRIBUTION = {
@@ -34,7 +37,7 @@ let byId: Promise<Map<string, FoodItem>> | null = null;
 const fridaById = () => (byId ??= loadBundledFoods().then((d) => new Map(d.foods.map((f) => [f.ref.id, f]))));
 
 const fromFrida = (f: FoodItem): FoodHit => ({ id: f.ref.id, name: f.name, group: f.group, source: 'frida', per100g: f.per100g, portions: f.portions });
-const fromOff = (c: Candidate): FoodHit => ({ id: `off:${c.sourceId}`, name: c.name, brand: c.brand, source: 'openfoodfacts', per100g: c.per100g, portions: c.portions });
+const fromOff = (c: Candidate): FoodHit => ({ id: `off:${c.sourceId}`, name: c.name, brand: c.brand, source: 'openfoodfacts', per100g: c.per100g, portions: c.portions, ...(c.allergens ? { allergens: c.allergens } : {}), ...(c.traces ? { traces: c.traces } : {}) });
 
 const fromCustom = (c: CustomFood): FoodHit => ({ id: `custom:${c.id}`, name: c.name, brand: c.brand ?? undefined, source: 'custom', per100g: c.per100g, portions: c.portions });
 

@@ -21,34 +21,26 @@ export async function registerExerciseTools(server: McpServer) {
       title: 'Search exercises',
       description:
         'Search the exercise library (876 exercises) by name, target muscle and/or equipment. ' +
-        'Use it to pick real exercises with stable ids when building a workout. With no query, lists exercises matching the filters.',
+        'Use it to pick real exercises with stable ids when building a workout. With no query, lists exercises matching the filters. ' +
+        'With id (e.g. "ex:Barbell_Squat") it returns that one exercise with its step-by-step instructions instead.',
       inputSchema: z.object({
         query: z.string().max(100).default('').describe('Name words, typos tolerated, e.g. "bench press", "romanian deadlift"'),
         muscle: muscle.optional().describe('Primary or secondary muscle'),
         equipment: equipment.optional(),
         limit: z.number().int().min(1).max(50).default(15),
+        id: z.string().regex(/^ex:/, 'Library ids start with "ex:"').optional().describe('Details and instructions for this one exercise'),
       }),
       annotations: { readOnlyHint: true },
     },
-    async ({ query, muscle, equipment, limit }) => {
+    async ({ query, muscle, equipment, limit, id }) => {
+      if (id) {
+        const ex = lib.exercises.find((e) => e.ref === id);
+        if (!ex) return toolError(`No exercise with id ${id}. Search by name instead.`);
+        return json({ exercise: { ...view(ex), instructions: await loadInstructions(id) }, source: ATTRIBUTION });
+      }
       // Search wider, then put plain lifts ahead of variations so the obvious choice comes first.
       const hits = plainFirst(query, searchExercises(index, lib.exercises, { query, muscle, equipment }, limit * 4)).slice(0, limit);
       return json({ exercises: hits.map(view), source: ATTRIBUTION });
-    },
-  );
-
-  server.registerTool(
-    'get_exercise',
-    {
-      title: 'Exercise details',
-      description: 'Full details and step-by-step instructions for one exercise, by the id from search_exercises (e.g. "ex:Barbell_Squat").',
-      inputSchema: z.object({ id: z.string().regex(/^ex:/, 'Library ids start with "ex:"') }),
-      annotations: { readOnlyHint: true },
-    },
-    async ({ id }) => {
-      const ex = lib.exercises.find((e) => e.ref === id);
-      if (!ex) return toolError(`No exercise with id ${id}. Use search_exercises to find one.`);
-      return json({ exercise: { ...view(ex), instructions: await loadInstructions(id) }, source: ATTRIBUTION });
     },
   );
 }

@@ -47,6 +47,8 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     db.prepare('DELETE FROM import_links WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM weights WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM measurements WHERE user_id = ?').bind(user.id),
+    db.prepare('DELETE FROM daily_metrics WHERE user_id = ?').bind(user.id),
+    db.prepare('DELETE FROM grocery_ticks WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM workouts WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM workout_templates WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM custom_foods WHERE user_id = ?').bind(user.id),

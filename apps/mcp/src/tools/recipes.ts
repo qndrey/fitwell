@@ -2,6 +2,7 @@ import { roundForDisplay } from '@fitwell/core/domain/nutrition';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { perServing, type PlanData, type Recipe, type RecipeItem } from '../data/planData';
+import { checkRecipeUrl, fetchPage, parseRecipePage } from '../recipes/parse';
 import { FoodMemo, ingredientSchema, resolveIngredient } from '../planning/resolve';
 import type { FoodDeps } from './foods';
 import { json, toolError } from './result';
@@ -14,9 +15,18 @@ const view = (r: Recipe) => ({
   totalGrams: Math.round(r.items.reduce((n, i) => n + i.grams, 0)),
   ingredients: r.items.map((i) => ({ name: i.name, grams: Math.round(i.grams), ...(i.foodId ? { foodId: i.foodId } : { estimated: true }) })),
   ...(r.notes ? { notes: r.notes } : {}),
+  ...(r.steps.length ? { steps: r.steps } : {}),
+  ...(r.sourceUrl ? { sourceUrl: r.sourceUrl } : {}),
 });
 
-export function registerRecipeTools(server: McpServer, deps: FoodDeps & { plans: PlanData }) {
+export interface RecipeDeps extends FoodDeps {
+  plans: PlanData;
+  fetch: typeof fetch;
+  /** Sent as the User-Agent when opening a recipe page. */
+  userAgent: string;
+}
+
+export function registerRecipeTools(server: McpServer, deps: RecipeDeps) {
   const { plans } = deps;
 
   server.registerTool(
@@ -30,11 +40,13 @@ export function registerRecipeTools(server: McpServer, deps: FoodDeps & { plans:
         name: z.string().min(1).max(80),
         servings: z.number().min(0.5).max(50).default(1).describe('How many servings the whole recipe makes'),
         ingredients: z.array(ingredientSchema).min(1).max(40),
-        notes: z.string().max(500).optional().describe('Short method or tips'),
+        notes: z.string().max(500).optional().describe('Short tips'),
+        steps: z.array(z.string().min(1).max(500)).max(40).optional().describe('The method, one step per entry'),
+        source_url: z.url().max(500).optional().describe('The web page the recipe came from'),
       }),
       annotations: { idempotentHint: true },
     },
-    async ({ name, servings, ingredients, notes }) => {
+    async ({ name, servings, ingredients, notes, steps, source_url }) => {
       const foods = new FoodMemo(deps);
       const items: RecipeItem[] = [];
       for (const spec of ingredients) {
@@ -42,28 +54,44 @@ export function registerRecipeTools(server: McpServer, deps: FoodDeps & { plans:
         if (typeof item === 'string') return toolError(`Nothing was saved. ${item}`);
         items.push(item);
       }
-      return json({ recipe: view(await plans.saveRecipe(name.trim(), servings, items, notes ?? null)) });
+      return json({ recipe: view(await plans.saveRecipe(name.trim(), servings, items, { notes: notes ?? null, sourceUrl: source_url ?? null, steps: steps ?? [] })) });
     },
   );
 
   server.registerTool(
-    'list_recipes',
-    { title: 'Saved recipes', description: 'The person\'s saved recipes with servings and nutrition per serving.', inputSchema: z.object({}), annotations: { readOnlyHint: true } },
-    async () => json({ recipes: (await plans.recipes()).map((r) => ({ id: r.id, name: r.name, servings: r.servings, perServing: roundForDisplay(perServing(r)), ingredients: r.items.length })) }),
+    'import_recipe',
+    {
+      title: 'Read a recipe from a web page',
+      description:
+        'Opens a recipe web page and returns the recipe as the site publishes it: name, servings, ingredient lines as written ("200 g chicken breast"), method steps and time. It saves nothing. ' +
+        'Then match each ingredient line to a food (search_foods), convert the amount to grams in the form it is bought (raw rice, not boiled), and save_recipe with the steps and source_url. ' +
+        'Tell the person which lines you had to guess. If the page has no recipe data, ask them to paste the recipe text instead and do the same from that.',
+      inputSchema: z.object({ url: z.url().max(500) }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ url }) => {
+      const ok = checkRecipeUrl(url);
+      if (typeof ok === 'string') return toolError(ok);
+      const page = await fetchPage(ok, deps.fetch, deps.userAgent);
+      if (typeof page === 'string') return toolError(`${page} Ask the person to paste the recipe text instead.`);
+      const recipe = parseRecipePage(page.html);
+      if (!recipe) return toolError('This page does not publish its recipe in a form Fitwell can read. Ask the person to paste the recipe text instead.');
+      return json({ recipe, sourceUrl: page.finalUrl, next: 'Match each ingredient line to a food with search_foods, then call save_recipe with ingredients, steps and source_url.' });
+    },
   );
 
   server.registerTool(
-    'get_recipe',
-    { title: 'One recipe', description: 'A recipe with all its ingredients and notes, by id or name.', inputSchema: z.object({ id: z.uuid().optional(), name: z.string().optional() }), annotations: { readOnlyHint: true } },
+    'get_recipes',
+    {
+      title: 'Saved recipes',
+      description: "Without arguments: the person's saved recipes with servings and nutrition per serving. With id or name: that one recipe with all its ingredients, method and source.",
+      inputSchema: z.object({ id: z.uuid().optional(), name: z.string().optional() }),
+      annotations: { readOnlyHint: true },
+    },
     async ({ id, name }) => {
-      const r = id ? await plans.recipe(id) : name ? await plans.recipeByName(name) : null;
-      return r ? json({ recipe: view(r) }) : toolError('No such recipe. Use list_recipes.');
+      if (!id && !name) return json({ recipes: (await plans.recipes()).map((r) => ({ id: r.id, name: r.name, servings: r.servings, perServing: roundForDisplay(perServing(r)), ingredients: r.items.length })) });
+      const r = id ? await plans.recipe(id) : await plans.recipeByName(name!);
+      return r ? json({ recipe: view(r) }) : toolError('No such recipe. Call get_recipes without arguments to list them.');
     },
-  );
-
-  server.registerTool(
-    'delete_recipe',
-    { title: 'Delete a recipe', description: 'Remove a saved recipe (meal plans that already use it keep their copy).', inputSchema: z.object({ id: z.uuid() }), annotations: { destructiveHint: true, idempotentHint: true } },
-    async ({ id }) => ((await plans.deleteRecipe(id)) ? json({ deleted: id }) : toolError('No such recipe.')),
   );
 }

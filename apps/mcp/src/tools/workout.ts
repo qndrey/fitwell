@@ -392,18 +392,6 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     async () => json({ templates: (await workouts.templates()).map((t) => ({ id: t.id, name: t.name, exercises: t.exercises.map((e) => `${byId.get(e.id)?.name ?? e.id} ${e.sets}×${e.reps}${e.weightKg !== undefined ? ` @ ${e.weightKg} kg` : ''}`) })) }),
   );
 
-  server.registerTool(
-    'delete_workout_template',
-    { title: 'Delete a workout template', description: 'Remove a saved template (past workouts are kept).', inputSchema: z.object({ id: z.uuid() }), annotations: { destructiveHint: true, idempotentHint: true } },
-    async ({ id }) => ((await workouts.deleteTemplate(id)) ? json({ deleted: id }) : toolError('No such template.')),
-  );
-
-  server.registerTool(
-    'delete_workout',
-    { title: 'Delete a workout', description: 'Remove one workout (strength or cardio) from the history.', inputSchema: z.object({ id: z.uuid() }), annotations: { destructiveHint: true, idempotentHint: true } },
-    async ({ id }) => ((await workouts.delete(id)) ? json({ deleted: id }) : toolError('No such workout. Use get_workout_history to see ids.')),
-  );
-
   const activityIds = ACTIVITIES.map((a) => a.id) as [string, ...string[]];
   server.registerTool(
     'log_cardio',

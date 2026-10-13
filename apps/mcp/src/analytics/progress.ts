@@ -5,17 +5,18 @@ import { distanceFromGoal } from '@fitwell/core/domain/body';
 import { movingAverage, trendChange, weeksIn } from '@fitwell/core/domain/stats';
 import { estimatedOneRepMax } from '@fitwell/core/domain/workouts';
 import type { Goals, DayTotal } from '../data/userData';
-import type { MeasurementSet, WeightPoint } from '../data/bodyData';
+import type { DailyMetrics, MeasurementSet, WeightPoint } from '../data/bodyData';
 import type { Workout } from '../data/workoutData';
-import type { MeasurementProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
+import type { MeasurementProgress, MetricsProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
 
-export type { MeasurementProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
+export type { MeasurementProgress, MetricsProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
 
 export interface ProgressInput {
   from: Day;
   to: Day;
   weights: WeightPoint[];
   measurements: MeasurementSet[];
+  metrics?: DailyMetrics[];
   nutrition: DayTotal[];
   workouts: Workout[];
   goals: Goals | null;
@@ -125,22 +126,35 @@ export function buildProgress(i: ProgressInput): Progress {
     if (!pts.length) continue;
     const first = pts[0]!;
     const last = pts[pts.length - 1]!;
-    types.push({ key: p.key, label: p.label, unit: p.kind === 'percent' ? '%' : 'cm', firstDay: first.day, first: r1(first.values[p.key]!), latestDay: last.day, latest: r1(last.values[p.key]!), change: r1(last.values[p.key]! - first.values[p.key]!) });
+    types.push({ key: p.key, label: p.label, unit: p.kind === 'percent' ? '%' : 'cm', firstDay: first.day, first: r1(first.values[p.key]!), latestDay: last.day, latest: r1(last.values[p.key]!), change: r1(last.values[p.key]! - first.values[p.key]!), points: pts.map((m) => ({ day: m.day, value: r1(m.values[p.key]!) })) });
   }
 
-  return { from: i.from, to: i.to, days, weight, nutrition, training, records, measurements: { types } };
+  // ---- sleep, steps, water
+  const m = i.metrics ?? [];
+  const mean = (xs: number[], digits: number) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10 ** digits) / 10 ** digits : null);
+  const sleep = m.filter((x) => x.sleepH !== undefined).map((x) => ({ day: x.day, hours: r1(x.sleepH!) }));
+  const steps = m.filter((x) => x.steps !== undefined).map((x) => ({ day: x.day, steps: x.steps! }));
+  const water = m.filter((x) => x.waterMl !== undefined).map((x) => ({ day: x.day, ml: x.waterMl! }));
+  const metrics: MetricsProgress = {
+    sleep: { daily: sleep, averageHours: mean(sleep.map((x) => x.hours), 1) },
+    steps: { daily: steps, average: mean(steps.map((x) => x.steps), 0) },
+    water: { daily: water, averageMl: mean(water.map((x) => x.ml), 0) },
+  };
+
+  return { from: i.from, to: i.to, days, weight, nutrition, training, records, measurements: { types }, metrics };
 }
 
 /** The short version for the model: no daily series, just what to talk about. */
 export function summarize(p: Progress) {
-  const { weight: w, nutrition: n, training: t, records: r, measurements: m } = p;
+  const { weight: w, nutrition: n, training: t, records: r, measurements: m, metrics: x } = p;
   return {
     period: { from: p.from, to: p.to, days: p.days },
     weight: { latestKg: w.latestKg, latestDay: w.latestDay, weighIns: w.daily.length, trendChangeKg: w.trendChangeKg, trendNote: w.trendChangeKg === null ? 'Needs at least 3 weigh-ins within a week to show a trend.' : 'Change of the 7-day average over the period.', goalKg: w.goalKg, fromGoalKg: w.fromGoalKg },
     nutrition: { daysLogged: n.daysLogged, averagePerLoggedDay: n.averagePerLoggedDay, goals: n.goals, adherence: n.adherence },
     training: { sessions: t.sessions, perWeek: r1((t.sessions.strength + t.sessions.cardio) / Math.max(1, t.weeks.length)), goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
     records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
-    measurements: m.types,
+    measurements: m.types.map((t) => ({ key: t.key, label: t.label, unit: t.unit, firstDay: t.firstDay, first: t.first, latestDay: t.latestDay, latest: t.latest, change: t.change })),
+    dailyMetrics: { sleepAverageHours: x.sleep.averageHours, nightsLogged: x.sleep.daily.length, stepsAverage: x.steps.average, stepsDaysLogged: x.steps.daily.length, waterAverageMl: x.water.averageMl, waterDaysLogged: x.water.daily.length },
   };
 }
 

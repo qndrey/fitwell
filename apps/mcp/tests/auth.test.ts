@@ -120,7 +120,7 @@ describe('email sign-in', () => {
     expect(user!.consented_at).toBeGreaterThan(0);
   });
 
-  it('finishes in the original window after the link is opened in another browser', async () => {
+  it('finishes in the waiting window when the link is opened in the same browser', async () => {
     const clientId = await registerClient();
     const { b, verifier, html } = await startSignIn(clientId);
     const page = await (await b('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email: 'ana@example.com', consent: 'yes' }))).text();
@@ -128,12 +128,25 @@ describe('email sign-in', () => {
 
     expect(await poll()).toEqual({ waiting: true });
     const link = linkIn(sent[0]!);
-    const opened = await browser('198.51.100.9')(link.pathname + link.search); // e.g. the mail app's browser
+    const opened = await b(link.pathname + link.search); // a second tab of the same browser
     expect(await opened.text()).toContain('You are signed in');
     const { redirectTo } = await poll();
     await exchange(clientId, redirectTo!, verifier);
-    // The link works once.
-    expect((await browser()(link.pathname + link.search)).status).toBe(400);
+  });
+
+  it('ignores the link in any other browser (someone else started the sign-in with your address)', async () => {
+    const clientId = await registerClient();
+    // The attacker starts a sign-in with Ana's address in their own browser...
+    const { b: attacker, html } = await startSignIn(clientId, browser('198.51.100.66'));
+    const page = await (await attacker('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email: 'ana@example.com', consent: 'yes' }))).text();
+    // ...Ana gets the email and clicks the link in her own browser.
+    const link = linkIn(sent[0]!);
+    const ana = await browser('203.0.113.7')(link.pathname + link.search);
+    expect(ana.status).toBe(403);
+    expect(await ana.text()).toContain('Type the code instead');
+    // The attacker's waiting window gets nothing.
+    const res = await attacker('/authorize', form({ step: 'poll', handle: hidden(page, 'handle'), login: hidden(page, 'login') }));
+    expect(await res.json()).toEqual({ waiting: true });
   });
 
   it('sends nothing to an address that is not invited, and shows the same page', async () => {
@@ -166,6 +179,17 @@ describe('email sign-in', () => {
     expect(await last.text()).toContain('expired or was used too many times');
   });
 
+  it('counts parallel guesses too: at most 5 codes are ever compared', async () => {
+    const { b, html } = await startSignIn(await registerClient());
+    const page = await (await b('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email: 'ana@example.com', consent: 'yes' }))).text();
+    const right = codeIn(sent[0]!);
+    const guesses = Array.from({ length: 30 }, (_, i) => String(i).padStart(6, '0')).filter((c) => c !== right);
+    await Promise.all(guesses.map((code) => b('/authorize', form({ step: 'code', handle: hidden(page, 'handle'), login: hidden(page, 'login'), code }))));
+    const row = await env.DB.prepare('SELECT attempts FROM login_requests WHERE id = ?').bind(hidden(page, 'login')).first<{ attempts: number }>();
+    expect(row!.attempts).toBe(5);
+    expect((await b('/authorize', form({ step: 'code', handle: hidden(page, 'handle'), login: hidden(page, 'login'), code: right }))).status).toBe(400);
+  });
+
   it('does not let another browser finish with the code', async () => {
     const clientId = await registerClient();
     const { b, html } = await startSignIn(clientId);
@@ -187,6 +211,13 @@ describe('email sign-in', () => {
     const { b, html } = await startSignIn(clientId);
     expect((await b('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email: 'ana@example.com', consent: 'yes' }))).status).toBe(429);
     expect(sent).toHaveLength(5);
+  });
+
+  it('keeps the email limit under parallel requests', async () => {
+    const clientId = await registerClient();
+    const starts = await Promise.all(Array.from({ length: 12 }, () => startSignIn(clientId)));
+    await Promise.all(starts.map(({ b, html }) => b('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email: 'ana@example.com', consent: 'yes' }))));
+    expect(sent.length).toBeLessThanOrEqual(5);
   });
 
   it('refuses the token once the account is deleted', async () => {

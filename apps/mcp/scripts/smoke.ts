@@ -12,6 +12,9 @@ for (const [name, args] of [
   ['search_foods', { query: 'rye bread', limit: 3 }],
   ['search_exercises', { query: 'bench press', equipment: 'barbell', limit: 3 }],
   ['get_exercise', { id: 'ex:Barbell_Squat' }],
+  ['get_profile', {}],
+  ['log_food', { items: [{ food_id: 'frida:413', grams: 120 }] }],
+  ['get_day', {}],
 ] as const) {
   const t0 = performance.now();
   const res = await client.callTool({ name, arguments: args });

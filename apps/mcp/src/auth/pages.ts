@@ -76,7 +76,7 @@ export function codePage(handle: string, loginId: string, email: string, error?:
   ${error ? `<p class="error small" role="alert">${escape(error)}</p>` : ''}
   <div class="actions"><button class="primary" name="step" value="code">Continue</button></div>
 </form>
-<p class="muted small" id="wait" aria-live="polite">Opened the link on another device? This page continues by itself.</p>
+<p class="muted small" id="wait" aria-live="polite">Opened the link in this browser? This page continues by itself. On another device, type the code instead.</p>
 <p class="muted small">Wrong address or no email? Close this window and start signing in again from Claude.</p>`;
   const script = `
 const f=document.getElementById('code-form');

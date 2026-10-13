@@ -9,6 +9,8 @@
     "dev": "wrangler dev",
     "dev:host": "tsx scripts/dev-host.ts",
     "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply fitwell --local",
+    "invite": "tsx scripts/invite.ts",
     "smoke": "tsx scripts/smoke.ts",
     "types": "wrangler types",
     "pretypecheck": "npm run build:ui",

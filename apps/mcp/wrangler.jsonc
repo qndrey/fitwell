@@ -9,6 +9,8 @@
   // One public address on the own domain; no *.workers.dev URL.
   "routes": [{ "pattern": "mcp.fitwell.fyi", "custom_domain": true }],
   "workers_dev": false,
+  // Without this, `wrangler dev` presents requests as mcp.fitwell.fyi (the route host); local dev needs localhost.
+  "dev": { "ip": "127.0.0.1", "port": 8787, "host": "127.0.0.1" },
   // Views (ui/*) are bundled into src/ui/generated before every dev session and deploy.
   "build": { "command": "npm run build:ui", "watch_dir": "ui" },
   "vars": {

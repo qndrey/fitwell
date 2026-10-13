@@ -1,3 +1,4 @@
-# Copy to .dev.vars for `npm run dev -w @fitwell/mcp`. Never set this on a deployed Worker.
+# Copy to .dev.vars for `npm run dev -w @fitwell/mcp`. Never set DEV_UNAUTHENTICATED on a deployed Worker
+# (it is ignored on non-localhost hosts anyway).
 DEV_UNAUTHENTICATED=true
-# Deployed test server only (never in .dev.vars): wrangler secret put SPIKE_TOKEN  (32+ random characters)
+PUBLIC_URL=http://127.0.0.1:8787

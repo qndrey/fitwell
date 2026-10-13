@@ -19,10 +19,10 @@
     // Sign-in emails come from here (Email Routing must be enabled on fitwell.fyi).
     "MAIL_FROM": "login@fitwell.fyi"
   },
-  // Created with --jurisdiction eu (data stays in the EU). Local dev uses a local SQLite copy.
-  "d1_databases": [{ "binding": "DB", "database_name": "fitwell", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
+  // Created with --jurisdiction eu on 2026-10-13 (data stays in the EU). Local dev uses a local SQLite copy.
+  "d1_databases": [{ "binding": "DB", "database_name": "fitwell", "database_id": "5cc25386-c8a7-480d-9f79-155155abb62c", "migrations_dir": "migrations" }],
   // OAuth clients, grants and tokens (stored hashed/encrypted by the library).
-  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }],
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "1caef8faebdb4c3081d4dfef8602773c" }],
   // Sign-in emails. On the free plan only verified destination addresses (the invite list) can receive them.
   "send_email": [{ "name": "EMAIL" }]
 }

@@ -83,9 +83,11 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [ ] Templates, sessions, sets; "last time" values per exercise; supersets and timed sets as in the web app.
 - [ ] Workout player UI: current set, rest timer, log/skip, next exercise; state saved on every set so a dropped connection loses nothing.
 
-**Phase 3: body, analytics, dashboard**
-- [ ] Weight and measurements; Fitwell backup import.
-- [ ] Dashboard UI: weight 7-day trend, macro adherence, weekly volume per muscle, PRs and e1RM (Epley, as in the web app).
+**Phase 3: body, analytics, dashboard (built 2026-10-13; deploy pending)**
+- [x] Weight (one per day; 7-day average and trend in the reply; profile weight follows the latest weigh-in) and measurements (cm, body fat %, merged per day); migration 0004; export and delete include them.
+- [x] `get_progress` (numbers for Claude) and `show_dashboard` (MCP Apps view `ui://fitwell/dashboard.html`): weight with 7-day average and goal, calories against goals with adherence, workouts per week, sets per muscle, strength records (Epley e1RM) with sparklines, measurement changes; 30/90/365-day switch. `analytics/progress.ts` is pure and tested against hand-computed numbers.
+- [ ] Fitwell backup import. Design question: a backup is too large to pass through a tool call, so the plan is a one-time upload page (`import_fitwell_backup` returns a link bound to the signed-in person, 15 min, single use) that validates the file with the web app's schema (move `backup/schema.ts` into core first).
+- [ ] Log a workout done earlier without the player (`day`, exercises with the sets actually done), so history can be filled in by chat.
 
 **Phase 4: meal planning**
 - [ ] Meal plan storage and validation against goals (per-day macro deltas returned to Claude to fix).

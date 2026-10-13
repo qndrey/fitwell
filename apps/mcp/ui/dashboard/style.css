@@ -61,6 +61,7 @@ svg .spark { fill: none; stroke: var(--accent); stroke-width: 2; }
 .sw1 { background: var(--accent); }
 .sw1.faint { opacity: 0.35; }
 .sw2 { background: var(--series-2); }
+.legend i.goalsw { width: 14px; height: 0; border-top: 2px dashed var(--text); border-radius: 0; opacity: 0.7; vertical-align: 3px; }
 
 .rows { display: grid; gap: 6px; }
 .row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }

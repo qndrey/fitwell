@@ -77,7 +77,7 @@ function nutritionChart(p: Progress): SVGElement | null {
   svg.append(s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
   for (const v of [top / 2, top * 0.92]) svg.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, 0)));
   for (const d of n.daily) svg.append(s('rect', { class: 'bar', x: x(dayNum(d.day)) - bw / 2, y: y(d.kcal), width: bw, height: Math.max(0, H - M.b - y(d.kcal)), rx: 1.5 }));
-  if (n.goals.kcal) svg.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(n.goals.kcal), y2: y(n.goals.kcal) }), s('text', { x: W - M.r, y: y(n.goals.kcal) - 4, 'text-anchor': 'end' }, `goal ${num(n.goals.kcal, 0)}`));
+  if (n.goals.kcal) svg.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(n.goals.kcal), y2: y(n.goals.kcal) }));
   axisLabels(svg, p.from, p.to, H);
   return svg;
 }
@@ -146,6 +146,7 @@ function nutritionCard(p: Progress) {
       : h('p', { className: 'headline' }, `${num(n.averagePerLoggedDay.kcal, 0)} kcal `, h('small', {}, `average on ${n.daysLogged} logged ${n.daysLogged === 1 ? 'day' : 'days'}`)),
     n.averagePerLoggedDay && h('p', { className: 'muted small' }, `Protein ${num(n.averagePerLoggedDay.protein, 0)} g · carbs ${num(n.averagePerLoggedDay.carbs, 0)} g · fat ${num(n.averagePerLoggedDay.fat, 0)} g per day`),
     chart,
+    chart && n.goals.kcal !== null && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), 'calories per day'), h('span', {}, h('i', { className: 'goalsw' }), `goal ${num(n.goals.kcal, 0)} kcal`)),
     a.kcalWithin10Pct !== null && h('p', { className: 'small' }, `Calories within 10 % of your goal on ${a.kcalWithin10Pct} of ${a.ofDays} logged days.`),
     a.proteinReached !== null && h('p', { className: 'small' }, `Protein goal reached on ${a.proteinReached} of ${a.ofDays}.`),
     n.goals.kcal === null && n.averagePerLoggedDay && empty('Set calorie and macro goals with Claude to see them on the chart.'),
@@ -207,7 +208,18 @@ function measurementsCard(p: Progress) {
   );
 }
 
+/** A drawing bug must never leave a blank frame: say so, and tell the host's log. */
 function render() {
+  try {
+    draw();
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    root.replaceChildren(h('p', { className: 'error center' }, 'The dashboard could not be drawn.'), h('p', { className: 'muted small center' }, message));
+    void app.sendLog({ level: 'error', data: `dashboard draw failed: ${message}` }).catch(() => undefined);
+  }
+}
+
+function draw() {
   const p = state.progress;
   const controls = h(
     'header',

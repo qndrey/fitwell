@@ -11,11 +11,22 @@ body{margin:0;font:14px system-ui;background:#e9e6e1;color:#222;display:grid;gap
 [data-theme=dark] body{background:#111;color:#ddd}
 iframe{width:100%;max-width:430px;height:600px;border:1px solid #bbb;border-radius:16px;background:transparent}
 ol{max-width:430px;width:100%;font:12px ui-monospace,monospace;padding-left:16px;word-break:break-word}
-</style></head><body><p>Dev host · <a href="?theme=light">light</a> · <a href="?theme=dark">dark</a></p>
+</style></head><body><p>Dev host · <a href="?theme=light">light</a> · <a href="?theme=dark">dark</a> · <a href="?view=dashboard">dashboard</a> · <a href="?">workout</a></p>
 <iframe id="view" title="Workout player" sandbox="allow-scripts"></iframe><ol id="log"></ol>
 <script type="module">${js.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
 
 createServer(async (req, res) => {
+  // /raw/<view>: the view's HTML as a normal page (no host), to see console errors and plain rendering.
+  const raw = /^\/raw\/([a-z-]+)$/.exec(req.url ?? '');
+  if (raw) {
+    try {
+      const mod = (await import(`../src/ui/generated/${raw[1]}.ts`)) as { default: string };
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(mod.default);
+    } catch {
+      res.writeHead(404).end('No such view');
+    }
+    return;
+  }
   if (req.url?.startsWith('/mcp')) {
     const body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await new Promise<Buffer>((r) => {
       const chunks: Buffer[] = [];
@@ -23,7 +34,9 @@ createServer(async (req, res) => {
     });
     const headers = Object.fromEntries(Object.entries(req.headers).filter(([k, v]) => typeof v === 'string' && k !== 'host')) as Record<string, string>;
     const up = await fetch(UPSTREAM + req.url, { method: req.method, headers, body });
-    res.writeHead(up.status, Object.fromEntries(up.headers));
+    // fetch has already decompressed the body: drop the headers that describe the compressed one.
+    const headersOut = Object.fromEntries([...up.headers].filter(([k]) => !['content-encoding', 'content-length', 'transfer-encoding'].includes(k)));
+    res.writeHead(up.status, headersOut);
     res.end(Buffer.from(await up.arrayBuffer()));
     return;
   }

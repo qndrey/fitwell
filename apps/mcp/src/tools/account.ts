@@ -19,7 +19,7 @@ export function registerAccountTools(server: McpServer, deps: AccountDeps) {
     'export_my_data',
     {
       title: 'Export my data',
-      description: 'Everything Fitwell stores about the person (profile, goals, food log, own foods, workouts, templates, weigh-ins, measurements) as JSON, for their own copy.',
+      description: 'Everything Fitwell stores about the person (profile, goals, food log, own foods, workouts, templates, weigh-ins, measurements, recipes, meal plans) as JSON, for their own copy.',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },

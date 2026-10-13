@@ -89,14 +89,21 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [x] Fitwell backup import: `import_fitwell_backup` returns a one-time link (30 min, one person, token hashed, replaced by a newer link) to an upload page. The browser reads the backup file and sends it in chunks of 150 records, so no request strains the free plan's CPU (heaviest chunk about 1.4 ms) and the file never passes through the chat. `import/convert.ts` converts defensively and counts what it skips with a reason; writes are `INSERT OR IGNORE` on ids scoped to the person, so repeats add nothing, two people importing one file each get everything, and nothing already in the account is overwritten (the file only fills gaps: a day's weigh-in, goals not yet set, missing measurement types). `get_last_import` reports the result. Pending lookups, deleted records, own exercises/measurement types and cardio templates are not imported. Checked in a real browser with a 700-entry file (about 200 ms). Migration 0005.
 - [x] `log_past_workout`: a workout already done, by chat, on any day; personal records compare only with sessions up to that day.
 
-**Phase 4: meal planning**
-- [ ] Meal plan storage and validation against goals (per-day macro deltas returned to Claude to fix).
-- [ ] Grocery list: aggregate ingredient grams across the plan, round to buyable amounts, group by Frida food group.
+**Phase 4: meal planning (built 2026-10-13; deploy pending)**
+- [x] Recipes (`save_recipe`, `list_recipes`, `get_recipe`, `delete_recipe`): nutrition per serving from the foods' own values; names are case-insensitive. Recipes and plans store snapshots, so editing a recipe never changes a plan already shopped for. Migration 0006.
+- [x] `get_planning_context`: goals with a per-meal split (25/30/30/15 %), diet, allergies, dislikes, the foods actually eaten most (60 days), saved recipes, planned weeks.
+- [x] `save_meal_plan` (Monday to Sunday; foods, recipes or marked estimates): replies with each day against the calorie goal (within 10 %) and protein goal (at least 90 %), empty days, and allergy and dislike matches in item and ingredient names, as plain-language problems that Claude must fix before presenting. Revised plans keep the "eaten" mark of unchanged meals. The allergy check is a text match on names: it does not know what is inside a packaged product.
+- [x] `get_meal_plan` (with an `editable` form to change and save again, and batch-cooking hints for recipes that recur), `delete_meal_plan`, `log_planned_meal` (a planned day or meal into the food log, once).
+- [x] `get_grocery_list`: ingredients added up per food, rounded up to what a shop sells, grouped by shopping section (every one of the 140 Frida food groups is mapped; tested), for any number of people, minus what is already at home and meals already eaten; a markdown checklist; foods listed as cooked are flagged because raw weighs less.
+- [x] Food search ranks "Egg, chicken, whole, raw" before "Egg mayonnaise salad" (names whose first part equals the query come first).
+- [ ] An interactive shopping checklist (MCP Apps view) and a plan view with swap and repeat; ticks would need storage.
+- [ ] Exit: plan a week from Claude on a phone, get the list, log a planned day.
 
 ## 6. Risks and open items
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.
 - **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
+- **Tool count**: 47 tools, about 9,000 tokens of definitions that every conversation reads. If it starts to matter, merge the small delete/list pairs or hide rarely used tools behind a single `help` tool.
 - **View bundle size**: the player is 597 KB (129 KB gzip), almost all zod pulled in by the MCP Apps SDK; our code is 6 KB. Fine for the spike; look for a slimmer import before phase 2.
 - **Player state** lives in the view only during phase 0b; a reload of the conversation loses progress until sets are stored (phase 1/2).
 - **EU jurisdiction for D1**: confirm the current setting and that it is available on the free plan before creating the database.

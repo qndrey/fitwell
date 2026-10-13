@@ -2,7 +2,7 @@
 
 A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals, build and run workouts, and show progress. Plan, decisions and phases: [PLAN.md](PLAN.md).
 
-**Status: phase 3 built and tested locally; phases 1 and 2 are deployed.** Invite-only email sign-in (OAuth 2.1), and per-person data in D1: profile, goals, food log, own foods, workouts, templates, weight and measurements, with a progress dashboard.
+**Status: phases 1 to 3 are deployed; phase 4 (meal planning) is built and tested locally.** Invite-only email sign-in (OAuth 2.1), and per-person data in D1: profile, goals, food log, own foods, workouts, templates, weight and measurements, with a progress dashboard, recipes, weekly meal plans and a grocery list.
 
 | Area | Tools |
 |---|---|
@@ -11,6 +11,7 @@ A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals,
 | Food log | `log_food` (several items; macros resolved from the source; estimates marked), `get_day`, `get_nutrition_summary`, `edit_food_entry`, `delete_food_entry` |
 | Exercises and workouts | `search_exercises`, `get_exercise`, `start_workout` (opens the player; saves the workout; weights from the progression rule), `log_set` and `finish_workout` (from the player), `get_workout_history`, `suggest_progression`, templates (`save_/list_/delete_workout_template`), `log_cardio`, `log_past_workout`, `delete_workout` |
 | Body and progress | `log_weight`, `delete_weight_entry`, `log_measurements`, `delete_measurements`, `get_progress`, `show_dashboard` (opens the dashboard; `get_dashboard_data` is called by the view) |
+| Meals | `get_planning_context`, `save_recipe`, `list_recipes`, `get_recipe`, `delete_recipe`, `save_meal_plan` (checked against goals, allergies, dislikes), `get_meal_plan`, `get_grocery_list`, `log_planned_meal`, `delete_meal_plan` |
 | Import | `import_fitwell_backup` (one-time upload link for a backup from the private Fitwell app), `get_last_import` |
 | Account | `export_my_data`, `delete_my_account` (erases everything, signs out everywhere) |
 

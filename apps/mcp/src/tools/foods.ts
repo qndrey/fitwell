@@ -6,6 +6,7 @@ import { OffError, type OffClient } from '@fitwell/core/off/client';
 import type { Candidate } from '@fitwell/core/schema';
 import type { CustomFood } from '../data/userData';
 import { prepare, search, type Searchable } from '@fitwell/core/search/rank';
+import { tokenize } from '@fitwell/core/search/text';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import type { UserData } from '../data/userData';
@@ -37,8 +38,18 @@ const fromOff = (c: Candidate): FoodHit => ({ id: `off:${c.sourceId}`, name: c.n
 
 const fromCustom = (c: CustomFood): FoodHit => ({ id: `custom:${c.id}`, name: c.name, brand: c.brand ?? undefined, source: 'custom', per100g: c.per100g, portions: c.portions });
 
+/**
+ * Frida names foods "Item, descriptor" ("Egg, chicken, whole, raw"). The text search favours short names, so "egg" would
+ * start with "Egg mayonnaise salad"; names whose first part is exactly the query go first, the rest keep their order.
+ */
+export function plainFoodsFirst<T extends { name: string }>(query: string, hits: T[]): T[] {
+  const wanted = tokenize(query).join(' ');
+  const plain = (h: T) => tokenize(h.name.split(',')[0]!).join(' ') === wanted;
+  return [...hits.filter(plain), ...hits.filter((h) => !plain(h))];
+}
+
 export async function searchFrida(query: string, limit: number): Promise<FoodHit[]> {
-  return search(await fridaIndex(), query, limit).map(fromFrida);
+  return plainFoodsFirst(query, search(await fridaIndex(), query, Math.max(limit * 6, 60)).map(fromFrida)).slice(0, limit);
 }
 
 export interface FoodDeps {

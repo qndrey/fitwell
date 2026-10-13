@@ -3,5 +3,7 @@
   "name": "fitwell-mcp",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Views (ui/*) are bundled into src/ui/generated before every dev session and deploy.
+  "build": { "command": "npm run build:ui", "watch_dir": "ui" }
 }

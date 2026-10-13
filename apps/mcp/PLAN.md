@@ -66,7 +66,8 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [x] In-process MCP client tests; OFF stubbed; deployed Worker refuses `/mcp` until sign-in exists.
 
 **Phase 0b: MCP Apps on the phone (spike, do next)**
-- [ ] Minimal `ui://` workout view (one exercise, log a set via `app.callServerTool`), served from a temporary deploy behind a secret URL token.
+- [x] Workout player view (`ui/workout`, plain TypeScript, single-file HTML via esbuild): sets/reps/weight steppers, log/skip, rest timer, exercise list, finish → summary to Claude (`ui/message`) and progress in model context; host theme variables; diagnostics footer (platform, server round trip). Verified in a local AppBridge host (`npm run dev:host`) in light and dark at phone width.
+- [ ] Temporary deploy behind a secret URL token (`/mcp/<SPIKE_TOKEN>`).
 - [ ] Verify it renders and calls back in Claude **desktop, web, iOS and Android**. Record results here. If mobile does not render it, the workout runs as a text flow there.
 
 **Phase 1: accounts and food logging**
@@ -94,7 +95,8 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.
 - **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
-- **Exercise search ranking** puts variants ("Bench Press with Chains") before the plain lift; the web import matcher already prefers plain versions; reuse it for `search_exercises`.
+- **View bundle size**: the player is 597 KB (129 KB gzip), almost all zod pulled in by the MCP Apps SDK; our code is 6 KB. Fine for the spike; look for a slimmer import before phase 2.
+- **Player state** lives in the view only during phase 0b; a reload of the conversation loses progress until sets are stored (phase 1/2).
 - **EU jurisdiction for D1**: confirm the current setting and that it is available on the free plan before creating the database.
 - **Email sending on the free plan** works only to verified destination addresses, and Cloudflare marks outbound sending as beta. Confirm the `send_email` binding behaviour when building phase 1. Fallback: Workers Paid (about $5/month, sends to anyone).
 - **GDPR**: privacy notice, consent record, export and delete in phase 1; Cloudflare DPA applies.

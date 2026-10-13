@@ -28,10 +28,22 @@ describe('fitwell MCP server', () => {
     expect(res.status).toBe(503);
   });
 
+  it('serves a deployed test server only at the secret path', async () => {
+    const token = 'a'.repeat(40);
+    const env = { SPIKE_TOKEN: token } as Env;
+    const post = (path: string, e: Env) => worker.fetch(new Request(`http://localhost${path}`, { method: 'POST', body: '{}' }), e);
+    expect((await post('/mcp', env)).status).toBe(503);
+    expect((await post('/mcp/wrong', env)).status).toBe(503);
+    expect((await post(`/mcp/${token}`, { SPIKE_TOKEN: 'short' } as Env)).status).toBe(503);
+    expect((await post('/mcp/short', { SPIKE_TOKEN: 'short' } as Env)).status).toBe(503);
+    expect((await post(`/mcp/${token}`, { DEV_UNAUTHENTICATED: 'true' } as Env)).status).toBe(503);
+    expect((await post(`/mcp/${token}`, env)).status).not.toBe(503);
+  });
+
   it('lists the reference tools with instructions', async () => {
     const client = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(['get_exercise', 'lookup_barcode', 'search_exercises', 'search_foods']);
+    expect(tools.map((t) => t.name).sort()).toEqual(['get_exercise', 'log_set', 'lookup_barcode', 'search_exercises', 'search_foods', 'start_workout']);
     const search = tools.find((t) => t.name === 'search_exercises')!;
     // Muscles and equipment are enums taken from the dataset, so Claude sees the valid values.
     expect(JSON.stringify(search.inputSchema)).toContain('quadriceps');
@@ -96,5 +108,49 @@ describe('fitwell MCP server', () => {
     const client = await connect();
     const res = await call(client, 'search_exercises', { muscle: 'wings' });
     expect(res.isError).toBe(true);
+  });
+
+  it('start_workout resolves library ids into a plan and points at the player view', async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const start = tools.find((t) => t.name === 'start_workout')!;
+    expect((start._meta as { ui?: { resourceUri?: string } }).ui?.resourceUri).toBe('ui://fitwell/workout.html');
+    const { data, isError } = await call(client, 'start_workout', {
+      name: 'Legs',
+      exercises: [
+        { id: 'ex:Barbell_Squat', sets: 3, reps: 5, weight_kg: 80 },
+        { id: 'ex:Pullups', sets: 2, reps: 8 },
+      ],
+    });
+    expect(isError).toBe(false);
+    const plan = data.workout as { workoutId: string; exercises: { name: string; restSec: number; sets: { reps: number; weightKg?: number }[] }[] };
+    expect(plan.workoutId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(plan.exercises.map((e) => e.name)).toEqual(['Barbell Squat', 'Pullups']);
+    expect(plan.exercises[0]!.sets).toEqual([{ reps: 5, weightKg: 80 }, { reps: 5, weightKg: 80 }, { reps: 5, weightKg: 80 }]);
+    expect(plan.exercises[1]!.sets[0]!.weightKg).toBeUndefined();
+    expect(plan.exercises[0]!.restSec).toBe(90);
+  });
+
+  it('start_workout names unknown exercise ids', async () => {
+    const client = await connect();
+    const { isError, text } = await call(client, 'start_workout', { exercises: [{ id: 'ex:Nope', sets: 1, reps: 1 }] });
+    expect(isError).toBe(true);
+    expect(text).toContain('ex:Nope');
+  });
+
+  it('serves the player as a single self-contained MCP Apps HTML resource', async () => {
+    const client = await connect();
+    const res = await client.readResource({ uri: 'ui://fitwell/workout.html' });
+    const item = res.contents[0] as { mimeType?: string; text?: string };
+    expect(item.mimeType).toBe('text/html;profile=mcp-app');
+    expect(item.text).toMatch(/^<!doctype html>/i);
+    expect(item.text).toContain('<script type="module">');
+    expect(item.text).not.toMatch(/<script[^>]+src=|<link[^>]+stylesheet/); // nothing external to load
+  });
+
+  it('log_set acknowledges a set from the player', async () => {
+    const client = await connect();
+    const { data } = await call(client, 'log_set', { workoutId: crypto.randomUUID(), exerciseId: 'ex:Barbell_Squat', setNumber: 1, reps: 5, weightKg: 80 });
+    expect(data.saved).toBe(true);
   });
 });

@@ -22,16 +22,30 @@ main {
 .tabbar a {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); min-height: var(--tabbar-h);
   color: var(--text-muted); text-decoration: none; font-size: var(--text-sm); font-weight: var(--weight-medium);
-  border-top: 3px solid transparent;
 }
-.tabbar a[aria-current='page'] { color: var(--text); border-top-color: var(--accent); font-weight: var(--weight-bold); }
+/* The active tab: a soft pill behind the icon, label in full ink */
+.tab-pill { display: grid; place-items: center; width: var(--space-8); height: var(--space-6); border-radius: var(--radius-pill); transition: background var(--dur-fast) var(--ease-out); }
+.tabbar a[aria-current='page'] { color: var(--text); font-weight: var(--weight-bold); }
+.tabbar a[aria-current='page'] .tab-pill { background: var(--accent-soft); color: var(--on-accent-soft); }
 
 /* Screen header; with `nav` it becomes a day bar (‹ title ›) */
 .screen-title h1 { margin: 0; }
 .screen-title p { font-size: var(--text-sm); }
 .daybar { display: flex; align-items: center; gap: var(--space-2); }
 main > header { margin-bottom: var(--space-4); }
-.daybar .screen-title { flex: 1; min-width: 0; text-align: center; }
+.daybar .screen-title { flex: 1; min-width: 0; }
+.topbar { display: flex; align-items: flex-start; gap: var(--space-1); margin-left: calc(var(--space-2) * -1); }
+.topbar .screen-title { flex: 1; min-width: 0; padding-top: var(--space-1); }
+.daybar-nav { display: flex; align-items: center; flex: none; }
+.day-picker { position: relative; display: inline-flex; }
+/* The real date field sits under the button so the native picker opens next to it; never focusable by itself. */
+.day-picker-input { position: absolute; inset: auto 0 0; width: 100%; height: 0; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+/* A date you can tap: back to today, or to the day a workout belongs to */
+.screen-date {
+  display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--tap); padding: 0;
+  background: none; border: 0; color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-semibold); cursor: pointer;
+}
+.screen-date:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 
 /* The one primary action, pinned in the thumb zone above the tab bar. Taps pass through everywhere but the button. */
 .primary-bar {
@@ -39,12 +53,29 @@ main > header { margin-bottom: var(--space-4); }
   margin-top: auto; padding-top: var(--space-2); z-index: var(--z-primary); pointer-events: none;
 }
 .primary-bar .btn { pointer-events: auto; }
+/* Workout footer: progress (or the rest timer) over Add exercise and Finish */
+.workout-bar { display: flex; flex-direction: column; gap: var(--space-2); }
+.workout-status {
+  pointer-events: auto; display: flex; align-items: center; gap: var(--space-2); min-height: var(--tap); padding: 0 var(--space-2) 0 var(--space-4);
+  background: var(--surface); border: var(--border-w) solid var(--divider); border-radius: var(--radius-pill); box-shadow: var(--shadow-1);
+  font-size: var(--text-sm); color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.workout-status strong { color: var(--text); font-size: var(--text-md); }
+.workout-actions { display: flex; gap: var(--space-2); }
+.workout-actions .btn.lg:not(.primary) { box-shadow: var(--shadow-1); }
 /* Floating add button (Today) */
 .fab-space { height: calc(var(--tap) + var(--space-5)); }
 .fab-wrap { position: fixed; right: var(--gutter); bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-4)); z-index: var(--z-primary); display: flex; flex-direction: column-reverse; align-items: flex-end; gap: var(--space-3); }
-.fab-backdrop { position: fixed; inset: 0; z-index: -1; }
-.fab-menu { display: flex; flex-direction: column; gap: var(--space-2); }
-.fab-menu .btn { box-shadow: var(--shadow-2); }
+.fab-wrap { transition: transform var(--dur-med) var(--ease-out), opacity var(--dur-med) var(--ease-out); }
+.fab-wrap.away { transform: translateY(calc(100% + var(--space-5))); opacity: 0; pointer-events: none; }
+.fab-backdrop { position: fixed; inset: 0; z-index: -1; background: var(--overlay); animation: fade-in var(--dur-med) var(--ease-out); }
+.fab-menu { animation: sheet-up var(--dur-med) var(--ease-out); }
+/* The menu is one card of three rows, each with an icon */
+.fab-menu { display: flex; flex-direction: column; min-width: 15rem; background: var(--surface); border-radius: var(--radius-m); box-shadow: var(--shadow-2); overflow: hidden; }
+.fab-item { display: flex; align-items: center; gap: var(--space-3); min-height: var(--control-lg); padding: 0 var(--space-4); background: none; border: 0; color: var(--text); font-size: var(--text-md); font-weight: var(--weight-semibold); text-align: left; cursor: pointer; }
+.fab-item + .fab-item { border-top: var(--border-w) solid var(--divider); }
+.fab-item:hover { background: var(--surface-2); }
+.fab-item .icon { color: var(--accent); }
 .fab { width: 3.5rem; height: 3.5rem; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-2); }
 .fab:focus-visible { outline: var(--ring-w) solid var(--focus); outline-offset: 3px; }
 .fab svg { transition: transform 0.15s; }
@@ -61,8 +92,10 @@ main > header { margin-bottom: var(--space-4); }
     justify-content: flex-start; gap: var(--space-1); padding: var(--space-5) var(--space-3);
     border-top: 0; border-right: var(--border-w) solid var(--divider);
   }
-  .tabbar a { flex: 0 0 auto; flex-direction: row; gap: var(--space-3); justify-content: flex-start; padding: 0 var(--space-4); border-top: 0; border-left: 3px solid transparent; border-radius: var(--radius-s); }
-  .tabbar a[aria-current='page'] { border-left-color: var(--accent); background: var(--surface-2); }
+  .tabbar a { flex: 0 0 auto; flex-direction: row; gap: var(--space-2); justify-content: flex-start; padding: 0 var(--space-2); border-radius: var(--radius-pill); min-height: var(--tap); }
+  .tabbar a .tab-pill { width: var(--tap); height: var(--tap); }
+  .tabbar a[aria-current='page'] { background: var(--accent-soft); color: var(--on-accent-soft); }
+  .tabbar a[aria-current='page'] .tab-pill { background: transparent; }
   main { padding-bottom: var(--space-6); }
   .primary-bar { bottom: var(--space-4); }
   .toast-region { bottom: var(--space-4); }
@@ -71,6 +104,28 @@ main > header { margin-bottom: var(--space-4); }
 /* ---- Screen-specific compositions (built from the components above) ---- */
 .slot-head { display: flex; align-items: center; gap: var(--space-3); min-height: var(--tap); }
 .slot-head h2 { flex: 1; }
+/* An empty meal is one quiet line: name, "Nothing yet" (or "Same as yesterday") and + */
+.empty-slot .slot-head h2 { font-size: var(--text-md); }
+.slot + .slot { margin-top: calc(var(--space-2) * -1); }
+.slot.empty-slot + .slot.empty-slot { margin-top: calc(var(--space-4) * -1); }
+.active-bar {
+  position: sticky; top: var(--space-2); z-index: var(--z-primary); display: flex; align-items: center; gap: var(--space-3); width: 100%;
+  min-height: var(--tap); margin-bottom: var(--space-3); padding: var(--space-2) var(--space-3);
+  background: var(--accent-soft); color: var(--on-accent-soft); border: var(--border-w) solid var(--accent); border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1); text-align: left; cursor: pointer;
+}
+.active-text { flex: 1; display: flex; flex-direction: column; min-width: 0; line-height: var(--lh-snug); }
+.active-name { font-weight: var(--weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.active-sub { font-size: var(--text-sm); }
+.active-sub .clock { color: inherit; }
+.active-meter { width: 3.5rem; flex: none; }
+.settings-group { display: flex; flex-direction: column; gap: var(--space-3); }
+.settings-group + .settings-group { margin-top: var(--space-4); }
+.settings-group > .t-overline { margin: 0 0 calc(var(--space-1) * -1) var(--space-1); }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.align-start { align-self: flex-start; }
+.body-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+.body-head .sparkline { align-self: center; }
 .quick { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .quick .btn { min-width: 3.5rem; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }

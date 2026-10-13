@@ -17,6 +17,7 @@ import { t } from './i18n';
 import { watchBody } from './features/body/store';
 import { ensureMeasurementTypes } from './db/bodyStore';
 import { watchUnresolved } from './features/review/store';
+import { watchActiveWorkout } from './features/workout/active';
 
 await initState();
 try {
@@ -28,7 +29,17 @@ try {
   /* storage may be blocked */
 }
 render(<App />, document.getElementById('app')!);
+hideSplash();
 watchUnresolved();
+watchActiveWorkout();
 void ensureMeasurementTypes().then(watchBody).catch(() => undefined);
 startQueue();
 registerServiceWorker();
+
+/** Fades out the start-up screen from index.html once the first screen is drawn. */
+function hideSplash() {
+  const splash = document.getElementById('splash');
+  if (!splash) return;
+  splash.classList.add('done');
+  setTimeout(() => splash.remove(), 300);
+}

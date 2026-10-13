@@ -55,7 +55,8 @@ export function BarChart({
   const bw = Math.max(1.5, Math.min(22, slot * 0.72));
   const cx = (i: number) => M.l + slot * (i + 0.5);
   const yTicks = niceTicks(domain[0], domain[1], 4);
-  const labelIdx = n <= 6 ? groups.map((_, i) => i) : [0, Math.round((n - 1) / 3), Math.round(((n - 1) * 2) / 3), n - 1];
+  // At most four labels: more collide at phone width.
+  const labelIdx = n <= 4 ? groups.map((_, i) => i) : [0, Math.round((n - 1) / 3), Math.round(((n - 1) * 2) / 3), n - 1];
   const pick = (clientX: number, el: SVGSVGElement) => {
     const box = el.getBoundingClientRect();
     const vx = ((clientX - box.left) / box.width) * W;
@@ -104,7 +105,7 @@ export function BarChart({
           </g>
         ))}
         {labelIdx.map((i, k) => (
-          <text key={i} x={cx(i)} y={H - 6} class="chart-text" text-anchor={k === 0 && n > 6 ? 'start' : k === labelIdx.length - 1 && n > 6 ? 'end' : 'middle'}>{groups[i]?.label}</text>
+          <text key={i} x={cx(i)} y={H - 6} class="chart-text" text-anchor={k === 0 && n > 4 ? 'start' : k === labelIdx.length - 1 && n > 4 ? 'end' : 'middle'}>{groups[i]?.label}</text>
         ))}
         {groups.map((g, i) => {
           let acc = 0;

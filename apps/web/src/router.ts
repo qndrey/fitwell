@@ -4,12 +4,12 @@ import { isDay, type Day } from '@fitwell/core/domain/dates';
 export const ROUTES = ['today', 'history', 'progress', 'settings'] as const;
 export type RouteName = (typeof ROUTES)[number];
 /** Reachable by URL only, never in the tab bar. */
-const HIDDEN = ['design', 'review', 'workout', 'about', 'ai'] as const;
+const HIDDEN = ['design', 'review', 'workout', 'about', 'ai', 'start'] as const;
 export type AnyRoute = RouteName | (typeof HIDDEN)[number];
 
 interface Parsed {
   name: AnyRoute;
-  /** `#/today/2026-10-08` */
+  /** `#/today/2026-10-08`, `#/start/2026-10-08` */
   day?: Day;
   /** `#/workout/<id>` */
   id?: string;

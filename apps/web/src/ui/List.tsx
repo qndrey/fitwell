@@ -4,8 +4,8 @@ export function List({ children, class: cls }: { children: ComponentChildren; cl
   return <ul class={['list', cls].filter(Boolean).join(' ')}>{children}</ul>;
 }
 
-/** A row: bold main line, muted sub line. Tappable when `onClick` is given, otherwise static. */
-export function ListRow({ main, sub, onClick, lead }: { main: ComponentChildren; sub?: ComponentChildren; onClick?: () => void; lead?: ComponentChildren }) {
+/** A row: bold main line, muted sub line. Tappable when `onClick` is given, otherwise static. `action` adds a button at the end (e.g. quick add). */
+export function ListRow({ main, sub, onClick, lead, action }: { main: ComponentChildren; sub?: ComponentChildren; onClick?: () => void; lead?: ComponentChildren; action?: ComponentChildren }) {
   const text = (
     <>
       <span class="row-main">{main}</span>
@@ -21,6 +21,14 @@ export function ListRow({ main, sub, onClick, lead }: { main: ComponentChildren;
     text
   );
   const cls = lead ? 'row has-lead' : 'row';
+  if (action && onClick) {
+    return (
+      <li class="row-split">
+        <button type="button" class={cls} onClick={onClick}>{inner}</button>
+        {action}
+      </li>
+    );
+  }
   return onClick ? (
     <li>
       <button type="button" class={cls} onClick={onClick}>{inner}</button>

@@ -78,13 +78,14 @@ test.describe('Goals', () => {
     await page.getByLabel('Workouts per week').fill('3');
     await page.getByLabel('Workouts per week').blur();
     await page.getByRole('link', { name: 'Today' }).click();
-    await expect(page.getByRole('region', { name: 'Daily totals' })).toContainText('2,000 kcal · P 120 g');
+    await expect(page.getByRole('region', { name: 'Daily totals' })).toContainText('Goal 2,000 kcal');
+    await expect(page.getByRole('region', { name: 'Daily totals' })).toContainText('goal 120 g');
     await expect(page.getByText('This week 0 · target 3')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Daily totals' })).not.toContainText(/left|remaining|over|under/i);
 
     // a logged workout moves the plain count, nothing else
     await page.getByRole('button', { name: 'Add workout' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Cardio or activity', exact: true }).click();
+    await page.getByRole('button', { name: 'Cardio or activity', exact: true }).click();
     await page.getByRole('dialog').last().getByRole('button', { name: /^Yoga, hatha/ }).click();
     await page.getByRole('dialog').last().getByRole('button', { name: 'Add workout' }).click();
     await expect(page.getByText('This week 1 · target 3')).toBeVisible();

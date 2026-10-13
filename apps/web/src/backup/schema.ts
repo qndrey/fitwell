@@ -42,7 +42,7 @@ const lookup = v.object({
   completedAt: v.optional(num),
 });
 const setType = v.picklist(['warmup', 'working']);
-const workoutSet = v.object({ id: v.string(), type: setType, reps: nonNeg, weightKg: nonNeg, durationSec: v.optional(nonNeg), bodyweightKg: v.optional(nonNeg) });
+const workoutSet = v.object({ id: v.string(), type: setType, reps: nonNeg, weightKg: nonNeg, durationSec: v.optional(nonNeg), bodyweightKg: v.optional(nonNeg), done: v.optional(v.boolean()) });
 const exerciseMode = v.optional(v.picklist(['reps', 'time']));
 const exerciseLoad = v.optional(v.picklist(['weight', 'bodyweight']));
 const cardio = v.object({
@@ -61,6 +61,8 @@ const workout = v.object({
   type: v.picklist(['cardio', 'strength']),
   name: v.optional(v.string()),
   cardio: v.optional(cardio),
+  startedAt: v.optional(num),
+  finishedAt: v.optional(num),
   exercises: v.optional(
     v.array(
       v.object({ uid: v.optional(v.string()), supersetId: v.optional(v.string()), mode: exerciseMode, load: exerciseLoad, exerciseRef: v.string(), exerciseName: v.string(), sets: v.array(workoutSet) }),

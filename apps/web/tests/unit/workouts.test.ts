@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 import { estimateKcal, bodyWeightKg } from '@fitwell/core/domain/met';
-import { addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '@fitwell/core/domain/workouts';
+import { averageWorkoutTime } from '@fitwell/core/domain/stats';
+import { elapsedSeconds, exercisesAtFinish, formatClock, formatMinutes, plannedSets, reopenPatch, sessionMinutes, workoutStatus, suggestNextKg, workoutTally, addedLoadKg, cardioKcal, copyExercises, describeWorkout, estimatedOneRepMax, formatDuration, isSetLogged, newSet, normalizeSupersets, parseDuration, summarizeSets, supersetPosition } from '@fitwell/core/domain/workouts';
 import { displayDistance, displayWeight, kgToLb, lbToKg, miToKm, toKg, toKm, kmToMi } from '@fitwell/core/domain/units';
 import { openDatabase } from '../../src/db/open';
 import { ACTIVITIES } from '@fitwell/core/data/activities';
@@ -56,6 +57,14 @@ describe('units', () => {
     expect(displayDistance(toKm(3.1, 'imperial'), 'imperial')).toBe(3.1);
     expect(displayDistance(10, 'metric')).toBe(10);
   });
+  it('keeps a second decimal for small plates, not for conversion noise', () => {
+    expect(displayWeight(62.25, 'metric', 2)).toBe(62.25);
+    expect(displayWeight(1.75, 'metric', 2)).toBe(1.75);
+    expect(displayWeight(62.33, 'metric', 2)).toBe(62.3);
+    expect(displayWeight(62.25, 'metric')).toBe(62.3); // default stays at 0.1
+    expect(displayWeight(60, 'imperial', 2)).toBe(132.3);
+    expect(displayWeight(lbToKg(132.25), 'imperial', 2)).toBe(132.25);
+  });
 });
 
 describe('set summaries ("Last time: …")', () => {
@@ -65,6 +74,7 @@ describe('set summaries ("Last time: …")', () => {
   });
   it('lists sets when they differ', () => {
     expect(summarizeSets([w(8, 60), w(8, 60), w(6, 62.5)], 'metric')).toBe('8 @ 60, 8 @ 60, 6 @ 62.5 kg');
+    expect(summarizeSets([w(8, 60), w(6.5, 62.25)], 'metric')).toBe('8 @ 60, 6.5 @ 62.25 kg');
   });
   it('converts to pounds and handles bodyweight sets', () => {
     expect(summarizeSets([w(5, 60), w(5, 60)], 'imperial')).toBe('2×5 @ 132.3 lb');
@@ -90,12 +100,12 @@ describe('copy and describe', () => {
     let n = 0;
     const src = [{ exerciseRef: 'ex:a', exerciseName: 'A', sets: [{ id: 's1', type: 'working' as const, reps: 5, weightKg: 50 }] }];
     const copy = copyExercises(src, () => `new${++n}`);
-    expect(copy[0]!.sets[0]).toEqual({ id: 'new1', type: 'working', reps: 5, weightKg: 50 });
+    expect(copy[0]!.sets[0]).toEqual({ id: 'new1', type: 'working', reps: 5, weightKg: 50, done: false }); // planned until you do it
     copy[0]!.sets[0]!.reps = 99;
     expect(src[0]!.sets[0]!.reps).toBe(5);
   });
   it('describes workouts for lists', () => {
-    expect(describeWorkout({ type: 'cardio', cardio: { activityRef: 'a', activityName: 'Running', met: 9, durationMin: 30.4 } })).toEqual({ title: 'Running', detail: '30 min' });
+    expect(describeWorkout({ type: 'cardio', cardio: { activityRef: 'a', activityName: 'Running', met: 9, durationMin: 30.4 } })).toEqual({ title: 'Running', detail: '30.4 min' });
     expect(describeWorkout({ type: 'strength', name: 'Push day', exercises: [{ exerciseRef: 'x', exerciseName: 'X', sets: [{ id: '1', type: 'working', reps: 5, weightKg: 1 }, { id: '2', type: 'working', reps: 0, weightKg: 0 }] }] })).toEqual({ title: 'Push day', detail: '1 exercise · 1 set' });
   });
 });
@@ -137,10 +147,19 @@ describe('timed and bodyweight sets', () => {
     expect(isSetLogged({ reps: 0, weightKg: 90, bodyweightKg: 80 })).toBe(true);
   });
 
+  it('only counts sets that were done: planned ones are left out, older sets (no flag) count', () => {
+    expect(isSetLogged({ reps: 8, weightKg: 60, done: false })).toBe(false);
+    expect(isSetLogged({ reps: 8, weightKg: 60, done: true })).toBe(true);
+    expect(isSetLogged({ reps: 8, weightKg: 60 })).toBe(true);
+    const sets = [{ type: 'working' as const, reps: 8, weightKg: 60 }, { type: 'working' as const, reps: 8, weightKg: 60, done: false }];
+    expect(summarizeSets(sets, 'metric')).toBe('1×8 @ 60 kg');
+    expect(describeWorkout({ type: 'strength', exercises: [{ exerciseRef: 'x', exerciseName: 'X', sets: sets.map((s, i) => ({ ...s, id: String(i) })) }] }).detail).toBe('1 exercise · 1 set');
+  });
+
   it('new sets carry time and bodyweight from the previous one', () => {
-    expect(newSet('a', 'working', { reps: 0, weightKg: 0, durationSec: 40 })).toEqual({ id: 'a', type: 'working', reps: 0, weightKg: 0, durationSec: 40 });
-    expect(newSet('b', 'working', { reps: 5, weightKg: 85, bodyweightKg: 80 })).toEqual({ id: 'b', type: 'working', reps: 5, weightKg: 85, bodyweightKg: 80 });
-    expect(newSet('c')).toEqual({ id: 'c', type: 'working', reps: 0, weightKg: 0 });
+    expect(newSet('a', 'working', { reps: 0, weightKg: 0, durationSec: 40 })).toEqual({ id: 'a', type: 'working', reps: 0, weightKg: 0, durationSec: 40, done: false });
+    expect(newSet('b', 'working', { reps: 5, weightKg: 85, bodyweightKg: 80 })).toEqual({ id: 'b', type: 'working', reps: 5, weightKg: 85, bodyweightKg: 80, done: false });
+    expect(newSet('c')).toEqual({ id: 'c', type: 'working', reps: 0, weightKg: 0, done: false });
   });
 
   it('counts timed and bodyweight sets in workout descriptions', () => {
@@ -152,7 +171,7 @@ describe('timed and bodyweight sets', () => {
     const src = [{ uid: 'u1', supersetId: 's1', mode: 'time' as const, load: 'bodyweight' as const, exerciseRef: 'ex:plank', exerciseName: 'Plank', sets: [{ id: 'a', type: 'working' as const, reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45 }] }];
     const copy = copyExercises(src, () => 'n');
     expect(copy[0]).toMatchObject({ supersetId: 's1', mode: 'time', load: 'bodyweight' });
-    expect(copy[0]!.sets[0]).toEqual({ id: 'n', type: 'working', reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45 });
+    expect(copy[0]!.sets[0]).toEqual({ id: 'n', type: 'working', reps: 0, weightKg: 80, bodyweightKg: 80, durationSec: 45, done: false });
   });
 });
 
@@ -270,3 +289,94 @@ describe('workout store queries', () => {
 });
 
 void openDatabase;
+
+describe('during a workout', () => {
+  const ws = (reps: number, weightKg: number, extra = {}) => ({ type: 'working' as const, reps, weightKg, ...extra });
+  it('suggests one small step up when every working set hit the same weight for 5+ reps', () => {
+    expect(suggestNextKg([ws(5, 80), ws(5, 80)], 'metric')).toBe(82.5);
+    expect(displayWeight(suggestNextKg([ws(8, lbToKg(135))], 'imperial')!, 'imperial')).toBe(140);
+    expect(suggestNextKg([ws(5, 80), ws(4, 80)], 'metric')).toBeUndefined(); // missed reps: no nudge
+    expect(suggestNextKg([ws(5, 80), ws(5, 85)], 'metric')).toBeUndefined(); // mixed weights
+    expect(suggestNextKg([ws(8, 90, { bodyweightKg: 80 })], 'metric')).toBeUndefined(); // bodyweight
+    expect(suggestNextKg([ws(5, 80, { done: false })], 'metric')).toBeUndefined(); // only done sets
+  });
+  it('tallies done sets and volume, leaving out planned sets, warm-ups and timed sets', () => {
+    const t = workoutTally([
+      { sets: [{ ...ws(5, 100), id: '1' }, { ...ws(5, 100, { done: false }), id: '2' }, { id: '3', type: 'warmup', reps: 10, weightKg: 40 }] },
+      { mode: 'time', sets: [{ id: '4', type: 'working', reps: 0, weightKg: 0, durationSec: 60 }] },
+    ]);
+    expect(t).toEqual({ done: 3, total: 4, volumeKg: 500 });
+  });
+});
+
+describe('workout lifecycle', () => {
+  const MIN = 60_000;
+  it('is open without a timer, active once started, finished once closed', () => {
+    expect(workoutStatus({})).toBe('open');
+    expect(workoutStatus({ startedAt: 1 })).toBe('active');
+    expect(workoutStatus({ startedAt: 1, finishedAt: 2 })).toBe('finished');
+    expect(workoutStatus({ finishedAt: 2 })).toBe('finished'); // finished without a timer (a past day)
+  });
+  it('reads the clock and the session length', () => {
+    expect(elapsedSeconds({ startedAt: 10_000 }, 75_500)).toBe(65);
+    expect(elapsedSeconds({ startedAt: 10_000 }, 5_000)).toBe(0); // clock set back: never negative
+    expect(elapsedSeconds({}, 5_000)).toBeUndefined();
+    expect(sessionMinutes({ startedAt: 0, finishedAt: 47.4 * MIN })).toBe(47);
+    expect(sessionMinutes({ startedAt: 0, finishedAt: 20_000 })).toBeUndefined(); // under a minute: a mis-tap, not a workout
+    expect(sessionMinutes({ startedAt: 0, finishedAt: 7 * 60 * MIN })).toBeUndefined(); // left running overnight
+    expect(sessionMinutes({ startedAt: 0 })).toBeUndefined();
+    expect(sessionMinutes({ finishedAt: 5 * MIN })).toBeUndefined();
+  });
+  it('formats the running clock and a duration', () => {
+    expect(formatClock(5)).toBe('0:05');
+    expect(formatClock(23 * 60 + 5)).toBe('23:05');
+    expect(formatClock(3600 + 2 * 60 + 7)).toBe('1:02:07');
+    expect(formatMinutes(42)).toBe('42 min');
+    expect(formatMinutes(65)).toBe('1 h 05 min');
+  });
+  it('shows the time in a finished workout\'s description', () => {
+    const ex = [{ exerciseRef: 'x', exerciseName: 'X', sets: [{ id: '1', type: 'working' as const, reps: 5, weightKg: 50 }] }];
+    expect(describeWorkout({ type: 'strength', exercises: ex, startedAt: 0, finishedAt: 42 * MIN }).detail).toBe('1 exercise · 1 set · 42 min');
+    expect(describeWorkout({ type: 'strength', exercises: ex }).detail).toBe('1 exercise · 1 set');
+  });
+  it('finishing drops sets that were never done, and exercises left empty, and keeps supersets tidy', () => {
+    let n = 0;
+    const set = (id: string, done?: boolean) => ({ id, type: 'working' as const, reps: 5, weightKg: 50, ...(done === undefined ? {} : { done }) });
+    const ex = [
+      { uid: 'a', supersetId: 's', exerciseRef: 'ex:a', exerciseName: 'A', sets: [set('1', true), set('2', false)] },
+      { uid: 'b', supersetId: 's', exerciseRef: 'ex:b', exerciseName: 'B', sets: [set('3', false)] },
+      { uid: 'c', exerciseRef: 'ex:c', exerciseName: 'C', sets: [set('4')] }, // no flag: an older set, counts as done
+    ];
+    expect(plannedSets(ex)).toBe(2);
+    const out = exercisesAtFinish(ex, () => `n${++n}`);
+    expect(out.map((e) => e.uid)).toEqual(['a', 'c']);
+    expect(out[0]!.sets.map((s) => s.id)).toEqual(['1']);
+    expect(out[0]!.supersetId).toBeUndefined(); // a superset of one is not a superset
+    expect(plannedSets(out)).toBe(0);
+  });
+  it('reopening carries the clock on from where it stopped', () => {
+    const p = reopenPatch({ startedAt: 1_000_000, finishedAt: 1_000_000 + 30 * MIN }, 9_000_000);
+    expect(p.finishedAt).toBeUndefined();
+    expect(p.startedAt).toBe(9_000_000 - 30 * MIN);
+    expect(reopenPatch({ finishedAt: 5 }, 9_000_000)).toEqual({ startedAt: undefined, finishedAt: undefined }); // no timer: stays untimed
+  });
+});
+
+describe('average workout time', () => {
+  const MIN = 60_000;
+  const strength = (day: string, mins: number | undefined) => ({ id: day + mins, createdAt: 0, updatedAt: 0, rev: 1, day, type: 'strength' as const, ...(mins === undefined ? {} : { startedAt: 0, finishedAt: mins * MIN }) });
+  const cardio = (day: string, durationMin: number) => ({ id: day + 'c', createdAt: 0, updatedAt: 0, rev: 1, day, type: 'cardio' as const, cardio: { activityRef: 'a', activityName: 'Run', met: 9, durationMin } });
+  it('averages timed strength sessions and cardio, leaving out workouts without a time', () => {
+    const r = averageWorkoutTime([strength('2026-10-01', 60), strength('2026-10-02', 40), strength('2026-10-03', undefined), cardio('2026-10-04', 20)], '2026-10-01', '2026-10-31')!;
+    expect(r.count).toBe(3);
+    expect(r.avgMin).toBeCloseTo(40);
+    expect(r.strengthAvgMin).toBe(50);
+    expect(r.strengthCount).toBe(2);
+    expect(r.cardioAvgMin).toBe(20);
+  });
+  it('respects the range and deleted workouts, and says nothing when there is nothing timed', () => {
+    expect(averageWorkoutTime([strength('2026-09-01', 60)], '2026-10-01', '2026-10-31')).toBeNull();
+    expect(averageWorkoutTime([{ ...strength('2026-10-01', 60), deletedAt: 1 }], '2026-10-01', '2026-10-31')).toBeNull();
+    expect(averageWorkoutTime([strength('2026-10-01', undefined)], '2026-10-01', '2026-10-31')).toBeNull();
+  });
+});

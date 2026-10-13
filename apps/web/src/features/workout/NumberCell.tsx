@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { parseAmount } from '@fitwell/core/domain/nutrition';
 
 /** A numeric input that keeps what you type ("6.", "") while you type, and only reports finite numbers. */
-export function NumberCell({ value, onValue, label, placeholder, integer }: { value: number; onValue: (n: number) => void; label: string; placeholder?: string; integer?: boolean }) {
+/** `planned`: a value carried over from last time, not done yet (shown muted). */
+export function NumberCell({ value, onValue, label, placeholder, planned, readOnly }: { value: number; onValue: (n: number) => void; label: string; placeholder?: string; planned?: boolean; readOnly?: boolean }) {
   const show = (n: number) => (n ? String(n) : '');
   const [text, setText] = useState(show(value));
   const focused = useRef(false);
@@ -11,10 +12,11 @@ export function NumberCell({ value, onValue, label, placeholder, integer }: { va
   }, [value]);
   return (
     <input
-      class="input num"
-      inputMode={integer ? 'numeric' : 'decimal'}
+      class={planned ? 'input num planned' : 'input num'}
+      inputMode="decimal"
       autocomplete="off"
       aria-label={label}
+      readOnly={readOnly}
       placeholder={placeholder}
       value={text}
       onFocus={(e) => {
@@ -29,7 +31,7 @@ export function NumberCell({ value, onValue, label, placeholder, integer }: { va
         const s = (e.target as HTMLInputElement).value;
         setText(s);
         const n = s.trim() === '' ? 0 : parseAmount(s);
-        if (n !== null) onValue(integer ? Math.round(n) : n);
+        if (n !== null) onValue(n);
       }}
     />
   );

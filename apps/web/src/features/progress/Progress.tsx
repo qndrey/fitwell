@@ -6,10 +6,11 @@ import { LineChart, shortDay, type LineSeries } from '../../charts/LineChart';
 import { MARKERS } from '../../charts/markers';
 import { addDays, dayFromNumber, dayNumber, today as todayDay, type Day } from '@fitwell/core/domain/dates';
 import {
-  aggregateDays, cardioActivities, cardioPerWeek, compareFirstLatest, downsample, exerciseOptions, exerciseProgress, measurementPoints,
+  aggregateDays, averageWorkoutTime, cardioActivities, cardioPerWeek, compareFirstLatest, downsample, exerciseOptions, exerciseProgress, measurementPoints,
   movingAverage, RANGES, rangeStart, trendChange, weeklyAverage, weeksIn, workoutsPerWeek, type RangeKey,
 } from '@fitwell/core/domain/stats';
 import { displayLength, displayWeight, weightUnit, type UnitSystem } from '@fitwell/core/domain/units';
+import { formatMinutes } from '@fitwell/core/domain/workouts';
 import type { MeasurementType } from '@fitwell/core/schema';
 import { measurementTypes } from '../body/store';
 import { goals, settings } from '../../state';
@@ -59,6 +60,7 @@ export function Progress() {
         <p class="muted" role="status">{t('common.loading')}</p>
       ) : (
         <>
+          <Summary data={data} from={from} end={end} units={s.units} />
           {!s.hideBodyTracking && <WeightChart data={data} from={from} end={end} range={r} units={s.units} />}
           {!s.habitOnly && <CaloriesChart data={data} from={from} end={end} range={r} />}
           <WorkoutsChart data={data} from={from} end={end} />
@@ -72,6 +74,41 @@ export function Progress() {
 }
 
 type Props = { data: NonNullable<ReturnType<typeof useRangeData>>; from: Day; end: Day };
+
+// ------------------------------------------------------------------ summary tiles
+/** The three numbers most people come here for, before the charts: weight trend, average calories, workouts a week. */
+function Summary({ data, from, end, units }: Props & { units: UnitSystem }) {
+  const s = settings.value;
+  const tiles = useMemo(() => {
+    const out: { label: string; value: string }[] = [];
+    const days = aggregateDays(data);
+    if (!s.hideBodyTracking) {
+      const all = data.weights.filter((w) => w.deletedAt === undefined).map((w) => ({ day: w.day, value: displayWeight(w.kg, units) }));
+      const trend = trendChange(movingAverage(all).filter((p) => p.day >= from));
+      out.push({ label: t('progress.tile.weight'), value: trend ? `${signed(trend.change)} ${weightUnit(units)}` : '—' });
+    }
+    if (!s.habitOnly) {
+      const logged = [...days.values()].filter((a) => a.day >= from && a.day <= end && a.foodCount > 0);
+      out.push({ label: t('progress.tile.kcal'), value: logged.length ? money(logged.reduce((n, a) => n + a.kcal, 0) / logged.length) : '—' });
+    }
+    const weeks = workoutsPerWeek(days, from, end);
+    const perWeek = weeks.length ? weeks.reduce((n, w) => n + w.strength + w.cardio, 0) / weeks.length : 0;
+    out.push({ label: t('progress.tile.workouts'), value: String(r1(perWeek)) });
+    const time = averageWorkoutTime(data.workouts, from, end);
+    out.push({ label: t('progress.tile.time'), value: time ? formatMinutes(time.avgMin) : '—' });
+    return out;
+  }, [data, from, end, units, s.hideBodyTracking, s.habitOnly]);
+  return (
+    <section class="tiles" aria-label={t('progress.summary')}>
+      {tiles.map((tile) => (
+        <div class="tile" key={tile.label}>
+          <span class="tile-value">{tile.value}</span>
+          <span class="tile-label">{tile.label}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 // ------------------------------------------------------------------ weight
 function WeightChart({ data, from, end, range: r, units }: Props & { range: RangeKey; units: UnitSystem }) {
@@ -195,17 +232,27 @@ function CaloriesChart({ data, from, end, range: r }: Props & { range: RangeKey 
 }
 
 // ------------------------------------------------------------------ workouts per week
+/** Where the average comes from: strength sessions you timed with Start and Finish, and cardio durations. */
+function timeNote(time: NonNullable<ReturnType<typeof averageWorkoutTime>>): string {
+  const parts = [
+    time.strengthAvgMin !== undefined ? `${t('workout.strength')} ${formatMinutes(time.strengthAvgMin)} (${time.strengthCount})` : '',
+    time.cardioAvgMin !== undefined ? `${t('workout.cardio')} ${formatMinutes(time.cardioAvgMin)} (${time.cardioCount})` : '',
+  ].filter(Boolean);
+  return `${t('chart.time.how')} ${parts.join(' · ')}`;
+}
 function WorkoutsChart({ data, from, end }: Props) {
   const days = useMemo(() => aggregateDays(data), [data]);
   const weeks = workoutsPerWeek(days, from, end);
   const total = weeks.reduce((s, w) => s + w.strength + w.cardio, 0);
   const perWeek = weeks.length ? total / weeks.length : 0;
   const target = goals.value.workoutsPerWeek;
+  const time = useMemo(() => averageWorkoutTime(data.workouts, from, end), [data, from, end]);
   return (
     <ChartFrame
       id="workouts"
       title={t('chart.workouts.title')}
-      headline={`${total} ${t('chart.workouts.word')} · ${r1(perWeek)} ${t('chart.perWeek')}`}
+      headline={`${total} ${t('chart.workouts.word')} · ${r1(perWeek)} ${t('chart.perWeek')}${time ? ` · ${t('chart.avgTime')} ${formatMinutes(time.avgMin)}` : ''}`}
+      note={time ? timeNote(time) : t('chart.time.none')}
       empty={total === 0 ? t('chart.workouts.empty') : undefined}
       table={{ caption: t('chart.workouts.title'), columns: [t('chart.week'), t('workout.strength'), t('workout.cardio')], rows: () => weeks.map((w) => [dayLabel(w.start), w.strength, w.cardio]) }}
     >

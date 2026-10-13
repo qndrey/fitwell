@@ -32,10 +32,15 @@ test.describe('History', () => {
     await expect(pending.first()).toBeVisible();
     await expect(pending.first()).toHaveAttribute('aria-label', /1 to confirm/);
 
-    // Tap a day: lands on Today for that day.
+    // Tap a day: a preview with the day and its week; "Open this day" (or a second tap) lands on Today for that day.
     await pending.first().click();
+    await expect(pending.first()).toHaveAttribute('aria-pressed', 'true');
+    const preview = page.getByRole('region', { name: /^\w+day, / });
+    await expect(preview).toContainText(/1 to confirm/);
+    await expect(preview).toContainText(/Week of/);
+    await preview.getByRole('button', { name: 'Open this day' }).click();
     await expect(page).toHaveURL(new RegExp(`#/(today|today/\\d{4}-\\d{2}-\\d{2})$`));
-    await expect(page.getByText('1 item to confirm')).toBeVisible();
+    await expect(page.getByText('To confirm').first()).toBeVisible();
     void key;
   });
 
@@ -265,4 +270,19 @@ test.describe('Progress', () => {
       expect(small).toEqual([]);
     });
   }
+});
+
+test('Progress shows the average workout time, from timed strength workouts and cardio', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await seedHistory(page, { days: 90 });
+  await page.reload();
+  await page.getByRole('link', { name: 'Progress' }).click();
+  const tile = page.locator('.tile').filter({ hasText: 'Average workout time' });
+  await expect(tile).toContainText(/\d+ min|\d+ h \d\d min/);
+  const card = page.getByRole('region', { name: /Workouts per week/ });
+  await expect(card).toContainText(/average \d+ min|average \d+ h/);
+  await expect(card).toContainText('Average time per workout');
+  await expect(card).toContainText('Strength');
+  await expect(card).toContainText('Cardio');
 });

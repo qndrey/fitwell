@@ -1,6 +1,6 @@
 import type { FoodEntry, MeasurementEntry, MeasurementType, Workout, WeightEntry } from '../schema';
 import { addDays, addMonths, dayFromNumber, dayNumber, weekStart, type Day } from './dates';
-import { cardioKcal, estimatedOneRepMax } from './workouts';
+import { cardioKcal, estimatedOneRepMax, sessionMinutes } from './workouts';
 
 // ---------------------------------------------------------------- ranges
 export type RangeKey = '1m' | '3m' | '6m' | '1y' | 'all';
@@ -242,6 +242,39 @@ export interface ExercisePoint {
   e1rmKg?: number;
 }
 
+export interface WorkoutTime {
+  /** Average over every workout that has a time: timed strength sessions and cardio entries. */
+  avgMin: number;
+  count: number;
+  strengthAvgMin?: number;
+  strengthCount: number;
+  cardioAvgMin?: number;
+  cardioCount: number;
+}
+
+/**
+ * How long workouts take on average between two days. Strength counts only sessions that were timed and finished
+ * (workouts logged afterwards or older ones have no time and are left out, not counted as zero); cardio uses its duration.
+ * Returns null when no workout in the range has a time.
+ */
+export function averageWorkoutTime(workouts: Workout[], from: Day, to: Day): WorkoutTime | null {
+  const strength: number[] = [];
+  const cardio: number[] = [];
+  for (const w of workouts) {
+    if (w.deletedAt !== undefined || w.day < from || w.day > to) continue;
+    if (w.type === 'strength') {
+      const m = sessionMinutes(w);
+      if (m !== undefined) strength.push(m);
+    } else if (w.cardio && w.cardio.durationMin > 0) {
+      cardio.push(w.cardio.durationMin);
+    }
+  }
+  const all = [...strength, ...cardio];
+  if (all.length === 0) return null;
+  const avg = (l: number[]) => (l.length ? l.reduce((a, b) => a + b, 0) / l.length : undefined);
+  return { avgMin: avg(all)!, count: all.length, strengthAvgMin: avg(strength), strengthCount: strength.length, cardioAvgMin: avg(cardio), cardioCount: cardio.length };
+}
+
 /** One point per day the exercise was done. Warm-ups never count. */
 export function exerciseProgress(workouts: Workout[], exerciseRef: string): ExercisePoint[] {
   const by = new Map<Day, ExercisePoint>();
@@ -250,7 +283,7 @@ export function exerciseProgress(workouts: Workout[], exerciseRef: string): Exer
     for (const e of w.exercises ?? []) {
       if (e.exerciseRef !== exerciseRef || e.mode === 'time') continue;
       for (const s of e.sets) {
-        if (s.type !== 'working' || s.reps < 1 || s.weightKg <= 0) continue;
+        if (s.type !== 'working' || s.done === false || s.reps < 1 || s.weightKg <= 0) continue;
         const p = by.get(w.day) ?? { day: w.day, bestKg: 0 };
         p.bestKg = Math.max(p.bestKg, s.weightKg);
         const est = estimatedOneRepMax(s.weightKg, s.reps);
@@ -268,7 +301,7 @@ export function exerciseOptions(workouts: Workout[]): { ref: string; name: strin
   for (const w of workouts) {
     if (w.deletedAt !== undefined || w.type !== 'strength') continue;
     for (const e of w.exercises ?? []) {
-      if (e.mode === 'time' || !e.sets.some((s) => s.type === 'working' && s.reps >= 1 && s.weightKg > 0)) continue;
+      if (e.mode === 'time' || !e.sets.some((s) => s.type === 'working' && s.done !== false && s.reps >= 1 && s.weightKg > 0)) continue;
       const x = m.get(e.exerciseRef) ?? { ref: e.exerciseRef, name: e.exerciseName, days: new Set<Day>(), last: '' };
       x.days.add(w.day);
       if (w.day > x.last) {

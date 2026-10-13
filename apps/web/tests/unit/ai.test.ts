@@ -109,7 +109,7 @@ describe('building the workout', () => {
         { name: 'Bench', superset: 'A', sets: [{ type: 'warmup', reps: 10, weight: 45 }, { reps: 8, weight: 135 }] },
         { name: 'Plank', mode: 'time', load: 'bodyweight', superset: 'A', sets: [{ seconds: 45 }] },
         { name: 'Skip me', sets: [{ reps: 1, weight: 1 }] },
-        { name: 'Dip', load: 'bodyweight', superset: 'B', sets: [{ reps: 6, added: 10 }] },
+        { name: 'Dip', load: 'bodyweight', superset: 'B', sets: [{ reps: 6, added: 10 }, { reps: 4.5, added: 10 }] },
       ],
     }),
   );
@@ -132,6 +132,7 @@ describe('building the workout', () => {
     expect(built[1]!.sets[0]).toMatchObject({ durationSec: 45, reps: 0, bodyweightKg: 80, weightKg: 80 });
     expect(built[2]!.exerciseRef).toBe('cx:Dip');
     expect(built[2]!.sets[0]!.weightKg).toBeCloseTo(80 + 4.54, 1); // body weight + 10 lb
+    expect(built[2]!.sets[1]!.reps).toBe(4.5); // partial reps are kept
   });
   it('skips what you skipped, links supersets, and drops a lone superset label', () => {
     expect(built).toHaveLength(3);

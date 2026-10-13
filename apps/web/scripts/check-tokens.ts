@@ -5,9 +5,11 @@ import { join } from 'node:path';
 const STYLE_DIR = 'src/styles';
 const TOKEN_FILES = ['tokens.css', 'scale.css'];
 const COMPONENT_FILES = readdirSync(STYLE_DIR).filter((f) => f.endsWith('.css') && !TOKEN_FILES.includes(f));
-const LOCAL_PROPS = new Set(['gap', 'cols']); // set per element via utilities / inline style
+const LOCAL_PROPS = new Set(['gap', 'cols', 'p']); // set per element via utilities / inline style
 // Rules allowed to use literal lengths (visually-hidden helper, off-screen skip link).
 const LITERAL_OK = ['.sr-only'];
+// The only places the danger colour may appear: destructive buttons, menu items and text links.
+const DANGER_OK = ['.btn.danger', '.menu-item.danger', '.link-btn.danger'];
 const LENGTH_PROPS = /^(font-size|margin(-\w+)*|padding(-\w+)*|gap|row-gap|column-gap|border-radius|letter-spacing|line-height)$/;
 
 const errors: string[] = [];
@@ -26,7 +28,7 @@ for (const file of COMPONENT_FILES) {
     if (sel && !line.trim().startsWith('@')) selector = sel[1]!.trim();
     if (/#[0-9a-fA-F]{3,8}\b/.test(line)) err(path, i + 1, 'raw hex colour: use a colour token');
     if (/\b(rgb|rgba|hsl|hsla)\(/.test(line)) err(path, i + 1, 'raw colour function: use a colour token');
-    if (/var\(--danger\)/.test(line) && selector !== '.btn.danger') err(path, i + 1, '--danger is only for destructive confirmations (.btn.danger)');
+    if (/var\(--danger\)/.test(line) && !DANGER_OK.includes(selector)) err(path, i + 1, `--danger is only for destructive actions (${DANGER_OK.join(', ')})`);
     if (!LITERAL_OK.some((s) => selector.startsWith(s))) {
       // declarations on this line (also handles several per line)
       for (const d of line.replace(/^[^{]*\{/, '').split(';')) {

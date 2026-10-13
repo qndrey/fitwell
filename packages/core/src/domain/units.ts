@@ -18,9 +18,14 @@ export const weightUnit = (u: UnitSystem): string => (u === 'metric' ? 'kg' : 'l
 export const distanceUnit = (u: UnitSystem): string => (u === 'metric' ? 'km' : 'mi');
 
 /** kg (stored) → number in the user's unit, rounded for display (0.1; weights lifted are shown to 0.5 steps by the caller if wanted). */
-export function displayWeight(kg: number, u: UnitSystem): number {
+/**
+ * Weight in the user's unit, to 0.1. With `digits: 2` a second decimal survives when it is a plate step
+ * (62.25 kg, 1.75 lb) but not unit-conversion noise (60 kg reads 132.3 lb, not 132.28).
+ */
+export function displayWeight(kg: number, u: UnitSystem, digits: 1 | 2 = 1): number {
   const v = u === 'metric' ? kg : kgToLb(kg);
-  return Math.round(v * 10) / 10;
+  const hundredths = Math.round(v * 100);
+  return digits === 2 && hundredths % 5 === 0 ? hundredths / 100 : Math.round(v * 10) / 10;
 }
 export const toKg = (value: number, u: UnitSystem): number => (u === 'metric' ? value : lbToKg(value));
 

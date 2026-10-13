@@ -65,7 +65,9 @@ test('custom food per serving, favorites, recents and saved meals', async ({ pag
   await dialog.getByRole('button', { name: 'Save food' }).click();
 
   // Lands on quantity step with the serving portion available
-  await dialog.getByLabel('Unit').selectOption({ label: 'serving (50 g)' });
+  await dialog.getByRole('group', { name: 'Unit' }).getByRole('button', { name: 'serving · 50 g' }).click();
+  await dialog.getByRole('button', { name: 'More' }).click(); // 1 → 1.5 servings
+  await expect(dialog.getByLabel('Amount')).toHaveValue('1.5');
   await dialog.getByLabel('Amount').fill('2');
   await expect(dialog.getByText(/^500 kcal/)).toBeVisible();
   await dialog.getByRole('button', { name: /^Favorite/ }).click();
@@ -100,8 +102,9 @@ test('day navigation keeps days separate; habit-only hides numbers', async ({ pa
   await page.getByRole('button', { name: 'Previous day' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Yesterday');
   await expect(page.locator('main').getByRole('button', { name: /Banana/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Back to today' }).click();
+  await page.getByRole('button', { name: /Go to today/ }).click(); // the date under the title
   await expect(page.locator('main').getByRole('button', { name: /Banana/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Go to today/ })).toHaveCount(0); // already there: plain text
 
   await page.getByRole('link', { name: 'Settings' }).click();
   await page.getByLabel('Habit-only mode').check();
@@ -130,4 +133,52 @@ test('a full day can be logged quickly from recents', async ({ page }) => {
   await d.getByRole('button', { name: 'Done' }).click();
   expect(Date.now() - start).toBeLessThan(30_000);
   await expect(page.locator('section.slot', { hasText: 'Dinner' }).locator('.row')).toHaveCount(3);
+});
+
+test('meals fold away and open again, are remembered, and open by themselves when a food is added', async ({ page }) => {
+  await addFood(page, 'banana', /^Banana, raw/, '120', 'Breakfast');
+  await page.getByRole('dialog').getByRole('button', { name: /^Done/ }).click();
+  const main = page.locator('main');
+  const toggle = main.getByRole('button', { name: 'Breakfast', exact: false }).filter({ has: page.getByRole('heading', { name: 'Breakfast' }) });
+  const banana = main.getByRole('button', { name: /Banana, raw/ });
+
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(banana).toBeVisible();
+
+  // Fold it: the food is hidden, the header says what is inside, the + stays.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(banana).toBeHidden();
+  await expect(toggle).toContainText('1 food');
+  await expect(main.getByRole('button', { name: 'Add to Breakfast' })).toBeVisible();
+  await expect(main.getByRole('region', { name: 'Daily totals' })).toContainText('106'); // totals do not change
+
+  // Remembered between visits.
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  // Adding a food to a folded meal opens it, so the new food is not hidden.
+  await addFood(page, 'milk', /^Milk/, '200', 'Breakfast');
+  await page.getByRole('dialog').getByRole('button', { name: /^Done/ }).click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(banana).toBeVisible();
+
+  // Open again by hand.
+  await toggle.click();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('a folded meal still shows when something in it needs confirming', async ({ page }) => {
+  await openAddFood(page);
+  const d = page.getByRole('dialog');
+  await d.getByRole('radio', { name: 'Lunch' }).check();
+  await d.getByLabel('Search foods').fill('zzqx soup');
+  await d.getByRole('button', { name: /Log without nutrition/ }).click();
+  await d.getByRole('button', { name: /^Add to Lunch/ }).click();
+  await d.getByRole('button', { name: /^Done/ }).click();
+  const toggle = page.locator('main').getByRole('button', { name: /Lunch/ }).filter({ has: page.getByRole('heading', { name: 'Lunch' }) });
+  await toggle.click();
+  await expect(toggle).toContainText('1 food');
+  await expect(toggle).toContainText('to confirm');
 });

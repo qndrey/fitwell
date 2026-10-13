@@ -61,7 +61,8 @@ export function LineChart({
   const x = linear([xFrom, Math.max(xTo, xFrom + 1)], [M.l, W - M.r]);
   const y = linear(domain, [H - M.b, M.t]);
   const yTicks = niceTicks(domain[0], domain[1], 4);
-  const xTicks = spreadTicks(xFrom, xTo, xTo - xFrom < 40 ? 4 : 5);
+  // Four date labels fit a phone-width chart without the last two touching ("Sep 19Oct 11").
+  const xTicks = spreadTicks(xFrom, xTo, 4);
   const line = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.x).toFixed(1)} ${y(p.y).toFixed(1)}`).join(' ');
 
   // The x values that can be scrubbed to: every day that has a reading in the primary (first non-faint) series.

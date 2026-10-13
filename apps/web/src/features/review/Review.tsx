@@ -117,8 +117,7 @@ export function Review() {
   const needs = list.filter((e) => e.state !== 'pending');
   const waiting = list.filter((e) => e.state === 'pending');
   return (
-    <Screen title={t('review.title')} subtitle={t('review.intro')}>
-      <LinkButton onClick={() => (location.hash = '#/today')}>{t('review.back')}</LinkButton>
+    <Screen title={t('review.title')} subtitle={t('review.intro')} back={{ label: t('review.back'), onBack: () => (location.hash = '#/today') }}>
       {needs.length === 0 && waiting.length === 0 && <EmptyState>{t('review.empty')}</EmptyState>}
       {needs.map((e) => (
         <ReviewItem key={e.id} entry={e} />
@@ -128,7 +127,7 @@ export function Review() {
           <SectionTitle>{t('review.waiting')}</SectionTitle>
           <List>
             {waiting.map((e) => (
-              <ListRow key={e.id} main={entryLabel(e)} sub={<>{quantityText(e.quantity)} · <Badge>{pendingStatus(e) || t('pending.badge')}</Badge></>} />
+              <ListRow key={e.id} main={entryLabel(e)} sub={<>{quantityText(e.quantity)} · <Badge tone="attention">{pendingStatus(e) || t('pending.badge')}</Badge></>} />
             ))}
           </List>
         </section>

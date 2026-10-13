@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Button, Card, Field, Icon, LinkButton, Notice, Screen, Segmented, TextInput } from '../../ui';
+import { Button, Card, Field, Icon, Notice, Screen, Segmented, TextInput } from '../../ui';
 import { copyText } from '../../ai/clipboard';
 import { parseAiReply, type AiWorkout, type ParseResult } from '../../ai/importWorkout';
 import { analysisPrompt, workoutRequestPrompt, type AnalysisKind, type LoggedData } from '../../ai/prompts';
@@ -81,10 +81,7 @@ export function AiPage() {
   }
 
   return (
-    <Screen title={t('ai.title')}>
-      <LinkButton onClick={() => (location.hash = '#/settings')}>
-        <Icon name="prev" size="sm" />{t('ai.back')}
-      </LinkButton>
+    <Screen title={t('ai.title')} back={{ label: t('ai.back'), onBack: () => (location.hash = '#/settings') }}>
       <Notice>{t('ai.privacy')}</Notice>
 
       <Card labelledBy="ai-analyse">

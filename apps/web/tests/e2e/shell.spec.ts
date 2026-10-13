@@ -39,7 +39,7 @@ test('theme choice persists across reloads (IndexedDB)', async ({ page }) => {
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByLabel('Dark')).toBeChecked();
-  await page.getByLabel('Match my device').check();
+  await page.getByLabel('Device', { exact: true }).check();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
 });
 
@@ -101,4 +101,22 @@ test('Chrome considers the app installable (no installability errors)', async ({
   const cdp = await context.newCDPSession(page);
   const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');
   expect(installabilityErrors.map((e) => e.errorId)).toEqual([]);
+});
+
+test('the manifest parses cleanly and every icon loads (what Android reads for the home-screen icon)', async ({ page, context, browserName, request }) => {
+  test.skip(browserName !== 'chromium', 'uses the Chrome DevTools protocol');
+  await page.goto('/');
+  const cdp = await context.newCDPSession(page);
+  const m = await cdp.send('Page.getAppManifest');
+  expect(m.errors.map((e) => e.message)).toEqual([]);
+  const man = JSON.parse(m.data ?? '{}') as { icons: { src: string; purpose?: string }[]; id?: string };
+  expect(man.id).toBeTruthy();
+  expect(new Set(man.icons.map((i) => i.purpose))).toEqual(new Set(['any', 'maskable', 'monochrome']));
+  for (const i of man.icons) {
+    const res = await request.get(new URL(i.src, m.url).toString());
+    expect(res.status(), i.src).toBe(200);
+    expect(res.headers()['content-type'], i.src).toBe('image/png');
+  }
+  // The page head carries PNG icons too: Android cannot use an SVG favicon for a shortcut.
+  await expect(page.locator('link[rel="icon"][type="image/png"]')).toHaveCount(2);
 });

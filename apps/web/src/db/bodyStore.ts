@@ -27,6 +27,13 @@ async function newestWeight(upToDay?: string, excludeDay?: string): Promise<Weig
   return undefined;
 }
 
+/** Weigh-ins from `from` to `to` (both inclusive), oldest first. */
+export async function weightsBetween(from: string, to: string): Promise<WeightEntry[]> {
+  const db = await getDb();
+  const rows = (await db.transaction('weightEntries').store.index('day').getAll(IDBKeyRange.bound(from, to))) as WeightEntry[];
+  return rows.filter((w) => w.deletedAt === undefined);
+}
+
 /** Most recent weight on or before `day` (default: the newest ever). */
 export const latestWeight = (day?: string): Promise<WeightEntry | undefined> => newestWeight(day);
 /** The weight before `day`, for "last time". */

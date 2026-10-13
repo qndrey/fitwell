@@ -46,7 +46,7 @@ export function ImportSheet({ backup, current, onClose }: { backup: Backup; curr
           <div><SectionTitle>{t('restore.contains')}</SectionTitle><CountList counts={countsOf(backup.data)} /></div>
           <div><SectionTitle>{t('restore.here')}</SectionTitle><CountList counts={current} /></div>
         </div>
-        {error && <Notice role="alert">{error}</Notice>}
+        {error && <Notice attention role="alert">{error}</Notice>}
 
         {!confirming ? (
           <div class="stack gap-2">

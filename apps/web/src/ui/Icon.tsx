@@ -1,4 +1,4 @@
-import { CalendarDays, ChartLine, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Link2, Play, Square, Download, Info, Minus, Plus, ScanBarcode, Search, Settings, Star, Trash, Upload, X } from 'lucide-preact';
+import { Activity, ArrowLeft, CalendarDays, CalendarSearch, ChartLine, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Clock, Copy, Dumbbell, Ellipsis, Flag, Link2, Play, Repeat, Square, Download, Info, Minus, Plus, ScanBarcode, Search, Settings, Star, Timer, Trash, Upload, Utensils, X } from 'lucide-preact';
 
 /** Lucide (ISC) icons, imported by name so only these ship. Decorative: meaning always comes from adjacent text or an aria-label. */
 const ICONS = {
@@ -23,6 +23,17 @@ const ICONS = {
   stop: Square,
   search: Search,
   scan: ScanBarcode,
+  food: Utensils,
+  strength: Dumbbell,
+  cardio: Activity,
+  copy: Copy,
+  back: ArrowLeft,
+  more: Ellipsis,
+  timer: Timer,
+  finish: Flag,
+  alert: CircleAlert,
+  pickDay: CalendarSearch,
+  repeat: Repeat,
 } as const;
 
 export type IconName = keyof typeof ICONS;

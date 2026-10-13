@@ -47,6 +47,8 @@ export function formatGrams(g: number): string {
 
 export interface GroceryEntry {
   name: string;
+  /** The food is listed as cooked: its weight is after cooking, so what you buy raw weighs less. */
+  cooked?: true;
   /** Exact total over the week. */
   grams: number;
   /** Rounded up to what to buy, e.g. "600 g" or "1.2 kg". */
@@ -65,7 +67,11 @@ export interface GroceryList {
   sections: GrocerySection[];
   itemCount: number;
   leftOut: string[];
+  /** Things to know about the list, e.g. amounts given as cooked weight. */
+  notes: string[];
 }
+
+const COOKED = /\b(boiled|cooked|fried|baked|roasted|grilled|steamed|stewed|braised)\b/i;
 
 export interface Usage {
   /** Short label of where the ingredient is used, e.g. "Mon dinner". */
@@ -102,6 +108,7 @@ export function buildGroceryList(usages: Usage[], multiplier = 1, have: string[]
       name: e.name,
       grams: Math.round(e.grams),
       buy: formatGrams(buy),
+      ...(COOKED.test(e.name) ? { cooked: true as const } : {}),
       ...(e.foodId ? { foodId: e.foodId } : {}),
       usedIn: e.labels.length > 5 ? [...e.labels.slice(0, 5), `+${e.labels.length - 5} more`] : e.labels,
     };
@@ -109,5 +116,9 @@ export function buildGroceryList(usages: Usage[], multiplier = 1, have: string[]
     sections.set(aisle, [...(sections.get(aisle) ?? []), entry]);
   }
   const ordered: GrocerySection[] = AISLES.filter((a) => sections.has(a)).map((aisle) => ({ aisle, items: sections.get(aisle)!.sort((a, b) => b.grams - a.grams || a.name.localeCompare(b.name)) }));
-  return { sections: ordered, itemCount: byKey.size, leftOut: [...leftOut].sort() };
+  const cooked = ordered.flatMap((s) => s.items.filter((i) => i.cooked).map((i) => i.name));
+  const notes = cooked.length
+    ? [`Listed as cooked food (weight after cooking): ${cooked.join('; ')}. What you buy raw weighs less (rice and pasta roughly a third, meat roughly three quarters). Plan with the raw food, e.g. "Rice, polished, raw", to get exact amounts.`]
+    : [];
+  return { sections: ordered, itemCount: byKey.size, leftOut: [...leftOut].sort(), notes };
 }

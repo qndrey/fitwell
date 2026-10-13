@@ -113,7 +113,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
       title: 'Save a weekly meal plan',
       description:
         'Save the plan for a week (week_start is a Monday; default the coming Monday). Each item is a food (food_id + grams), a saved recipe (recipe_id or recipe_name + servings), or, only if nothing fits, a named estimate. ' +
-        'Values come from the foods\' own data. Saving a week again replaces its plan. The reply checks every day against the calorie and protein goals and every item against allergies and dislikes, ' +
+        'Values come from the foods\' own data. Use foods in the form they are bought and weighed (rice, pasta and meat raw), so the grocery list is right. Saving a week again replaces its plan. The reply checks every day against the calorie and protein goals and every item against allergies and dislikes, ' +
         'with plain-language problems: fix them and save again BEFORE presenting the plan, and never present a plan with an ALLERGY warning.',
       inputSchema: z.object({ week_start: day.optional(), items: z.array(planItem).min(1).max(120) }),
       annotations: { idempotentHint: true },
@@ -205,7 +205,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
       description:
         "The shopping list for a week's plan: every ingredient added up, rounded up to what a shop sells, grouped by section in shopping order, with where each is used. " +
         'people multiplies the quantities (cooking for two = 2); already_have leaves out foods by name (e.g. ["olive oil","salt"]); meals already logged as eaten are skipped unless include_eaten. ' +
-        'Also returns the list as a markdown checklist to show or copy.',
+        'Also returns the list as a markdown checklist to show or copy. Amounts are the weights of the foods as planned: plan with foods in the form they are bought (rice, pasta and meat raw, not boiled), otherwise the amounts are cooked weights and the notes say so.',
       inputSchema: z.object({
         week_start: day.optional(),
         people: z.number().min(0.5).max(10).default(1),
@@ -221,7 +221,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
       if (!plan) return toolError(`No meal plan for the week of ${week}. Plan one with save_meal_plan.`);
       const items = plan.items.filter((i) => include_eaten || !i.loggedAt);
       const list = buildGroceryList(items.map((i) => ({ label: label(i), ingredients: i.ingredients })), people, already_have);
-      const markdown = list.sections.map((s) => `## ${s.aisle}\n${s.items.map((e) => `- [ ] ${e.name}: ${e.buy}`).join('\n')}`).join('\n\n');
+      const markdown = list.sections.map((s) => `## ${s.aisle}\n${s.items.map((e) => `- [ ] ${e.name}: ${e.buy}${e.cooked ? ' (cooked weight)' : ''}`).join('\n')}`).join('\n\n');
       return json({ weekStart: week, people, meals: items.length, ...(plan.items.length - items.length ? { skippedAsEaten: plan.items.length - items.length } : {}), ...list, markdown });
     },
   );

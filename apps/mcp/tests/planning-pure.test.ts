@@ -91,8 +91,19 @@ describe('grocery list', () => {
     expect(item.usedIn).toEqual(['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', '+3 more']);
   });
 
+  it('flags foods listed as cooked, because what is bought raw weighs less', () => {
+    const list = buildGroceryList([{ label: 'Mon dinner', ingredients: [ing('Rice, boiled', 300, 'Grain and groats'), ing('Chicken, breast, raw', 200, 'Chicken'), ing('Salmon, baked', 150, 'Oily fish')] }]);
+    const items = list.sections.flatMap((s) => s.items);
+    expect(items.filter((i) => i.cooked).map((i) => i.name).sort()).toEqual(['Rice, boiled', 'Salmon, baked']);
+    expect(list.notes).toHaveLength(1);
+    expect(list.notes[0]).toContain('Rice, boiled');
+    expect(list.notes[0]).toContain('Salmon, baked');
+    expect(list.notes[0]).not.toContain('Chicken');
+    expect(buildGroceryList([{ label: 'x', ingredients: [ing('Rice, polished, raw', 100)] }]).notes).toEqual([]);
+  });
+
   it('handles an empty plan', () => {
-    expect(buildGroceryList([])).toEqual({ sections: [], itemCount: 0, leftOut: [] });
+    expect(buildGroceryList([])).toEqual({ sections: [], itemCount: 0, leftOut: [], notes: [] });
   });
 });
 

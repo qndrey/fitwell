@@ -25,7 +25,7 @@ export function registerRecipeTools(server: McpServer, deps: FoodDeps & { plans:
       title: 'Save a recipe',
       description:
         'Save a recipe: its ingredients (food ids from search_foods with grams) and how many servings it makes. Nutrition per serving is calculated from the foods\' own values. ' +
-        'Saving under an existing name replaces that recipe. Recipes can be used in meal plans (save_meal_plan) and the grocery list. Existing plans keep the version they were made with.',
+        'Use ingredients in the form they are bought and weighed (rice, pasta and meat raw, not boiled) so the grocery list is right. Saving under an existing name replaces that recipe. Recipes can be used in meal plans (save_meal_plan) and the grocery list. Existing plans keep the version they were made with.',
       inputSchema: z.object({
         name: z.string().min(1).max(80),
         servings: z.number().min(0.5).max(50).default(1).describe('How many servings the whole recipe makes'),

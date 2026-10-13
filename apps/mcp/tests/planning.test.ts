@@ -227,6 +227,13 @@ describe('grocery list', () => {
     expect(find(await list({ include_eaten: true }), chicken.name).grams).toBe(600);
   });
 
+  it('says when the list is made of cooked foods, in the data and in the checklist', async () => {
+    await week([{ day: MON, slot: 'dinner', food_id: (await pick('rice boiled')).id, grams: 200 }]);
+    const l = (await call(client, 'get_grocery_list', { week_start: WEEK })).data as { notes: string[]; markdown: string };
+    expect(l.notes[0]).toContain('Rice, boiled');
+    expect(l.markdown).toContain('- [ ] Rice, boiled: 200 g (cooked weight)');
+  });
+
   it('needs a plan, and a Monday', async () => {
     expect((await call(client, 'get_grocery_list', { week_start: '2026-10-21' })).isError).toBe(true);
     expect((await call(client, 'get_grocery_list', { week_start: WEEK })).text).toContain('No meal plan');

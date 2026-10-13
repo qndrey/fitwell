@@ -412,7 +412,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       description:
         'Record a cardio session or activity. activity_id is one of the listed Compendium activities (MET values); calories are estimated as MET × body weight × hours ' +
         "from the profile weight, unless the person gives a number (e.g. from a watch) as kcal. day defaults to today. " +
-        `Activities: ${ACTIVITIES.map((a) => `${a.id} = ${a.name}`).join('; ')}.`,
+        `activity_id is a descriptive id from the Compendium list, e.g. ${[...new Map(ACTIVITIES.map((a) => [a.group, a])).values()].slice(0, 6).map((a) => `${a.id} (${a.name})`).join(', ')}; pick the closest one.`,
       inputSchema: z.object({
         activity_id: z.enum(activityIds),
         duration_min: z.number().min(1).max(1440),

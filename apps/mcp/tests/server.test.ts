@@ -59,6 +59,15 @@ describe('fitwell MCP server', () => {
     expect(offFetch).not.toHaveBeenCalled();
   });
 
+  it('puts the plain food before foods that merely contain the word', async () => {
+    const client = await connect();
+    const top = async (query: string) => ((await call(client, 'search_foods', { query, limit: 3 })).data.foods as { name: string }[]).map((f) => f.name);
+    expect((await top('egg'))[0]).toMatch(/^Egg, /); // not "Egg mayonnaise salad"
+    expect((await top('rice'))[0]).toMatch(/^Rice, /); // not "Rice bran"
+    expect((await top('tomato'))[0]).toMatch(/^Tomato, /);
+    expect(await top('rice boiled')).toEqual(['Rice, boiled']);
+  });
+
   it('adds Open Food Facts results when asked, with a User-Agent and no credentials option', async () => {
     const offFetch = vi.fn(async () =>
       Response.json({ products: [{ code: '5701234567892', product_name: 'Skyr Natural', brands: 'Arla', nutriments: { 'energy-kcal_100g': 63, proteins_100g: 11, carbohydrates_100g: 4, fat_100g: 0.2 } }] }),

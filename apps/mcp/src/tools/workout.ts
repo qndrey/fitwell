@@ -156,7 +156,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         const p = h.progression;
         // An explicit weight wins; otherwise the progression suggestion; otherwise last time's working weight.
         const weightKg = bodyweight ? (profile.weightKg ?? 0) : (item.weightKg ?? p?.weightKg ?? 0);
-        const note = item.weightKg === undefined && !bodyweight && p ? p.reason : undefined;
+        const note = item.weightKg !== undefined || bodyweight ? undefined : (p?.reason ?? 'No earlier sessions to go on: choose a starting weight.');
         const sets: StoredSet[] = Array.from({ length: item.sets }, (_, k) => ({
           id: `s${i + 1}.${k + 1}`,
           type: 'working',

@@ -4,9 +4,11 @@ import type { Nutrients, Portion } from '@fitwell/core/domain/nutrition';
 import { looksLikeBarcode, normalizeBarcode } from '@fitwell/core/ean';
 import { OffError, type OffClient } from '@fitwell/core/off/client';
 import type { Candidate } from '@fitwell/core/schema';
+import type { CustomFood } from '../data/userData';
 import { prepare, search, type Searchable } from '@fitwell/core/search/rank';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import type { UserData } from '../data/userData';
 import { json, toolError } from './result';
 
 /** One food as Claude sees it. `id` is what later tools (logging, recipes) will take. */
@@ -15,7 +17,7 @@ export interface FoodHit {
   name: string;
   brand?: string;
   group?: string;
-  source: 'frida' | 'openfoodfacts';
+  source: 'frida' | 'openfoodfacts' | 'custom';
   per100g: Nutrients;
   portions: Portion[];
 }
@@ -27,21 +29,51 @@ const ATTRIBUTION = {
 
 let index: Promise<Searchable<FoodItem>[]> | null = null;
 const fridaIndex = () => (index ??= loadBundledFoods().then((d) => prepare(d.foods, (f) => f.name)));
+let byId: Promise<Map<string, FoodItem>> | null = null;
+const fridaById = () => (byId ??= loadBundledFoods().then((d) => new Map(d.foods.map((f) => [f.ref.id, f]))));
 
 const fromFrida = (f: FoodItem): FoodHit => ({ id: f.ref.id, name: f.name, group: f.group, source: 'frida', per100g: f.per100g, portions: f.portions });
 const fromOff = (c: Candidate): FoodHit => ({ id: `off:${c.sourceId}`, name: c.name, brand: c.brand, source: 'openfoodfacts', per100g: c.per100g, portions: c.portions });
+
+const fromCustom = (c: CustomFood): FoodHit => ({ id: `custom:${c.id}`, name: c.name, brand: c.brand ?? undefined, source: 'custom', per100g: c.per100g, portions: c.portions });
 
 export async function searchFrida(query: string, limit: number): Promise<FoodHit[]> {
   return search(await fridaIndex(), query, limit).map(fromFrida);
 }
 
-export function registerFoodTools(server: McpServer, deps: { off: OffClient }) {
+export interface FoodDeps {
+  off: OffClient;
+  data: UserData;
+}
+
+/**
+ * The food behind an id from search_foods / lookup_barcode / save_custom_food, with values from its source.
+ * Logging resolves ids here so stored macros come from the database, not from the conversation.
+ */
+export async function resolveFood(id: string, deps: FoodDeps): Promise<FoodHit | null> {
+  if (id.startsWith('frida:')) {
+    const f = (await fridaById()).get(id);
+    return f ? fromFrida(f) : null;
+  }
+  if (id.startsWith('custom:')) {
+    const c = await deps.data.customFood(id.slice('custom:'.length));
+    return c ? fromCustom(c) : null;
+  }
+  if (id.startsWith('off:')) {
+    const code = normalizeBarcode(id.slice('off:'.length));
+    const c = code ? await deps.off.product(code, 'interactive') : null;
+    return c ? fromOff(c) : null;
+  }
+  return null;
+}
+
+export function registerFoodTools(server: McpServer, deps: FoodDeps) {
   server.registerTool(
     'search_foods',
     {
       title: 'Search foods',
       description:
-        'Find foods and their macros per 100 g. Searches the Frida 5.5 Danish food database (generic foods, in English) first. ' +
+        "Find foods and their macros per 100 g. Searches the person's own saved foods and the Frida 5.5 Danish food database (generic foods, in English). " +
         'Set include_packaged for branded or packaged products, which also searches Open Food Facts (slower, rate-limited, sometimes unavailable). ' +
         'For a product with a barcode use lookup_barcode instead. Values are per 100 g; Frida foods have no portion sizes, so estimate grams.',
       inputSchema: z.object({
@@ -52,7 +84,8 @@ export function registerFoodTools(server: McpServer, deps: { off: OffClient }) {
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ query, include_packaged, limit }) => {
-      const foods = await searchFrida(query, limit);
+      const own = search(prepare(await deps.data.customFoods(), (c) => c.name), query, limit).map(fromCustom);
+      const foods = [...own, ...(await searchFrida(query, limit))];
       let packagedNote: string | undefined;
       if (include_packaged) {
         try {

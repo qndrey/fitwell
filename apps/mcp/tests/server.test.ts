@@ -1,50 +1,44 @@
-import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Client } from '@modelcontextprotocol/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index';
+import { offClient } from '../src/off';
+import { createTestEnv, ctx } from './support/env';
+import { call as callTool, connectAs, signedInUser } from './support/mcp';
 
-const devEnv = { DEV_UNAUTHENTICATED: 'true' } as Env;
+let env: Env;
+let client: Client;
+beforeEach(async () => {
+  env = createTestEnv().env;
+});
 
-/** A real MCP client talking to the Worker's fetch handler in-process. */
-async function connect(env: Env = devEnv) {
-  const client = new Client({ name: 'test', version: '1.0.0' });
-  const transport = new StreamableHTTPClientTransport(new URL('http://localhost/mcp'), {
-    fetch: (input, init) => worker.fetch(new Request(input, init), env),
-  });
-  await client.connect(transport);
+/** Reference tools for a signed-in person; Open Food Facts goes through the real client (fetch is stubbed per test). */
+async function connect() {
+  client = await connectAs(env, await signedInUser(env, 'ana@example.com'), offClient());
   return client;
 }
-
-type Structured = Record<string, unknown>;
-const call = async (client: Client, name: string, args: Record<string, unknown>) => {
-  const res = await client.callTool({ name, arguments: args });
-  return { isError: res.isError === true, data: res.structuredContent as Structured, text: (res.content as { text?: string }[])[0]?.text ?? '' };
-};
+const call = (c: Client, name: string, args: Record<string, unknown>) => callTool(c, name, args);
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('fitwell MCP server', () => {
-  it('refuses to serve /mcp unless local dev mode is on', async () => {
-    const res = await worker.fetch(new Request('http://localhost/mcp', { method: 'POST', body: '{}' }), {} as Env);
-    expect(res.status).toBe(503);
+  it('asks for sign-in on /mcp (OAuth challenge pointing at the resource metadata)', async () => {
+    const res = await worker.fetch(new Request('https://mcp.fitwell.test/mcp', { method: 'POST', body: '{}' }), env, ctx);
+    expect(res.status).toBe(401);
+    expect(res.headers.get('WWW-Authenticate')).toContain('resource_metadata=');
   });
 
-  it('serves a deployed test server only at the secret path', async () => {
-    const token = 'a'.repeat(40);
-    const env = { SPIKE_TOKEN: token } as Env;
-    const post = (path: string, e: Env) => worker.fetch(new Request(`http://localhost${path}`, { method: 'POST', body: '{}' }), e);
-    expect((await post('/mcp', env)).status).toBe(503);
-    expect((await post('/mcp/wrong', env)).status).toBe(503);
-    expect((await post(`/mcp/${token}`, { SPIKE_TOKEN: 'short' } as Env)).status).toBe(503);
-    expect((await post('/mcp/short', { SPIKE_TOKEN: 'short' } as Env)).status).toBe(503);
-    expect((await post(`/mcp/${token}`, { DEV_UNAUTHENTICATED: 'true' } as Env)).status).toBe(503);
-    expect((await post(`/mcp/${token}`, env)).status).not.toBe(503);
-    expect((await post(`/mcp/${token}`, { SPIKE_TOKEN: `${token}\n` } as Env)).status).not.toBe(503);
+  it('serves the local dev shortcut only on localhost and only when switched on', async () => {
+    const post = (url: string, e: Env) => worker.fetch(new Request(url, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } }), e, ctx);
+    const dev = createTestEnv({ DEV_UNAUTHENTICATED: 'true' }).env;
+    expect((await post('https://mcp.fitwell.test/mcp', dev)).status).toBe(401);
+    expect((await post('http://localhost/mcp', env)).status).toBe(401);
+    expect((await post('http://localhost/mcp', dev)).status).not.toBe(401);
   });
 
   it('lists the reference tools with instructions', async () => {
     const client = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(['get_exercise', 'log_set', 'lookup_barcode', 'search_exercises', 'search_foods', 'start_workout']);
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['get_exercise', 'log_set', 'lookup_barcode', 'search_exercises', 'search_foods', 'start_workout', 'log_food', 'get_profile']));
     const search = tools.find((t) => t.name === 'search_exercises')!;
     // Muscles and equipment are enums taken from the dataset, so Claude sees the valid values.
     expect(JSON.stringify(search.inputSchema)).toContain('quadriceps');

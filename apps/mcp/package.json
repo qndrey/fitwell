@@ -19,6 +19,7 @@
     "check": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^1.2.3",
     "@fitwell/core": "*",
     "@modelcontextprotocol/ext-apps": "^2.0.3",
     "@modelcontextprotocol/server": "^2.3.1",

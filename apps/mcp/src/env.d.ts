@@ -1,5 +1,5 @@
-// Secrets are not visible to `wrangler types`; declare them here.
+// Values `wrangler types` can't see (secrets, optional vars).
 interface Env {
-  /** Test-deploy access path (see src/index.ts). Set with `wrangler secret put SPIKE_TOKEN`. */
-  SPIKE_TOKEN?: string;
+  /** Shown on the privacy page as the contact. Falls back to MAIL_FROM. */
+  CONTACT_EMAIL?: string;
 }

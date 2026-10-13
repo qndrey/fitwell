@@ -3,10 +3,24 @@
   "name": "fitwell-mcp",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
+  // Required by the OAuth provider for Client ID Metadata Documents (SSRF protection on outbound fetches).
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "observability": { "enabled": true },
   // One public address on the own domain; no *.workers.dev URL.
   "routes": [{ "pattern": "mcp.fitwell.fyi", "custom_domain": true }],
   "workers_dev": false,
   // Views (ui/*) are bundled into src/ui/generated before every dev session and deploy.
-  "build": { "command": "npm run build:ui", "watch_dir": "ui" }
+  "build": { "command": "npm run build:ui", "watch_dir": "ui" },
+  "vars": {
+    // The public origin; .dev.vars overrides it for local development.
+    "PUBLIC_URL": "https://mcp.fitwell.fyi",
+    // Sign-in emails come from here (Email Routing must be enabled on fitwell.fyi).
+    "MAIL_FROM": "login@fitwell.fyi"
+  },
+  // Created with --jurisdiction eu (data stays in the EU). Local dev uses a local SQLite copy.
+  "d1_databases": [{ "binding": "DB", "database_name": "fitwell", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
+  // OAuth clients, grants and tokens (stored hashed/encrypted by the library).
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }],
+  // Sign-in emails. On the free plan only verified destination addresses (the invite list) can receive them.
+  "send_email": [{ "name": "EMAIL" }]
 }

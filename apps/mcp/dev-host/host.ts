@@ -24,11 +24,17 @@ document.documentElement.dataset.theme = theme;
 const client = new Client({ name: 'fitwell-dev-host', version: '0.1.0' });
 await client.connect(new StreamableHTTPClientTransport(new URL('/mcp', location.href)));
 
-// ?view=dashboard shows the progress dashboard instead of the workout player.
-const dashboard = new URLSearchParams(location.search).get('view') === 'dashboard';
-const result = dashboard ? await client.callTool({ name: 'show_dashboard', arguments: { days: 90 } }) : await client.callTool({ name: 'start_workout', arguments: SAMPLE });
-log(dashboard ? 'show_dashboard' : 'start_workout', (result.content as { text?: string }[])[0]?.text?.slice(0, 160) ?? result);
-const resource = await client.readResource({ uri: dashboard ? 'ui://fitwell/dashboard.html' : 'ui://fitwell/workout.html' });
+// ?view=dashboard, review or shopping shows that view instead of the workout player.
+const VIEWS: Record<string, { tool: string; args: Record<string, unknown>; uri: string }> = {
+  dashboard: { tool: 'show_dashboard', args: { days: 90 }, uri: 'ui://fitwell/dashboard.html' },
+  review: { tool: 'show_weekly_review', args: {}, uri: 'ui://fitwell/review.html' },
+  shopping: { tool: 'show_grocery_list', args: { people: 2 }, uri: 'ui://fitwell/shopping.html' },
+  workout: { tool: 'start_workout', args: SAMPLE, uri: 'ui://fitwell/workout.html' },
+};
+const which = VIEWS[new URLSearchParams(location.search).get('view') ?? 'workout'] ?? VIEWS.workout!;
+const result = await client.callTool({ name: which.tool, arguments: which.args });
+log(which.tool, (result.content as { text?: string }[])[0]?.text?.slice(0, 160) ?? result);
+const resource = await client.readResource({ uri: which.uri });
 const html = (resource.contents[0] as { text: string }).text;
 
 const iframe = document.getElementById('view') as HTMLIFrameElement;
@@ -54,7 +60,7 @@ bridge.onupdatemodelcontext = async (params) => {
 };
 bridge.oninitialized = () => {
   log('view', 'initialized');
-  void bridge.sendToolInput({ arguments: dashboard ? { days: 90 } : SAMPLE });
+  void bridge.sendToolInput({ arguments: which.args });
   void bridge.sendToolResult(result as Parameters<typeof bridge.sendToolResult>[0]);
 };
 await bridge.connect(new PostMessageTransport(iframe.contentWindow!, iframe.contentWindow!));

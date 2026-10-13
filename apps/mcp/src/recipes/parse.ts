@@ -19,7 +19,7 @@ export function decodeEntities(s: string): string {
     .replace(/&([a-z0-9]+);/gi, (m, name: string) => ENTITIES[name.toLowerCase()] ?? m);
 }
 
-const clean = (v: unknown): string => (typeof v === 'string' ? decodeEntities(v.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim() : '');
+const clean = (v: unknown): string => (typeof v === 'string' ? decodeEntities(v.replace(/<(?:br|\/p|\/li|\/div)[^>]*>/gi, ' ').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim() : '');
 
 function isRecipe(node: unknown): node is Record<string, unknown> {
   if (typeof node !== 'object' || node === null) return false;

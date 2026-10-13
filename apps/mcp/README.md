@@ -2,17 +2,19 @@
 
 A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals, build and run workouts, and show progress. Plan, decisions and phases: [PLAN.md](PLAN.md).
 
-**Status: phases 1 to 3 are deployed; phase 4 (meal planning) is built and tested locally.** Invite-only email sign-in (OAuth 2.1), and per-person data in D1: profile, goals, food log, own foods, workouts, templates, weight and measurements, with a progress dashboard, recipes, weekly meal plans and a grocery list.
+**Status: phases 1 to 4 are deployed; phase 5 (shopping checklist, weekly review, sleep/steps/water, allergen data, recipe import, tool merge) is built and tested locally.** Invite-only email sign-in (OAuth 2.1), and per-person data in D1: profile, goals, food log, own foods, workouts, templates, weight and measurements, with a progress dashboard, recipes, weekly meal plans and a grocery list.
 
 | Area | Tools |
 |---|---|
 | Profile and goals | `get_profile`, `update_profile`, `suggest_targets` (Mifflin-St Jeor, nothing saved), `set_goals` |
 | Foods | `search_foods` (own foods, Frida, optionally Open Food Facts), `lookup_barcode`, `save_custom_food` |
-| Food log | `log_food` (several items; macros resolved from the source; estimates marked), `get_day`, `get_nutrition_summary`, `edit_food_entry`, `delete_food_entry` |
-| Exercises and workouts | `search_exercises`, `get_exercise`, `start_workout` (opens the player; saves the workout; weights from the progression rule), `log_set` and `finish_workout` (from the player), `get_workout_history`, `suggest_progression`, templates (`save_/list_/delete_workout_template`), `log_cardio`, `log_past_workout`, `delete_workout` |
-| Body and progress | `log_weight`, `delete_weight_entry`, `log_measurements`, `delete_measurements`, `get_progress`, `show_dashboard` (opens the dashboard; `get_dashboard_data` is called by the view) |
-| Meals | `get_planning_context`, `save_recipe`, `list_recipes`, `get_recipe`, `delete_recipe`, `save_meal_plan` (checked against goals, allergies, dislikes), `get_meal_plan`, `get_grocery_list`, `log_planned_meal`, `delete_meal_plan` |
-| Import | `import_fitwell_backup` (one-time upload link for a backup from the private Fitwell app), `get_last_import` |
+| Food log | `log_food` (several items; macros resolved from the source; estimates marked; allergy warnings), `get_food_log` (a day, or several), `edit_food_entry`, `save_custom_food` |
+| Exercises and workouts | `search_exercises` (with `id` for instructions), `start_workout` (opens the player; saves the workout; weights from the progression rule), `log_set` and `finish_workout` (from the player), `get_workout_history`, `suggest_progression`, `save_workout_template`, `list_workout_templates`, `log_cardio`, `log_past_workout` |
+| Body and progress | `log_body` (weight, measurements, sleep, steps, water), `get_progress`, `show_dashboard` (opens the dashboard), `show_weekly_review` (the week against the one before) |
+| Meals | `get_planning_context`, `save_recipe`, `import_recipe` (from a web page), `get_recipes`, `suggest_meals` (what can I cook), `save_meal_plan` (checked against goals, allergies, dislikes), `get_meal_plan`, `show_grocery_list` (tick-off checklist), `log_planned_meal` |
+| Anything | `delete_item` (food entry, workout, template, recipe, meal plan, weigh-in, measurements, daily metrics) |
+| Owner only | `manage_invites` (list, add, remove unused invitations), for emails in `ADMIN_EMAILS` |
+| Import | `import_fitwell_backup` (one-time upload link for a backup from the private Fitwell app; `check_result` reports the outcome) |
 | Account | `export_my_data`, `delete_my_account` (erases everything, signs out everywhere) |
 
 **Sign-in:** Claude registers itself (dynamic registration or a Client ID Metadata Document) and opens `/authorize`. The person enters their email and ticks consent; invited addresses get a 6-digit code and a link (single use, 10 minutes, stored hashed). The code works from any device; the link only in the browser that started the sign-in. Privacy notice: `/privacy`.

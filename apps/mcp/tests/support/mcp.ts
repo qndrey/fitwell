@@ -3,7 +3,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 import type { OffClient } from '@fitwell/core/off/client';
 import { cachedOff } from '../../src/data/offCache';
 import { deleteUser, inviteUser, recordLogin, type User } from '../../src/data/users';
-import { createServer } from '../../src/server';
+import { createServer, type ServerDeps } from '../../src/server';
 
 export type Structured = Record<string, unknown>;
 
@@ -25,8 +25,8 @@ export async function signedInUser(env: Env, email: string): Promise<User> {
 }
 
 /** A real MCP client connected in-process to a server for `user`, as the Worker serves it after sign-in. */
-export async function connectAs(env: Env, user: Pick<User, 'id' | 'email'>, off: OffClient = offlineOff) {
-  const handler = createMcpHandler(() => createServer({ off: cachedOff(env.DB, off), db: env.DB, publicUrl: 'https://mcp.fitwell.test', user, deleteAccount: () => deleteUser(env.DB, user) }));
+export async function connectAs(env: Env, user: Pick<User, 'id' | 'email'>, off: OffClient = offlineOff, extra: Partial<ServerDeps> = {}) {
+  const handler = createMcpHandler(() => createServer({ off: cachedOff(env.DB, off), db: env.DB, publicUrl: 'https://mcp.fitwell.test', user, deleteAccount: () => deleteUser(env.DB, user), ...extra }));
   const client = new Client({ name: 'test', version: '1.0.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL('http://localhost/mcp'), { fetch: (input, init) => handler.fetch(new Request(input, init)) }));
   return client;

@@ -49,13 +49,13 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 
 | Area | Tool | Status |
 |---|---|---|
-| Reference | `search_foods`, `lookup_barcode`, `search_exercises`, `get_exercise` | **Done (phase 0)** |
+| Reference | `search_foods`, `lookup_barcode`, `search_exercises` (with `id` for details) | **Done (phase 0)** |
 | Profile | `get_profile`, `update_profile`, `set_goals` (with a TDEE/macro suggestion from core) | Phase 1 |
-| Food log | `log_food` (several items in one call), `get_day`, `edit_food_entry`, `delete_food_entry`, `save_custom_food`, `save_recipe` | Phase 1 |
+| Food log | `log_food` (several items in one call), `get_food_log`, `edit_food_entry`, `save_custom_food`, `save_recipe` | Phase 1 |
 | Workouts | `create_workout_template`, `list_templates`, `start_workout` (opens the player), `log_set`, `finish_workout`, `get_workout_history` | Phase 2 |
-| Body | `log_weight`, `log_measurements` | Phase 3 |
+| Body | `log_body` (weight, measurements, sleep, steps, water) | Phase 3, 5 |
 | Analytics | `get_progress` (weight trend, macro adherence, volume, PRs, e1RM), `show_dashboard` (opens the UI) | Phase 3 |
-| Meal planning | `save_meal_plan` (validated against goals), `get_meal_plan`, `get_grocery_list` (aggregated grams, grouped by aisle, scaled for prep) | Phase 4 |
+| Meal planning | `save_meal_plan` (validated against goals), `get_meal_plan`, `show_grocery_list` (aggregated grams, grouped by aisle, scaled for prep; tick-off checklist) | Phase 4, 5 |
 | Account | `export_my_data`, `delete_my_account`, `import_fitwell_backup` (web app backup JSON) | Phase 1 (export/delete), 3 (import) |
 
 ## 5. Phases and exit criteria
@@ -89,21 +89,33 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [x] Fitwell backup import: `import_fitwell_backup` returns a one-time link (30 min, one person, token hashed, replaced by a newer link) to an upload page. The browser reads the backup file and sends it in chunks of 150 records, so no request strains the free plan's CPU (heaviest chunk about 1.4 ms) and the file never passes through the chat. `import/convert.ts` converts defensively and counts what it skips with a reason; writes are `INSERT OR IGNORE` on ids scoped to the person, so repeats add nothing, two people importing one file each get everything, and nothing already in the account is overwritten (the file only fills gaps: a day's weigh-in, goals not yet set, missing measurement types). `get_last_import` reports the result. Pending lookups, deleted records, own exercises/measurement types and cardio templates are not imported. Checked in a real browser with a 700-entry file (about 200 ms). Migration 0005.
 - [x] `log_past_workout`: a workout already done, by chat, on any day; personal records compare only with sessions up to that day.
 
-**Phase 4: meal planning (built 2026-10-13; deploy pending)**
+**Phase 4: meal planning (built and deployed 2026-10-13)**
 - [x] Recipes (`save_recipe`, `list_recipes`, `get_recipe`, `delete_recipe`): nutrition per serving from the foods' own values; names are case-insensitive. Recipes and plans store snapshots, so editing a recipe never changes a plan already shopped for. Migration 0006.
 - [x] `get_planning_context`: goals with a per-meal split (25/30/30/15 %), diet, allergies, dislikes, the foods actually eaten most (60 days), saved recipes, planned weeks.
 - [x] `save_meal_plan` (Monday to Sunday; foods, recipes or marked estimates): replies with each day against the calorie goal (within 10 %) and protein goal (at least 90 %), empty days, and allergy and dislike matches in item and ingredient names, as plain-language problems that Claude must fix before presenting. Revised plans keep the "eaten" mark of unchanged meals. The allergy check is a text match on names: it does not know what is inside a packaged product.
 - [x] `get_meal_plan` (with an `editable` form to change and save again, and batch-cooking hints for recipes that recur), `delete_meal_plan`, `log_planned_meal` (a planned day or meal into the food log, once).
 - [x] `get_grocery_list`: ingredients added up per food, rounded up to what a shop sells, grouped by shopping section (every one of the 140 Frida food groups is mapped; tested), for any number of people, minus what is already at home and meals already eaten; a markdown checklist; foods listed as cooked are flagged because raw weighs less.
 - [x] Food search ranks "Egg, chicken, whole, raw" before "Egg mayonnaise salad" (names whose first part equals the query come first).
-- [ ] An interactive shopping checklist (MCP Apps view) and a plan view with swap and repeat; ticks would need storage.
+- [x] Interactive shopping checklist: phase 5. A plan view with swap and repeat is still open.
 - [ ] Exit: plan a week from Claude on a phone, get the list, log a planned day.
+
+**Phase 5: shopping checklist, weekly review, habits, safer allergies (built 2026-10-13)**
+- [x] `show_grocery_list` (replaces `get_grocery_list`): MCP Apps checklist grouped by shop section; ticks are saved per person and week (`grocery_ticks`, keyed by food id so they survive regenerating the list) through the app-only `set_grocery_checked`; progress bar, hide ticked, clear. The model's reply lists every item with its tick, so Claude can say what is left.
+- [x] `show_weekly_review` (+ app-only `get_review_data`): one week against the same days of the week before: calories and protein against goals, sessions and new estimated-1RM records, 7-day average weight, sleep, steps, water, meals logged from the plan; "went well" and "to consider" notes written neutrally (`analytics/review.ts`, pure). Early in the week it shows the week that just ended; arrows move between weeks.
+- [x] Sleep, steps and water (`daily_metrics`) through `log_body` (water can be set or added to a glass at a time), with averages in `get_progress`, charts in the dashboard and tiles in the review. Measurement trends are charted in the dashboard (pick a measurement). Progress photos are not built: they need file storage and a bigger privacy decision.
+- [x] Allergies beyond name matching: Open Food Facts allergen and trace tags are kept on packaged foods (`allergens`, `traces`), the person's words are mapped to the 14 EU allergen groups (`safety/allergens.ts`), and `log_food` and `save_meal_plan` report "contains" and "may contain traces"; packaged foods without allergen data are noted. Frida and own foods are still matched by name only.
+- [x] Photo meal logging: `log_food` item flag `amount_estimated` (grams guessed from a picture; stored as an estimate) and instructions for Claude.
+- [x] `import_recipe` reads a recipe page's schema.org data (https only, public hosts, 1.5 MB, 8 s, redirects re-checked; nothing is saved), `save_recipe` takes `steps` and `source_url`; migration 0007.
+- [x] `suggest_meals`: saved recipes ranked by what is at home (staples ignored), fitted to today's remaining calories; recipes with allergy foods are left out.
+- [x] `manage_invites` (list, add, remove unused) for the owners in `ADMIN_EMAILS`; nobody else sees it. The sign-in pages say where to ask for an invite.
+- [x] Fewer tools: `delete_item` (8 kinds), `log_body`, `get_food_log`, `get_recipes`, exercise details in `search_exercises`, `check_result` on the import tool.
+- [ ] Deploy: remote migration 0007, `wrangler deploy`.
 
 ## 6. Risks and open items
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.
 - **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
-- **Tool count**: 47 tools, about 9,000 tokens of definitions that every conversation reads. If it starts to matter, merge the small delete/list pairs or hide rarely used tools behind a single `help` tool.
+- **Tool count**: 36 tools visible to the model (41 with the app-only ones), about 9,600 tokens of definitions that every conversation reads. Phase 5 merged the small delete/list pairs (47 → 36 visible while adding features), but the definitions did not get smaller: merged tools carry bigger schemas. Next lever if it matters: hide rarely used tools behind a single `help` tool.
 - **View bundle size**: the player is 597 KB (129 KB gzip), almost all zod pulled in by the MCP Apps SDK; our code is 6 KB. Fine for the spike; look for a slimmer import before phase 2.
 - **Player state** lives in the view only during phase 0b; a reload of the conversation loses progress until sets are stored (phase 1/2).
 - **EU jurisdiction for D1**: confirm the current setting and that it is available on the free plan before creating the database.

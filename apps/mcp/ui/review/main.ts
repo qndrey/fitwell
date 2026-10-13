@@ -27,8 +27,9 @@ const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) 
 function delta(cur: number | null, prev: number | null, unit: string, digits = 0) {
   if (cur === null || prev === null) return null;
   const d = cur - prev;
+  const same = Math.abs(d) < 0.5 * 10 ** -digits; // would show as 0
   const sign = d > 0 ? '+' : d < 0 ? '−' : '';
-  return h('span', { className: 'delta' }, d === 0 ? 'same as last week' : `${sign}${num(Math.abs(d), digits)} ${unit} vs last week`.replace(/ +/g, ' '));
+  return h('span', { className: 'delta' }, same ? 'same as last week' : `${sign}${num(Math.abs(d), digits)} ${unit} vs last week`.replace(/ +/g, ' '));
 }
 
 function tile(label: string, value: string | null, ...extra: Child[]) {

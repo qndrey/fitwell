@@ -4,6 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // One public address on the own domain; no *.workers.dev URL.
+  "routes": [{ "pattern": "mcp.fitwell.fyi", "custom_domain": true }],
+  "workers_dev": false,
   // Views (ui/*) are bundled into src/ui/generated before every dev session and deploy.
   "build": { "command": "npm run build:ui", "watch_dir": "ui" }
 }

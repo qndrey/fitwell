@@ -70,12 +70,13 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [x] Temporary deploy on `mcp.fitwell.fyi` behind a secret URL token (`/mcp/<SPIKE_TOKEN>`), added to claude.ai as a custom connector; ~140–170 ms per tool call from outside.
 - [x] User test (2026-10-13): food lookup, barcode, exercise search and the workout player all worked, including set logging to the server ("sets reach Fitwell ✓"), rest timer and the finish summary arriving in the chat. Android not tested.
 
-**Phase 1: accounts and food logging**
-- [ ] OAuth (workers-oauth-provider) with email sign-in: `/authorize` asks for an email; invited addresses get a link + 6-digit code (single use, 10 min, stored hashed, bound to the pending authorization request); same answer whether or not the address is invited; rate limits per email and IP; 5 wrong codes void the request. Consent screen on first sign-in.
-- [ ] Email sender: **Cloudflare Email Routing on the free plan, sending only to verified destination addresses** from an own domain on Cloudflare (decided 2026-10-13). Inviting someone = adding their address as a destination; they confirm Cloudflare's verification email once. The invite list in the Worker and the verified list must agree; sign-in for an unverified address fails closed with the same neutral message.
-- [ ] Domain: bought by the user at Cloudflare Registrar; Email Routing enabled on it (adds MX/SPF records). The MCP server itself may stay on `workers.dev` or move to the domain.
-- [ ] D1 in EU jurisdiction, migrations in `apps/mcp/migrations`, per-user scoping enforced in one data-access layer and tested (user A can never read user B).
-- [ ] Profile, goals, food log tools; OFF cache in D1; `export_my_data`, `delete_my_account`.
+**Phase 1: accounts and food logging (built 2026-10-13; deploy pending)**
+- [x] OAuth (workers-oauth-provider: DCR + CIMD, PKCE, refresh tokens sliding 60 days) with email sign-in: link + 6-digit code (single use, 10 min, hashed), consent box on every sign-in (recorded on first), same response for uninvited addresses, 5 tries per code counted atomically, per-email/IP limits. The link only counts in the browser that started the sign-in (login-phishing fix after a security review); the code works from any device.
+- [x] D1 schema and migrations (`migrations/`), every personal query through `UserData` bound to the token's user; isolation tested (user A can't read, edit, delete or search user B's data).
+- [x] Profile, goals (`suggest_targets` with core `energy.ts`), food log with server-side macro resolution and marked estimates, own foods, nutrition summary, OFF cache in D1, `export_my_data`, `delete_my_account` (revokes all grants; tokens of deleted people are refused).
+- [x] Privacy notice at `/privacy`; invite script; local dev shortcut only on localhost and only without a token.
+- [x] Verified in workerd (`wrangler dev`): full sign-in by code and by link in a browser, token exchange, MCP calls as the signed-in person.
+- [ ] Deploy: Email Routing on fitwell.fyi + verified destination for each invitee; `wrangler d1 create fitwell --jurisdiction eu`; KV namespace for OAuth; real ids in `wrangler.jsonc`; remote migrations; invite; deploy; delete the `SPIKE_TOKEN` secret; change the Claude connector to `https://mcp.fitwell.fyi/mcp`.
 - [ ] Exit: log a day of food from Claude on a phone; totals match `@fitwell/core` `dayTotals`.
 
 **Phase 2: workouts**

@@ -47,12 +47,12 @@ export function emailPage(d: ConsentDescription, handle: string, opts: { email?:
 </div>
 <form method="post" class="card">
   <input type="hidden" name="handle" value="${escape(handle)}">
-  <label>Your email
-    <input type="email" name="email" autocomplete="email" required maxlength="254" value="${escape(opts.email ?? '')}" autofocus>
-  </label>
-  <label class="check"><input type="checkbox" name="consent" value="yes" required>
-    <span class="small">${PRIVACY_SUMMARY} I agree to this. <a href="/privacy" target="_blank" rel="noopener">Privacy notice</a></span>
-  </label>
+  <label for="email">Your email</label>
+  <input id="email" type="email" name="email" autocomplete="email" required maxlength="254" value="${escape(opts.email ?? '')}" autofocus>
+  <div class="check"><input id="consent" type="checkbox" name="consent" value="yes" required aria-describedby="consent-text">
+    <label for="consent" class="small" id="consent-text">${PRIVACY_SUMMARY} I agree to this.</label>
+  </div>
+  <p class="small"><a href="/privacy" target="_blank" rel="noopener">Privacy notice</a></p>
   ${opts.error ? `<p class="error small" role="alert">${escape(opts.error)}</p>` : ''}
   <div class="actions">
     <button class="primary" name="step" value="email">Email me a sign-in code</button>
@@ -70,9 +70,8 @@ export function codePage(handle: string, loginId: string, email: string, error?:
 <form method="post" class="card" id="code-form">
   <input type="hidden" name="handle" value="${escape(handle)}">
   <input type="hidden" name="login" value="${escape(loginId)}">
-  <label>Code
-    <input class="code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus>
-  </label>
+  <label for="code">Code</label>
+  <input id="code" class="code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus>
   ${error ? `<p class="error small" role="alert">${escape(error)}</p>` : ''}
   <div class="actions"><button class="primary" name="step" value="code">Continue</button></div>
 </form>

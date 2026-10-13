@@ -81,8 +81,9 @@ const isLocal = (url: URL) => url.hostname === '127.0.0.1' || url.hostname === '
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    // Local development only: /mcp without sign-in, as a fixed dev person. Never on a public host.
-    if (url.pathname === '/mcp' && env.DEV_UNAUTHENTICATED === 'true' && isLocal(url)) {
+    // Local development only: /mcp without sign-in, as a fixed dev person. Never on a public host, and never
+    // for a request that carries a token (so the real sign-in can be tried locally too).
+    if (url.pathname === '/mcp' && env.DEV_UNAUTHENTICATED === 'true' && isLocal(url) && !request.headers.has('Authorization')) {
       const user = await inviteUser(env.DB, DEV_EMAIL, 'Dev');
       if (!user.last_login_at) await recordLogin(env.DB, user.id);
       return serveMcp(request, env, user);

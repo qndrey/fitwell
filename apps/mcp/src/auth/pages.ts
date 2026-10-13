@@ -38,7 +38,7 @@ const PRIVACY_SUMMARY =
   'Fitwell stores the food, workout and body data you share with it, which is health data, to track it for you and show it back to you. ' +
   'It is kept in the EU, never sold or shared, and you can export or delete it at any time.';
 
-export function emailPage(d: ConsentDescription, handle: string, opts: { email?: string; error?: string } = {}): string {
+export function emailPage(d: ConsentDescription, handle: string, opts: { email?: string; error?: string; contact?: string } = {}): string {
   const who = d.clientDomain ? `${escape(d.clientName)} (${escape(d.clientDomain)})` : `${escape(d.clientName)} <span class="muted small">(name not verified)</span>`;
   return `
 <h1>Sign in to Fitwell</h1>
@@ -60,11 +60,11 @@ export function emailPage(d: ConsentDescription, handle: string, opts: { email?:
     <button name="step" value="deny" formnovalidate>Cancel</button>
   </div>
 </form>
-<p class="muted small">Fitwell is invite-only. No password: we email you a code.</p>`;
+<p class="muted small">Fitwell is invite-only. No password: we email you a code.${opts.contact ? ` Not invited yet? Ask at <strong>${escape(opts.contact)}</strong>.` : ''}</p>`;
 }
 
 /** After the email step. Polls for the link being opened (in any browser) while the code can be typed here. */
-export function codePage(handle: string, loginId: string, email: string, error?: string): { body: string; script: string } {
+export function codePage(handle: string, loginId: string, email: string, error?: string, contact?: string): { body: string; script: string } {
   const body = `
 <h1>Check your email</h1>
 <p>If <strong>${escape(email)}</strong> is invited, a 6-digit code and a link are on their way. They expire in 10 minutes.</p>
@@ -77,7 +77,7 @@ export function codePage(handle: string, loginId: string, email: string, error?:
   <div class="actions"><button class="primary" name="step" value="code">Continue</button></div>
 </form>
 <p class="muted small" id="wait" aria-live="polite">Opened the link in this browser? This page continues by itself. On another device, type the code instead.</p>
-<p class="muted small">Wrong address or no email? Close this window and start signing in again from Claude.</p>`;
+<p class="muted small">Wrong address or no email? Close this window and start signing in again from Claude.${contact ? ` Not invited yet? Ask at <strong>${escape(contact)}</strong>.` : ''}</p>`;
   const script = `
 const f=document.getElementById('code-form');
 const body=new URLSearchParams({step:'poll',handle:f.handle.value,login:f.login.value});

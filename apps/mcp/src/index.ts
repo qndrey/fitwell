@@ -43,7 +43,7 @@ const site = {
   async fetch(request: Request, env: EnvWithOAuth): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
-      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL });
+      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL, contact: env.CONTACT_EMAIL });
     }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));

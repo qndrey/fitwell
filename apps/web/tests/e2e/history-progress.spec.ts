@@ -7,6 +7,8 @@ async function ready(page: Page) {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   // let the app create its measurement types before seeding
   await expect(page.getByRole('button', { name: 'Log measurements' })).toBeVisible();
+  // A service worker that finishes installing mid-test raises the "new version is ready" toast over the page.
+  await page.evaluate(() => navigator.serviceWorker.ready);
 }
 const chart = (page: Page, name: RegExp | string) => page.getByRole('region', { name });
 const svgOf = (page: Page, name: RegExp | string) => chart(page, name).locator('svg.chart-svg').first();

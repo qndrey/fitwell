@@ -26,7 +26,7 @@ export async function signedInUser(env: Env, email: string): Promise<User> {
 
 /** A real MCP client connected in-process to a server for `user`, as the Worker serves it after sign-in. */
 export async function connectAs(env: Env, user: Pick<User, 'id' | 'email'>, off: OffClient = offlineOff) {
-  const handler = createMcpHandler(() => createServer({ off: cachedOff(env.DB, off), db: env.DB, user, deleteAccount: () => deleteUser(env.DB, user) }));
+  const handler = createMcpHandler(() => createServer({ off: cachedOff(env.DB, off), db: env.DB, publicUrl: 'https://mcp.fitwell.test', user, deleteAccount: () => deleteUser(env.DB, user) }));
   const client = new Client({ name: 'test', version: '1.0.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL('http://localhost/mcp'), { fetch: (input, init) => handler.fetch(new Request(input, init)) }));
   return client;

@@ -14,7 +14,8 @@ export default {
     // `wrangler secret put SPIKE_TOKEN`. Without either, nothing is served, so a deploy can't expose an open endpoint.
     if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) {
       const dev = env.DEV_UNAUTHENTICATED === 'true' && url.pathname === '/mcp';
-      const spike = typeof env.SPIKE_TOKEN === 'string' && env.SPIKE_TOKEN.length >= 32 && url.pathname === `/mcp/${env.SPIKE_TOKEN}`;
+      const token = env.SPIKE_TOKEN?.trim(); // a secret piped in with `echo` ends in a newline
+      const spike = token !== undefined && token.length >= 32 && url.pathname === `/mcp/${token}`;
       if (!dev && !spike) return new Response('Sign-in is not set up on this server yet.', { status: 503 });
       return mcp.fetch(request);
     }

@@ -38,6 +38,7 @@ describe('fitwell MCP server', () => {
     expect((await post('/mcp/short', { SPIKE_TOKEN: 'short' } as Env)).status).toBe(503);
     expect((await post(`/mcp/${token}`, { DEV_UNAUTHENTICATED: 'true' } as Env)).status).toBe(503);
     expect((await post(`/mcp/${token}`, env)).status).not.toBe(503);
+    expect((await post(`/mcp/${token}`, { SPIKE_TOKEN: `${token}\n` } as Env)).status).not.toBe(503);
   });
 
   it('lists the reference tools with instructions', async () => {

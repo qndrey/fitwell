@@ -1,4 +1,4 @@
-import { loadExercises, loadInstructions, prepareExercises, searchExercises, type Exercise } from '@fitwell/core/data/exercises';
+import { loadExercises, loadInstructions, plainFirst, prepareExercises, searchExercises, type Exercise } from '@fitwell/core/data/exercises';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { json, toolError } from './result';
@@ -31,7 +31,8 @@ export async function registerExerciseTools(server: McpServer) {
       annotations: { readOnlyHint: true },
     },
     async ({ query, muscle, equipment, limit }) => {
-      const hits = searchExercises(index, lib.exercises, { query, muscle, equipment }, limit);
+      // Search wider, then put plain lifts ahead of variations so the obvious choice comes first.
+      const hits = plainFirst(query, searchExercises(index, lib.exercises, { query, muscle, equipment }, limit * 4)).slice(0, limit);
       return json({ exercises: hits.map(view), source: ATTRIBUTION });
     },
   );

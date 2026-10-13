@@ -86,6 +86,12 @@ describe('fitwell MCP server', () => {
     expect((detail.data.exercise as { instructions: string[] }).instructions.length).toBeGreaterThan(0);
   });
 
+  it('puts the plain lift ahead of variations', async () => {
+    const client = await connect();
+    const { data } = await call(client, 'search_exercises', { query: 'bench press', equipment: 'barbell', limit: 3 });
+    expect((data.exercises as { name: string }[])[0]!.name).toBe('Barbell Bench Press - Medium Grip');
+  });
+
   it('rejects an unknown muscle as invalid input', async () => {
     const client = await connect();
     const res = await call(client, 'search_exercises', { muscle: 'wings' });

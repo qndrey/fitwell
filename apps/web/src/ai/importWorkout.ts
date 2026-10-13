@@ -4,7 +4,7 @@ import { isDay } from '@fitwell/core/domain/dates';
 import { toKg, type UnitSystem } from '@fitwell/core/domain/units';
 import { normalizeSupersets } from '@fitwell/core/domain/workouts';
 import { search, type Searchable } from '@fitwell/core/search/rank';
-import type { Exercise } from '@fitwell/core/data/exercises';
+import { plainFirst, type Exercise } from '@fitwell/core/data/exercises';
 
 /** The reply format the "ask for a workout" prompt describes. Lenient about what an AI is likely to add, strict about numbers. */
 const amount = (max: number) => v.pipe(v.number(), v.minValue(0), v.maxValue(max));
@@ -71,8 +71,6 @@ export function parseAiReply(text: string): ParseResult {
 /** "Push-Up", "Push-Ups" and "Pushups" are the same exercise. */
 const compact = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '').replace(/s$/, '');
 
-const VARIATION = /\b(with|bands?|chains?|machine|smith|wide|close|reverse|incline|decline|one|single|alternate|alternating|seated|kneeling|suspended|leverage|lying|cable|stiff|sumo)\b/g;
-
 export interface Suggestion {
   /** A library or own exercise whose name is the same, ignoring case, hyphens and plurals. */
   exact?: Exercise;
@@ -83,15 +81,10 @@ export interface Suggestion {
 export function suggest(name: string, index: Searchable<Exercise>[], all: Exercise[]): Suggestion {
   const key = compact(name);
   const exact = all.find((e) => compact(e.name) === key);
-  // The search ranks short names first, which favours odd variations ("Bench Press with Chains"). Put plain versions ahead.
-  const asked = new Set(key.length ? name.toLowerCase().split(/[^a-z]+/) : []);
-  const oddness = (e: Exercise) => (e.name.toLowerCase().match(VARIATION) ?? []).filter((w) => !asked.has(w)).length;
-  const options = search(index, name, 12)
-    .filter((e) => e !== exact)
-    .map((e, i) => ({ e, i, o: oddness(e) }))
-    .sort((a, b) => a.o - b.o || a.i - b.i)
-    .slice(0, 6)
-    .map((x) => x.e);
+  const options = plainFirst(
+    name,
+    search(index, name, 12).filter((e) => e !== exact),
+  ).slice(0, 6);
   return { exact, options };
 }
 

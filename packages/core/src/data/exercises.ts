@@ -1,4 +1,5 @@
 import { prepare, search, type Searchable } from '../search/rank';
+import { tokenize } from '../search/text';
 import type { CustomExercise } from '../schema';
 
 export interface Exercise {
@@ -62,3 +63,21 @@ export function searchExercises(index: Searchable<Exercise>[], all: Exercise[], 
 }
 
 export const prepareExercises = (list: Exercise[]) => prepare(list, (e) => e.name);
+
+// Name words that don't make an exercise a variation: equipment and the default grip/stance.
+const NEUTRAL = new Set(['barbell', 'dumbbell', 'dumbbells', 'kettlebell', 'kettlebells', 'medium', 'grip', 'standing', 'bicep', 'biceps']);
+const LEVEL: Record<string, number> = { beginner: 0, intermediate: 1, expert: 2 };
+
+/**
+ * The search ranks short names first, which favours odd variations ("Bench Press with Chains", "Squat Jerk").
+ * Reorders hits so the plain lift comes first: fewest name words beyond what was asked (ignoring equipment and
+ * grip words), then the strength category, then easier levels, then search order.
+ */
+export function plainFirst(query: string, hits: Exercise[]): Exercise[] {
+  const asked = tokenize(query);
+  const extra = (e: Exercise) => tokenize(e.name).filter((t) => !NEUTRAL.has(t) && !asked.some((q) => t.startsWith(q))).length;
+  return hits
+    .map((e, i) => ({ e, i, x: extra(e), c: e.category === 'strength' ? 0 : 1, l: LEVEL[e.level ?? ''] ?? 1 }))
+    .sort((a, b) => a.x - b.x || a.c - b.c || a.l - b.l || a.i - b.i)
+    .map((r) => r.e);
+}

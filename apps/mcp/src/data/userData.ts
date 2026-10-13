@@ -242,6 +242,19 @@ export class UserData {
     return results;
   }
 
+  /** The foods eaten most often in a period, with typical amounts: realistic starting points for planning meals. */
+  async frequentFoods(from: string, to: string, limit = 15): Promise<{ foodId: string; name: string; times: number; typicalGrams: number; kcal: number; protein: number }[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT food_ref, MIN(food_name) AS name, COUNT(*) AS times, AVG(grams) AS grams, AVG(kcal) AS kcal, AVG(protein) AS protein
+         FROM food_entries WHERE user_id = ? AND day BETWEEN ? AND ? AND food_ref IS NOT NULL AND food_ref NOT LIKE 'recipe:%'
+         GROUP BY food_ref ORDER BY times DESC, name LIMIT ?`,
+      )
+      .bind(this.userId, from, to, limit)
+      .all<Row>();
+    return results.map((r) => ({ foodId: r.food_ref as string, name: r.name as string, times: r.times as number, typicalGrams: Math.round(r.grams as number), kcal: Math.round(r.kcal as number), protein: Math.round((r.protein as number) * 10) / 10 }));
+  }
+
   // ---------- custom foods ----------
   async addCustomFood(food: Omit<CustomFood, 'id'>): Promise<CustomFood> {
     const id = crypto.randomUUID();

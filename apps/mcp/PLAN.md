@@ -65,10 +65,10 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [x] `apps/mcp` Worker serving reference tools; core runs in `workerd` (`wrangler dev` + `npm run smoke`); bundle 313 KB gzip.
 - [x] In-process MCP client tests; OFF stubbed; deployed Worker refuses `/mcp` until sign-in exists.
 
-**Phase 0b: MCP Apps on the phone (spike, do next)**
+**Phase 0b: MCP Apps on the phone (done 2026-10-13)**
 - [x] Workout player view (`ui/workout`, plain TypeScript, single-file HTML via esbuild): sets/reps/weight steppers, log/skip, rest timer, exercise list, finish → summary to Claude (`ui/message`) and progress in model context; host theme variables; diagnostics footer (platform, server round trip). Verified in a local AppBridge host (`npm run dev:host`) in light and dark at phone width.
-- [ ] Temporary deploy behind a secret URL token (`/mcp/<SPIKE_TOKEN>`).
-- [ ] Verify it renders and calls back in Claude **desktop, web, iOS and Android**. Record results here. If mobile does not render it, the workout runs as a text flow there.
+- [x] Temporary deploy on `mcp.fitwell.fyi` behind a secret URL token (`/mcp/<SPIKE_TOKEN>`), added to claude.ai as a custom connector; ~140–170 ms per tool call from outside.
+- [x] User test (2026-10-13): food lookup, barcode, exercise search and the workout player all worked, including set logging to the server ("sets reach Fitwell ✓"), rest timer and the finish summary arriving in the chat. Android not tested.
 
 **Phase 1: accounts and food logging**
 - [ ] OAuth (workers-oauth-provider) with email sign-in: `/authorize` asks for an email; invited addresses get a link + 6-digit code (single use, 10 min, stored hashed, bound to the pending authorization request); same answer whether or not the address is invited; rate limits per email and IP; 5 wrong codes void the request. Consent screen on first sign-in.
@@ -91,7 +91,6 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [ ] Grocery list: aggregate ingredient grams across the plan, round to buyable amounts, group by Frida food group.
 
 ## 6. Risks and open items
-- **Mobile MCP Apps support** is unconfirmed (docs describe a mobile WebView; launch notes mention web and desktop). Phase 0b answers it.
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.
 - **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.

@@ -1,0 +1,2 @@
+# Copy to .dev.vars for `npm run dev -w @fitwell/mcp`. Never set this on a deployed Worker.
+DEV_UNAUTHENTICATED=true

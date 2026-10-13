@@ -6,3 +6,5 @@ playwright-report
 test-results
 *.local
 .DS_Store
+.dev.vars
+.wrangler

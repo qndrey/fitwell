@@ -36,8 +36,17 @@ function retryAfter(res: Response): number | undefined {
  * referrer, no custom headers (so no CORS preflight). Uses the documented legacy full-text search,
  * the one endpoint that returns nutrition; swap the URL/parsing here if OFF moves it.
  */
-export function createOffClient(deps: { limiter: RateLimiter; fetch?: typeof fetch; origin?: string; timeoutMs?: number }): OffClient {
-  const doFetch = deps.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
+/** What the client passes to `fetch`. Declared here so the client does not depend on one platform's fetch typings. */
+export interface OffRequestInit {
+  credentials: 'omit';
+  referrerPolicy: 'no-referrer';
+  signal: AbortSignal;
+}
+export type OffFetch = (url: string, init: OffRequestInit) => Promise<Response>;
+
+export function createOffClient(deps: { limiter: RateLimiter; fetch?: OffFetch; origin?: string; timeoutMs?: number }): OffClient {
+  // Browsers: no cookies, no referrer. Servers inject their own fetch (Workers don't implement `credentials`).
+  const doFetch: OffFetch = deps.fetch ?? ((url, init) => fetch(url, init as RequestInit));
   const origin = deps.origin ?? OFF_ORIGIN;
   const timeoutMs = deps.timeoutMs ?? 10_000;
 

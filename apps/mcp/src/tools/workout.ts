@@ -104,6 +104,27 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     return out;
   }
 
+  /** Time, volume and personal records of a strength workout. Records compare with sessions up to that workout's day. */
+  async function finishSummary(w: Workout) {
+    const prior = await workouts.recentSessions(w.exercises.map((e) => e.exerciseRef), 20, w.id);
+    const best = (sets: StoredSet[]) => Math.max(0, ...sets.filter((s) => s.done !== false && s.type === 'working').map((s) => estimatedOneRepMax(s.weightKg, s.reps) ?? 0));
+    let volumeKg = 0;
+    const exercises = w.exercises.map((e) => {
+      const done = e.sets.filter((s) => s.done !== false && s.type === 'working');
+      if (e.load !== 'bodyweight') volumeKg += done.reduce((n, s) => n + s.weightKg * s.reps, 0);
+      const now = best(e.sets);
+      const before = Math.max(0, ...(prior.get(e.exerciseRef) ?? []).filter((p) => p.day <= w.day).map((p) => best(p.exercise.sets)));
+      return {
+        name: e.exerciseName,
+        done: summarizeExercise(e) || 'skipped',
+        ...(e.load !== 'bodyweight' && now > 0 ? { estimated1rmKg: r1(now) } : {}),
+        ...(e.load !== 'bodyweight' && now > 0 && before > 0 && now > before + 0.01 ? { personalRecord: `New best estimated 1RM: ${r1(now)} kg (was ${r1(before)} kg)` } : {}),
+      };
+    });
+    const minutes = Math.round(((w.finishedAt ?? Date.now()) - (w.startedAt ?? w.createdAt)) / 60000);
+    return { workoutId: w.id, name: w.name, day: w.day, minutes, volumeKg: Math.round(volumeKg), exercises };
+  }
+
   registerAppResource(server, 'Workout player', WORKOUT_VIEW_URI, { description: 'Runs a workout: sets, reps, weights, rest timer, last time.' }, async () => ({
     contents: [{ uri: WORKOUT_VIEW_URI, mimeType: RESOURCE_MIME_TYPE, text: workoutHtml }],
   }));
@@ -253,23 +274,54 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       const finishedAt = w.finishedAt ?? Date.now();
       if (!w.finishedAt) await workouts.saveExercises(workoutId, w.exercises, finishedAt);
-      const prior = await workouts.recentSessions(w.exercises.map((e) => e.exerciseRef), 20, workoutId);
-      const best = (sets: StoredSet[]) => Math.max(0, ...sets.filter((s) => s.done !== false && s.type === 'working').map((s) => estimatedOneRepMax(s.weightKg, s.reps) ?? 0));
-      let volumeKg = 0;
-      const exercises = w.exercises.map((e) => {
-        const done = e.sets.filter((s) => s.done !== false && s.type === 'working');
-        if (e.load !== 'bodyweight') volumeKg += done.reduce((n, s) => n + s.weightKg * s.reps, 0);
-        const now = best(e.sets);
-        const before = Math.max(0, ...(prior.get(e.exerciseRef) ?? []).map((p) => best(p.exercise.sets)));
+      return json(await finishSummary({ ...w, finishedAt }));
+    },
+  );
+
+  server.registerTool(
+    'log_past_workout',
+    {
+      title: 'Log a workout done earlier',
+      description:
+        'Record a strength workout that is already done (no player), e.g. "I benched 3 sets of 8 at 60 kg yesterday". Give the day, and for each exercise (ids from search_exercises) the sets actually done: ' +
+        'reps and weight in kg (omit weight for bodyweight). All sets count as done. Returns the same summary as finishing a workout, with personal records measured against sessions up to that day.',
+      inputSchema: z.object({
+        day,
+        name: z.string().min(1).max(60).optional(),
+        minutes: z.number().int().min(1).max(600).optional().describe('How long it took, if known'),
+        exercises: z
+          .array(z.object({ id: exerciseId, sets: z.array(z.object({ reps: z.number().int().min(1).max(100), weight_kg: z.number().min(0).max(500).optional() })).min(1).max(15) }))
+          .min(1)
+          .max(15),
+      }),
+    },
+    async ({ day: d, name, minutes, exercises: given }) => {
+      const unknown = given.filter((e) => !byId.has(e.id)).map((e) => e.id);
+      if (unknown.length) return toolError(`Unknown exercise ids: ${unknown.join(', ')}. Use search_exercises to find valid ids.`);
+      const profile = await data.profile();
+      const exercises: StoredExercise[] = given.map((g, i) => {
+        const ex = byId.get(g.id)!;
+        const bodyweight = isBodyweight(ex);
         return {
-          name: e.exerciseName,
-          done: summarizeExercise(e) || 'skipped',
-          ...(e.load !== 'bodyweight' && now > 0 ? { estimated1rmKg: r1(now) } : {}),
-          ...(e.load !== 'bodyweight' && now > 0 && before > 0 && now > before + 0.01 ? { personalRecord: `New best estimated 1RM: ${r1(now)} kg (was ${r1(before)} kg)` } : {}),
+          uid: `e${i + 1}`,
+          exerciseRef: g.id,
+          exerciseName: ex.name,
+          equipment: ex.equipment,
+          load: bodyweight ? 'bodyweight' : 'weight',
+          sets: g.sets.map((s, k) => ({
+            id: `s${i + 1}.${k + 1}`,
+            type: 'working',
+            reps: s.reps,
+            targetReps: s.reps,
+            weightKg: bodyweight ? (profile.weightKg ?? 0) : (s.weight_kg ?? 0),
+            ...(bodyweight && profile.weightKg ? { bodyweightKg: profile.weightKg } : {}),
+            done: true,
+          })),
         };
       });
-      const minutes = Math.round((finishedAt - (w.startedAt ?? w.createdAt)) / 60000);
-      return json({ workoutId, name: w.name, day: w.day, minutes, volumeKg: Math.round(volumeKg), exercises });
+      const finishedAt = Date.now();
+      const w = await workouts.create({ day: d, type: 'strength', name: name ?? 'Workout', startedAt: minutes ? finishedAt - minutes * 60_000 : null, finishedAt, exercises, cardio: null, templateId: null });
+      return json(await finishSummary(w));
     },
   );
 

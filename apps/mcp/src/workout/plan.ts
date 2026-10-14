@@ -61,3 +61,5 @@ export const DASHBOARD_VIEW_URI = 'ui://fitwell/dashboard.html';
 export const REVIEW_VIEW_URI = 'ui://fitwell/review.html';
 
 export const SHOPPING_VIEW_URI = 'ui://fitwell/shopping.html';
+
+export const EXERCISE_VIEW_URI = 'ui://fitwell/exercise.html';

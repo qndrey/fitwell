@@ -14,7 +14,7 @@
     "smoke": "tsx scripts/smoke.ts",
     "types": "wrangler types",
     "pretypecheck": "npm run build:ui",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p ui/workout && tsc --noEmit -p ui/dashboard && tsc --noEmit -p ui/review && tsc --noEmit -p ui/shopping && tsc --noEmit -p dev-host",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p ui/workout && tsc --noEmit -p ui/dashboard && tsc --noEmit -p ui/review && tsc --noEmit -p ui/shopping && tsc --noEmit -p ui/exercise && tsc --noEmit -p dev-host",
     "lint": "eslint .",
     "pretest": "npm run build:ui",
     "test": "vitest run",

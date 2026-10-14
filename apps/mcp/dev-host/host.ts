@@ -33,6 +33,7 @@ const VIEWS: Record<string, { tool: string; args: Record<string, unknown>; uri: 
   dashboard: { tool: 'show_dashboard', args: { days: 90 }, uri: 'ui://fitwell/dashboard.html' },
   review: { tool: 'show_weekly_review', args: {}, uri: 'ui://fitwell/review.html' },
   shopping: { tool: 'show_grocery_list', args: { people: 2 }, uri: 'ui://fitwell/shopping.html' },
+  exercise: { tool: 'show_exercise', args: { query: new URLSearchParams(location.search).get('q') ?? 'leg press' }, uri: 'ui://fitwell/exercise.html' },
   workout: { tool: 'start_workout', args: SAMPLE, uri: 'ui://fitwell/workout.html' },
 };
 const which = VIEWS[new URLSearchParams(location.search).get('view') ?? 'workout'] ?? VIEWS.workout!;
@@ -53,6 +54,10 @@ const bridge = new AppBridge(
 );
 bridge.onsizechange = ({ height }) => {
   if (height) iframe.style.height = `${height}px`;
+};
+bridge.onopenlink = async (params) => {
+  log('open link', params.url);
+  return {};
 };
 bridge.onmessage = async (params) => {
   log('message to Claude', params.content);

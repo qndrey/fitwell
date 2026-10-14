@@ -1,0 +1,3 @@
+@import '../dashboard/style.css';
+@import '../shared/guide.css';
+.card.single { padding: 14px; }

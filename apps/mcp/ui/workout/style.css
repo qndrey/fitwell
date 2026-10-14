@@ -1,3 +1,4 @@
+@import '../shared/guide.css';
 /* Host variables (MCP Apps) first, Fitwell's own calm defaults as fallbacks. */
 :root {
   color-scheme: light dark;
@@ -69,3 +70,5 @@ details.notes { text-align: left; }
 details.notes summary { cursor: pointer; padding: 6px 0; min-height: 32px; }
 details.notes textarea { width: 100%; font: inherit; color: inherit; background: transparent; border: 1px solid var(--border, currentColor); border-radius: 10px; padding: 8px 10px; resize: vertical; }
 details.notes textarea:focus-visible { outline: 3px solid var(--accent, currentColor); outline-offset: 2px; }
+details.guidebox { text-align: left; }
+details.guidebox summary { cursor: pointer; padding: 6px 0; min-height: 32px; }

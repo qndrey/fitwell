@@ -1,5 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
+import type { ExerciseGuide } from '../../src/exercises/guide';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
+import { renderGuide } from '../shared/guide';
 
 interface FinishSummary {
   minutes: number;
@@ -19,6 +21,9 @@ const state = {
   minutes: 0,
   km: 0,
   noteOpen: false,
+  guideOpen: false,
+  guides: new Map<string, ExerciseGuide>(),
+  guideFailed: false,
   restUntil: 0,
   finished: null as FinishSummary | null,
   finishing: false,
@@ -90,6 +95,8 @@ function select(i: number) {
   const it = items()[i]!;
   state.current = i;
   state.noteOpen = it.kind === 'ex' && !!it.ex.notes;
+  state.guideOpen = false;
+  state.guideFailed = false;
   if (it.kind === 'ex') {
     const ex = it.ex;
     const target = nextSet(ex) ?? ex.sets[ex.sets.length - 1]!;
@@ -266,6 +273,47 @@ function notesEditor(ex: PlannedExercise) {
   );
 }
 
+/** Asks the host to open a link; false when it cannot (the guide then shows the search words to copy). */
+async function openLink(url: string): Promise<boolean> {
+  try {
+    const res = await app.openLink({ url });
+    return !res.isError;
+  } catch {
+    return false;
+  }
+}
+
+async function loadGuide(id: string) {
+  try {
+    const res = await app.callServerTool({ name: 'get_exercise_guide', arguments: { id } });
+    const g = (res.structuredContent as { guide?: ExerciseGuide } | undefined)?.guide;
+    if (res.isError || !g) throw new Error('no guide');
+    state.guides.set(id, g);
+    state.guideFailed = false;
+  } catch {
+    state.guideFailed = true;
+  }
+  render();
+}
+
+/** "How to do it": muscles, steps and machine setup, fetched the first time it is opened. */
+function guidePanel(ex: PlannedExercise) {
+  const g = state.guides.get(ex.id);
+  return h(
+    'details',
+    {
+      className: 'guidebox',
+      open: state.guideOpen,
+      ontoggle: (e: Event) => {
+        state.guideOpen = (e.target as HTMLDetailsElement).open;
+        if (state.guideOpen && !state.guides.has(ex.id)) void loadGuide(ex.id);
+      },
+    },
+    h('summary', {}, 'How to do it'),
+    g ? renderGuide(g, openLink) : h('p', { className: 'muted small' }, state.guideFailed ? 'Could not load the guide. Close and open it to try again.' : 'Loading…'),
+  );
+}
+
 /** What comes after the set that was just logged, shown while resting: reps and weight, last time, notes. */
 function upNext(it: Item | undefined): Child {
   if (!it || !itemOpen(it)) return h('p', { className: 'next' }, h('strong', {}, 'That was the last set.'), ' Next: finish the workout.');
@@ -363,6 +411,7 @@ function render() {
             ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', {}, 'Bodyweight'))
             : stepper('Weight kg', kg(state.weight), () => ((state.weight = Math.max(0, state.weight - 2.5)), render()), () => ((state.weight += 2.5), render())),
         ),
+        guidePanel(ex),
         notesEditor(ex),
         h('button', { type: 'button', className: 'primary', onclick: () => logSet() }, 'Log set'),
         h('button', { type: 'button', onclick: () => logSet(true) }, 'Skip set'),

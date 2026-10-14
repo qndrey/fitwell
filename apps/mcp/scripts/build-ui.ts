@@ -1,4 +1,4 @@
-// Builds each view in ui/<name>/ (index.html + main.ts + style.css) into one self-contained HTML string,
+// Builds each view in ui/<name>/ (index.html + main.ts + style.css; ui/shared has code and styles views import, not a view) into one self-contained HTML string,
 // written as src/ui/generated/<name>.ts so the Worker, tests and tsc can import it. Run: npm run build:ui
 import { build } from 'esbuild';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { join } from 'node:path';
 const OUT = 'src/ui/generated';
 mkdirSync(OUT, { recursive: true });
 
-for (const name of readdirSync('ui', { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
+for (const name of readdirSync('ui', { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join('ui', d.name, 'main.ts'))).map((d) => d.name)) {
   const dir = join('ui', name);
   const js = await build({ entryPoints: [join(dir, 'main.ts')], bundle: true, format: 'esm', minify: true, target: 'es2022', write: false, legalComments: 'none' });
   const css = await build({ entryPoints: [join(dir, 'style.css')], bundle: true, minify: true, write: false, loader: { '.css': 'css' } });

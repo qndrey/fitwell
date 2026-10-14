@@ -117,6 +117,12 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [x] A note per exercise: in plans and templates, editable in the player (`set_exercise_note`, app-only), shown in the summary and in history, and the previous session's note appears as "Last note". Finished exercises can still be opened to change their note.
 - [ ] Deploy: remote migration 0008, `wrangler deploy`.
 
+**Phase 5c: exercise guides (2026-10-14)**
+- [x] Research on exercise images: the images of free-exercise-db (our instruction source) have no known licence (the maintainer says so), wger has clear per-image CC-BY-SA licences but covers few of our exercises and almost no machines, and ExerciseDB/MuscleWiki/RepDB are commercial or unclear. Decision: no photos or illustrations for now.
+- [x] `show_exercise` (view `ui://fitwell/exercise.html`) and the player's "How to do it" (`get_exercise_guide`, app-only): original front/back body drawing with primary and secondary muscles (`exercises/bodyMap.ts`), the library's steps, a "Find a demo video" button (a video search, so no link can go stale; `app.openLink`, with the search words shown when the host refuses), and our own written setup, form cues and common mistakes for 21 machine and station types plus generic cable and machine guidance (`exercises/machines.ts`; applies only to exercises with machine or cable equipment). The library's step text itself comes from free-exercise-db (Unlicense).
+- [ ] Not done: photos or illustrations; a pass to rewrite the library's step text for the exercises where it is awkward.
+- [ ] Deploy (no migration).
+
 ## 6. Risks and open items
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.

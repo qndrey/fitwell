@@ -181,3 +181,78 @@ describe('privacy', () => {
     expect(left!.n).toBe(0);
   });
 });
+
+describe('cardio blocks and notes', () => {
+  const RUN = 'act:run-10';
+  const CHEST = 'ex:Barbell_Bench_Press_-_Medium_Grip';
+
+  it('runs a warm-up and a finisher as steps of a strength workout, and counts them as cardio minutes, not as a workout', async () => {
+    await call(client, 'update_profile', { weight_kg: 80 });
+    const plan = await start({ name: 'Push', exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }], cardio: [{ activity_id: RUN, minutes: 10, when: 'before' }, { activity_id: 'act:row-machine', minutes: 15, when: 'after', distance_km: 3 }] });
+    expect(plan.cardio.map((c) => [c.id, c.when, c.plannedMin, c.done])).toEqual([['c1', 'before', 10, false], ['c2', 'after', 15, false]]);
+    await call(client, 'log_cardio_block', { workoutId: plan.workoutId, blockId: 'c1', minutes: 12 });
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: 's1.1', reps: 8, weightKg: 60 });
+    await call(client, 'log_cardio_block', { workoutId: plan.workoutId, blockId: 'c2', skip: true });
+
+    // A reload picks up where it left off.
+    const again = (await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan;
+    expect(again.cardio).toMatchObject([{ id: 'c1', done: true, minutes: 12 }, { id: 'c2', done: false, skipped: true }]);
+
+    const summary = (await call(client, 'finish_workout', { workoutId: plan.workoutId })).data as { cardio?: { activity: string; minutes: number; when: string; kcal?: number }[] };
+    expect(summary.cardio).toHaveLength(1);
+    expect(summary.cardio![0]).toMatchObject({ minutes: 12, when: 'before' });
+    expect(summary.cardio![0]!.kcal).toBeGreaterThan(50);
+
+    const p = (await call(client, 'get_progress', { days: 30 })).data as { training: { sessions: { strength: number; cardio: number } } };
+    expect(p.training.sessions).toEqual({ strength: 1, cardio: 0 }); // one workout, not two
+    const dash = (await client.callTool({ name: 'show_dashboard', arguments: { days: 30 } })).structuredContent as { progress: { training: { weeks: { cardioMin: number }[] } } };
+    expect(dash.progress.training.weeks.reduce((n, w) => n + w.cardioMin, 0)).toBe(12);
+    const history = (await call(client, 'get_workout_history', { days: 7 })).data.workouts as { cardio?: unknown[] }[];
+    expect(history[0]!.cardio).toHaveLength(1);
+  });
+
+  it('keeps cardio and notes in templates', async () => {
+    const saved = await call(client, 'save_workout_template', { name: 'Push day', exercises: [{ id: CHEST, sets: 3, reps: 8, notes: 'pause on the chest' }], cardio: [{ activity_id: RUN, minutes: 5, when: 'before' }] });
+    expect(saved.isError, saved.text).toBe(false);
+    const listed = (await call(client, 'list_workout_templates', {})).data.templates as { id: string; exercises: string[]; cardio: string[] }[];
+    expect(listed[0]!.exercises[0]).toContain('(pause on the chest)');
+    expect(listed[0]!.cardio).toEqual([expect.stringContaining('5 min')]);
+    const plan = await start({ template_id: listed[0]!.id });
+    expect(plan.exercises[0]!.notes).toBe('pause on the chest');
+    expect(plan.cardio).toHaveLength(1);
+    // Cardio given with a template replaces the template's.
+    const swapped = await start({ template_id: listed[0]!.id, cardio: [{ activity_id: RUN, minutes: 20, when: 'after' }] });
+    expect(swapped.cardio).toMatchObject([{ when: 'after', plannedMin: 20 }]);
+  });
+
+  it('saves a note per exercise from the player, shows it in the summary, and reminds of it next time', async () => {
+    const plan = await start({ exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }, { id: SQUAT, sets: 1, reps: 5, weight_kg: 80 }] });
+    expect(plan.exercises.map((e) => e.uid)).toEqual(['e1', 'e2']);
+    expect((await call(client, 'set_exercise_note', { workoutId: plan.workoutId, exerciseId: 'e1', notes: '  bench at slot 3  ' })).isError).toBe(false);
+    expect((await call(client, 'set_exercise_note', { workoutId: plan.workoutId, exerciseId: 'e9', notes: 'x' })).isError).toBe(true);
+    const mid = (await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan;
+    expect(mid.exercises[0]!.notes).toBe('bench at slot 3');
+    const summary = await doWorkout(plan, () => 5);
+    expect((summary.exercises as { name: string; notes?: string }[]).find((e) => e.notes)).toMatchObject({ notes: 'bench at slot 3' });
+
+    const next = await start({ exercises: [{ id: CHEST, sets: 1, reps: 8 }] });
+    expect(next.exercises[0]).toMatchObject({ lastNotes: 'bench at slot 3' });
+    expect(next.exercises[0]!.notes).toBeUndefined();
+    // Clearing a note removes it.
+    await call(client, 'set_exercise_note', { workoutId: next.workoutId, exerciseId: 'e1', notes: 'new' });
+    await call(client, 'set_exercise_note', { workoutId: next.workoutId, exerciseId: 'e1', notes: '' });
+    expect(((await call(client, 'get_workout', { workoutId: next.workoutId })).data.workout as WorkoutPlan).exercises[0]!.notes).toBeUndefined();
+  });
+
+  it('logs a past workout with notes and a cardio finisher, and rejects unknown activities and other people\'s workouts', async () => {
+    await call(client, 'update_profile', { weight_kg: 80 });
+    const res = await call(client, 'log_past_workout', { day: '2026-10-12', exercises: [{ id: CHEST, sets: [{ reps: 8, weight_kg: 60 }], notes: 'felt strong' }], cardio: [{ activity_id: RUN, minutes: 10, when: 'after', distance_km: 1.8 }] });
+    expect(res.isError, res.text).toBe(false);
+    expect(res.data).toMatchObject({ exercises: [{ notes: 'felt strong' }], cardio: [{ minutes: 10, distanceKm: 1.8, when: 'after' }] });
+    expect((await call(client, 'log_past_workout', { day: '2026-10-12', exercises: [{ id: CHEST, sets: [{ reps: 8 }] }], cardio: [{ activity_id: 'act:nope', minutes: 5 }] })).text).toContain('Unknown activity id');
+    const plan = await start({ exercises: [{ id: CHEST, sets: 1, reps: 8 }], cardio: [{ activity_id: RUN, minutes: 5 }] });
+    const bo = await connectAs(env, await signedInUser(env, 'bo@example.com'));
+    expect((await call(bo, 'log_cardio_block', { workoutId: plan.workoutId, blockId: 'c1' })).isError).toBe(true);
+    expect((await call(bo, 'set_exercise_note', { workoutId: plan.workoutId, exerciseId: 'e1', notes: 'x' })).isError).toBe(true);
+  });
+});

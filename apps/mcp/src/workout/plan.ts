@@ -12,6 +12,8 @@ export interface PlannedSet {
 }
 
 export interface PlannedExercise {
+  /** Identifies this entry inside the workout (the same exercise can appear twice); notes are saved under it. */
+  uid: string;
   id: string;
   name: string;
   equipment: string;
@@ -22,6 +24,24 @@ export interface PlannedExercise {
   lastTime?: string;
   /** Why the planned weight is what it is (progression rule), when the server chose it. */
   note?: string;
+  /** The person's own note for this exercise in this workout; editable in the player. */
+  notes?: string;
+  /** The note from the previous session with this exercise. */
+  lastNotes?: string;
+}
+
+/** Cardio inside the workout: a warm-up before the lifting or a finisher after it. */
+export interface PlannedCardio {
+  id: string;
+  name: string;
+  when: 'before' | 'after';
+  plannedMin: number;
+  plannedKm?: number;
+  /** What was logged. */
+  minutes?: number;
+  distanceKm?: number;
+  done: boolean;
+  skipped?: boolean;
 }
 
 export interface WorkoutPlan {
@@ -30,6 +50,8 @@ export interface WorkoutPlan {
   startedAt: number;
   finished: boolean;
   exercises: PlannedExercise[];
+  /** Empty for a workout without cardio. */
+  cardio: PlannedCardio[];
 }
 
 export const WORKOUT_VIEW_URI = 'ui://fitwell/workout.html';

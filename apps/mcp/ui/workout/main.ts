@@ -1,17 +1,24 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
-import type { PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
+import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
 
 interface FinishSummary {
   minutes: number;
   volumeKg: number;
-  exercises: { name: string; done: string; personalRecord?: string }[];
+  exercises: { name: string; done: string; personalRecord?: string; notes?: string }[];
+  cardio?: { activity: string; when: string; minutes: number; distanceKm?: number; kcal?: number }[];
 }
+
+/** One step of the workout: a warm-up, an exercise or a finisher, in the order they are done. */
+type Item = { kind: 'ex'; ex: PlannedExercise } | { kind: 'cardio'; c: PlannedCardio };
 
 const state = {
   plan: null as WorkoutPlan | null,
   current: 0,
   reps: 0,
   weight: 0,
+  minutes: 0,
+  km: 0,
+  noteOpen: false,
   restUntil: 0,
   finished: null as FinishSummary | null,
   finishing: false,
@@ -42,6 +49,12 @@ const mmss = (ms: number) => {
 const kg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const closed = (s: PlannedSet) => s.done || !!s.skipped;
 const nextSet = (e: PlannedExercise) => e.sets.find((s) => !closed(s));
+const cardioClosed = (c: PlannedCardio) => c.done || !!c.skipped;
+const items = (): Item[] => {
+  const plan = state.plan!;
+  return [...plan.cardio.filter((c) => c.when === 'before').map((c): Item => ({ kind: 'cardio', c })), ...plan.exercises.map((ex): Item => ({ kind: 'ex', ex })), ...plan.cardio.filter((c) => c.when === 'after').map((c): Item => ({ kind: 'cardio', c }))];
+};
+const itemOpen = (it: Item) => (it.kind === 'ex' ? !!nextSet(it.ex) : !cardioClosed(it.c));
 
 // ---------- workout logic ----------
 /** The tool result may be a replay (chat reopened): fetch the stored state first, falling back to the result. */
@@ -59,11 +72,12 @@ async function open(plan: WorkoutPlan) {
 
 function load(plan: WorkoutPlan) {
   if (state.plan?.workoutId === plan.workoutId) return;
+  plan.cardio ??= []; // a workout saved before cardio blocks existed
   state.plan = plan;
   state.finished = null;
   state.restUntil = 0;
-  // Resuming: start at the first exercise with an open set.
-  const open = plan.exercises.findIndex((e) => nextSet(e));
+  // Resuming: start at the first step that still has something open.
+  const open = items().findIndex(itemOpen);
   if (open === -1 || plan.finished) {
     void finish();
     return;
@@ -73,27 +87,35 @@ function load(plan: WorkoutPlan) {
 
 /** Prefill the steppers: the previous done set of this exercise if there is one (carry over), else the plan. */
 function select(i: number) {
-  const ex = state.plan!.exercises[i]!;
+  const it = items()[i]!;
   state.current = i;
-  const target = nextSet(ex) ?? ex.sets[ex.sets.length - 1]!;
-  const prev = [...ex.sets].reverse().find((s) => s.done);
-  state.reps = prev?.reps ?? target.targetReps;
-  state.weight = prev?.weightKg ?? target.weightKg ?? 0;
+  state.noteOpen = it.kind === 'ex' && !!it.ex.notes;
+  if (it.kind === 'ex') {
+    const ex = it.ex;
+    const target = nextSet(ex) ?? ex.sets[ex.sets.length - 1]!;
+    const prev = [...ex.sets].reverse().find((x) => x.done);
+    state.reps = prev?.reps ?? target.targetReps;
+    state.weight = prev?.weightKg ?? target.weightKg ?? 0;
+  } else {
+    state.minutes = it.c.minutes ?? it.c.plannedMin;
+    state.km = it.c.distanceKm ?? it.c.plannedKm ?? 0;
+  }
   render();
 }
 
 function nextOpen(from: number): number {
-  const ex = state.plan!.exercises;
-  for (let k = 0; k < ex.length; k++) {
-    const i = (from + k) % ex.length;
-    if (nextSet(ex[i]!)) return i;
+  const all = items();
+  for (let k = 0; k < all.length; k++) {
+    const i = (from + k) % all.length;
+    if (itemOpen(all[i]!)) return i;
   }
   return -1;
 }
 
 function logSet(skip = false) {
-  const plan = state.plan!;
-  const ex = plan.exercises[state.current]!;
+  const it = items()[state.current]!;
+  if (it.kind !== 'ex') return;
+  const ex = it.ex;
   const set = nextSet(ex);
   if (!set) return;
   if (skip) set.skipped = true;
@@ -112,6 +134,45 @@ function logSet(skip = false) {
   } else select(next);
 }
 
+function logCardio(skip = false) {
+  const it = items()[state.current]!;
+  if (it.kind !== 'cardio') return;
+  const c = it.c;
+  if (skip) c.skipped = true;
+  else {
+    c.done = true;
+    c.minutes = state.minutes;
+    if (state.km > 0) c.distanceKm = state.km;
+    delete c.skipped;
+  }
+  void syncCardio(c, skip);
+  const next = nextOpen(state.current + 1);
+  if (next === -1) render();
+  else select(next);
+}
+
+async function syncCardio(c: PlannedCardio, skip: boolean) {
+  try {
+    const res = await app.callServerTool({ name: 'log_cardio_block', arguments: { workoutId: state.plan!.workoutId, blockId: c.id, skip, ...(skip ? {} : { minutes: c.minutes ?? c.plannedMin, ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}) }) } });
+    state.serverOk = !res.isError;
+  } catch {
+    state.serverOk = false;
+  }
+  render();
+  void app.updateModelContext({ content: [{ type: 'text', text: `Workout in progress. ${progressText()}` }] }).catch(() => undefined);
+}
+
+/** Saved when the person leaves the note field; the text is kept locally at once so a redraw never loses it. */
+async function saveNote(ex: PlannedExercise) {
+  try {
+    const res = await app.callServerTool({ name: 'set_exercise_note', arguments: { workoutId: state.plan!.workoutId, exerciseId: ex.uid, notes: ex.notes ?? '' } });
+    state.serverOk = !res.isError;
+  } catch {
+    state.serverOk = false;
+  }
+  render();
+}
+
 async function sync(set: PlannedSet, ex: PlannedExercise, skip: boolean) {
   try {
     const args = { workoutId: state.plan!.workoutId, setId: set.id, reps: skip ? 0 : (set.reps ?? 0), skip, ...(ex.bodyweight || skip ? {} : { weightKg: set.weightKg }) };
@@ -126,10 +187,13 @@ async function sync(set: PlannedSet, ex: PlannedExercise, skip: boolean) {
 
 function progressText(): string {
   const plan = state.plan!;
-  const parts = plan.exercises.map((ex) => {
-    const done = ex.sets.filter((s) => s.done);
-    if (!done.length) return `${ex.name}: not done`;
-    return `${ex.name}: ${done.map((s) => (ex.bodyweight ? `${s.reps}` : `${s.reps}×${kg(s.weightKg ?? 0)} kg`)).join(', ')}`;
+  const parts = items().map((it) => {
+    if (it.kind === 'cardio') return it.c.done ? `${it.c.name} ${it.c.minutes ?? it.c.plannedMin} min${it.c.distanceKm ? `, ${kg(it.c.distanceKm)} km` : ''}` : `${it.c.name}: ${it.c.skipped ? 'skipped' : 'not done'}`;
+    const ex = it.ex;
+    const done = ex.sets.filter((x) => x.done);
+    const note = ex.notes ? ` (note: ${ex.notes})` : '';
+    if (!done.length) return `${ex.name}: not done${note}`;
+    return `${ex.name}: ${done.map((x) => (ex.bodyweight ? `${x.reps}` : `${x.reps}×${kg(x.weightKg ?? 0)} kg`)).join(', ')}${note}`;
   });
   return `${plan.name} (${mmss(Date.now() - plan.startedAt)}). ${parts.join('; ')}.`;
 }
@@ -154,7 +218,7 @@ async function finish() {
   state.plan!.finished = true;
   const prs = summary?.exercises.filter((e) => e.personalRecord).map((e) => `${e.name}: ${e.personalRecord}`) ?? [];
   const text = summary
-    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}`).join('; ')}.${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}`
+    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}${e.notes ? ` (note: ${e.notes})` : ''}`).join('; ')}.${summary.cardio?.length ? ` Cardio: ${summary.cardio.map((c) => `${c.minutes} min ${c.activity}${c.distanceKm ? ` ${kg(c.distanceKm)} km` : ''}`).join('; ')}.` : ''}${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}`
     : `I finished my workout. ${progressText()}`;
   try {
     const res = await app.sendMessage({ role: 'user', content: [{ type: 'text', text }] });
@@ -181,16 +245,67 @@ function stepper(label: string, value: string, dec: () => void, inc: () => void)
   );
 }
 
+/** A note field for one exercise. The text is kept in the plan at once; the server gets it when the field is left. */
+function notesEditor(ex: PlannedExercise) {
+  const area = h('textarea', {
+    rows: 2,
+    maxLength: 300,
+    value: ex.notes ?? '',
+    placeholder: 'e.g. seat 4, slow on the way down',
+    'aria-label': `Note for ${ex.name}`,
+    oninput: (e: Event) => {
+      ex.notes = (e.target as HTMLTextAreaElement).value;
+    },
+    onchange: () => void saveNote(ex),
+  });
+  return h(
+    'details',
+    { className: 'notes', open: state.noteOpen || !!ex.notes, ontoggle: (e: Event) => ((state.noteOpen = (e.target as HTMLDetailsElement).open), undefined) },
+    h('summary', {}, ex.notes ? 'Note' : 'Add a note'),
+    area,
+  );
+}
+
+/** What comes after the set that was just logged, shown while resting: reps and weight, last time, notes. */
+function upNext(it: Item | undefined): Child {
+  if (!it || !itemOpen(it)) return h('p', { className: 'next' }, h('strong', {}, 'That was the last set.'), ' Next: finish the workout.');
+  if (it.kind === 'cardio') {
+    return h('div', { className: 'next' }, h('p', { className: 'muted small' }, it.c.when === 'before' ? 'Next: warm-up' : 'Next: finisher'), h('p', { className: 'nexttitle' }, it.c.name), h('p', {}, `${state.minutes} min${state.km > 0 ? ` · ${kg(state.km)} km` : ''}`));
+  }
+  const ex = it.ex;
+  const set = nextSet(ex)!;
+  const n = ex.sets.indexOf(set) + 1;
+  const started = ex.sets.some(closed);
+  return h(
+    'div',
+    { className: 'next' },
+    h('p', { className: 'muted small' }, started ? 'Next set' : 'Next exercise'),
+    h('p', { className: 'nexttitle' }, ex.name),
+    h('p', {}, `Set ${n} of ${ex.sets.length} · `, h('strong', {}, ex.bodyweight ? `${state.reps} reps, bodyweight` : `${state.reps} × ${kg(state.weight)} kg`)),
+    !started && ex.lastTime && h('p', { className: 'muted small' }, `Last time: ${ex.lastTime}`),
+    !started && ex.note && h('p', { className: 'muted small' }, ex.note),
+    ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`),
+    !started && !ex.notes && ex.lastNotes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
+  );
+}
+
+function listLabel(it: Item) {
+  if (it.kind === 'cardio') return `${it.c.name} · ${it.c.minutes ?? it.c.plannedMin} min`;
+  return it.ex.name;
+}
+
 function render() {
   const plan = state.plan;
   if (!plan) return;
+  // Typing a note: a redraw would drop the cursor, so wait until the field is left.
+  if (document.activeElement?.tagName === 'TEXTAREA') return;
+  const all = items();
+  const it = all[state.current]!;
   const total = plan.exercises.reduce((n, e) => n + e.sets.length, 0);
   const logged = plan.exercises.reduce((n, e) => n + e.sets.filter(closed).length, 0);
-  const ex = plan.exercises[state.current]!;
   const allDone = nextOpen(0) === -1;
   const resting = state.restUntil > Date.now();
   const ctx = app.getHostContext();
-  const set = nextSet(ex);
 
   const body: Child[] = [
     h('header', {}, h('strong', {}, plan.name), h('span', { className: 'muted clock' }, `${logged}/${total} sets · `, h('span', { id: 'elapsed' }, mmss(Date.now() - plan.startedAt)))),
@@ -204,7 +319,8 @@ function render() {
         { className: 'card' },
         h('h1', {}, 'Workout finished'),
         h('p', { className: 'muted' }, `${f.minutes} min${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
-        ...f.exercises.map((e) => h('p', {}, h('strong', {}, e.name), ` ${e.done}`, e.personalRecord && h('span', { className: 'done' }, ` · ${e.personalRecord}`))),
+        ...f.exercises.map((e) => h('p', {}, h('strong', {}, e.name), ` ${e.done}`, e.personalRecord && h('span', { className: 'done' }, ` · ${e.personalRecord}`), e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`))),
+        ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · about ${c.kcal} kcal` : ''}`)),
         state.note && h('p', { className: 'muted small' }, state.note),
       ),
     );
@@ -217,7 +333,7 @@ function render() {
         { className: 'card rest', 'aria-label': 'Rest' },
         h('p', { className: 'muted' }, 'Rest'),
         h('p', { className: 'time', role: 'timer', id: 'rest' }, mmss(state.restUntil - Date.now())),
-        h('p', { className: 'muted small' }, allDone ? 'All sets done' : `Next: ${ex.name}, set ${ex.sets.indexOf(set ?? ex.sets[0]!) + 1}`),
+        upNext(allDone ? undefined : it),
         h(
           'div',
           { className: 'actions' },
@@ -226,16 +342,19 @@ function render() {
         ),
       ),
     );
-  } else if (!allDone && set) {
+  } else if (it.kind === 'ex' && nextSet(it.ex)) {
+    const ex = it.ex;
+    const set = nextSet(ex)!;
     body.push(
       h(
         'section',
         { className: 'card', 'aria-label': 'Current set' },
-        h('p', { className: 'muted small' }, `Exercise ${state.current + 1} of ${plan.exercises.length} · ${ex.equipment}`),
+        h('p', { className: 'muted small' }, `Exercise ${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length} · ${ex.equipment}`),
         h('h1', {}, ex.name),
         h('p', {}, `Set ${ex.sets.indexOf(set) + 1} of ${ex.sets.length} · target ${set.targetReps} reps`),
         ex.lastTime && h('p', { className: 'muted small' }, `Last time: ${ex.lastTime}`),
         ex.note && h('p', { className: 'muted small' }, ex.note),
+        ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
         h(
           'div',
           { className: 'steppers' },
@@ -244,28 +363,66 @@ function render() {
             ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', {}, 'Bodyweight'))
             : stepper('Weight kg', kg(state.weight), () => ((state.weight = Math.max(0, state.weight - 2.5)), render()), () => ((state.weight += 2.5), render())),
         ),
+        notesEditor(ex),
         h('button', { type: 'button', className: 'primary', onclick: () => logSet() }, 'Log set'),
         h('button', { type: 'button', onclick: () => logSet(true) }, 'Skip set'),
       ),
     );
+  } else if (it.kind === 'cardio' && !cardioClosed(it.c)) {
+    const c = it.c;
+    body.push(
+      h(
+        'section',
+        { className: 'card', 'aria-label': 'Cardio' },
+        h('p', { className: 'muted small' }, c.when === 'before' ? 'Warm-up' : 'Finisher'),
+        h('h1', {}, c.name),
+        h('p', {}, `Planned ${c.plannedMin} min${c.plannedKm ? ` · ${kg(c.plannedKm)} km` : ''}`),
+        h(
+          'div',
+          { className: 'steppers' },
+          stepper('Minutes', String(state.minutes), () => ((state.minutes = Math.max(1, state.minutes - 1)), render()), () => ((state.minutes += 1), render())),
+          stepper('Distance km', state.km > 0 ? kg(state.km) : '–', () => ((state.km = Math.max(0, Math.round((state.km - 0.5) * 10) / 10)), render()), () => ((state.km = Math.round((state.km + 0.5) * 10) / 10), render())),
+        ),
+        h('button', { type: 'button', className: 'primary', onclick: () => logCardio() }, 'Done'),
+        h('button', { type: 'button', onclick: () => logCardio(true) }, 'Skip'),
+      ),
+    );
+  } else if (it.kind === 'ex') {
+    // An exercise with nothing left to do: what was logged, and its note can still be changed.
+    const ex = it.ex;
+    body.push(
+      h(
+        'section',
+        { className: 'card', 'aria-label': 'Finished exercise' },
+        h('h1', {}, ex.name),
+        h('p', { className: 'muted' }, ex.sets.map((x) => (x.done ? (ex.bodyweight ? `${x.reps}` : `${x.reps}×${kg(x.weightKg ?? 0)} kg`) : 'skipped')).join(' · ')),
+        notesEditor(ex),
+        !allDone && h('button', { type: 'button', className: 'primary', onclick: () => select(nextOpen(state.current + 1)) }, 'Continue the workout'),
+      ),
+    );
+  } else {
+    const c = it.c;
+    body.push(h('section', { className: 'card', 'aria-label': 'Finished cardio' }, h('h1', {}, c.name), h('p', { className: 'muted' }, c.done ? `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}` : 'skipped'), !allDone && h('button', { type: 'button', className: 'primary', onclick: () => select(nextOpen(state.current + 1)) }, 'Continue the workout')));
   }
 
   body.push(
     h(
       'ol',
-      { className: 'list', 'aria-label': 'Exercises' },
-      ...plan.exercises.map((e, i) =>
-        h(
+      { className: 'list', 'aria-label': 'Workout steps' },
+      ...all.map((step, i) => {
+        const open = itemOpen(step);
+        const dots = step.kind === 'ex' ? step.ex.sets.map((x) => (x.done ? '●' : x.skipped ? '–' : '○')).join('') : step.c.done ? '●' : step.c.skipped ? '–' : '○';
+        return h(
           'li',
           {},
           h(
             'button',
-            { type: 'button', 'aria-current': i === state.current && !allDone ? 'step' : 'false', disabled: !!state.finished || state.finishing || !nextSet(e), onclick: () => select(i) },
-            h('span', {}, e.name),
-            h('span', { className: nextSet(e) ? 'dots' : 'dots done' }, e.sets.map((s) => (s.done ? '●' : s.skipped ? '–' : '○')).join('')),
+            { type: 'button', 'aria-current': i === state.current ? 'step' : 'false', disabled: !!state.finished || state.finishing || resting, onclick: () => select(i) },
+            h('span', {}, listLabel(step)),
+            h('span', { className: open ? 'dots' : 'dots done' }, dots),
           ),
-        ),
-      ),
+        );
+      }),
     ),
   );
   if (!state.finished && !state.finishing) body.push(h('button', { type: 'button', className: allDone ? 'primary' : '', onclick: () => void finish() }, allDone ? 'Finish and send to Claude' : 'Finish early'));

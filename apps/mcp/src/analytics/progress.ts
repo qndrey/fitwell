@@ -72,6 +72,8 @@ export function buildProgress(i: ProgressInput): Progress {
     const wk = weekOf(w.day);
     if (!wk) continue;
     wk.strength++;
+    // Warm-ups and finishers count as cardio minutes without making the session a second workout.
+    for (const b of w.cardioBlocks) if (b.done) wk.cardioMin += b.durationMin ?? b.plannedMin;
     for (const e of w.exercises) {
       const done = e.sets.filter((s) => s.type === 'working' && s.done !== false).length;
       if (!done) continue;

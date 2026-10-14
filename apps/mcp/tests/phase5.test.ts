@@ -310,7 +310,7 @@ describe('merged tools', () => {
     const { tools } = await client.listTools();
     const visible = tools.filter((t) => !(t._meta as { ui?: { visibility?: string[] } } | undefined)?.ui?.visibility?.includes('app'));
     expect(visible.length).toBeLessThanOrEqual(40);
-    expect(JSON.stringify(visible).length).toBeLessThan(36_000);
+    expect(JSON.stringify(visible).length).toBeLessThan(40_000);
     for (const gone of ['get_day', 'get_nutrition_summary', 'log_weight', 'log_measurements', 'delete_recipe', 'get_exercise', 'get_last_import', 'list_recipes', 'get_grocery_list']) expect(tools.some((t) => t.name === gone)).toBe(false);
   });
 

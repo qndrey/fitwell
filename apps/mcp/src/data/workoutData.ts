@@ -4,7 +4,36 @@ import type { CardioDetails, WorkoutExercise, WorkoutSet } from '@fitwell/core/s
 /** A set as the server stores it: the web shape plus the target the plan asked for. */
 export type StoredSet = WorkoutSet & { targetReps?: number; skipped?: boolean };
 /** The web shape plus plan details shown in the player (the web backup format ignores the extras). */
-export type StoredExercise = Omit<WorkoutExercise, 'sets'> & { sets: StoredSet[]; restSec?: number; equipment?: string; lastTime?: string; note?: string };
+export type StoredExercise = Omit<WorkoutExercise, 'sets'> & {
+  sets: StoredSet[];
+  restSec?: number;
+  equipment?: string;
+  lastTime?: string;
+  /** Why the planned weight is what it is (the progression rule). */
+  note?: string;
+  /** The person's own note for this exercise in this workout ("seat 4", "left shoulder tight"). */
+  notes?: string;
+  /** The note from the previous session with this exercise, shown as a reminder. */
+  lastNotes?: string;
+};
+
+/** A cardio block inside a strength workout: a warm-up before the lifting or a finisher after it. */
+export interface CardioBlock {
+  id: string;
+  when: 'before' | 'after';
+  activityRef: string;
+  activityName: string;
+  met: number;
+  plannedMin: number;
+  plannedKm?: number;
+  /** What was done, once logged. */
+  done: boolean;
+  skipped?: boolean;
+  durationMin?: number;
+  distanceKm?: number;
+  kcalEstimated?: number;
+  weightKgUsed?: number;
+}
 
 export interface Workout {
   id: string;
@@ -15,6 +44,8 @@ export interface Workout {
   finishedAt: number | null;
   exercises: StoredExercise[];
   cardio: CardioDetails | null;
+  /** Cardio blocks of a strength workout. */
+  cardioBlocks: CardioBlock[];
   templateId: string | null;
   createdAt: number;
   updatedAt: number;
@@ -26,12 +57,22 @@ export interface TemplateExercise {
   reps: number;
   weightKg?: number;
   restSec: number;
+  notes?: string;
+}
+
+/** A cardio block of a template, before it has an id or has been done. */
+export interface TemplateCardio {
+  activityId: string;
+  minutes: number;
+  when: 'before' | 'after';
+  distanceKm?: number;
 }
 
 export interface Template {
   id: string;
   name: string;
   exercises: TemplateExercise[];
+  cardio: TemplateCardio[];
   lastUsedAt: number | null;
 }
 
@@ -52,11 +93,12 @@ const toWorkout = (r: Row): Workout => ({
   finishedAt: (r.finished_at as number | null) ?? null,
   exercises: parse<StoredExercise[]>(r.exercises, []),
   cardio: parse<CardioDetails | null>(r.cardio, null),
+  cardioBlocks: parse<CardioBlock[]>(r.cardio_blocks, []),
   templateId: (r.template_id as string | null) ?? null,
   createdAt: r.created_at as number,
   updatedAt: r.updated_at as number,
 });
-const toTemplate = (r: Row): Template => ({ id: r.id as string, name: r.name as string, exercises: parse<TemplateExercise[]>(r.exercises, []), lastUsedAt: (r.last_used_at as number | null) ?? null });
+const toTemplate = (r: Row): Template => ({ id: r.id as string, name: r.name as string, exercises: parse<TemplateExercise[]>(r.exercises, []), cardio: parse<TemplateCardio[]>(r.cardio_blocks, []), lastUsedAt: (r.last_used_at as number | null) ?? null });
 
 export class WorkoutData {
   constructor(
@@ -70,8 +112,8 @@ export class WorkoutData {
     const now = this.now();
     const row: Workout = { ...w, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
     await this.db
-      .prepare('INSERT INTO workouts (id, user_id, day, type, name, started_at, finished_at, exercises, cardio, template_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(row.id, this.userId, row.day, row.type, row.name, row.startedAt, row.finishedAt, row.type === 'strength' ? JSON.stringify(row.exercises) : null, row.cardio ? JSON.stringify(row.cardio) : null, row.templateId, now, now)
+      .prepare('INSERT INTO workouts (id, user_id, day, type, name, started_at, finished_at, exercises, cardio, cardio_blocks, template_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(row.id, this.userId, row.day, row.type, row.name, row.startedAt, row.finishedAt, row.type === 'strength' ? JSON.stringify(row.exercises) : null, row.cardio ? JSON.stringify(row.cardio) : null, row.cardioBlocks.length ? JSON.stringify(row.cardioBlocks) : null, row.templateId, now, now)
       .run();
     return row;
   }
@@ -87,6 +129,10 @@ export class WorkoutData {
       .prepare('UPDATE workouts SET exercises = ?, finished_at = COALESCE(?, finished_at), updated_at = ? WHERE user_id = ? AND id = ?')
       .bind(JSON.stringify(exercises), finishedAt ?? null, this.now(), this.userId, id)
       .run();
+  }
+
+  async saveCardioBlocks(id: string, blocks: CardioBlock[]): Promise<void> {
+    await this.db.prepare('UPDATE workouts SET cardio_blocks = ?, updated_at = ? WHERE user_id = ? AND id = ?').bind(blocks.length ? JSON.stringify(blocks) : null, this.now(), this.userId, id).run();
   }
 
   async delete(id: string): Promise<boolean> {
@@ -124,15 +170,15 @@ export class WorkoutData {
   }
 
   // ---------- templates ----------
-  async saveTemplate(name: string, exercises: TemplateExercise[]): Promise<Template> {
+  async saveTemplate(name: string, exercises: TemplateExercise[], cardio: TemplateCardio[] = []): Promise<Template> {
     const now = this.now();
     const id = crypto.randomUUID();
     await this.db
       .prepare(
-        `INSERT INTO workout_templates (id, user_id, name, exercises, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (user_id, name) DO UPDATE SET exercises = excluded.exercises, updated_at = excluded.updated_at`,
+        `INSERT INTO workout_templates (id, user_id, name, exercises, cardio_blocks, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (user_id, name) DO UPDATE SET exercises = excluded.exercises, cardio_blocks = excluded.cardio_blocks, updated_at = excluded.updated_at`,
       )
-      .bind(id, this.userId, name, JSON.stringify(exercises), now, now)
+      .bind(id, this.userId, name, JSON.stringify(exercises), cardio.length ? JSON.stringify(cardio) : null, now, now)
       .run();
     return (await this.templateByName(name))!;
   }

@@ -8,7 +8,11 @@ const SAMPLE = {
   exercises: [
     { id: 'ex:Barbell_Squat', sets: 2, reps: 5, rest_sec: 3 },
     { id: 'ex:Pullups', sets: 1, reps: 8, rest_sec: 3 },
-    { id: 'ex:Barbell_Bench_Press_-_Medium_Grip', sets: 1, reps: 8, weight_kg: 60, rest_sec: 3 },
+    { id: 'ex:Barbell_Bench_Press_-_Medium_Grip', sets: 1, reps: 8, weight_kg: 60, rest_sec: 3, notes: 'Pause on the chest' },
+  ],
+  cardio: [
+    { activity_id: 'act:row-machine', minutes: 5, when: 'before' },
+    { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 },
   ],
 };
 

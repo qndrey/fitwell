@@ -111,6 +111,12 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [x] Fewer tools: `delete_item` (8 kinds), `log_body`, `get_food_log`, `get_recipes`, exercise details in `search_exercises`, `check_result` on the import tool.
 - [ ] Deploy: remote migration 0007, `wrangler deploy`.
 
+**Phase 5b: feedback from the first real use (2026-10-14)**
+- [x] Cardio inside a strength workout: `start_workout`, templates and `log_past_workout` take `cardio` blocks (activity, minutes, optional km, `when` before or after). The player runs them as steps with minutes and distance steppers (`log_cardio_block`, app-only); calories use the same MET estimate as `log_cardio`. They count as cardio minutes in progress and the review, not as a second workout. Migration 0008 (`cardio_blocks` on workouts and templates).
+- [x] The rest screen shows what is next: the next set (or exercise) with reps × weight, last time, the progression note, the exercise note, or the next cardio block; after the final set it says to finish.
+- [x] A note per exercise: in plans and templates, editable in the player (`set_exercise_note`, app-only), shown in the summary and in history, and the previous session's note appears as "Last note". Finished exercises can still be opened to change their note.
+- [ ] Deploy: remote migration 0008, `wrangler deploy`.
+
 ## 6. Risks and open items
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.

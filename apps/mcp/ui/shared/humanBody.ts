@@ -82,8 +82,8 @@ export interface HumanBody {
   body: Body;
   /** Puts the body back in its rest pose: standing with the arms away from the sides, which shows every muscle. */
   rest(): void;
-  /** Poses the body. `grip` is how tightly the hands close (0 relaxed, 1 around a bar). */
-  update(k: Skeleton, grip?: number): void;
+  /** Poses the body. `grip` is how tightly the hands close (0 relaxed, 1 around a bar); `palm` is which way the palms face a bar ('under' for curls and chin-ups). */
+  update(k: Skeleton, grip?: number, palm?: 'over' | 'under'): void;
   setHighlight(primary: Iterable<string>, secondary: Iterable<string>): void;
   setHighlightVisible(on: boolean): void;
   setPalette(p: Palette): void;
@@ -246,7 +246,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
     return p;
   }
 
-  function update(k: Skeleton, grip = 1): void {
+  function update(k: Skeleton, grip = 1, palm: 'over' | 'under' = 'over'): void {
     const T = (j: keyof Skeleton) => toModel(k[j]);
     worldQ.clear();
     worldP.clear();
@@ -301,7 +301,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
       setBone(`upperarm_${m}`, aim(`upperarm_${m}`, `lowerarm_${m}`, elbow));
 
       // The hand: fingers along the wrist-to-grip line, the knuckles across the bar (the bar runs across the figure).
-      const fRest = P(`middle_01_${m}`).clone().sub(P(`hand_${m}`));
+      // Around a bar the knuckles lead the hand; an open hand (on the floor, hanging) is aimed along its fingers instead.
+      const fRest = P(`middle_01_${m}`).clone().sub(P(`hand_${m}`)).lerp(P(`middle_03_${m}`).clone().sub(P(`hand_${m}`)), 1 - grip);
       const lRest = P(`pinky_01_${m}`).clone().sub(P(`index_01_${m}`));
       const nRest = Y.clone().negate(); // the relaxed rest hand has its palm down (made square to the fingers below)
       nRest.addScaledVector(fRest.clone().normalize(), -nRest.dot(fRest.clone().normalize()));
@@ -309,7 +310,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
       const fDes = gripAt.clone().sub(wrist).normalize();
       const across = new Vector3(m === 'l' ? 1 : -1, 0, 0); // outward along the bar, pinky side
       const lDes = across.clone().addScaledVector(fDes, -across.dot(fDes)).normalize();
-      const nDes = fDes.clone().cross(lDes).multiplyScalar(sign);
+      const nDes = fDes.clone().cross(lDes).multiplyScalar(palm === 'under' ? -sign : sign);
       const qHand = align(fRest, nRest, fDes, nDes).multiply(restWorld.get(`hand_${m}`)!);
 
       // The forearm takes most of the hand's turn about its own axis, so the wrist is not wrung.
@@ -343,7 +344,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
       setBone(`calf_${m}`, aim(`calf_${m}`, `foot_${m}`, T(`ankle${s}`)));
       const restToe = new Vector3(0, -body.ankleHeight, body.toeFront);
       const toe = T(`toe${s}`).sub(T(`ankle${s}`));
-      setBone(`foot_${m}`, align(restToe, Y, toe, Y).multiply(restWorld.get(`foot_${m}`)!));
+      // The top of the foot faces up for a foot on the floor and forward for a foot on its toes: it is square to the hip line and the toes.
+      setBone(`foot_${m}`, align(restToe, Y, toe, hipLine.clone().cross(toe)).multiply(restWorld.get(`foot_${m}`)!));
       bone(`ball_${m}`).quaternion.copy(restLocal.get(`ball_${m}`)!);
     }
     group.updateMatrixWorld(true);

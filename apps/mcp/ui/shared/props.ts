@@ -1,7 +1,7 @@
 // The load and the furniture of the exercise animation: barbell, dumbbells, kettlebell, bench and floor, plus the colours
 // they take from the host theme. Plain three.js geometry; nothing here needs WebGL, so tests can build and move it in Node.
 import { CircleGeometry, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, SphereGeometry, TorusGeometry, BoxGeometry, Vector3, type Material, type Object3D } from 'three';
-import { BAR_RADIUS, BENCH_HEIGHT, PLATE_RADIUS, type MotionSpec, type Skeleton, type Vec3 } from '../../src/exercises/motion';
+import { BAR_RADIUS, BENCH_HEIGHT, PLATE_RADIUS, PULLUP_BAR_HEIGHT, type MotionSpec, type Skeleton, type Vec3 } from '../../src/exercises/motion';
 
 export interface Materials {
   load: Material;
@@ -99,19 +99,92 @@ function kettlebell(m: Materials): Group {
   return g;
 }
 
-function bench(m: Materials): Group {
+/** A flat bench, an incline bench (the back raised `incline` degrees), or an upright seat with a back pad (`seated`). */
+function bench(m: Materials, incline = 0, seated = false): Group {
   const g = new Group();
-  const top = new Mesh(new BoxGeometry(1.25, 0.08, 0.3), m.furniture);
-  top.position.set(-0.28, BENCH_HEIGHT - 0.04, 0);
-  g.add(top);
-  for (const x of [-0.8, 0.22]) {
+  if (incline === 0 && !seated) {
+    const top = new Mesh(new BoxGeometry(1.25, 0.08, 0.3), m.furniture);
+    top.position.set(-0.28, BENCH_HEIGHT - 0.04, 0);
+    g.add(top);
+    for (const x of [-0.8, 0.22]) {
+      for (const z of [0.1, -0.1]) {
+        const leg = new Mesh(new BoxGeometry(0.05, BENCH_HEIGHT - 0.08, 0.05), m.furniture);
+        leg.position.set(x, (BENCH_HEIGHT - 0.08) / 2, z);
+        g.add(leg);
+      }
+    }
+    return g;
+  }
+  // The hips sit at the foot of the back pad; the pad runs up along the trunk, a little behind it.
+  const theta = ((seated ? 90 : incline) * Math.PI) / 180;
+  const hip = seated ? { x: -0.15, y: 0.5 } : { x: 0, y: BENCH_HEIGHT + 0.1 };
+  const t = { x: -Math.cos(theta), y: Math.sin(theta) };
+  const front = { x: Math.sin(theta), y: Math.cos(theta) };
+  const pad = new Mesh(new BoxGeometry(0.9, 0.08, 0.3), m.furniture);
+  pad.position.set(hip.x - front.x * 0.14 + t.x * 0.3, hip.y - front.y * 0.14 + t.y * 0.3, 0);
+  pad.rotation.z = -theta;
+  g.add(pad);
+  const seat = new Mesh(new BoxGeometry(0.5, 0.08, 0.3), m.furniture);
+  seat.position.set(hip.x + 0.18, BENCH_HEIGHT - 0.04, 0);
+  g.add(seat);
+  for (const [x, h] of [[hip.x + 0.38, BENCH_HEIGHT - 0.08], [pad.position.x, pad.position.y - 0.04]] as const) {
     for (const z of [0.1, -0.1]) {
-      const leg = new Mesh(new BoxGeometry(0.05, BENCH_HEIGHT - 0.08, 0.05), m.furniture);
-      leg.position.set(x, (BENCH_HEIGHT - 0.08) / 2, z);
+      const leg = new Mesh(new BoxGeometry(0.05, h, 0.05), m.furniture);
+      leg.position.set(x, h / 2, z);
       g.add(leg);
     }
   }
   return g;
+}
+
+/** A pull-up bar on two posts. */
+function pullupBar(m: Materials): Group {
+  const g = new Group();
+  const bar = new Mesh(new CylinderGeometry(BAR_RADIUS * 1.2, BAR_RADIUS * 1.2, 1.1, 10), m.steel);
+  bar.rotation.x = Math.PI / 2;
+  bar.position.set(0, PULLUP_BAR_HEIGHT, 0);
+  g.add(bar);
+  for (const z of [0.55, -0.55]) {
+    const post = new Mesh(new BoxGeometry(0.06, PULLUP_BAR_HEIGHT + 0.05, 0.06), m.furniture);
+    post.position.set(0, (PULLUP_BAR_HEIGHT + 0.05) / 2, z);
+    post.userData.screen = z > 0 ? true : undefined;
+    g.add(post);
+  }
+  return g;
+}
+
+/** A lat pulldown station: seat, knee pad, a frame with a pulley overhead, and the cable down to the bar. */
+function pulldownStation(m: Materials, seatX: number, barLength: number): { group: Group; bar: Group; cable: Mesh; pulley: Vector3 } {
+  const g = new Group();
+  const seat = new Mesh(new BoxGeometry(0.5, 0.08, 0.34), m.furniture);
+  seat.position.set(seatX + 0.1, BENCH_HEIGHT - 0.04, 0);
+  g.add(seat);
+  const seatStem = new Mesh(new BoxGeometry(0.06, BENCH_HEIGHT - 0.08, 0.06), m.furniture);
+  seatStem.position.set(seatX + 0.1, (BENCH_HEIGHT - 0.08) / 2, 0);
+  g.add(seatStem);
+  const kneePad = new Mesh(new CylinderGeometry(0.045, 0.045, 0.34, 12), m.steel);
+  kneePad.rotation.x = Math.PI / 2;
+  kneePad.position.set(seatX + 0.4, 0.6, 0);
+  g.add(kneePad);
+  const frameX = seatX - 0.7;
+  const post = new Mesh(new BoxGeometry(0.08, 2.5, 0.08), m.furniture);
+  post.position.set(frameX, 1.25, 0);
+  const beam = new Mesh(new BoxGeometry(0.7, 0.06, 0.08), m.furniture);
+  beam.position.set(frameX + 0.35, 2.5, 0);
+  g.add(post, beam);
+  const pulley = new Vector3(-0.12, 2.42, 0);
+  const wheel = new Mesh(new CylinderGeometry(0.06, 0.06, 0.04, 16), m.steel);
+  wheel.rotation.x = Math.PI / 2;
+  wheel.position.copy(pulley);
+  g.add(wheel);
+  const cable = new Mesh(new CylinderGeometry(0.006, 0.006, 1, 6), m.steel);
+  g.add(cable);
+  const bar = new Group();
+  const handle = new Mesh(new CylinderGeometry(0.016, 0.016, barLength, 10), m.steel);
+  handle.rotation.x = Math.PI / 2;
+  bar.add(handle);
+  g.add(bar);
+  return { group: g, bar, cable, pulley };
 }
 
 /** The load and furniture for an exercise; they follow the pose through `update`. */
@@ -119,9 +192,15 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
   const group = new Group();
   const floor = new Mesh(new CircleGeometry(1.3, 40), m.floor);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(spec.pattern === 'bench' ? -0.15 : 0.05, 0.001, 0);
+  const lying = spec.pattern === 'bench' || spec.pattern === 'incline';
+  floor.position.set(lying ? -0.15 : spec.pattern === 'pushup' ? 0.6 : spec.pattern === 'lunge' ? -0.3 : 0.05, 0.001, 0);
   group.add(floor);
   if (spec.pattern === 'bench') group.add(bench(m));
+  if (spec.pattern === 'incline') group.add(bench(m, spec.variant.incline));
+  if (spec.pattern === 'press' && spec.variant.seated) group.add(bench(m, 0, true));
+  if (spec.pattern === 'pull' && !spec.variant.seated) group.add(pullupBar(m));
+  const station = spec.pattern === 'pull' && spec.variant.seated ? pulldownStation(m, -0.28, spec.variant.grip === 'wide' ? 1.15 : spec.variant.grip === 'close' ? 0.5 : 0.9) : null;
+  if (station) group.add(station.group);
 
   const load = spec.variant.load;
   const bar = load === 'barbell-back' || load === 'barbell-front' || load === 'barbell-hands' ? barbell(m) : null;
@@ -151,6 +230,16 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
     update(k: Skeleton) {
       bar?.position.copy(v3(k.bar));
       kettle?.position.copy(v3(k.bar));
+      if (station) {
+        station.bar.position.copy(v3(k.bar));
+        // The cable runs from the pulley down to the middle of the bar.
+        const from = station.pulley;
+        const to = v3(k.bar);
+        const d = to.clone().sub(from);
+        station.cable.position.copy(from).addScaledVector(d, 0.5);
+        station.cable.scale.set(1, d.length(), 1);
+        station.cable.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), d.normalize());
+      }
       if (bells.length) {
         bells[0]!.position.copy(v3(k.gripL));
         bells[1]!.position.copy(v3(k.gripR));

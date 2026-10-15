@@ -4,238 +4,52 @@
 // the bench press), so the animation cannot show a pose that breaks the lift. Pure: no three.js, no I/O; shared by the
 // server (which says which exercises have a motion) and the views (which draw it).
 
-export type Vec3 = { x: number; y: number; z: number };
-const vec = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
-const add = (a: Vec3, b: Vec3): Vec3 => vec(a.x + b.x, a.y + b.y, a.z + b.z);
-const sub = (a: Vec3, b: Vec3): Vec3 => vec(a.x - b.x, a.y - b.y, a.z - b.z);
-const mul = (a: Vec3, k: number): Vec3 => vec(a.x * k, a.y * k, a.z * k);
-const dot = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z;
-export const length = (a: Vec3) => Math.sqrt(dot(a, a));
-export const distance = (a: Vec3, b: Vec3) => length(sub(a, b));
-const norm = (a: Vec3): Vec3 => {
-  const l = length(a) || 1;
-  return mul(a, 1 / l);
-};
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const DEG = Math.PI / 180;
-
-/** Segment lengths in metres for a 1.75 m male figure. Axes: x forward (the way the figure faces), y up, z to the figure's left. */
-export const BODY = {
-  ankleHeight: 0.08,
-  shin: 0.42,
-  thigh: 0.43,
-  pelvis: 0.1,
-  lumbar: 0.22,
-  chest: 0.2,
-  shoulderDrop: 0.03,
-  neck: 0.08,
-  head: 0.23,
-  shoulderHalf: 0.2,
-  hipHalf: 0.09,
-  upperArm: 0.3,
-  forearm: 0.26,
-  hand: 0.08,
-  heelBack: 0.06,
-  toeFront: 0.2,
-  midfoot: 0.07,
-} as const;
-
-/** The measurements of a body, in metres. The solvers take one, so the same form rules hold for whichever body is drawn. */
-export type Body = { -readonly [K in keyof typeof BODY]: number };
-/** Hip joint to the centre of the shoulders along the trunk. */
-export const trunkOf = (b: Body) => b.pelvis + b.lumbar + b.chest - b.shoulderDrop;
-/** Shoulder joint to the centre of a gripped bar with the arm straight. */
-export const armOf = (b: Body) => b.upperArm + b.forearm + b.hand;
-export const TRUNK = trunkOf(BODY);
-export const ARM = armOf(BODY);
-export const PLATE_RADIUS = 0.225;
-export const BAR_RADIUS = 0.0125;
-export const BENCH_HEIGHT = 0.43;
-
-export const JOINTS = [
-  'pelvis', 'lumbar', 'chest', 'neckBase', 'neckTop', 'headTop',
-  'shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'wristL', 'wristR', 'gripL', 'gripR',
-  'hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'heelL', 'heelR', 'toeL', 'toeR',
-  'bar', 'midfoot',
-] as const;
-export type Joint = (typeof JOINTS)[number];
-export type Skeleton = Record<Joint, Vec3>;
-
-export type PatternId = 'squat' | 'hinge' | 'bench' | 'incline' | 'press' | 'row' | 'curl' | 'pull' | 'lunge' | 'pushup';
-export type Load = 'barbell-back' | 'barbell-front' | 'barbell-hands' | 'dumbbells' | 'goblet' | 'none';
-export interface Variant {
-  load: Load;
-  stance: 'normal' | 'wide';
-  grip: 'close' | 'medium' | 'wide';
-  hinge: 'conventional' | 'romanian' | 'stiff';
-  /** Sitting (the overhead press on an upright bench, the lat pulldown) rather than standing or hanging. */
-  seated: boolean;
-  /** The angle of the bench back for the incline press, in degrees (0 is flat). */
-  incline: number;
-  /** The palms face the body (over) or away from it (under: curls, chin-ups, underhand pulldowns). */
-  palm: 'over' | 'under';
-}
-export interface MotionSpec {
-  pattern: PatternId;
-  variant: Variant;
-}
-
-const DEFAULT_VARIANT: Variant = { load: 'none', stance: 'normal', grip: 'medium', hinge: 'conventional', seated: false, incline: 0, palm: 'over' };
-const spec = (pattern: PatternId, v: Partial<Variant>): MotionSpec => ({ pattern, variant: { ...DEFAULT_VARIANT, ...v } });
-
-// ---------- geometry helpers ----------
-
-/** Middle joint of a two-bone chain from `root` to `target`; `pole` says which way the joint bends toward. The end is clamped to the reach. */
-export function twoBone(root: Vec3, target: Vec3, l1: number, l2: number, pole: Vec3): { mid: Vec3; end: Vec3 } {
-  const to = sub(target, root);
-  const full = length(to);
-  const dir = norm(to);
-  const d = Math.min(Math.max(full, Math.abs(l1 - l2) + 1e-6), l1 + l2 - 1e-6);
-  const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
-  const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
-  const side = norm(sub(pole, mul(dir, dot(pole, dir))));
-  return { mid: add(add(root, mul(dir, a)), mul(side, h)), end: add(root, mul(dir, d)) };
-}
-
-/** Finds x in [lo, hi] where f crosses zero, for a function that is increasing or decreasing across the bracket. */
-function bisect(f: (x: number) => number, lo: number, hi: number): number {
-  let a = lo;
-  let b = hi;
-  const fa = f(a);
-  for (let i = 0; i < 50; i++) {
-    const m = (a + b) / 2;
-    if (Math.sign(f(m)) === Math.sign(fa)) a = m;
-    else b = m;
-  }
-  return (a + b) / 2;
-}
-
-/** The spine, neck and head for a trunk pointing along `t` (unit, pelvis toward shoulders) with the neck along `n`. */
-function upperBody(b: Body, hipC: Vec3, t: Vec3, n: Vec3) {
-  const lumbar = add(hipC, mul(t, b.pelvis));
-  const chest = add(lumbar, mul(t, b.lumbar));
-  const neckBase = add(chest, mul(t, b.chest));
-  const shoulderC = sub(neckBase, mul(t, b.shoulderDrop));
-  return {
-    pelvis: hipC,
-    lumbar,
-    chest,
-    neckBase,
-    neckTop: add(neckBase, mul(n, b.neck)),
-    headTop: add(neckBase, mul(n, b.neck + b.head)),
-    shoulderC,
-  };
-}
-
-interface LegPlan {
-  hipC: Vec3;
-  /** Half distance between the ankles. */
-  stance: number;
-  /** Toes point out by this many radians. */
-  toeOut: number;
-  /** Where the knees bend toward, per side: forward plus this much outward. */
-  kneePole: Vec3;
-}
-
-/** Hips, knees (two-bone chain to planted ankles), ankles and feet. The hip is lowered if the legs cannot reach. */
-function legs(b: Body, plan: LegPlan, ankleX: (side: 1 | -1) => number, ankleY = b.ankleHeight) {
-  const out: Partial<Record<Joint, Vec3>> = {};
-  for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
-    const hip = vec(plan.hipC.x, plan.hipC.y, side * b.hipHalf);
-    const ankle = vec(ankleX(side), ankleY, side * plan.stance);
-    const { mid } = twoBone(hip, ankle, b.thigh, b.shin, vec(plan.kneePole.x, plan.kneePole.y, side * plan.kneePole.z));
-    const f = vec(Math.cos(plan.toeOut), 0, side * Math.sin(plan.toeOut));
-    out[`hip${sfx}`] = hip;
-    out[`knee${sfx}`] = mid;
-    out[`ankle${sfx}`] = ankle;
-    out[`heel${sfx}`] = sub(sub(ankle, mul(f, b.heelBack)), vec(0, b.ankleHeight, 0));
-    out[`toe${sfx}`] = sub(add(ankle, mul(f, b.toeFront)), vec(0, b.ankleHeight, 0));
-  }
-  return out;
-}
-
-/** Arms from the shoulders to given grip points (shoulder is the left one; the right one is mirrored by the caller). */
-function arms(b: Body, shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, pole: Vec3) {
-  const out: Partial<Record<Joint, Vec3>> = {};
-  for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
-    const shoulder = add(shoulderC, vec(0, 0, side * b.shoulderHalf));
-    const grip = grips[sfx];
-    const { mid: elbow, end } = twoBone(shoulder, grip, b.upperArm, b.forearm + b.hand, vec(pole.x, pole.y, side * pole.z));
-    out[`shoulder${sfx}`] = shoulder;
-    out[`elbow${sfx}`] = elbow;
-    out[`wrist${sfx}`] = add(elbow, mul(sub(end, elbow), b.forearm / (b.forearm + b.hand)));
-    out[`grip${sfx}`] = end;
-  }
-  return out;
-}
-
-/**
- * Arms for holds where the wrist is bent (a bar on the front of the shoulders or behind the neck, hands clasped): the
- * elbow is solved from the shoulder to the wrist, and the hand reaches from the wrist to the grip point. `handDir` is the
- * direction from the grip to the wrist, for the left side (the right side mirrors its z).
- */
-function armsWithBentWrist(b: Body, shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, handDir: Vec3, pole: Vec3) {
-  const out: Partial<Record<Joint, Vec3>> = {};
-  for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
-    const shoulder = add(shoulderC, vec(0, 0, side * b.shoulderHalf));
-    const grip = grips[sfx];
-    const wristTarget = add(grip, mul(norm(vec(handDir.x, handDir.y, side * handDir.z)), b.hand));
-    const { mid: elbow, end: wrist } = twoBone(shoulder, wristTarget, b.upperArm, b.forearm, vec(pole.x, pole.y, side * pole.z));
-    out[`shoulder${sfx}`] = shoulder;
-    out[`elbow${sfx}`] = elbow;
-    out[`wrist${sfx}`] = wrist;
-    out[`grip${sfx}`] = add(wrist, mul(norm(sub(grip, wristTarget)), b.hand));
-  }
-  return out;
-}
-
-const assemble = (b: Body, parts: Partial<Record<Joint, Vec3>>, bar: Vec3): Skeleton => {
-  const left = parts.ankleL!;
-  const right = parts.ankleR!;
-  const mid = mul(add(left, right), 0.5);
-  return { ...(parts as Skeleton), bar, midfoot: vec(mid.x + b.midfoot, 0, 0) };
-};
-
-/** The arms and the load for the holds shared by the squat and the lunge. `barAt` is where a barbell rides on the trunk. */
-function carry(b: Body, v: Variant, body: ReturnType<typeof upperBody>, hipC: Vec3, t: Vec3, lean: number, barAt: Vec3) {
-  const nFwd = vec(Math.cos(lean), -Math.sin(lean), 0);
-  let bar = barAt;
-  let armParts: Partial<Record<Joint, Vec3>>;
-  const shoulderL = add(body.shoulderC, vec(0, 0, b.shoulderHalf));
-  const shoulderR = sub(body.shoulderC, vec(0, 0, b.shoulderHalf));
-  const hands = (z: number, at: Vec3) => ({ L: add(at, vec(0, 0, z)), R: add(at, vec(0, 0, -z)) });
-  switch (v.load) {
-    case 'barbell-back':
-      // Hands on the bar behind the neck with the wrists just below it; the elbows point down and back.
-      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.36, bar), vec(0, -1, 0), vec(-0.5, -1, 0.4));
-      break;
-    case 'barbell-front':
-      // The bar rests on the front of the shoulders, held by the fingers; the elbows point forward at about shoulder height.
-      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.28, bar), vec(-0.3, -0.95, 0), vec(1, 0.35, 0.15));
-      break;
-    case 'goblet':
-      bar = add(add(hipC, mul(t, 0.38)), mul(nFwd, 0.14));
-      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.05, bar), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
-      break;
-    case 'dumbbells': {
-      const grips = { L: add(shoulderL, vec(0, -armOf(b), 0.06)), R: add(shoulderR, vec(0, -armOf(b), -0.06)) };
-      armParts = arms(b, body.shoulderC, grips, vec(0.2, 0, 1));
-      bar = mul(add(grips.L, grips.R), 0.5);
-      break;
-    }
-    default: {
-      // Bodyweight: the hands are clasped in front of the chest with the elbows pointing down and out.
-      const chest = add(add(hipC, mul(t, 0.4)), mul(nFwd, 0.12));
-      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.04, chest), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
-      bar = chest;
-    }
-  }
-  return { armParts, bar };
-}
+import {
+  BAR_RADIUS,
+  BENCH_HEIGHT,
+  BODY,
+  type Body,
+  DEFAULT_VARIANT,
+  DEG,
+  type Joint,
+  type MotionSpec,
+  PLATE_RADIUS,
+  type PatternId,
+  SHIN_AT_REST,
+  type Skeleton,
+  type Variant,
+  type Vec3,
+  add,
+  armOf,
+  arms,
+  armsWithBentWrist,
+  assemble,
+  bisect,
+  carry,
+  distance,
+  dot,
+  legs,
+  lerp,
+  mul,
+  neckFor,
+  norm,
+  seatedLower,
+  smooth,
+  spec,
+  standLower,
+  sub,
+  trunkOf,
+  twoBone,
+  upperBody,
+  vec,
+} from './motionKit';
+import { facePull, crossover, pushdown, seatedRow, straightArm } from './motionCable';
+import { armMachine, calf, chestPress, hipMachine, kneeMachine, legPress, lyingCurl, machineRow, pecDeck } from './motionMachines';
+export * from './motionKit';
 
 // ---------- squat ----------
 
-const SQUAT = { kneeMax: 118 * DEG, shinStart: 3 * DEG, shinEnd: 32 * DEG, leanMax: 70 * DEG };
+const SQUAT = { kneeMax: 118 * DEG, shinStart: SHIN_AT_REST, shinEnd: 32 * DEG, leanMax: 70 * DEG };
 
 function squat(p: number, v: Variant, b: Body): Skeleton {
   const wide = v.stance === 'wide';
@@ -249,7 +63,8 @@ function squat(p: number, v: Variant, b: Body): Skeleton {
   const flat = Math.hypot(hip.x, stance - b.hipHalf);
   if (flat < reach) hip = { x: hip.x, y: Math.min(hip.y, b.ankleHeight + Math.sqrt(reach * reach - flat * flat)) };
   const hipC = vec(hip.x, hip.y, 0);
-  const midfootX = b.midfoot;
+  // On a Smith machine the bar line is fixed, so the feet are set a little in front of it.
+  const midfootX = b.midfoot - (v.rails ? 0.07 : 0);
 
   // Where the load sits on the trunk, so the lean can put it over the mid-foot.
   const front = v.load === 'barbell-front';
@@ -299,7 +114,9 @@ function hinge(p: number, v: Variant, b: Body): Skeleton {
     const f = (y - knee2.y) / Math.max(1e-6, hip.y - knee2.y);
     return knee2.x + (hip.x - knee2.x) * Math.min(1, f) + 0.1;
   };
-  const barX = legFront(barY);
+  // On a Smith machine the bar goes straight up and down, so it stays at the furthest the free bar would reach.
+  const railX = v.rails ? Math.max(...Array.from({ length: 21 }, (_, i) => hinge(i / 20, { ...v, rails: false }, b).bar.x)) : undefined;
+  const barX = railX ?? legFront(barY);
   const bar = vec(barX, barY, 0);
 
   // Lean the trunk until the arms are taut; if the bar is already within reach the trunk stays upright.
@@ -346,7 +163,7 @@ function bench(p: number, v: Variant, b: Body): Skeleton {
   const elbowBottom = vec(bottom.x, gyBottom - l2, gz);
   // Top: the arms nearly straight, the bar a little toward the feet from the shoulders.
   const reach = Math.sqrt(Math.max(0, (l1 + l2) * (l1 + l2) - dz * dz)) - 0.02;
-  const top = vec(shoulder.x + 0.02, shoulder.y + reach, gz);
+  const top = vec(v.rails ? bottom.x : shoulder.x + 0.02, shoulder.y + reach, gz);
 
   // The bar sits above the shoulders at the top and slides toward the feet while it comes down.
   const g = vec(lerp(top.x, bottom.x, p), lerp(top.y, bottom.y, p), gz);
@@ -358,27 +175,6 @@ function bench(p: number, v: Variant, b: Body): Skeleton {
   return assemble(b, { ...body, ...lower, ...arms(b, body.shoulderC, grips, vec(pole.x, pole.y, pole.z)) }, vec(g.x, g.y, 0));
 }
 
-const smooth = (e0: number, e1: number, x: number) => {
-  const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
-  return u * u * (3 - 2 * u);
-};
-
-/** Standing with the legs straight, as at the top of the squat: the hips, and both legs. */
-function standLower(b: Body, stance = 0.12) {
-  const s = SQUAT.shinStart;
-  const knee = { x: b.shin * Math.sin(s), y: b.ankleHeight + b.shin * Math.cos(s) };
-  const hipC = vec(knee.x + b.thigh * Math.sin(s), knee.y + b.thigh * Math.cos(s), 0);
-  return { hipC, lower: legs(b, { hipC, stance, toeOut: 10 * DEG, kneePole: vec(1, 0, 0.15) }, () => 0) };
-}
-
-/** Sitting on a bench or seat with the thighs level and the shins vertical, the ankles at `ankleX`. */
-function seatedLower(b: Body, ankleX: number) {
-  const hipC = vec(ankleX - b.thigh, b.ankleHeight + b.shin, 0);
-  return { hipC, lower: legs(b, { hipC, stance: 0.11, toeOut: 5 * DEG, kneePole: vec(0, 1, 0.1) }, () => ankleX) };
-}
-
-const neckFor = (lean: number) => vec(Math.sin(lean * 0.35), Math.cos(lean * 0.35), 0);
-
 // ---------- overhead press ----------
 
 /** p = 0 is lockout with the bar over the shoulders, p = 1 the bar racked on the front of the shoulders. */
@@ -387,7 +183,7 @@ function press(p: number, v: Variant, b: Body): Skeleton {
   const { hipC, lower } = v.seated ? seatedLower(b, 0.28) : standLower(b);
   // Standing, the trunk leans a little so the lockout is over the mid-foot, and a little back to let the bar pass the face.
   const lean0 = v.seated ? 0 : Math.asin(Math.min(0.3, Math.max(-0.3, (b.midfoot - hipC.x) / trunkOf(b))));
-  const lean = lean0 - (v.seated ? 0.02 : 0.07) * p;
+  const lean = lean0 - (v.rails ? 0 : v.seated ? 0.02 : 0.07) * p;
   const t = vec(Math.sin(lean), Math.cos(lean), 0);
   const body = upperBody(b, hipC, t, neckFor(lean));
   const sc = body.shoulderC;
@@ -396,8 +192,9 @@ function press(p: number, v: Variant, b: Body): Skeleton {
   const yRack = sc.y + (barbell ? 0.01 : 0.11);
   const y = lerp(yLock, yRack, p);
   const h = y - yRack;
-  // The bar starts in front of the collarbones, swings out around the face, and ends straight above the shoulders.
-  const off = barbell ? lerp(0.07, 0.16, smooth(0.05, 0.17, h)) * (1 - smooth(0.36, 0.52, h)) : 0.06 * (1 - smooth(0, 0.5, h));
+  // The bar starts in front of the collarbones, swings out around the face, and ends straight above the shoulders
+  // (on a Smith machine it just goes straight up in front of the face).
+  const off = v.rails ? 0.13 : barbell ? lerp(0.07, 0.16, smooth(0.05, 0.17, h)) * (1 - smooth(0.36, 0.52, h)) : 0.06 * (1 - smooth(0, 0.5, h));
   const bar = vec(sc.x + off, y, 0);
   const gz = b.shoulderHalf + (barbell ? 0.06 : 0.07);
   const hands = { L: vec(bar.x, y, gz), R: vec(bar.x, y, -gz) };
@@ -421,7 +218,7 @@ function row(p: number, v: Variant, b: Body): Skeleton {
   const bottom = vec(sc.x, sc.y - armOf(b), 0);
   const front = vec(Math.cos(ROW.lean), -Math.sin(ROW.lean), 0);
   const top = add(add(hipC, mul(t, 0.34)), mul(front, 0.12));
-  const g = vec(lerp(top.x, bottom.x, p), lerp(top.y, bottom.y, p), 0);
+  const g = vec(v.rails ? top.x : lerp(top.x, bottom.x, p), lerp(top.y, bottom.y, p), 0);
   const gz = b.shoulderHalf + (v.load === 'dumbbells' ? 0.03 : 0.09);
   const grips = { L: vec(g.x, g.y, gz), R: vec(g.x, g.y, -gz) };
   return assemble(b, { ...body, ...lower, ...arms(b, sc, grips, vec(-1, 0.35, 0.5)) }, g);
@@ -568,7 +365,11 @@ function pushup(p: number, v: Variant, b: Body): Skeleton {
 
 // ---------- public API ----------
 
-const SOLVERS: Record<PatternId, (p: number, v: Variant, b: Body) => Skeleton> = { squat, hinge, bench, incline: bench, press, row, curl, pull, lunge, pushup };
+const SOLVERS: Record<PatternId, (p: number, v: Variant, b: Body) => Skeleton> = {
+  squat, hinge, bench, incline: bench, press, row, curl, pull, lunge, pushup,
+  legpress: legPress, kneemachine: kneeMachine, lyingcurl: lyingCurl, chestpress: chestPress, machinerow: machineRow, pecdeck: pecDeck, armmachine: armMachine, calf, hipmachine: hipMachine,
+  seatedrow: seatedRow, pushdown, facepull: facePull, straightarm: straightArm, crossover,
+};
 
 export function skeletonAt(s: MotionSpec, p: number, body: Body = BODY): Skeleton {
   const q = Math.min(1, Math.max(0, p));
@@ -643,6 +444,52 @@ export const MOTIONS: Record<string, MotionSpec> = {
   'Dumbbell Lunges': spec('lunge', { load: 'dumbbells' }),
   'Split Squats': spec('lunge', { load: 'none' }),
   'Split Squat with Dumbbells': spec('lunge', { load: 'dumbbells' }),
+  'Smith Machine Squat': spec('squat', { load: 'barbell-back', rails: true }),
+  'Smith Machine Bench Press': spec('bench', { load: 'barbell-hands', grip: 'medium', rails: true }),
+  'Smith Machine Close-Grip Bench Press': spec('bench', { load: 'barbell-hands', grip: 'close', rails: true }),
+  'Smith Machine Incline Bench Press': spec('incline', { load: 'barbell-hands', grip: 'medium', incline: 30, rails: true }),
+  'Smith Machine Overhead Shoulder Press': spec('press', { load: 'barbell-front', seated: true, rails: true }),
+  'Smith Machine Bent Over Row': spec('row', { load: 'barbell-hands', rails: true }),
+  'Smith Machine Stiff-Legged Deadlift': spec('hinge', { load: 'barbell-hands', hinge: 'stiff', rails: true }),
+  'Smith Single-Leg Split Squat': spec('lunge', { load: 'barbell-back', rails: true }),
+  'Leg Press': spec('legpress', {}),
+  'Narrow Stance Leg Press': spec('legpress', { stance: 'narrow' }),
+  'Leg Extensions': spec('kneemachine', { kind: 'extension' }),
+  'Seated Leg Curl': spec('kneemachine', { kind: 'curl' }),
+  'Lying Leg Curls': spec('lyingcurl', {}),
+  'Machine Bench Press': spec('chestpress', { kind: 'flat' }),
+  'Leverage Chest Press': spec('chestpress', { kind: 'flat' }),
+  'Leverage Incline Chest Press': spec('chestpress', { kind: 'incline' }),
+  'Leverage Decline Chest Press': spec('chestpress', { kind: 'decline' }),
+  'Machine Shoulder (Military) Press': spec('press', { load: 'machine', seated: true }),
+  'Leverage Shoulder Press': spec('press', { load: 'machine', seated: true }),
+  'Leverage Iso Row': spec('machinerow', { kind: 'iso' }),
+  'Leverage High Row': spec('machinerow', { kind: 'high' }),
+  'Butterfly': spec('pecdeck', { kind: 'butterfly' }),
+  'Reverse Machine Flyes': spec('pecdeck', { kind: 'reverse' }),
+  'Machine Bicep Curl': spec('armmachine', { kind: 'bicep' }),
+  'Machine Preacher Curls': spec('armmachine', { kind: 'preacher' }),
+  'Machine Triceps Extension': spec('armmachine', { kind: 'triceps' }),
+  'Dip Machine': spec('armmachine', { kind: 'dip' }),
+  'Standing Calf Raises': spec('calf', { kind: 'standing' }),
+  'Seated Calf Raise': spec('calf', { kind: 'seated' }),
+  'Smith Machine Calf Raise': spec('calf', { kind: 'standing', load: 'barbell-back', rails: true }),
+  'Thigh Abductor': spec('hipmachine', { kind: 'abductor' }),
+  'Thigh Adductor': spec('hipmachine', { kind: 'adductor' }),
+  'Seated Cable Rows': spec('seatedrow', { grip: 'close' }),
+  'Triceps Pushdown': spec('pushdown', { grip: 'wide', kind: 'bar' }),
+  'Triceps Pushdown - Rope Attachment': spec('pushdown', { grip: 'close', kind: 'rope' }),
+  'Triceps Pushdown - V-Bar Attachment': spec('pushdown', { grip: 'medium', kind: 'vbar' }),
+  'Reverse Grip Triceps Pushdown': spec('pushdown', { grip: 'wide', kind: 'bar', palm: 'under' }),
+  'Standing Biceps Cable Curl': spec('curl', { load: 'barbell-hands', palm: 'under', kind: 'cable' }),
+  'Face Pull': spec('facepull', { kind: 'rope' }),
+  'Straight-Arm Pulldown': spec('straightarm', { grip: 'wide', kind: 'bar' }),
+  'Rope Straight-Arm Pulldown': spec('straightarm', { grip: 'close', kind: 'rope' }),
+  'Cable Crossover': spec('crossover', {}),
+  'Low Cable Crossover': spec('crossover', { kind: 'low' }),
+  'Standing Cable Chest Press': spec('chestpress', { kind: 'cable' }),
+  'Seated Cable Shoulder Press': spec('press', { load: 'machine', seated: true, kind: 'cable' }),
+  'Cable Shoulder Press': spec('press', { load: 'machine', kind: 'cable' }),
   'Pushups': spec('pushup', { grip: 'medium' }),
   'Push-Up Wide': spec('pushup', { grip: 'wide' }),
   'Push-Ups - Close Triceps Position': spec('pushup', { grip: 'close' }),

@@ -1,7 +1,6 @@
 import { loadExercises } from '@fitwell/core/data/exercises';
 import type { Client } from '@modelcontextprotocol/client';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { BODY_VIEWS, DRAWN_MUSCLES } from '../src/exercises/bodyMap';
 import { demoUrl, type ExerciseGuide } from '../src/exercises/guide';
 import { MACHINE_GUIDE_IDS, machineGuideFor } from '../src/exercises/machines';
 import { createTestEnv } from './support/env';
@@ -69,16 +68,6 @@ describe('machine guides', () => {
     }
     const samples = ['Leg Press', 'Hack Squat', 'Butterfly', 'Running, Treadmill', 'Wide-Grip Lat Pulldown', 'Smith Machine Squat'].map((n) => machineGuideFor(n, 'machine')!);
     for (const g of samples) for (const part of [g.setup, g.cues, g.mistakes]) expect(part.length, g.id).toBeGreaterThan(0);
-  });
-});
-
-describe('body drawing', () => {
-  it('draws every muscle of the library, on at least one side, with usable shapes', async () => {
-    const lib = await loadExercises();
-    for (const m of lib.muscles) expect(DRAWN_MUSCLES, m).toContain(m);
-    for (const view of ['front', 'back'] as const) for (const r of BODY_VIEWS[view]) expect(r.d, `${view} ${r.muscle}`).toMatch(/^M[\d. LCZM-]+Z$/);
-    const regionMuscles = [...BODY_VIEWS.front, ...BODY_VIEWS.back].map((r) => r.muscle);
-    for (const m of regionMuscles) expect(lib.muscles).toContain(m); // no invented names
   });
 });
 

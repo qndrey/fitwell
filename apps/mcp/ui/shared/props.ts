@@ -47,8 +47,8 @@ const v3 = (a: Vec3) => new Vector3(a.x, a.y, a.z);
 export interface Props {
   group: Group;
   update(k: Skeleton): void;
-  /** In the side view the plates nearest the camera would hide the figure, so they are left out. */
-  setSideView(on: boolean): void;
+  /** The camera's turn around the figure (0 is the side view). Seen from the side, the plates nearest the camera would hide the figure, so they are left out. */
+  setCamera(azimuth: number): void;
 }
 
 function barbell(m: Materials): Group {
@@ -129,7 +129,8 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
   const kettle = load === 'goblet' ? kettlebell(m) : null;
   for (const o of [bar, kettle, ...bells]) if (o) group.add(o);
 
-  let sideView = false;
+  /** Which side of the figure the camera is on while it looks along the figure (+1 or -1), or 0 when it looks from the front or back. */
+  let near = 0;
   const screens: Object3D[] = [];
   group.traverse((o) => {
     if (o.userData.screen) screens.push(o);
@@ -137,13 +138,14 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
   const world = new Vector3();
   const applySide = () => {
     group.updateMatrixWorld(true);
-    for (const o of screens) o.visible = !(sideView && o.getWorldPosition(world).z > 0);
+    for (const o of screens) o.visible = !(near !== 0 && Math.sign(o.getWorldPosition(world).z) === near);
   };
 
   return {
     group,
-    setSideView(on: boolean) {
-      sideView = on;
+    setCamera(azimuth: number) {
+      const across = Math.cos(azimuth);
+      near = Math.abs(across) > 0.5 ? Math.sign(across) : 0;
       applySide();
     },
     update(k: Skeleton) {
@@ -153,7 +155,17 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
         bells[0]!.position.copy(v3(k.gripL));
         bells[1]!.position.copy(v3(k.gripR));
       }
-      if (sideView) applySide();
+      if (near !== 0) applySide();
     },
   };
+}
+
+/** The floor alone, for the standing figure with no exercise. */
+export function buildStandingProps(m: Materials): Props {
+  const group = new Group();
+  const floor = new Mesh(new CircleGeometry(1.3, 40), m.floor);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0.05, 0.001, 0);
+  group.add(floor);
+  return { group, update() {}, setCamera() {} };
 }

@@ -3,18 +3,9 @@
 .guide h2 { font-size: 1.15rem; margin: 0; }
 .guide h3 { font-size: 1rem; margin: 0 0 4px; }
 .guide h4 { font-size: 0.85rem; margin: 8px 0 2px; color: var(--muted); letter-spacing: 0.02em; }
-.guide .maps { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; justify-items: center; }
-.guide .map { display: grid; gap: 2px; justify-items: center; }
-.guide svg.body { width: 100%; max-width: 130px; height: auto; }
-.guide figcaption { grid-column: 1 / -1; display: grid; gap: 2px; font-size: 0.85rem; justify-items: start; width: 100%; }
+.guide .worked { margin: 0; display: grid; gap: 2px; font-size: 0.85rem; justify-items: start; }
 .guide .key { display: inline-flex; align-items: center; gap: 6px; }
 .guide .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
-.guide .sw.primary { background: var(--accent); }
-.guide .sw.secondary { background: var(--accent); opacity: 0.4; }
-svg.body .sil { fill: var(--border); }
-svg.body .m { fill: none; stroke: var(--muted); stroke-width: 0.6; opacity: 0.55; }
-svg.body .m.secondary { fill: var(--accent); fill-opacity: 0.4; stroke: var(--accent); opacity: 1; }
-svg.body .m.primary { fill: var(--accent); stroke: var(--accent); opacity: 1; }
 .guide ol.steps, .guide ul.bullets { margin: 0; padding-left: 1.2rem; display: grid; gap: 6px; }
 .guide .machine { border-top: 1px solid var(--border); padding-top: 10px; }
 .guide button.demo { min-height: 44px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0 16px; }
@@ -22,13 +13,12 @@ svg.body .m.primary { fill: var(--accent); stroke: var(--accent); opacity: 1; }
 .guide code { overflow-wrap: anywhere; }
 
 .guide .motion { display: grid; gap: 6px; }
+.guide .motion canvas:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .guide .motion canvas { width: 100%; aspect-ratio: 4 / 3; display: block; border-radius: 12px; background: var(--bg); }
 .guide .motion-controls { display: flex; gap: 6px; flex-wrap: wrap; }
 .guide .motion-controls button { min-height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.guide .motion-controls button[aria-pressed='true']:not(.motion-play):not(.motion-muscles) { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .guide .motion-controls button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .guide .motion-controls button.motion-muscles[aria-pressed='true'] { border-color: var(--accent); }
 .guide .motion-controls button.motion-muscles[aria-pressed='false'] { opacity: 0.65; }
-.guide .motion-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 0; color: var(--muted); }
 .guide .sw.hot { background: #e4572e; }
 .guide .sw.warm { background: #e4572e; opacity: 0.45; }

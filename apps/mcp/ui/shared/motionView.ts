@@ -1,12 +1,12 @@
 // The animated 3D figure for the exercise guide and the workout player. One player per view (phones limit how many
-// WebGL contexts a page may hold); `show` swaps the exercise. Returns null when WebGL is not available, so callers
-// simply leave the animation out.
+// WebGL contexts a page may hold); `show` swaps the exercise. Drag to turn the figure around. Returns null when WebGL is not
+// available, so callers simply leave the figure out.
 import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
-import { progressAt, skeletonAt, standing, type MotionSpec } from '../../src/exercises/motion';
+import { progressAt, skeletonAt, type MotionSpec } from '../../src/exercises/motion';
 import bodyGz from '../assets/body.glb.gz';
 import { h } from './dom';
 import { loadHumanBody, type HumanBody } from './humanBody';
-import { buildProps, makeMaterials, setPalette, type Palette, type Props } from './props';
+import { buildProps, buildStandingProps, makeMaterials, setPalette, type Palette, type Props } from './props';
 
 /** Unzips the embedded model. Needs `DecompressionStream`; rejects when the browser has none (the caller then leaves the animation out). */
 async function unzip(gz: Uint8Array): Promise<ArrayBuffer> {
@@ -18,7 +18,7 @@ async function unzip(gz: Uint8Array): Promise<ArrayBuffer> {
 export interface MotionPlayer {
   /** Put this in the page. It stays the same element for the life of the view. */
   element: HTMLElement;
-  /** Show an exercise's movement (with its muscles lit up), or hide the animation when it has none. */
+  /** Show an exercise's movement with its muscles lit up; with no movement, the standing figure with the muscles lit. */
   show(spec: MotionSpec | null, label: string, muscles?: { primary: string[]; secondary: string[] }): void;
   /** Stop animating (the panel is closed or the exercise changed). */
   stop(): void;
@@ -26,12 +26,13 @@ export interface MotionPlayer {
   setTheme(): void;
 }
 
-type ViewName = 'side' | 'front' | 'angle' | 'back';
-const VIEWS: { id: Exclude<ViewName, 'back'>; label: string }[] = [
-  { id: 'side', label: 'Side' },
-  { id: 'front', label: 'Front' },
-  { id: 'angle', label: '45°' },
-];
+/** Where the camera is: `az` turns it around the figure (0 is the side, π/2 the front of a standing figure), `el` lifts it. */
+interface View {
+  az: number;
+  el: number;
+}
+const EL_MIN = -0.35;
+const EL_MAX = 1.1;
 
 const LIGHT: Palette = { tint: 0xe4572e, body: 0xd9b8a0, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
 const DARK: Palette = { tint: 0xff7a4d, body: 0xbf9a83, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
@@ -76,7 +77,7 @@ export function createMotionPlayer(): MotionPlayer | null {
   const propsHolder = new Group();
   scene.add(propsHolder);
 
-  // The body loads on first use. When it cannot (no DecompressionStream, a bad file) the animation is left out.
+  // The body loads on first use. When it cannot (no DecompressionStream, a bad file) the figure is left out.
   let human: HumanBody | null = null;
   let humanState: 'idle' | 'loading' | 'failed' = 'idle';
   let worked: { primary: string[]; secondary: string[] } = { primary: [], secondary: [] };
@@ -99,11 +100,10 @@ export function createMotionPlayer(): MotionPlayer | null {
       });
   }
 
+  /** The movement on show; null while the standing figure is shown. */
   let current: MotionSpec | null = null;
-  /** Showing the standing figure with no exercise (used for checking the look of the figure). */
-  let standingMode = false;
   let label = '';
-  let view: ViewName = 'side';
+  let view: View = { az: 0, el: 0.06 };
   /** A camera target chosen from a script (`look`), for close-ups. */
   let closeup: { x: number; y: number; d: number } | null = null;
   let musclesOn = true;
@@ -117,38 +117,38 @@ export function createMotionPlayer(): MotionPlayer | null {
   // ----- controls -----
   const play = h('button', { type: 'button', className: 'motion-play', 'aria-pressed': 'false', onclick: () => setPaused(!paused) }, 'Pause');
   const muscleButton = h('button', { type: 'button', className: 'motion-muscles', 'aria-pressed': 'true', onclick: () => setMuscles(!musclesOn) }, 'Highlight');
-  const viewButtons = VIEWS.map((v) => h('button', { type: 'button', 'aria-pressed': String(v.id === view), onclick: () => setView(v.id) }, v.label));
+  const resetButton = h('button', { type: 'button', className: 'motion-reset', onclick: () => turnTo(defaultView()) }, 'Reset view');
+  const hint = h('p', { className: 'muted small' });
   const element = h(
     'div',
     { className: 'motion', hidden: true },
     canvas,
-    h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Animation controls' }, play, ...viewButtons, muscleButton),
-    h('p', { className: 'motion-legend small' }, h('span', { className: 'key' }, h('i', { className: 'sw hot' }), 'main muscles'), h('span', { className: 'key' }, h('i', { className: 'sw warm' }), 'helping muscles')),
-    h('p', { className: 'muted small' }, 'Schematic animation: follow the written cues for detail.'),
+    h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Figure controls' }, play, muscleButton, resetButton),
+    hint,
   );
 
+  /** The side for a movement, the front for the standing figure; a lying figure is first seen from the side too. */
+  const defaultView = (): View => (current ? { az: 0, el: 0.06 } : { az: Math.PI / 2, el: 0.06 });
+
   function frame(): void {
-    if (!current && !standingMode) return;
     const bench = current?.pattern === 'bench';
     const target = closeup ?? (bench ? { x: -0.2, y: 0.8 } : { x: 0.02, y: 0.88 });
-    const d = closeup?.d ?? (bench ? 3.3 : 3.9);
-    props?.setSideView(view === 'side');
-    const sign = bench ? -1 : 1; // the front view of the lying figure is from the head end
-    const pos = view === 'side' ? [target.x, target.y, d] : view === 'front' ? [target.x + sign * d, target.y, 0] : view === 'back' ? [target.x - sign * d, target.y, 0] : [target.x + sign * d * 0.6, target.y + 0.35, d * 0.8];
-    camera.position.set(pos[0]!, pos[1]!, pos[2]!);
+    const d = closeup?.d ?? (bench ? 3.3 : current ? 3.9 : 3.7);
+    props?.setCamera(view.az);
+    const flat = Math.cos(view.el);
+    camera.position.set(target.x + d * Math.sin(view.az) * flat, target.y + d * Math.sin(view.el), d * Math.cos(view.az) * flat);
     camera.lookAt(target.x, target.y, 0);
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', `Animation of ${label}, ${VIEWS.find((v) => v.id === view)?.label.toLowerCase() ?? 'back'} view`);
+    canvas.setAttribute('aria-label', `${current ? `Animation of ${label}` : `The muscles worked by ${label}`}. Drag or use the arrow keys to turn it.`);
   }
 
   function draw(p: number): void {
     if (!human) return; // nothing to draw until the body has loaded
-    if (standingMode && !current) {
-      human.update(standing(human.body), 0.2);
+    if (!current) {
+      human.rest();
       renderer.render(scene, camera);
       return;
     }
-    if (!current) return;
     const k = skeletonAt(current, p, human.body);
     human.update(k, current.variant.load === 'none' ? 0.35 : 1);
     props?.update(k);
@@ -156,7 +156,7 @@ export function createMotionPlayer(): MotionPlayer | null {
   }
 
   const now = () => performance.now() / 1000;
-  /** A position chosen from a script (`seek`); while set, redraws (a resize, a view change) keep it. */
+  /** A position chosen from a script (`seek`); while set, redraws (a resize, a turn) keep it. */
   let forced: number | null = null;
   const currentP = () => (current ? (forced ?? progressAt((paused ? frozenAt : now() - started) % 1000, current)) : 0);
 
@@ -191,12 +191,43 @@ export function createMotionPlayer(): MotionPlayer | null {
     draw(currentP());
   }
 
-  function setView(next: ViewName): void {
-    view = next;
-    viewButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(VIEWS[i]!.id === view)));
+  function turnTo(next: View): void {
+    view = { az: next.az, el: Math.min(EL_MAX, Math.max(EL_MIN, next.el)) };
     frame();
     draw(currentP());
   }
+
+  // Drag to turn: sideways turns the figure around, up and down tilts the view. On a touch screen the page still scrolls
+  // up and down (`touch-action: pan-y`), so only the sideways part reaches the figure there.
+  canvas.style.touchAction = 'pan-y';
+  canvas.style.cursor = 'grab';
+  canvas.tabIndex = 0;
+  let drag: { x: number; y: number } | null = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    drag = { x: e.clientX, y: e.clientY };
+    canvas.setPointerCapture?.(e.pointerId);
+    canvas.style.cursor = 'grabbing';
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    drag = { x: e.clientX, y: e.clientY };
+    turnTo({ az: view.az - dx * 0.012, el: view.el + dy * 0.008 });
+  });
+  const release = () => {
+    drag = null;
+    canvas.style.cursor = 'grab';
+  };
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  canvas.addEventListener('keydown', (e) => {
+    const step = 0.15;
+    const next = e.key === 'ArrowLeft' ? { az: view.az + step, el: view.el } : e.key === 'ArrowRight' ? { az: view.az - step, el: view.el } : e.key === 'ArrowUp' ? { az: view.az, el: view.el - step } : e.key === 'ArrowDown' ? { az: view.az, el: view.el + step } : null;
+    if (!next) return;
+    e.preventDefault();
+    turnTo(next);
+  });
 
   function resize(): void {
     const w = Math.max(160, Math.round(element.clientWidth || canvas.clientWidth || 320));
@@ -221,39 +252,34 @@ export function createMotionPlayer(): MotionPlayer | null {
   const player: MotionPlayer = {
     element,
     show(spec, name, muscles) {
-      if (!spec) {
-        current = null;
-        element.hidden = true;
-        if (raf) cancelAnimationFrame(raf);
-        raf = 0;
-        return;
-      }
       if (humanState === 'failed') {
         element.hidden = true;
         return;
       }
       current = spec;
       forced = null;
-      standingMode = false;
       worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
       human?.setHighlight(worked.primary, worked.secondary);
       human?.setHighlightVisible(musclesOn);
       loadHuman();
-      propsHolder.visible = true;
       label = name;
       propsHolder.clear();
-      props = buildProps(spec, materials);
+      props = spec ? buildProps(spec, materials) : buildStandingProps(materials);
       propsHolder.add(props.group);
-      props.setSideView(view === 'side');
+      view = defaultView();
+      play.hidden = !spec;
+      hint.textContent = spec ? 'Drag to turn the figure. Schematic animation: follow the written cues for detail.' : 'Drag to turn the figure.';
       started = now();
       paused = false;
       play.textContent = 'Pause';
       play.setAttribute('aria-pressed', 'false');
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
       element.hidden = false;
       frame();
       resize();
       // Under reduced motion the figure waits at the bottom of the movement until the person starts it.
-      if (reduced) {
+      if (spec && reduced) {
         paused = true;
         frozenAt = 0;
         play.textContent = 'Play';
@@ -280,8 +306,13 @@ export function createMotionPlayer(): MotionPlayer | null {
       forced = Math.min(1, Math.max(0, p));
       draw(forced);
     },
-    view(name: ViewName) {
-      setView(name);
+    /** Turns the camera: `side`, `front`, `angle` or `back` for a standing or lifting figure (a lying one is seen from its head for `front`). */
+    view(name: 'side' | 'front' | 'angle' | 'back') {
+      const sign = current?.pattern === 'bench' ? -1 : 1;
+      turnTo({ side: { az: 0, el: 0.06 }, front: { az: sign * (Math.PI / 2), el: 0.06 }, back: { az: -sign * (Math.PI / 2), el: 0.06 }, angle: { az: sign * (Math.PI / 4), el: 0.3 } }[name]);
+    },
+    rotate(az: number, el: number) {
+      turnTo({ az, el });
     },
     pause() {
       setPaused(true);
@@ -294,16 +325,6 @@ export function createMotionPlayer(): MotionPlayer | null {
     /** Whether the body has loaded. */
     bodyReady() {
       return human !== null;
-    },
-    standing() {
-      current = null;
-      standingMode = true;
-      propsHolder.visible = false;
-      label = 'the standing figure';
-      loadHuman();
-      element.hidden = false;
-      frame();
-      resize();
     },
   };
   return player;

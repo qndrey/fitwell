@@ -4,7 +4,7 @@ import { gunzipSync } from 'node:zlib';
 import { Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadExercises } from '@fitwell/core/data/exercises';
-import { MOTIONS, skeletonAt, standing, type Skeleton } from '../src/exercises/motion';
+import { gripFor, MOTIONS, relaxed, skeletonAt, type Skeleton } from '../src/exercises/motion';
 import { BODY_MUSCLES, loadHumanBody, type HumanBody } from '../ui/shared/humanBody';
 
 const palette = { tint: 0xe4572e, body: 0xd9b8a0, load: 0x2f5d50, steel: 0xb0b0b0, furniture: 0x8a8378, floor: 0xddd6cc };
@@ -60,7 +60,8 @@ describe('the human body', () => {
 
   it('stands on the floor, and no skin sinks below it', () => {
     for (const [name, p] of [['standing', 0], ...Object.keys(MOTIONS).flatMap((n) => [0, 0.5, 1].map((q) => [n, q] as const))] as [string, number][]) {
-      human.update(name === 'standing' ? standing(human.body) : skeletonAt(MOTIONS[name]!, p, human.body));
+      if (name === 'standing') human.update(relaxed(human.body, 1.1), 0.2);
+      else human.update(skeletonAt(MOTIONS[name]!, p, human.body), gripFor(MOTIONS[name]!), MOTIONS[name]!.variant.palm);
       const mesh = human.skin;
       const v = new Vector3();
       let low = Infinity;

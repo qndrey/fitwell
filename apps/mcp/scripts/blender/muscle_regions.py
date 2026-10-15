@@ -22,6 +22,34 @@ def band(lo0, lo1, hi0, hi1, x):
     return ss(lo0, lo1, x) * (1 - ss(hi0, hi1, x))
 
 
+def poly(points, ax, z, soft):
+    """Soft membership of the point (ax, z) in a polygon: 1 inside, 0 outside, a ramp of width 2 * soft across the edge.
+    The polygons are drawn for one side of the body (ax is the distance from the midline); their middle edge lies past the midline,
+    so the two sides join without a seam."""
+    inside = False
+    best = 1e9
+    n = len(points)
+    for i in range(n):
+        (x1, z1), (x2, z2) = points[i], points[(i + 1) % n]
+        if (z1 > z) != (z2 > z) and ax < (x2 - x1) * (z - z1) / (z2 - z1) + x1:
+            inside = not inside
+        dx, dz = x2 - x1, z2 - z1
+        t = max(0.0, min(1.0, ((ax - x1) * dx + (z - z1) * dz) / (dx * dx + dz * dz)))
+        best = min(best, math.hypot(ax - (x1 + t * dx), z - (z1 + t * dz)))
+    return ss(-soft, soft, best if inside else -best)
+
+
+# The torso muscles as outlines (distance from the midline, height) on this body, in metres.
+CHEST = [(-0.03, 1.395), (0.12, 1.40), (0.19, 1.35), (0.175, 1.28), (0.12, 1.235), (0.05, 1.215), (-0.03, 1.215)]
+RECTUS = [(-0.03, 1.195), (0.085, 1.195), (0.095, 1.0), (0.06, 0.96), (-0.03, 0.96)]
+OBLIQUES = [(0.10, 1.15), (0.17, 1.15), (0.17, 1.0), (0.12, 0.97)]
+LATS = [(0.115, 1.255), (0.17, 1.26), (0.185, 1.18), (0.16, 1.06), (0.10, 0.97), (0.04, 0.97), (0.05, 1.06), (0.07, 1.16)]
+MIDDLE_BACK = [(-0.05, 1.37), (0.02, 1.37), (0.055, 1.33), (0.075, 1.26), (0.055, 1.19), (0.02, 1.14), (-0.05, 1.14)]
+LOWER_BACK = [(-0.01, 1.18), (0.075, 1.17), (0.08, 1.0), (0.06, 0.95), (-0.01, 0.95)]
+TRAPS = [(-0.05, 1.52), (0.05, 1.51), (0.12, 1.46), (0.21, 1.405), (0.19, 1.375), (0.11, 1.385), (0.05, 1.30), (0.02, 1.2), (-0.05, 1.2)]
+GLUTES = [(-0.02, 0.985), (0.12, 0.99), (0.17, 0.95), (0.17, 0.87), (0.12, 0.82), (-0.02, 0.82)]
+
+
 def compute(mesh, rig):
     """Returns a list with, per vertex, a list of weights in MUSCLES order."""
     world = rig.matrix_world
@@ -60,14 +88,15 @@ def compute(mesh, rig):
             d = math.sqrt(((ax - cx) / rx) ** 2 + ((z - cz) / rz) ** 2)
             return 1 - ss(0.5, 1.0, d)
 
-        w[INDEX["chest"]] = front * oval(0.098, 1.285, 0.14, 0.105)
-        w[INDEX["abdominals"]] = max(front * oval(0.04, 1.07, 0.085, 0.14), 0.6 * oval(0.19, 1.07, 0.06, 0.1))
-        w[INDEX["lats"]] = back * oval(0.17, 1.2, 0.1, 0.16)
-        w[INDEX["middle back"]] = back * oval(0.0, 1.27, 0.1, 0.1)
-        w[INDEX["lower back"]] = back * oval(0.05, 1.0, 0.07, 0.1)
-        w[INDEX["traps"]] = max(back, ss(0.55, 0.9, n.z)) * oval(0.0, 1.42, 0.2, 0.075)
+        sideways = ss(-0.15, 0.35, n.y)  # facing back, or turned to the side
+        w[INDEX["chest"]] = front * poly(CHEST, ax, z, 0.02)
+        w[INDEX["abdominals"]] = max(front * poly(RECTUS, ax, z, 0.015), 0.6 * front * poly(OBLIQUES, ax, z, 0.015))
+        w[INDEX["lats"]] = sideways * poly(LATS, ax, z, 0.025)
+        w[INDEX["middle back"]] = back * poly(MIDDLE_BACK, ax, z, 0.025)
+        w[INDEX["lower back"]] = back * poly(LOWER_BACK, ax, z, 0.02)
+        w[INDEX["traps"]] = max(back, ss(0.55, 0.9, n.z)) * poly(TRAPS, ax, z, 0.02)
         w[INDEX["neck"]] = band(1.42, 1.47, 1.6, 1.66, z) * (1 - ss(0.06, 0.1, ax))
-        w[INDEX["glutes"]] = back * oval(0.1, 0.91, 0.1, 0.095)
+        w[INDEX["glutes"]] = back * poly(GLUTES, ax, z, 0.02)
         # the shoulder cap: near the shoulder joint, on the outside of the body
         d = math.sqrt(((ax - shoulder.x) * 1.0) ** 2 + (p.y - shoulder.y) ** 2 * 1.2 + (z - shoulder.z) ** 2)
         w[INDEX["shoulders"]] = (1 - ss(0.07, 0.15, d)) * ss(0.12, 0.2, ax)

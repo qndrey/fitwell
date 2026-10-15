@@ -2,7 +2,7 @@
 // WebGL contexts a page may hold); `show` swaps the exercise. Drag to turn the figure around. Returns null when WebGL is not
 // available, so callers simply leave the figure out.
 import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
-import { progressAt, skeletonAt, type MotionSpec } from '../../src/exercises/motion';
+import { BREATH_SECONDS, gripFor, progressAt, relaxed, skeletonAt, type MotionSpec } from '../../src/exercises/motion';
 import bodyGz from '../assets/body.glb.gz';
 import { h } from './dom';
 import { loadHumanBody, type HumanBody } from './humanBody';
@@ -31,6 +31,20 @@ interface View {
   az: number;
   el: number;
 }
+/** Where the camera looks and how far back it stands, per movement (the figure is 1.7 m tall; a pull-up bar is 2.3 m up). */
+const FRAMING: Record<string, { x: number; y: number; d: number }> = {
+  rest: { x: 0.02, y: 0.88, d: 3.7 },
+  squat: { x: 0.02, y: 0.88, d: 3.9 },
+  bench: { x: -0.2, y: 0.8, d: 3.3 },
+  incline: { x: -0.2, y: 0.9, d: 3.5 },
+  press: { x: 0.02, y: 1.12, d: 5.0 },
+  row: { x: 0.0, y: 0.8, d: 3.9 },
+  curl: { x: 0.02, y: 0.88, d: 3.9 },
+  pull: { x: 0.0, y: 1.25, d: 5.8 },
+  pullup: { x: 0.0, y: 1.3, d: 6.4 },
+  lunge: { x: -0.3, y: 0.88, d: 4.1 },
+  pushup: { x: 0.6, y: 0.5, d: 3.6 },
+};
 const EL_MIN = -0.35;
 const EL_MAX = 1.1;
 
@@ -131,9 +145,10 @@ export function createMotionPlayer(): MotionPlayer | null {
   const defaultView = (): View => (current ? { az: 0, el: 0.06 } : { az: Math.PI / 2, el: 0.06 });
 
   function frame(): void {
-    const bench = current?.pattern === 'bench';
-    const target = closeup ?? (bench ? { x: -0.2, y: 0.8 } : { x: 0.02, y: 0.88 });
-    const d = closeup?.d ?? (bench ? 3.3 : current ? 3.9 : 3.7);
+    const key = current?.pattern === 'pull' && !current.variant.seated ? 'pullup' : current?.pattern;
+    const where = key ? FRAMING[key] ?? FRAMING.squat! : FRAMING.rest!;
+    const target = closeup ?? where;
+    const d = closeup?.d ?? where.d;
     props?.setCamera(view.az);
     const flat = Math.cos(view.el);
     camera.position.set(target.x + d * Math.sin(view.az) * flat, target.y + d * Math.sin(view.el), d * Math.cos(view.az) * flat);
@@ -145,12 +160,15 @@ export function createMotionPlayer(): MotionPlayer | null {
   function draw(p: number): void {
     if (!human) return; // nothing to draw until the body has loaded
     if (!current) {
-      human.rest();
+      // At ease: the arms hang, and the figure breathes.
+      const seconds = reduced ? 0 : now();
+      human.update(relaxed(human.body, seconds), 0.25, 'inward');
+      human.setBreath(reduced ? 0 : Math.sin((2 * Math.PI * seconds) / BREATH_SECONDS));
       renderer.render(scene, camera);
       return;
     }
     const k = skeletonAt(current, p, human.body);
-    human.update(k, current.variant.load === 'none' ? 0.35 : 1);
+    human.update(k, gripFor(current), current.variant.palm);
     props?.update(k);
     renderer.render(scene, camera);
   }
@@ -162,12 +180,15 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function tick(): void {
     raf = 0;
-    if (!current || paused || !visible || document.hidden) return;
+    if (!running()) return;
     draw(currentP());
     raf = requestAnimationFrame(tick);
   }
+  /** The figure moves while it is on screen: the movement when there is one (unless paused), the breathing at ease. */
+  let stopped = false;
+  const running = () => !stopped && visible && !document.hidden && (current ? !paused : !reduced);
   function kick(): void {
-    if (!raf && current && !paused && visible && !document.hidden) raf = requestAnimationFrame(tick);
+    if (!raf && running() && !element.hidden) raf = requestAnimationFrame(tick);
   }
 
   function setPaused(next: boolean): void {
@@ -258,6 +279,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       }
       current = spec;
       forced = null;
+      stopped = false;
       worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
       human?.setHighlight(worked.primary, worked.secondary);
       human?.setHighlightVisible(musclesOn);
@@ -288,6 +310,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       } else kick();
     },
     stop() {
+      stopped = true;
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
       if (!paused) setPaused(true);
@@ -308,7 +331,7 @@ export function createMotionPlayer(): MotionPlayer | null {
     },
     /** Turns the camera: `side`, `front`, `angle` or `back` for a standing or lifting figure (a lying one is seen from its head for `front`). */
     view(name: 'side' | 'front' | 'angle' | 'back') {
-      const sign = current?.pattern === 'bench' ? -1 : 1;
+      const sign = current?.pattern === 'bench' || current?.pattern === 'incline' ? -1 : 1;
       turnTo({ side: { az: 0, el: 0.06 }, front: { az: sign * (Math.PI / 2), el: 0.06 }, back: { az: -sign * (Math.PI / 2), el: 0.06 }, angle: { az: sign * (Math.PI / 4), el: 0.3 } }[name]);
     },
     rotate(az: number, el: number) {

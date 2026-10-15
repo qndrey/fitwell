@@ -159,6 +159,26 @@ function arms(shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, pole: Vec3) {
   return out;
 }
 
+/**
+ * Arms for holds where the wrist is bent (a bar on the front of the shoulders or behind the neck, hands clasped): the
+ * elbow is solved from the shoulder to the wrist, and the hand reaches from the wrist to the grip point. `handDir` is the
+ * direction from the grip to the wrist, for the left side (the right side mirrors its z).
+ */
+function armsWithBentWrist(shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, handDir: Vec3, pole: Vec3) {
+  const out: Partial<Record<Joint, Vec3>> = {};
+  for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
+    const shoulder = add(shoulderC, vec(0, 0, side * BODY.shoulderHalf));
+    const grip = grips[sfx];
+    const wristTarget = add(grip, mul(norm(vec(handDir.x, handDir.y, side * handDir.z)), BODY.hand));
+    const { mid: elbow, end: wrist } = twoBone(shoulder, wristTarget, BODY.upperArm, BODY.forearm, vec(pole.x, pole.y, side * pole.z));
+    out[`shoulder${sfx}`] = shoulder;
+    out[`elbow${sfx}`] = elbow;
+    out[`wrist${sfx}`] = wrist;
+    out[`grip${sfx}`] = add(wrist, mul(norm(sub(grip, wristTarget)), BODY.hand));
+  }
+  return out;
+}
+
 const assemble = (parts: Partial<Record<Joint, Vec3>>, bar: Vec3): Skeleton => {
   const left = parts.ankleL!;
   const right = parts.ankleR!;
@@ -200,35 +220,37 @@ function squat(p: number, v: Variant): Skeleton {
 
   const nFwd = vec(Math.cos(lean), -Math.sin(lean), 0);
   let bar = loadAt(lean);
-  let grips: { L: Vec3; R: Vec3 };
-  let pole = vec(-0.4, -1, 0.3);
+  let armParts: Partial<Record<Joint, Vec3>>;
   const shoulderL = add(body.shoulderC, vec(0, 0, BODY.shoulderHalf));
   const shoulderR = sub(body.shoulderC, vec(0, 0, BODY.shoulderHalf));
+  const hands = (z: number, at: Vec3) => ({ L: add(at, vec(0, 0, z)), R: add(at, vec(0, 0, -z)) });
   switch (v.load) {
     case 'barbell-back':
-      grips = { L: add(bar, vec(0, 0, 0.36)), R: add(bar, vec(0, 0, -0.36)) };
+      // Hands on the bar behind the neck with the wrists just below it; the elbows point down and back.
+      armParts = armsWithBentWrist(body.shoulderC, hands(0.36, bar), vec(0, -1, 0), vec(-0.5, -1, 0.4));
       break;
     case 'barbell-front':
-      grips = { L: add(bar, vec(0, 0, 0.3)), R: add(bar, vec(0, 0, -0.3)) };
-      pole = vec(1, 0.5, 0.2);
+      // The bar rests on the front of the shoulders, held by the fingers; the elbows point forward at about shoulder height.
+      armParts = armsWithBentWrist(body.shoulderC, hands(0.28, bar), vec(-0.3, -0.95, 0), vec(1, 0.35, 0.15));
       break;
-    case 'goblet': {
+    case 'goblet':
       bar = add(add(hipC, mul(t, 0.38)), mul(nFwd, 0.14));
-      grips = { L: add(bar, vec(0, 0, 0.05)), R: add(bar, vec(0, 0, -0.05)) };
-      pole = vec(0.2, -1, 0.3);
+      armParts = armsWithBentWrist(body.shoulderC, hands(0.05, bar), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
+      break;
+    case 'dumbbells': {
+      const grips = { L: add(shoulderL, vec(0, -ARM, 0.06)), R: add(shoulderR, vec(0, -ARM, -0.06)) };
+      armParts = arms(body.shoulderC, grips, vec(0.2, 0, 1));
+      bar = mul(add(grips.L, grips.R), 0.5);
       break;
     }
-    case 'dumbbells':
-      grips = { L: add(shoulderL, vec(0, -ARM, 0.06)), R: add(shoulderR, vec(0, -ARM, -0.06)) };
-      pole = vec(0.2, 0, 1);
-      bar = mul(add(grips.L, grips.R), 0.5);
-      break;
-    default:
-      grips = { L: add(shoulderL, vec(ARM * 0.97, 0.02, 0.02)), R: add(shoulderR, vec(ARM * 0.97, 0.02, -0.02)) };
-      pole = vec(0, 1, 0.2);
-      bar = mul(add(grips.L, grips.R), 0.5);
+    default: {
+      // Bodyweight: the hands are clasped in front of the chest with the elbows pointing down and out.
+      const chest = add(add(hipC, mul(t, 0.4)), mul(nFwd, 0.12));
+      armParts = armsWithBentWrist(body.shoulderC, hands(0.04, chest), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
+      bar = chest;
+    }
   }
-  return assemble({ ...body, ...lower, ...arms(body.shoulderC, grips, pole) }, bar);
+  return assemble({ ...body, ...lower, ...armParts }, bar);
 }
 
 // ---------- hip hinge (deadlift family) ----------

@@ -95,6 +95,25 @@ describe('squat', () => {
     expect(lean('Front Barbell Squat')).toBeLessThan(lean('Barbell Squat'));
   });
 
+  it('puts the elbows where each hold needs them', () => {
+    for (const p of SAMPLES) {
+      // Front squat: the elbows point forward at about shoulder height, never up beside the head.
+      const front = skeletonAt(spec('Front Barbell Squat'), p);
+      for (const side of ['L', 'R'] as const) {
+        const rise = front[`elbow${side}`].y - front[`shoulder${side}`].y;
+        expect(front[`elbow${side}`].x - front[`shoulder${side}`].x, `front squat elbow forward p=${p}`).toBeGreaterThan(0.12);
+        expect(rise, `front squat elbow height p=${p}`).toBeLessThan(0.15);
+        expect(rise, `front squat elbow height p=${p}`).toBeGreaterThan(-0.15);
+        expect(front[`wrist${side}`].y, `front squat wrist under the bar p=${p}`).toBeLessThan(front.bar.y);
+      }
+      // Back squat, goblet and bodyweight: the elbows hang below the shoulders.
+      for (const name of ['Barbell Squat', 'Goblet Squat', 'Bodyweight Squat']) {
+        const k = skeletonAt(spec(name), p);
+        for (const side of ['L', 'R'] as const) expect(k[`shoulder${side}`].y - k[`elbow${side}`].y, `${name} elbow below shoulder p=${p}`).toBeGreaterThan(0.12);
+      }
+    }
+  });
+
   it('puts the knees outward and the feet wider in the wide stance', () => {
     const normal = skeletonAt(spec('Barbell Squat'), 0.5);
     const wide = skeletonAt(spec('Wide Stance Barbell Squat'), 0.5);

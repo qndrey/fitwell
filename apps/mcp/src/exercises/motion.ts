@@ -648,6 +648,33 @@ export const MOTIONS: Record<string, MotionSpec> = {
   'Push-Ups - Close Triceps Position': spec('pushup', { grip: 'close' }),
 };
 
+/** One breath, in and out, in seconds. */
+export const BREATH_SECONDS = 4.4;
+
+/**
+ * Standing at ease with the arms hanging, for an exercise that has no movement to show. `t` (seconds) lifts the shoulders a
+ * few millimetres with each breath; the chest itself is moved by the player's skin shader.
+ */
+export function relaxed(body: Body = BODY, t = 0): Skeleton {
+  const b = body;
+  const { hipC, lower } = standLower(b);
+  const up = vec(0, 1, 0);
+  const trunk = upperBody(b, hipC, up, up);
+  const lift = 0.004 * Math.sin((2 * Math.PI * t) / BREATH_SECONDS);
+  const out: Partial<Record<Joint, Vec3>> = {};
+  for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
+    const shoulder = add(trunk.shoulderC, vec(0, lift, side * b.shoulderHalf));
+    const elbow = add(shoulder, mul(norm(vec(0.05, -1, side * 0.14)), b.upperArm));
+    const d = norm(vec(0.13, -1, side * 0.1));
+    const wrist = add(elbow, mul(d, b.forearm));
+    out[`shoulder${sfx}`] = shoulder;
+    out[`elbow${sfx}`] = elbow;
+    out[`wrist${sfx}`] = wrist;
+    out[`grip${sfx}`] = add(wrist, mul(d, b.hand));
+  }
+  return assemble(b, { ...trunk, ...lower, ...out }, hipC);
+}
+
 /** How tightly the hands close for a movement: flat on the floor for a push-up, loosely with nothing in them, around a bar or handle otherwise. */
 export const gripFor = (s: MotionSpec) => (s.pattern === 'pushup' ? 0 : s.variant.load === 'none' && s.pattern !== 'pull' ? 0.35 : 1);
 

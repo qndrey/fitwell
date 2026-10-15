@@ -2,7 +2,7 @@
 // WebGL contexts a page may hold); `show` swaps the exercise. Drag to turn the figure around. Returns null when WebGL is not
 // available, so callers simply leave the figure out.
 import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
-import { gripFor, progressAt, skeletonAt, type MotionSpec } from '../../src/exercises/motion';
+import { BREATH_SECONDS, gripFor, progressAt, relaxed, skeletonAt, type MotionSpec } from '../../src/exercises/motion';
 import bodyGz from '../assets/body.glb.gz';
 import { h } from './dom';
 import { loadHumanBody, type HumanBody } from './humanBody';
@@ -160,7 +160,10 @@ export function createMotionPlayer(): MotionPlayer | null {
   function draw(p: number): void {
     if (!human) return; // nothing to draw until the body has loaded
     if (!current) {
-      human.rest();
+      // At ease: the arms hang, and the figure breathes.
+      const seconds = reduced ? 0 : now();
+      human.update(relaxed(human.body, seconds), 0.25, 'inward');
+      human.setBreath(reduced ? 0 : Math.sin((2 * Math.PI * seconds) / BREATH_SECONDS));
       renderer.render(scene, camera);
       return;
     }
@@ -177,12 +180,15 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function tick(): void {
     raf = 0;
-    if (!current || paused || !visible || document.hidden) return;
+    if (!running()) return;
     draw(currentP());
     raf = requestAnimationFrame(tick);
   }
+  /** The figure moves while it is on screen: the movement when there is one (unless paused), the breathing at ease. */
+  let stopped = false;
+  const running = () => !stopped && visible && !document.hidden && (current ? !paused : !reduced);
   function kick(): void {
-    if (!raf && current && !paused && visible && !document.hidden) raf = requestAnimationFrame(tick);
+    if (!raf && running() && !element.hidden) raf = requestAnimationFrame(tick);
   }
 
   function setPaused(next: boolean): void {
@@ -273,6 +279,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       }
       current = spec;
       forced = null;
+      stopped = false;
       worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
       human?.setHighlight(worked.primary, worked.secondary);
       human?.setHighlightVisible(musclesOn);
@@ -303,6 +310,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       } else kick();
     },
     stop() {
+      stopped = true;
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
       if (!paused) setPaused(true);

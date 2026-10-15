@@ -53,6 +53,8 @@ float definition() {
   float blade = length(vec2((a - 0.115) / 0.06, (y - 1.3) / 0.08));
   h -= 0.0018 * back * groove(blade - 1.0, 0.25);
   h += 0.0025 * back * smoothstep(1.1, 0.7, blade);
+  // The lats, the trapezius and the muscles between the shoulder blades stand a little proud of each other.
+  h += 0.0022 * (back + 0.5 * (1.0 - back)) * (smoothstep(0.3, 0.8, w(9)) + smoothstep(0.3, 0.8, w(15)) + smoothstep(0.3, 0.8, w(11)));
   // The line between the buttocks.
   h -= 0.005 * back * smoothstep(0.3, 0.7, w(7)) * groove(r.x, 0.009);
   // The thigh: the lines between the quadriceps' heads in front, and between the hamstrings behind.
@@ -82,10 +84,12 @@ export interface HumanBody {
   body: Body;
   /** Puts the body back in its rest pose: standing with the arms away from the sides, which shows every muscle. */
   rest(): void;
-  /** Poses the body. `grip` is how tightly the hands close (0 relaxed, 1 around a bar); `palm` is which way the palms face a bar ('under' for curls and chin-ups). */
-  update(k: Skeleton, grip?: number, palm?: 'over' | 'under'): void;
+  /** Poses the body. `grip` is how tightly the hands close (0 relaxed, 1 around a bar); `palm` is which way the palms face a bar ('under' for curls and chin-ups), or 'inward' for hands hanging at ease. */
+  update(k: Skeleton, grip?: number, palm?: 'over' | 'under' | 'inward'): void;
   setHighlight(primary: Iterable<string>, secondary: Iterable<string>): void;
   setHighlightVisible(on: boolean): void;
+  /** Breathing, from -1 (breathed out) to 1 (breathed in): the ribs and belly swell a few millimetres. */
+  setBreath(x: number): void;
   setPalette(p: Palette): void;
   /** The skinned mesh and the bones by name (for tests). */
   skin: SkinnedMesh;
@@ -190,6 +194,7 @@ export async function loadHumanBody(glb: ArrayBuffer, palette: Palette): Promise
     uSec: { value: Array.from({ length: 5 }, () => new Vector4()) },
     uTint: { value: tint },
     uShow: { value: 1 },
+    uBreath: { value: 0 },
   };
   const material = new MeshStandardMaterial({ color: palette.body, roughness: 0.62, metalness: 0 });
   material.onBeforeCompile = (shader) => {
@@ -197,14 +202,16 @@ export async function loadHumanBody(glb: ArrayBuffer, palette: Palette): Promise
     const attributes = [0, 1, 2, 3, 4].map((i) => `attribute vec4 _muscle${i};`).join('\n') + '\nattribute vec3 restPosition;';
     const worked = (u: string) => [0, 1, 2, 3, 4].map((i) => `dot(_muscle${i}, ${u}[${i}])`).join(' + ');
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${attributes}\nuniform vec4 uPri[5];\nuniform vec4 uSec[5];\nvarying vec2 vWorked;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;`)
+      .replace('#include <common>', `#include <common>\n${attributes}\nuniform vec4 uPri[5];\nuniform vec4 uSec[5];\nuniform float uBreath;\nvarying vec2 vWorked;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;`)
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
 vWorked = vec2(clamp(${worked('uPri')}, 0.0, 1.0), clamp(${worked('uSec')}, 0.0, 1.0));
 vW[0] = _muscle0; vW[1] = _muscle1; vW[2] = _muscle2; vW[3] = _muscle3; vW[4] = _muscle4;
 vRest = restPosition;
-vRestN = normalize(normal);`,
+vRestN = normalize(normal);
+// Breathing: the ribs, belly and flanks swell along their normals, most over the lower ribs.
+transformed += normal * uBreath * 0.006 * smoothstep(0.98, 1.1, restPosition.y) * (1.0 - smoothstep(1.28, 1.4, restPosition.y)) * (1.0 - smoothstep(0.16, 0.21, abs(restPosition.x)));`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nuniform vec3 uTint;\nuniform float uShow;\nvarying vec2 vWorked;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;\n${DEFINITION}`)
@@ -246,7 +253,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
     return p;
   }
 
-  function update(k: Skeleton, grip = 1, palm: 'over' | 'under' = 'over'): void {
+  function update(k: Skeleton, grip = 1, palm: 'over' | 'under' | 'inward' = 'over'): void {
     const T = (j: keyof Skeleton) => toModel(k[j]);
     worldQ.clear();
     worldP.clear();
@@ -310,7 +317,9 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
       const fDes = gripAt.clone().sub(wrist).normalize();
       const across = new Vector3(m === 'l' ? 1 : -1, 0, 0); // outward along the bar, pinky side
       const lDes = across.clone().addScaledVector(fDes, -across.dot(fDes)).normalize();
-      const nDes = fDes.clone().cross(lDes).multiplyScalar(palm === 'under' ? -sign : sign);
+      // At ease the palm faces the thigh (thumb forward); around a bar it faces the bar.
+      const nDes = palm === 'inward' ? new Vector3(m === 'l' ? -1 : 1, 0, 0).addScaledVector(fDes, m === 'l' ? fDes.x : -fDes.x) : fDes.clone().cross(lDes).multiplyScalar(palm === 'under' ? -sign : sign);
+      if (palm === 'inward') nDes.applyAxisAngle(fDes, -Math.PI / 2);
       const qHand = align(fRest, nRest, fDes, nDes).multiply(restWorld.get(`hand_${m}`)!);
 
       // The forearm takes most of the hand's turn about its own axis, so the wrist is not wrung.
@@ -384,6 +393,9 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
     setHighlight: highlight,
     setHighlightVisible(on) {
       uniforms.uShow.value = on ? 1 : 0;
+    },
+    setBreath(x) {
+      uniforms.uBreath.value = x;
     },
     setPalette(p) {
       material.color.set(p.body);

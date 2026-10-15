@@ -1,6 +1,6 @@
 import { loadExercises } from '@fitwell/core/data/exercises';
 import { describe, expect, it } from 'vitest';
-import { ARM, BAR_RADIUS, BENCH_HEIGHT, BODY, distance, type Body, JOINTS, LOOP_SECONDS, MOTIONS, PLATE_RADIUS, PULLUP_BAR_HEIGHT, motionFor, progressAt, skeletonAt, standing, type MotionSpec, type Skeleton, type Vec3 } from '../src/exercises/motion';
+import { ARM, BAR_RADIUS, BREATH_SECONDS, relaxed, BENCH_HEIGHT, BODY, distance, type Body, JOINTS, LOOP_SECONDS, MOTIONS, PLATE_RADIUS, PULLUP_BAR_HEIGHT, motionFor, progressAt, skeletonAt, standing, type MotionSpec, type Skeleton, type Vec3 } from '../src/exercises/motion';
 
 const SAMPLES = Array.from({ length: 21 }, (_, i) => i / 20);
 const DEG = 180 / Math.PI;
@@ -414,6 +414,30 @@ describe('incline bench press', () => {
       expect(Math.abs(k.bar.x - k.shoulderL.x), name).toBeLessThan(0.05);
       expect(distance(k.shoulderL, k.gripL), name).toBeGreaterThan(ARM - 0.05);
     }
+  });
+});
+
+describe('standing at ease', () => {
+  it('hangs the arms down beside the body with the feet flat, and keeps every segment its length', () => {
+    for (const t of [0, BREATH_SECONDS / 4, BREATH_SECONDS / 2]) {
+      const k = relaxed(BODY, t);
+      for (const s of ['L', 'R'] as const) {
+        expect(k[`shoulder${s}`].y).toBeGreaterThan(k[`elbow${s}`].y);
+        expect(k[`elbow${s}`].y).toBeGreaterThan(k[`wrist${s}`].y);
+        expect(Math.abs(k[`grip${s}`].z) - 0.2, 'hand clear of the thigh').toBeGreaterThan(0.04);
+        expect(Math.abs(distance(k[`shoulder${s}`], k[`elbow${s}`]) - BODY.upperArm)).toBeLessThan(0.001);
+        expect(Math.abs(distance(k[`elbow${s}`], k[`wrist${s}`]) - BODY.forearm)).toBeLessThan(0.001);
+        expect(k[`toe${s}`].y).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it('breathes: the shoulders rise a few millimetres and fall again', () => {
+    const y = (t: number) => relaxed(BODY, t).shoulderL.y;
+    const ys = Array.from({ length: 20 }, (_, i) => y((i / 20) * BREATH_SECONDS));
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(0.005);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(0.012);
+    expect(y(BREATH_SECONDS)).toBeCloseTo(y(0), 6);
   });
 });
 

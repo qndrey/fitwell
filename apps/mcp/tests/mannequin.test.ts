@@ -34,7 +34,7 @@ describe('mannequin', () => {
     for (const name of ['Barbell Squat', 'Barbell Deadlift', 'Barbell Bench Press - Medium Grip']) {
       for (const p of [0, 1]) {
         man.update(skeletonAt(MOTIONS[name]!, p));
-        const feet = man.group.children.filter((c) => c.scale.y === 1 && Math.abs(c.position.y - 0.035) < 0.001);
+        const feet = man.group.children.filter((c) => c.scale.y === 0.04 && Math.abs(c.position.y - 0.03) < 0.001);
         expect(feet.length, name).toBe(2);
       }
     }
@@ -92,7 +92,7 @@ describe('muscles', () => {
     }
   });
 
-  it('lights up the main muscles in the accent tone and the secondary ones lighter, and can hide the layer', () => {
+  it('lights up the main muscles in the accent tone and the secondary ones lighter, and the tint can be turned off', () => {
     const mats = makeMaterials(palette);
     const man = buildMannequin(mats);
     man.setHighlight(['quadriceps'], ['glutes', 'calves']);
@@ -103,9 +103,11 @@ describe('muscles', () => {
     expect(tone('biceps')).toBe(mats.muscle);
     man.setHighlight([], []);
     expect(tone('quadriceps')).toBe(mats.muscle);
-    man.setMusclesVisible(false);
-    expect(man.muscles.every((x) => !x.mesh.visible)).toBe(true);
-    man.setMusclesVisible(true);
-    expect(man.muscles.every((x) => x.mesh.visible)).toBe(true);
+    // Turning the tint off leaves the muscle shapes in place, as plain contours under the skin.
+    man.setHighlight(['quadriceps'], ['glutes']);
+    man.setHighlightVisible(false);
+    expect(man.muscles.every((x) => x.mesh.visible && x.mesh.material === mats.muscle)).toBe(true);
+    man.setHighlightVisible(true);
+    expect(tone('quadriceps')).toBe(mats.musclePrimary);
   });
 });

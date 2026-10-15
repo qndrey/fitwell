@@ -4,7 +4,7 @@
 import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { progressAt, skeletonAt, standing, type MotionSpec } from '../../src/exercises/motion';
 import { h } from './dom';
-import { buildMannequin, buildProps, makeMaterials, makeTextures, setPalette, type Mannequin, type Palette, type Props } from './mannequin';
+import { buildMannequin, buildProps, makeMaterials, setPalette, type Mannequin, type Palette, type Props } from './mannequin';
 
 export interface MotionPlayer {
   /** Put this in the page. It stays the same element for the life of the view. */
@@ -24,8 +24,8 @@ const VIEWS: { id: ViewName; label: string }[] = [
   { id: 'angle', label: '45°' },
 ];
 
-const LIGHT: Palette = { body: 0xcfc5b8, muscle: 0xbba996, joint: 0xa89d8f, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
-const DARK: Palette = { body: 0xb8ad9f, muscle: 0x9c8b7b, joint: 0x8f8579, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
+const LIGHT: Palette = { body: 0xd9b8a0, muscle: 0xd9b8a0, joint: 0xd9b8a0, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
+const DARK: Palette = { body: 0xbf9a83, muscle: 0xbf9a83, joint: 0xbf9a83, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
 
 function cssColor(name: string): Color | null {
   try {
@@ -57,12 +57,12 @@ export function createMotionPlayer(): MotionPlayer | null {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 
   const scene = new Scene();
-  scene.add(new HemisphereLight(0xffffff, 0xb8b0a5, 1.15));
-  const sun = new DirectionalLight(0xffffff, 1.3);
+  scene.add(new HemisphereLight(0xffffff, 0xc9bcb0, 1.6));
+  const sun = new DirectionalLight(0xffffff, 0.9);
   sun.position.set(2, 4, 3);
   scene.add(sun);
   const camera = new PerspectiveCamera(28, 4 / 3, 0.1, 30);
-  const materials = makeMaterials(readPalette(), makeTextures());
+  const materials = makeMaterials(readPalette(), null);
   const mannequin: Mannequin = buildMannequin(materials);
   mannequin.update(standing());
   scene.add(mannequin.group);
@@ -85,7 +85,7 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   // ----- controls -----
   const play = h('button', { type: 'button', className: 'motion-play', 'aria-pressed': 'false', onclick: () => setPaused(!paused) }, 'Pause');
-  const muscleButton = h('button', { type: 'button', className: 'motion-muscles', 'aria-pressed': 'true', onclick: () => setMuscles(!musclesOn) }, 'Muscles');
+  const muscleButton = h('button', { type: 'button', className: 'motion-muscles', 'aria-pressed': 'true', onclick: () => setMuscles(!musclesOn) }, 'Highlight');
   const viewButtons = VIEWS.map((v) => h('button', { type: 'button', 'aria-pressed': String(v.id === view), onclick: () => setView(v.id) }, v.label));
   const element = h(
     'div',
@@ -150,7 +150,7 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function setMuscles(on: boolean): void {
     musclesOn = on;
-    mannequin.setMusclesVisible(on);
+    mannequin.setHighlightVisible(on);
     muscleButton.setAttribute('aria-pressed', String(on));
     draw(currentP());
   }
@@ -195,7 +195,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       current = spec;
       standingMode = false;
       mannequin.setHighlight(muscles?.primary ?? [], muscles?.secondary ?? []);
-      mannequin.setMusclesVisible(musclesOn);
+      mannequin.setHighlightVisible(musclesOn);
       propsHolder.visible = true;
       label = name;
       propsHolder.clear();

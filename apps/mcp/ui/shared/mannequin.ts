@@ -185,7 +185,7 @@ const mid = (a: Vec3, b: Vec3) => new Vector3((a.x + b.x) / 2, (a.y + b.y) / 2, 
 
 /** A cylinder of unit length along +Y, so it can be stretched from one joint to another. */
 function limbGeometry(rFar: number, rNear: number): BufferGeometry {
-  return new CylinderGeometry(rFar, rNear, 1, 10, 1);
+  return new CylinderGeometry(rFar, rNear, 1, 20, 1);
 }
 
 function stretch(mesh: Mesh, from: Vec3, to: Vec3): void {
@@ -261,7 +261,7 @@ interface TorsoMuscle extends Belly {
   mirror: boolean;
 }
 /** The rectus abdominis: three rows of two rounded segments, which is what gives the abdomen its look. */
-const ABS: TorsoMuscle[] = [0.075, 0.005, -0.065].map((u) => ({ muscle: 'abdominals', origin: 'waist' as const, f: 0.086, u, l: 0.038, rx: 0.022, ry: 0.042, rz: 0.04, mirror: true, peak: 0.5, power: 0.5 }));
+const ABS: TorsoMuscle[] = [0.075, 0.005, -0.065].map((u) => ({ muscle: 'abdominals', origin: 'waist' as const, f: 0.092, u, l: 0.038, rx: 0.014, ry: 0.046, rz: 0.042, mirror: true, peak: 0.5, power: 0.5 }));
 const TORSO_MUSCLES: TorsoMuscle[] = [
   { muscle: 'chest', origin: 'rib', f: 0.085, u: 0.05, l: 0.08, rx: 0.05, ry: 0.09, rz: 0.11, mirror: true, peak: 0.5, power: 0.6 },
   ...ABS,
@@ -282,7 +282,7 @@ function belly({ peak, power }: Belly): BufferGeometry {
   const key = `${peak}|${power}`;
   let g = bellies.get(key);
   if (!g) {
-    const rings = 14;
+    const rings = 20;
     const pts: Vector2[] = [];
     // Points run from the far end (y = -1) to the near end (y = +1) so the surface faces outward.
     for (let i = 0; i <= rings; i++) {
@@ -290,7 +290,7 @@ function belly({ peak, power }: Belly): BufferGeometry {
       const swell = t < peak ? (0.5 * t) / peak : 0.5 + (0.5 * (t - peak)) / (1 - peak);
       pts.push(new Vector2(Math.pow(Math.sin(Math.PI * swell), power), -1 + (2 * i) / rings));
     }
-    g = new LatheGeometry(pts, 12);
+    g = new LatheGeometry(pts, 20);
     bellies.set(key, g);
   }
   return g;
@@ -307,9 +307,10 @@ export interface Mannequin {
   segments: { from: keyof Skeleton; to: keyof Skeleton; mesh: Mesh }[];
   /** The muscle meshes by library muscle name (for tests and highlighting). */
   muscles: { muscle: string; mesh: Mesh }[];
-  /** Lights up the muscles an exercise works: main in the accent colour, secondary in a lighter tone. */
+  /** Tints the muscles an exercise works: main in the accent colour, secondary in a lighter tone. */
   setHighlight(primary: Iterable<string>, secondary: Iterable<string>): void;
-  setMusclesVisible(on: boolean): void;
+  /** Turns the tint on or off; the muscle shapes stay, as contours under the skin. */
+  setHighlightVisible(on: boolean): void;
 }
 
 export function buildMannequin(m: Materials): Mannequin {
@@ -318,9 +319,9 @@ export function buildMannequin(m: Materials): Mannequin {
     group.add(mesh);
     return mesh;
   };
-  const sphere = (r: number, mat: Material) => add(new Mesh(new SphereGeometry(r, 14, 10), mat));
+  const sphere = (r: number, mat: Material) => add(new Mesh(new SphereGeometry(r, 24, 16), mat));
   const ellipsoid = (rx: number, ry: number, rz: number, mat: Material) => {
-    const mesh = add(new Mesh(new SphereGeometry(1, 16, 12), mat));
+    const mesh = add(new Mesh(new SphereGeometry(1, 24, 16), mat));
     mesh.userData.radii = new Vector3(rx, ry, rz);
     return mesh;
   };
@@ -328,34 +329,34 @@ export function buildMannequin(m: Materials): Mannequin {
   const limb = (rFar: number, rNear: number) => add(new Mesh(limbGeometry(rFar, rNear), m.body));
   // Limb pairs: [near joint, far joint, mesh]. The wide end of the cylinder is the near one (the one the limb hangs from).
   const limbs = (['L', 'R'] as const).flatMap((s) => [
-    { a: `shoulder${s}`, b: `elbow${s}`, mesh: limb(0.034, 0.042) },
-    { a: `elbow${s}`, b: `wrist${s}`, mesh: limb(0.027, 0.034) },
-    { a: `hip${s}`, b: `knee${s}`, mesh: limb(0.05, 0.072) },
-    { a: `knee${s}`, b: `ankle${s}`, mesh: limb(0.034, 0.048) },
+    { a: `shoulder${s}`, b: `elbow${s}`, mesh: limb(0.04, 0.048) },
+    { a: `elbow${s}`, b: `wrist${s}`, mesh: limb(0.031, 0.04) },
+    { a: `hip${s}`, b: `knee${s}`, mesh: limb(0.06, 0.082) },
+    { a: `knee${s}`, b: `ankle${s}`, mesh: limb(0.042, 0.056) },
   ]) as { a: keyof Skeleton; b: keyof Skeleton; mesh: Mesh }[];
   // Ball joints hide the seams between rigid parts.
   const balls = [
     ...(['L', 'R'] as const).flatMap((s) => [
-      { at: `shoulder${s}` as keyof Skeleton, mesh: sphere(0.058, m.joint) },
-      { at: `elbow${s}` as keyof Skeleton, mesh: sphere(0.046, m.joint) },
-      { at: `wrist${s}` as keyof Skeleton, mesh: sphere(0.036, m.joint) },
-      { at: `hip${s}` as keyof Skeleton, mesh: sphere(0.095, m.joint) },
-      { at: `knee${s}` as keyof Skeleton, mesh: sphere(0.066, m.joint) },
-      { at: `ankle${s}` as keyof Skeleton, mesh: sphere(0.048, m.joint) },
+      { at: `shoulder${s}` as keyof Skeleton, mesh: sphere(0.064, m.joint) },
+      { at: `elbow${s}` as keyof Skeleton, mesh: sphere(0.05, m.joint) },
+      { at: `wrist${s}` as keyof Skeleton, mesh: sphere(0.04, m.joint) },
+      { at: `hip${s}` as keyof Skeleton, mesh: sphere(0.1, m.joint) },
+      { at: `knee${s}` as keyof Skeleton, mesh: sphere(0.07, m.joint) },
+      { at: `ankle${s}` as keyof Skeleton, mesh: sphere(0.052, m.joint) },
     ]),
   ];
   const hands = (['L', 'R'] as const).map((s) => ({ s, mesh: add(new Mesh(new SphereGeometry(1, 12, 8), m.body)) }));
-  const feet = (['L', 'R'] as const).map((s) => ({ s, mesh: add(new Mesh(new BoxGeometry(1, 0.07, 0.1), m.body)) }));
+  const feet = (['L', 'R'] as const).map((s) => ({ s, mesh: add(new Mesh(new SphereGeometry(1, 20, 12), m.body)) }));
   const neck = add(new Mesh(limbGeometry(0.05, 0.055), m.body));
   const head = ellipsoid(0.095, 0.115, 0.078, m.body);
   const nose = add(new Mesh(new ConeGeometry(0.02, 0.05, 6), m.joint));
-  const ribcage = ellipsoid(0.105, 0.215, 0.16, m.body);
-  const waist = ellipsoid(0.095, 0.12, 0.13, m.body);
+  const ribcage = ellipsoid(0.115, 0.225, 0.172, m.body);
+  const waist = ellipsoid(0.105, 0.135, 0.14, m.body);
   // A bar across the shoulders joins the arms to the body, the way a mannequin's shoulder line does.
   const shoulderBar = add(new Mesh(limbGeometry(0.05, 0.05), m.body));
-  const pelvisBox = ellipsoid(0.105, 0.088, 0.158, m.body);
-  const spineBall = sphere(0.05, m.joint);
-  const neckBall = sphere(0.056, m.joint);
+  const pelvisBox = ellipsoid(0.115, 0.095, 0.165, m.body);
+  const spineBall = sphere(0.1, m.joint);
+  const neckBall = sphere(0.062, m.joint);
 
   // The muscle layer.
   const muscles: { muscle: string; mesh: Mesh }[] = [];
@@ -369,8 +370,9 @@ export function buildMannequin(m: Materials): Mannequin {
   const limbMuscles = LIMB_MUSCLES.flatMap((lm) => ([1, -1] as const).map((side) => ({ lm, side, mesh: muscleMesh(lm.muscle, lm) })));
   const torsoMuscles = TORSO_MUSCLES.flatMap((tm) => (tm.mirror ? ([1, -1] as const) : ([1] as const)).map((side) => ({ tm, side, mesh: muscleMesh(tm.muscle, tm) })));
   let highlighted = { primary: new Set<string>(), secondary: new Set<string>() };
+  let tint = true;
   const paint = () => {
-    for (const { muscle, mesh } of muscles) mesh.material = highlighted.primary.has(muscle) ? m.musclePrimary : highlighted.secondary.has(muscle) ? m.muscleSecondary : m.muscle;
+    for (const { muscle, mesh } of muscles) mesh.material = tint && highlighted.primary.has(muscle) ? m.musclePrimary : tint && highlighted.secondary.has(muscle) ? m.muscleSecondary : m.muscle;
   };
 
   const tmp = new Vector3();
@@ -389,8 +391,8 @@ export function buildMannequin(m: Materials): Mannequin {
     for (const f of feet) {
       const heel = k[`heel${f.s}` as keyof Skeleton];
       const toe = k[`toe${f.s}` as keyof Skeleton];
-      f.mesh.position.copy(mid(heel, toe)).y += 0.035;
-      f.mesh.scale.set(Math.hypot(toe.x - heel.x, toe.z - heel.z), 1, 1);
+      f.mesh.position.copy(mid(heel, toe)).y += 0.03;
+      f.mesh.scale.set(Math.hypot(toe.x - heel.x, toe.z - heel.z) / 2, 0.04, 0.05);
       f.mesh.rotation.set(0, -Math.atan2(toe.z - heel.z, toe.x - heel.x), 0);
     }
 
@@ -468,8 +470,9 @@ export function buildMannequin(m: Materials): Mannequin {
       highlighted = { primary: new Set(primary), secondary: new Set(secondary) };
       paint();
     },
-    setMusclesVisible(on) {
-      for (const { mesh } of muscles) mesh.visible = on;
+    setHighlightVisible(on) {
+      tint = on;
+      paint();
     },
   };
 }

@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { demoUrl, type ExerciseGuide } from '../exercises/guide';
 import { machineGuideFor } from '../exercises/machines';
+import { motionFor } from '../exercises/motion';
 import exerciseHtml from '../ui/generated/exercise';
 import { EXERCISE_VIEW_URI, WORKOUT_VIEW_URI } from '../workout/plan';
 import { json, toolError } from './result';
@@ -23,7 +24,7 @@ export async function registerExerciseTools(server: McpServer) {
 
   /** Everything the guide shows for one library exercise. */
   async function guideFor(ex: Exercise): Promise<ExerciseGuide> {
-    return { ref: ex.ref, name: ex.name, ...(ex.category ? { category: ex.category } : {}), ...(ex.level ? { level: ex.level } : {}), equipment: ex.equipment, primary: ex.primary, secondary: ex.secondary, instructions: await loadInstructions(ex.ref), machine: machineGuideFor(ex.name, ex.equipment), demoUrl: demoUrl(ex.name) };
+    return { ref: ex.ref, name: ex.name, ...(ex.category ? { category: ex.category } : {}), ...(ex.level ? { level: ex.level } : {}), equipment: ex.equipment, primary: ex.primary, secondary: ex.secondary, instructions: await loadInstructions(ex.ref), machine: machineGuideFor(ex.name, ex.equipment), motion: motionFor(ex.name), demoUrl: demoUrl(ex.name) };
   }
 
   server.registerTool(
@@ -66,7 +67,7 @@ export async function registerExerciseTools(server: McpServer) {
     {
       title: 'Show how to do an exercise',
       description:
-        'Opens a guide for one exercise in the chat: a body drawing with the muscles it works, the step-by-step instructions, setup and form cues for the machine or cable station it uses, and a link to find a demo video. ' +
+        'Opens a guide for one exercise in the chat: a body drawing with the muscles it works (and a 3D animation of the movement for some lifts such as squat, deadlift and bench press), the step-by-step instructions, setup and form cues for the machine or cable station it uses, and a link to find a demo video. ' +
         'Give the library id (from search_exercises) or just a name to open the best match. Use it when the person asks how to do an exercise or how to use a machine; for a quick answer in words, search_exercises with id returns the same text.',
       inputSchema: z.object({ id: exerciseIdSchema.optional(), query: z.string().min(1).max(100).optional() }),
       annotations: { readOnlyHint: true },

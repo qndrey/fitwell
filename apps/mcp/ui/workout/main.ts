@@ -2,6 +2,7 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
 import { renderGuide } from '../shared/guide';
+import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
 
 interface FinishSummary {
   minutes: number;
@@ -32,6 +33,9 @@ const state = {
 };
 
 const root = document.getElementById('app')!;
+/** Created the first time "How to do it" opens (a WebGL context is not free on a phone); null when the device has none. */
+let motion: MotionPlayer | null | undefined;
+let motionFor = '';
 const app = new App({ name: 'Fitwell workout', version: '0.2.0' }, {}, { autoResize: true });
 
 // ---------- tiny DOM helper (textContent only: names come from data, never parsed as HTML) ----------
@@ -97,6 +101,8 @@ function select(i: number) {
   state.noteOpen = it.kind === 'ex' && !!it.ex.notes;
   state.guideOpen = false;
   state.guideFailed = false;
+  motion?.stop();
+  motionFor = '';
   if (it.kind === 'ex') {
     const ex = it.ex;
     const target = nextSet(ex) ?? ex.sets[ex.sets.length - 1]!;
@@ -207,6 +213,7 @@ function progressText(): string {
 
 async function finish() {
   if (state.finishing) return;
+  motion?.stop();
   state.finishing = true;
   state.restUntil = 0;
   render();
@@ -296,7 +303,19 @@ async function loadGuide(id: string) {
   render();
 }
 
-/** "How to do it": muscles, steps and machine setup, fetched the first time it is opened. */
+/** The animation element for an open guide, created on first use and started once per exercise. */
+function animation(g: ExerciseGuide): HTMLElement | null {
+  if (!state.guideOpen || !g.motion) return null;
+  if (motion === undefined) motion = createMotionPlayer();
+  if (!motion) return null;
+  if (motionFor !== g.ref) {
+    motion.show(g.motion, g.name);
+    motionFor = g.ref;
+  }
+  return motion.element;
+}
+
+/** "How to do it": animation, muscles, steps and machine setup, fetched the first time it is opened. */
 function guidePanel(ex: PlannedExercise) {
   const g = state.guides.get(ex.id);
   return h(
@@ -307,10 +326,14 @@ function guidePanel(ex: PlannedExercise) {
       ontoggle: (e: Event) => {
         state.guideOpen = (e.target as HTMLDetailsElement).open;
         if (state.guideOpen && !state.guides.has(ex.id)) void loadGuide(ex.id);
+        if (!state.guideOpen) {
+          motion?.stop();
+          motionFor = '';
+        }
       },
     },
     h('summary', {}, 'How to do it'),
-    g ? renderGuide(g, openLink) : h('p', { className: 'muted small' }, state.guideFailed ? 'Could not load the guide. Close and open it to try again.' : 'Loading…'),
+    g ? renderGuide(g, openLink, animation(g)) : h('p', { className: 'muted small' }, state.guideFailed ? 'Could not load the guide. Close and open it to try again.' : 'Loading…'),
   );
 }
 
@@ -498,6 +521,7 @@ app.ontoolresult = (result) => {
 };
 app.onhostcontextchanged = (ctx) => {
   applyHost(ctx);
+  motion?.setTheme();
   render();
 };
 

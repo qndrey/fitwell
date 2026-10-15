@@ -23,10 +23,10 @@ function bodyMap(view: 'front' | 'back', primary: Set<string>, secondary: Set<st
 const list = (items: string[]) => h('ul', { className: 'bullets' }, ...items.map((t) => h('li', {}, t)));
 
 /**
- * The guide card: muscles, steps, machine setup and a demo link. `openLink` asks the host to open the demo search;
+ * The guide card: animation (when there is one), muscles, steps, machine setup and a demo link. `openLink` asks the host to open the demo search;
  * if the host refuses, the address is shown to copy.
  */
-export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise<boolean>): HTMLElement {
+export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise<boolean>, motion?: HTMLElement | null): HTMLElement {
   const primary = new Set(g.primary);
   const secondary = new Set(g.secondary.filter((m) => !primary.has(m)));
   const fallback = h('p', { className: 'muted small', hidden: true }, 'Could not open the link here. Search for: ', h('code', {}, `${g.name} exercise how to`));
@@ -45,6 +45,7 @@ export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise
     { className: 'guide', 'aria-label': `How to do ${g.name}` },
     h('h2', {}, g.name),
     h('p', { className: 'muted small' }, facts.join(' · ')),
+    g.motion && motion ? motion : null,
     h(
       'figure',
       { className: 'maps' },

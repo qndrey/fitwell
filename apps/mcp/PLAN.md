@@ -123,6 +123,14 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 - [ ] Not done: photos or illustrations; a pass to rewrite the library's step text for the exercises where it is awkward.
 - [ ] Deploy (no migration).
 
+**Phase 5d: 3D exercise animation, prototype (2026-10-15)**
+- [x] Own male mannequin drawn with three.js (`ui/shared/mannequin.ts`): rigid parts with ball joints and a nose wedge so the facing direction reads, procedural barbell, dumbbells, kettlebell and bench. No model file, no downloaded asset, no licence to track. Colours follow the host theme; the player only creates a WebGL context when "How to do it" is opened and stops it when closed or hidden; without WebGL the guide simply has no animation.
+- [x] Movements are computed, not hand-posed (`src/exercises/motion.ts`, pure): the solvers return 3D joint positions from one progress value and enforce the rule of the lift: bar over the mid-foot in squats, bar on the floor with vertical arms at the start of a conventional deadlift, vertical forearms with the bar on the chest at the bottom of a bench press. `tests/motion.test.ts` checks segment lengths, planted feet, depth, bar clearance from the legs and joint ranges at 21 points of every movement.
+- [x] Three patterns, 16 exercises, by an explicit allow-list of library names: squat (back, front, wide stance, goblet, dumbbell, bodyweight), hinge (conventional, Romanian, stiff-legged with barbell or dumbbells), bench (medium, wide, close grip, dumbbells). Shown at the top of `show_exercise` and in the player's "How to do it", with Side, Front and 45° views and play/pause. Marked as schematic.
+- [ ] Next patterns: overhead press, row, pulldown and pull-up, curl, triceps extension, lateral raise, lunge; incline bench; machines; a female figure. Each needs a solver with its own form rule and a review of the motion.
+- Cost: both views grow from 0.6 MB to 1.2 MB (three.js, pinned 0.186.1); the Worker is 1.39 MB gzipped (limit 3 MB).
+- [ ] Deploy (no migration).
+
 ## 6. Risks and open items
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.

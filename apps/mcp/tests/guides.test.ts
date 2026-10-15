@@ -125,6 +125,25 @@ describe('exercise guide tools', () => {
     expect(d.instructions.length).toBeGreaterThan(0);
   });
 
+  it('says which exercises have a 3D animation, and describes it in the tool result for the views', async () => {
+    const motion = async (query: string) => ((await client.callTool({ name: 'show_exercise', arguments: { query } })).structuredContent as { guide: ExerciseGuide }).guide.motion;
+    expect(await motion('barbell squat')).toMatchObject({ pattern: 'squat', variant: { load: 'barbell-back' } });
+    expect(await motion('romanian deadlift')).toMatchObject({ pattern: 'hinge', variant: { hinge: 'romanian' } });
+    expect(await motion('dumbbell bench press')).toMatchObject({ pattern: 'bench', variant: { load: 'dumbbells' } });
+    expect(await motion('leg press')).toBeNull();
+    const press = await find('leg press');
+    const viaPlayer = (await client.callTool({ name: 'get_exercise_guide', arguments: { id: press.ref } })).structuredContent as { guide: ExerciseGuide };
+    expect(viaPlayer.guide.motion).toBeNull();
+  });
+
+  it('keeps the views with the 3D library small enough, and self-contained', async () => {
+    for (const uri of ['ui://fitwell/exercise.html', 'ui://fitwell/workout.html']) {
+      const item = (await client.readResource({ uri })).contents[0] as { text?: string };
+      expect(item.text!.length, uri).toBeLessThan(1_800_000);
+      expect(item.text, uri).not.toMatch(/<script[^>]+src=|<link[^>]+stylesheet/);
+    }
+  });
+
   it('serves the guide view as one self-contained page', async () => {
     const item = (await client.readResource({ uri: 'ui://fitwell/exercise.html' })).contents[0] as { mimeType?: string; text?: string };
     expect(item.mimeType).toBe('text/html;profile=mcp-app');

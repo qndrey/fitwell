@@ -1,3 +1,4 @@
+// A .gz file imported by a view is embedded as bytes (the views are single files and may not fetch anything).
 // Builds each view in ui/<name>/ (index.html + main.ts + style.css; ui/shared has code and styles views import, not a view) into one self-contained HTML string,
 // written as src/ui/generated/<name>.ts so the Worker, tests and tsc can import it. Run: npm run build:ui
 import { build } from 'esbuild';
@@ -9,7 +10,7 @@ mkdirSync(OUT, { recursive: true });
 
 for (const name of readdirSync('ui', { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join('ui', d.name, 'main.ts'))).map((d) => d.name)) {
   const dir = join('ui', name);
-  const js = await build({ entryPoints: [join(dir, 'main.ts')], bundle: true, format: 'esm', minify: true, target: 'es2022', write: false, legalComments: 'none' });
+  const js = await build({ entryPoints: [join(dir, 'main.ts')], bundle: true, format: 'esm', minify: true, target: 'es2022', write: false, legalComments: 'none', loader: { '.gz': 'binary' } });
   const css = await build({ entryPoints: [join(dir, 'style.css')], bundle: true, minify: true, write: false, loader: { '.css': 'css' } });
   const script = js.outputFiles[0]!.text.replace(/<\/script/gi, '<\\/script');
   const html = readFileSync(join(dir, 'index.html'), 'utf8')

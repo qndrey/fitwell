@@ -2,10 +2,14 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { h } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
+import { createMotionPlayer } from '../shared/motionView';
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell exercise guide', version: '0.1.0' }, {}, { autoResize: true });
 let guide: ExerciseGuide | null = null;
+/** One WebGL player for the life of the view; null when the device cannot do WebGL (the guide then has no animation). */
+const motion = createMotionPlayer();
+let shown: ExerciseGuide | null = null;
 
 /** Asks the host to open the address; false when the host cannot or the person declines. */
 async function openLink(url: string): Promise<boolean> {
@@ -19,7 +23,11 @@ async function openLink(url: string): Promise<boolean> {
 
 function render() {
   try {
-    root.replaceChildren(guide ? h('section', { className: 'card single' }, renderGuide(guide, openLink)) : h('p', { className: 'muted center' }, 'Loading the guide…'));
+    if (guide && guide !== shown) {
+      motion?.show(guide.motion, guide.name, { primary: guide.primary, secondary: guide.secondary });
+      shown = guide;
+    }
+    root.replaceChildren(guide ? h('section', { className: 'card single' }, renderGuide(guide, openLink, motion?.element)) : h('p', { className: 'muted center' }, 'Loading the guide…'));
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     root.replaceChildren(h('p', { className: 'error center' }, 'The guide could not be drawn.'), h('p', { className: 'muted small center' }, message));
@@ -45,6 +53,7 @@ app.ontoolresult = (result) => {
 };
 app.onhostcontextchanged = (ctx) => {
   applyHost(ctx);
+  motion?.setTheme();
   render();
 };
 

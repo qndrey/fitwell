@@ -24,7 +24,7 @@ async function openLink(url: string): Promise<boolean> {
 function render() {
   try {
     if (guide && guide !== shown) {
-      motion?.show(guide.motion, guide.name);
+      motion?.show(guide.motion, guide.name, { primary: guide.primary, secondary: guide.secondary });
       shown = guide;
     }
     root.replaceChildren(guide ? h('section', { className: 'card single' }, renderGuide(guide, openLink, motion?.element)) : h('p', { className: 'muted center' }, 'Loading the guide…'));

@@ -9,8 +9,8 @@ import { buildMannequin, buildProps, makeMaterials, setPalette, type Mannequin, 
 export interface MotionPlayer {
   /** Put this in the page. It stays the same element for the life of the view. */
   element: HTMLElement;
-  /** Show an exercise's movement, or hide the animation when it has none. */
-  show(spec: MotionSpec | null, label: string): void;
+  /** Show an exercise's movement (with its muscles lit up), or hide the animation when it has none. */
+  show(spec: MotionSpec | null, label: string, muscles?: { primary: string[]; secondary: string[] }): void;
   /** Stop animating (the panel is closed or the exercise changed). */
   stop(): void;
   /** Re-read the colours after the host theme changed. */
@@ -24,8 +24,8 @@ const VIEWS: { id: ViewName; label: string }[] = [
   { id: 'angle', label: '45°' },
 ];
 
-const LIGHT: Palette = { body: 0xcfc5b8, joint: 0xa89d8f, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
-const DARK: Palette = { body: 0xb8ad9f, joint: 0x8f8579, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
+const LIGHT: Palette = { body: 0xcfc5b8, muscle: 0xbba996, joint: 0xa89d8f, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
+const DARK: Palette = { body: 0xb8ad9f, muscle: 0x9c8b7b, joint: 0x8f8579, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
 
 function cssColor(name: string): Color | null {
   try {
@@ -75,6 +75,7 @@ export function createMotionPlayer(): MotionPlayer | null {
   let standingMode = false;
   let label = '';
   let view: ViewName = 'side';
+  let musclesOn = true;
   let paused = false;
   let visible = true;
   let started = 0;
@@ -84,12 +85,13 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   // ----- controls -----
   const play = h('button', { type: 'button', className: 'motion-play', 'aria-pressed': 'false', onclick: () => setPaused(!paused) }, 'Pause');
+  const muscleButton = h('button', { type: 'button', className: 'motion-muscles', 'aria-pressed': 'true', onclick: () => setMuscles(!musclesOn) }, 'Muscles');
   const viewButtons = VIEWS.map((v) => h('button', { type: 'button', 'aria-pressed': String(v.id === view), onclick: () => setView(v.id) }, v.label));
   const element = h(
     'div',
     { className: 'motion', hidden: true },
     canvas,
-    h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Animation controls' }, play, ...viewButtons),
+    h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Animation controls' }, play, ...viewButtons, muscleButton),
     h('p', { className: 'muted small' }, 'Schematic animation: follow the written cues for detail.'),
   );
 
@@ -146,6 +148,13 @@ export function createMotionPlayer(): MotionPlayer | null {
     } else kick();
   }
 
+  function setMuscles(on: boolean): void {
+    musclesOn = on;
+    mannequin.setMusclesVisible(on);
+    muscleButton.setAttribute('aria-pressed', String(on));
+    draw(currentP());
+  }
+
   function setView(next: ViewName): void {
     view = next;
     viewButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(VIEWS[i]!.id === view)));
@@ -175,7 +184,7 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   const player: MotionPlayer = {
     element,
-    show(spec, name) {
+    show(spec, name, muscles) {
       if (!spec) {
         current = null;
         element.hidden = true;
@@ -185,6 +194,8 @@ export function createMotionPlayer(): MotionPlayer | null {
       }
       current = spec;
       standingMode = false;
+      mannequin.setHighlight(muscles?.primary ?? [], muscles?.secondary ?? []);
+      mannequin.setMusclesVisible(musclesOn);
       propsHolder.visible = true;
       label = name;
       propsHolder.clear();

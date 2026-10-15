@@ -1,9 +1,10 @@
+import { loadExercises } from '@fitwell/core/data/exercises';
 import { Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { MOTIONS, skeletonAt, standing } from '../src/exercises/motion';
-import { buildMannequin, buildProps, makeMaterials } from '../ui/shared/mannequin';
+import { buildMannequin, buildProps, makeMaterials, MUSCLE_NAMES } from '../ui/shared/mannequin';
 
-const palette = { body: 0xc9bfb2, joint: 0xa99f92, load: 0x2f5d50, steel: 0xb0b0b0, furniture: 0x8a8378, floor: 0xddd6cc };
+const palette = { body: 0xc9bfb2, muscle: 0xbba996, joint: 0xa99f92, load: 0x2f5d50, steel: 0xb0b0b0, furniture: 0x8a8378, floor: 0xddd6cc };
 
 describe('mannequin', () => {
   it('stretches every limb part between its two joints in every pose', () => {
@@ -37,7 +38,7 @@ describe('mannequin', () => {
         expect(feet.length, name).toBe(2);
       }
     }
-    expect(man.group.children.length).toBeLessThan(60);
+    expect(man.group.children.length).toBeLessThan(90);
     man.update(standing());
   });
 
@@ -53,5 +54,58 @@ describe('mannequin', () => {
     props.update(skeletonAt(MOTIONS['Barbell Squat']!, 1));
     const bar = props.group.children[1]!;
     expect(bar.position.y).toBeCloseTo(skeletonAt(MOTIONS['Barbell Squat']!, 1).bar.y, 6);
+  });
+});
+
+describe('muscles', () => {
+  it('draws every muscle of the library, so any exercise can light up its muscles', async () => {
+    const lib = await loadExercises();
+    for (const name of lib.muscles) expect(MUSCLE_NAMES, name).toContain(name);
+    const man = buildMannequin(makeMaterials(palette));
+    const drawn = new Set(man.muscles.map((x) => x.muscle));
+    for (const name of lib.muscles) expect(drawn.has(name), name).toBe(true);
+    for (const name of drawn) expect(lib.muscles, `${name} is a library muscle`).toContain(name);
+  });
+
+  it('keeps each limb muscle on its limb in every pose', () => {
+    const man = buildMannequin(makeMaterials(palette));
+    const limbOf: Record<string, [string, string]> = { biceps: ['shoulder', 'elbow'], triceps: ['shoulder', 'elbow'], forearms: ['elbow', 'wrist'], quadriceps: ['hip', 'knee'], hamstrings: ['hip', 'knee'], calves: ['knee', 'ankle'] };
+    for (const name of ['Barbell Squat', 'Front Barbell Squat', 'Barbell Deadlift', 'Barbell Bench Press - Medium Grip']) {
+      for (const p of [0, 0.5, 1]) {
+        const k = skeletonAt(MOTIONS[name]!, p);
+        man.update(k);
+        for (const { muscle, mesh } of man.muscles) {
+          const joints = limbOf[muscle];
+          if (!joints) continue;
+          // The muscle's centre lies within 8 cm of the line between the two joints of one of the two limbs.
+          const near = (['L', 'R'] as const).some((sfx) => {
+            const a = k[`${joints[0]}${sfx}` as keyof typeof k] as { x: number; y: number; z: number };
+            const b = k[`${joints[1]}${sfx}` as keyof typeof k] as { x: number; y: number; z: number };
+            const A = new Vector3(a.x, a.y, a.z);
+            const B = new Vector3(b.x, b.y, b.z);
+            const t = Math.max(0, Math.min(1, mesh.position.clone().sub(A).dot(B.clone().sub(A)) / B.clone().sub(A).lengthSq()));
+            return mesh.position.distanceTo(A.clone().lerp(B, t)) < 0.08;
+          });
+          expect(near, `${muscle} ${name} p=${p}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('lights up the main muscles in the accent tone and the secondary ones lighter, and can hide the layer', () => {
+    const mats = makeMaterials(palette);
+    const man = buildMannequin(mats);
+    man.setHighlight(['quadriceps'], ['glutes', 'calves']);
+    const tone = (muscle: string) => man.muscles.find((x) => x.muscle === muscle)!.mesh.material;
+    expect(tone('quadriceps')).toBe(mats.musclePrimary);
+    expect(tone('glutes')).toBe(mats.muscleSecondary);
+    expect(tone('calves')).toBe(mats.muscleSecondary);
+    expect(tone('biceps')).toBe(mats.muscle);
+    man.setHighlight([], []);
+    expect(tone('quadriceps')).toBe(mats.muscle);
+    man.setMusclesVisible(false);
+    expect(man.muscles.every((x) => !x.mesh.visible)).toBe(true);
+    man.setMusclesVisible(true);
+    expect(man.muscles.every((x) => x.mesh.visible)).toBe(true);
   });
 });

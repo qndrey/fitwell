@@ -309,7 +309,7 @@ function animation(g: ExerciseGuide): HTMLElement | null {
   if (motion === undefined) motion = createMotionPlayer();
   if (!motion) return null;
   if (motionFor !== g.ref) {
-    motion.show(g.motion, g.name);
+    motion.show(g.motion, g.name, { primary: g.primary, secondary: g.secondary });
     motionFor = g.ref;
   }
   return motion.element;

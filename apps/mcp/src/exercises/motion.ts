@@ -40,10 +40,14 @@ export const BODY = {
   midfoot: 0.07,
 } as const;
 
+/** The measurements of a body, in metres. The solvers take one, so the same form rules hold for whichever body is drawn. */
+export type Body = { -readonly [K in keyof typeof BODY]: number };
 /** Hip joint to the centre of the shoulders along the trunk. */
-export const TRUNK = BODY.pelvis + BODY.lumbar + BODY.chest - BODY.shoulderDrop;
+export const trunkOf = (b: Body) => b.pelvis + b.lumbar + b.chest - b.shoulderDrop;
 /** Shoulder joint to the centre of a gripped bar with the arm straight. */
-export const ARM = BODY.upperArm + BODY.forearm + BODY.hand;
+export const armOf = (b: Body) => b.upperArm + b.forearm + b.hand;
+export const TRUNK = trunkOf(BODY);
+export const ARM = armOf(BODY);
 export const PLATE_RADIUS = 0.225;
 export const BAR_RADIUS = 0.0125;
 export const BENCH_HEIGHT = 0.43;
@@ -101,18 +105,18 @@ function bisect(f: (x: number) => number, lo: number, hi: number): number {
 }
 
 /** The spine, neck and head for a trunk pointing along `t` (unit, pelvis toward shoulders) with the neck along `n`. */
-function upperBody(hipC: Vec3, t: Vec3, n: Vec3) {
-  const lumbar = add(hipC, mul(t, BODY.pelvis));
-  const chest = add(lumbar, mul(t, BODY.lumbar));
-  const neckBase = add(chest, mul(t, BODY.chest));
-  const shoulderC = sub(neckBase, mul(t, BODY.shoulderDrop));
+function upperBody(b: Body, hipC: Vec3, t: Vec3, n: Vec3) {
+  const lumbar = add(hipC, mul(t, b.pelvis));
+  const chest = add(lumbar, mul(t, b.lumbar));
+  const neckBase = add(chest, mul(t, b.chest));
+  const shoulderC = sub(neckBase, mul(t, b.shoulderDrop));
   return {
     pelvis: hipC,
     lumbar,
     chest,
     neckBase,
-    neckTop: add(neckBase, mul(n, BODY.neck)),
-    headTop: add(neckBase, mul(n, BODY.neck + BODY.head)),
+    neckTop: add(neckBase, mul(n, b.neck)),
+    headTop: add(neckBase, mul(n, b.neck + b.head)),
     shoulderC,
   };
 }
@@ -128,32 +132,32 @@ interface LegPlan {
 }
 
 /** Hips, knees (two-bone chain to planted ankles), ankles and feet. The hip is lowered if the legs cannot reach. */
-function legs(plan: LegPlan, ankleX: (side: 1 | -1) => number, ankleY = BODY.ankleHeight) {
+function legs(b: Body, plan: LegPlan, ankleX: (side: 1 | -1) => number, ankleY = b.ankleHeight) {
   const out: Partial<Record<Joint, Vec3>> = {};
   for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
-    const hip = vec(plan.hipC.x, plan.hipC.y, side * BODY.hipHalf);
+    const hip = vec(plan.hipC.x, plan.hipC.y, side * b.hipHalf);
     const ankle = vec(ankleX(side), ankleY, side * plan.stance);
-    const { mid } = twoBone(hip, ankle, BODY.thigh, BODY.shin, vec(plan.kneePole.x, plan.kneePole.y, side * plan.kneePole.z));
+    const { mid } = twoBone(hip, ankle, b.thigh, b.shin, vec(plan.kneePole.x, plan.kneePole.y, side * plan.kneePole.z));
     const f = vec(Math.cos(plan.toeOut), 0, side * Math.sin(plan.toeOut));
     out[`hip${sfx}`] = hip;
     out[`knee${sfx}`] = mid;
     out[`ankle${sfx}`] = ankle;
-    out[`heel${sfx}`] = sub(sub(ankle, mul(f, BODY.heelBack)), vec(0, BODY.ankleHeight, 0));
-    out[`toe${sfx}`] = sub(add(ankle, mul(f, BODY.toeFront)), vec(0, BODY.ankleHeight, 0));
+    out[`heel${sfx}`] = sub(sub(ankle, mul(f, b.heelBack)), vec(0, b.ankleHeight, 0));
+    out[`toe${sfx}`] = sub(add(ankle, mul(f, b.toeFront)), vec(0, b.ankleHeight, 0));
   }
   return out;
 }
 
 /** Arms from the shoulders to given grip points (shoulder is the left one; the right one is mirrored by the caller). */
-function arms(shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, pole: Vec3) {
+function arms(b: Body, shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, pole: Vec3) {
   const out: Partial<Record<Joint, Vec3>> = {};
   for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
-    const shoulder = add(shoulderC, vec(0, 0, side * BODY.shoulderHalf));
+    const shoulder = add(shoulderC, vec(0, 0, side * b.shoulderHalf));
     const grip = grips[sfx];
-    const { mid: elbow, end } = twoBone(shoulder, grip, BODY.upperArm, BODY.forearm + BODY.hand, vec(pole.x, pole.y, side * pole.z));
+    const { mid: elbow, end } = twoBone(shoulder, grip, b.upperArm, b.forearm + b.hand, vec(pole.x, pole.y, side * pole.z));
     out[`shoulder${sfx}`] = shoulder;
     out[`elbow${sfx}`] = elbow;
-    out[`wrist${sfx}`] = add(elbow, mul(sub(end, elbow), BODY.forearm / (BODY.forearm + BODY.hand)));
+    out[`wrist${sfx}`] = add(elbow, mul(sub(end, elbow), b.forearm / (b.forearm + b.hand)));
     out[`grip${sfx}`] = end;
   }
   return out;
@@ -164,93 +168,93 @@ function arms(shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, pole: Vec3) {
  * elbow is solved from the shoulder to the wrist, and the hand reaches from the wrist to the grip point. `handDir` is the
  * direction from the grip to the wrist, for the left side (the right side mirrors its z).
  */
-function armsWithBentWrist(shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, handDir: Vec3, pole: Vec3) {
+function armsWithBentWrist(b: Body, shoulderC: Vec3, grips: { L: Vec3; R: Vec3 }, handDir: Vec3, pole: Vec3) {
   const out: Partial<Record<Joint, Vec3>> = {};
   for (const [side, sfx] of [[1, 'L'], [-1, 'R']] as const) {
-    const shoulder = add(shoulderC, vec(0, 0, side * BODY.shoulderHalf));
+    const shoulder = add(shoulderC, vec(0, 0, side * b.shoulderHalf));
     const grip = grips[sfx];
-    const wristTarget = add(grip, mul(norm(vec(handDir.x, handDir.y, side * handDir.z)), BODY.hand));
-    const { mid: elbow, end: wrist } = twoBone(shoulder, wristTarget, BODY.upperArm, BODY.forearm, vec(pole.x, pole.y, side * pole.z));
+    const wristTarget = add(grip, mul(norm(vec(handDir.x, handDir.y, side * handDir.z)), b.hand));
+    const { mid: elbow, end: wrist } = twoBone(shoulder, wristTarget, b.upperArm, b.forearm, vec(pole.x, pole.y, side * pole.z));
     out[`shoulder${sfx}`] = shoulder;
     out[`elbow${sfx}`] = elbow;
     out[`wrist${sfx}`] = wrist;
-    out[`grip${sfx}`] = add(wrist, mul(norm(sub(grip, wristTarget)), BODY.hand));
+    out[`grip${sfx}`] = add(wrist, mul(norm(sub(grip, wristTarget)), b.hand));
   }
   return out;
 }
 
-const assemble = (parts: Partial<Record<Joint, Vec3>>, bar: Vec3): Skeleton => {
+const assemble = (b: Body, parts: Partial<Record<Joint, Vec3>>, bar: Vec3): Skeleton => {
   const left = parts.ankleL!;
   const right = parts.ankleR!;
   const mid = mul(add(left, right), 0.5);
-  return { ...(parts as Skeleton), bar, midfoot: vec(mid.x + BODY.midfoot, 0, 0) };
+  return { ...(parts as Skeleton), bar, midfoot: vec(mid.x + b.midfoot, 0, 0) };
 };
 
 // ---------- squat ----------
 
 const SQUAT = { kneeMax: 118 * DEG, shinStart: 3 * DEG, shinEnd: 32 * DEG, leanMax: 70 * DEG };
 
-function squat(p: number, v: Variant): Skeleton {
+function squat(p: number, v: Variant, b: Body): Skeleton {
   const wide = v.stance === 'wide';
   const stance = wide ? 0.21 : 0.12;
   const s = lerp(SQUAT.shinStart, SQUAT.shinEnd, p);
   const a = p * SQUAT.kneeMax - s; // thigh angle from vertical, hip behind the knee
-  const knee2 = { x: BODY.shin * Math.sin(s), y: BODY.ankleHeight + BODY.shin * Math.cos(s) };
-  let hip = { x: knee2.x - BODY.thigh * Math.sin(a), y: knee2.y + BODY.thigh * Math.cos(a) };
+  const knee2 = { x: b.shin * Math.sin(s), y: b.ankleHeight + b.shin * Math.cos(s) };
+  let hip = { x: knee2.x - b.thigh * Math.sin(a), y: knee2.y + b.thigh * Math.cos(a) };
   // With the feet apart the hip must be closer to the floor for the legs to reach.
-  const reach = (BODY.thigh + BODY.shin) * 0.9995;
-  const flat = Math.hypot(hip.x, stance - BODY.hipHalf);
-  if (flat < reach) hip = { x: hip.x, y: Math.min(hip.y, BODY.ankleHeight + Math.sqrt(reach * reach - flat * flat)) };
+  const reach = (b.thigh + b.shin) * 0.9995;
+  const flat = Math.hypot(hip.x, stance - b.hipHalf);
+  if (flat < reach) hip = { x: hip.x, y: Math.min(hip.y, b.ankleHeight + Math.sqrt(reach * reach - flat * flat)) };
   const hipC = vec(hip.x, hip.y, 0);
-  const midfootX = BODY.midfoot;
+  const midfootX = b.midfoot;
 
   // Where the load sits on the trunk, so the lean can put it over the mid-foot.
   const front = v.load === 'barbell-front';
   const loadAt = (lean: number) => {
     const t = vec(Math.sin(lean), Math.cos(lean), 0);
     return front
-      ? add(add(hipC, mul(t, TRUNK)), mul(vec(Math.cos(lean), -Math.sin(lean), 0), 0.07))
-      : add(add(hipC, mul(t, TRUNK + 0.01)), mul(vec(-Math.cos(lean), Math.sin(lean), 0), 0.055));
+      ? add(add(hipC, mul(t, trunkOf(b))), mul(vec(Math.cos(lean), -Math.sin(lean), 0), 0.07))
+      : add(add(hipC, mul(t, trunkOf(b) + 0.01)), mul(vec(-Math.cos(lean), Math.sin(lean), 0), 0.055));
   };
   const lean = loadAt(0).x >= midfootX ? 0 : Math.min(SQUAT.leanMax, bisect((l) => loadAt(l).x - midfootX, 0, SQUAT.leanMax));
   const t = vec(Math.sin(lean), Math.cos(lean), 0);
   const neck = vec(Math.sin(lean * 0.35), Math.cos(lean * 0.35), 0);
-  const body = upperBody(hipC, t, neck);
-  const lower = legs({ hipC, stance, toeOut: (wide ? 22 : 10) * DEG, kneePole: vec(1, 0, wide ? 0.45 : 0.15) }, () => 0);
+  const body = upperBody(b, hipC, t, neck);
+  const lower = legs(b, { hipC, stance, toeOut: (wide ? 22 : 10) * DEG, kneePole: vec(1, 0, wide ? 0.45 : 0.15) }, () => 0);
 
   const nFwd = vec(Math.cos(lean), -Math.sin(lean), 0);
   let bar = loadAt(lean);
   let armParts: Partial<Record<Joint, Vec3>>;
-  const shoulderL = add(body.shoulderC, vec(0, 0, BODY.shoulderHalf));
-  const shoulderR = sub(body.shoulderC, vec(0, 0, BODY.shoulderHalf));
+  const shoulderL = add(body.shoulderC, vec(0, 0, b.shoulderHalf));
+  const shoulderR = sub(body.shoulderC, vec(0, 0, b.shoulderHalf));
   const hands = (z: number, at: Vec3) => ({ L: add(at, vec(0, 0, z)), R: add(at, vec(0, 0, -z)) });
   switch (v.load) {
     case 'barbell-back':
       // Hands on the bar behind the neck with the wrists just below it; the elbows point down and back.
-      armParts = armsWithBentWrist(body.shoulderC, hands(0.36, bar), vec(0, -1, 0), vec(-0.5, -1, 0.4));
+      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.36, bar), vec(0, -1, 0), vec(-0.5, -1, 0.4));
       break;
     case 'barbell-front':
       // The bar rests on the front of the shoulders, held by the fingers; the elbows point forward at about shoulder height.
-      armParts = armsWithBentWrist(body.shoulderC, hands(0.28, bar), vec(-0.3, -0.95, 0), vec(1, 0.35, 0.15));
+      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.28, bar), vec(-0.3, -0.95, 0), vec(1, 0.35, 0.15));
       break;
     case 'goblet':
       bar = add(add(hipC, mul(t, 0.38)), mul(nFwd, 0.14));
-      armParts = armsWithBentWrist(body.shoulderC, hands(0.05, bar), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
+      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.05, bar), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
       break;
     case 'dumbbells': {
-      const grips = { L: add(shoulderL, vec(0, -ARM, 0.06)), R: add(shoulderR, vec(0, -ARM, -0.06)) };
-      armParts = arms(body.shoulderC, grips, vec(0.2, 0, 1));
+      const grips = { L: add(shoulderL, vec(0, -armOf(b), 0.06)), R: add(shoulderR, vec(0, -armOf(b), -0.06)) };
+      armParts = arms(b, body.shoulderC, grips, vec(0.2, 0, 1));
       bar = mul(add(grips.L, grips.R), 0.5);
       break;
     }
     default: {
       // Bodyweight: the hands are clasped in front of the chest with the elbows pointing down and out.
       const chest = add(add(hipC, mul(t, 0.4)), mul(nFwd, 0.12));
-      armParts = armsWithBentWrist(body.shoulderC, hands(0.04, chest), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
+      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.04, chest), vec(0, 0, 0.0001), vec(0.2, -1, 0.3));
       bar = chest;
     }
   }
-  return assemble({ ...body, ...lower, ...armParts }, bar);
+  return assemble(b, { ...body, ...lower, ...armParts }, bar);
 }
 
 // ---------- hip hinge (deadlift family) ----------
@@ -267,19 +271,19 @@ const HINGES: Record<Variant['hinge'], HingeEnds> = {
   stiff: { kneeBottom: 15 * DEG, shinBottom: 2 * DEG, barBottom: 0.5 },
 };
 
-function hinge(p: number, v: Variant): Skeleton {
+function hinge(p: number, v: Variant, b: Body): Skeleton {
   const e = HINGES[v.hinge];
   const s = lerp(3 * DEG, e.shinBottom, p);
   const phi = lerp(0, e.kneeBottom, p);
   const a = phi - s;
-  const knee2 = { x: BODY.shin * Math.sin(s), y: BODY.ankleHeight + BODY.shin * Math.cos(s) };
-  const hip = { x: knee2.x - BODY.thigh * Math.sin(a), y: knee2.y + BODY.thigh * Math.cos(a) };
+  const knee2 = { x: b.shin * Math.sin(s), y: b.ankleHeight + b.shin * Math.cos(s) };
+  const hip = { x: knee2.x - b.thigh * Math.sin(a), y: knee2.y + b.thigh * Math.cos(a) };
   const hipC = vec(hip.x, hip.y, 0);
 
   // The bar hugs the legs: its height runs from the upper thigh to the bottom height, and it sits just in front of the leg at that height.
   const barY = lerp(hip.y - 0.15, e.barBottom, p);
   const legFront = (y: number) => {
-    if (y <= knee2.y) return ((y - BODY.ankleHeight) / Math.cos(s)) * Math.sin(s) + 0.0675 + 0.01;
+    if (y <= knee2.y) return ((y - b.ankleHeight) / Math.cos(s)) * Math.sin(s) + 0.0675 + 0.01;
     const f = (y - knee2.y) / Math.max(1e-6, hip.y - knee2.y);
     return knee2.x + (hip.x - knee2.x) * Math.min(1, f) + 0.1;
   };
@@ -287,36 +291,36 @@ function hinge(p: number, v: Variant): Skeleton {
   const bar = vec(barX, barY, 0);
 
   // Lean the trunk until the arms are taut; if the bar is already within reach the trunk stays upright.
-  const shoulderAt = (lean: number) => add(hipC, mul(vec(Math.sin(lean), Math.cos(lean), 0), TRUNK));
-  const lean = distance(shoulderAt(0), bar) <= ARM ? 0 : bisect((l) => distance(shoulderAt(l), bar) - ARM, 0, 88 * DEG);
+  const shoulderAt = (lean: number) => add(hipC, mul(vec(Math.sin(lean), Math.cos(lean), 0), trunkOf(b)));
+  const lean = distance(shoulderAt(0), bar) <= armOf(b) ? 0 : bisect((l) => distance(shoulderAt(l), bar) - armOf(b), 0, 88 * DEG);
   const t = vec(Math.sin(lean), Math.cos(lean), 0);
-  const body = upperBody(hipC, t, vec(Math.sin(lean * 0.35), Math.cos(lean * 0.35), 0));
-  const lower = legs({ hipC, stance: 0.11, toeOut: 10 * DEG, kneePole: vec(1, 0, 0.1) }, () => 0);
+  const body = upperBody(b, hipC, t, vec(Math.sin(lean * 0.35), Math.cos(lean * 0.35), 0));
+  const lower = legs(b, { hipC, stance: 0.11, toeOut: 10 * DEG, kneePole: vec(1, 0, 0.1) }, () => 0);
 
   const dumbbells = v.load === 'dumbbells';
   const z = dumbbells ? 0.24 : 0.22;
   const grips = { L: vec(barX, barY, z), R: vec(barX, barY, -z) };
-  return assemble({ ...body, ...lower, ...arms(body.shoulderC, grips, vec(0, 0, 1)) }, bar);
+  return assemble(b, { ...body, ...lower, ...arms(b, body.shoulderC, grips, vec(0, 0, 1)) }, bar);
 }
 
 // ---------- bench press ----------
 
 const GRIP_HALF = { close: 0.2, medium: 0.3, wide: 0.4 } as const;
 
-function bench(p: number, v: Variant): Skeleton {
+function bench(p: number, v: Variant, b: Body): Skeleton {
   const lying = (x: number, dy = 0) => vec(x, BENCH_HEIGHT + 0.1 + dy, 0);
   const hipC = lying(0);
   const t = vec(-1, 0, 0);
-  const body = upperBody(hipC, t, t);
-  const lower = legs({ hipC, stance: 0.2, toeOut: 0, kneePole: vec(0, 1, 0.2) }, () => 0.54);
+  const body = upperBody(b, hipC, t, t);
+  const lower = legs(b, { hipC, stance: 0.2, toeOut: 0, kneePole: vec(0, 1, 0.2) }, () => 0.54);
 
   const dumbbells = v.load === 'dumbbells';
   const gz = dumbbells ? 0.22 : GRIP_HALF[v.grip];
-  const shoulder = add(body.shoulderC, vec(0, 0, BODY.shoulderHalf)); // left shoulder
+  const shoulder = add(body.shoulderC, vec(0, 0, b.shoulderHalf)); // left shoulder
   const chestTop = body.chest.y + 0.12;
-  const l1 = BODY.upperArm;
-  const l2 = BODY.forearm + BODY.hand;
-  const dz = gz - BODY.shoulderHalf;
+  const l1 = b.upperArm;
+  const l2 = b.forearm + b.hand;
+  const dz = gz - b.shoulderHalf;
 
   // Bottom: the bar touches the chest with the forearms vertical, which fixes where along the body it lands.
   const gyBottom = chestTop + BAR_RADIUS;
@@ -335,19 +339,19 @@ function bench(p: number, v: Variant): Skeleton {
   const toElbow = sub(elbowBottom, shoulder);
   const pole = norm(sub(toElbow, mul(line, dot(toElbow, line))));
   const grips = { L: g, R: vec(g.x, g.y, -gz) };
-  return assemble({ ...body, ...lower, ...arms(body.shoulderC, grips, vec(pole.x, pole.y, pole.z)) }, vec(g.x, g.y, 0));
+  return assemble(b, { ...body, ...lower, ...arms(b, body.shoulderC, grips, vec(pole.x, pole.y, pole.z)) }, vec(g.x, g.y, 0));
 }
 
 // ---------- public API ----------
 
-export function skeletonAt(s: MotionSpec, p: number): Skeleton {
+export function skeletonAt(s: MotionSpec, p: number, body: Body = BODY): Skeleton {
   const q = Math.min(1, Math.max(0, p));
-  return s.pattern === 'squat' ? squat(q, s.variant) : s.pattern === 'hinge' ? hinge(q, s.variant) : bench(q, s.variant);
+  return s.pattern === 'squat' ? squat(q, s.variant, body) : s.pattern === 'hinge' ? hinge(q, s.variant, body) : bench(q, s.variant, body);
 }
 
 /** The standing figure, for proportions and the turntable view. */
-export function standing(): Skeleton {
-  return squat(0, DEFAULT_VARIANT);
+export function standing(body: Body = BODY): Skeleton {
+  return squat(0, DEFAULT_VARIANT, body);
 }
 
 /** True when the lift starts from the bottom (the conventional deadlift starts from the floor). */

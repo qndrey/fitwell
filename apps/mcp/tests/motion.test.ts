@@ -1,6 +1,6 @@
 import { loadExercises } from '@fitwell/core/data/exercises';
 import { describe, expect, it } from 'vitest';
-import { ARM, BAR_RADIUS, BENCH_HEIGHT, BODY, distance, JOINTS, LOOP_SECONDS, MOTIONS, PLATE_RADIUS, motionFor, progressAt, skeletonAt, standing, type MotionSpec, type Skeleton, type Vec3 } from '../src/exercises/motion';
+import { ARM, BAR_RADIUS, BENCH_HEIGHT, BODY, distance, type Body, JOINTS, LOOP_SECONDS, MOTIONS, PLATE_RADIUS, motionFor, progressAt, skeletonAt, standing, type MotionSpec, type Skeleton, type Vec3 } from '../src/exercises/motion';
 
 const SAMPLES = Array.from({ length: 21 }, (_, i) => i / 20);
 const DEG = 180 / Math.PI;
@@ -222,5 +222,75 @@ describe('loop and mapping', () => {
     expect(motionFor('Hack Squat')).toBeNull();
     expect(motionFor('Barbell Hack Squat')).toBeNull();
     expect(motionFor('Barbell Bench Press - Medium Grip')?.pattern).toBe('bench');
+  });
+});
+
+// The same rules hold for other bodies: the solvers take the body's measurements.
+const MODEL_BODY: Body = { ankleHeight: 0.071, shin: 0.432, thigh: 0.428, pelvis: 0.1, lumbar: 0.22, chest: 0.238, shoulderDrop: 0.1, neck: 0.095, head: 0.15, shoulderHalf: 0.213, hipHalf: 0.107, upperArm: 0.252, forearm: 0.255, hand: 0.08, heelBack: 0.06, toeFront: 0.2, midfoot: 0.07 };
+const scaled = (k: number): Body => Object.fromEntries(Object.entries(BODY).map(([key, v]) => [key, v * k])) as Body;
+const OTHER_BODIES: [string, Body][] = [['110 % of the default', scaled(1.1)], ['92 % of the default', scaled(0.92)], ['the MPFB body', MODEL_BODY]];
+
+describe.each(OTHER_BODIES)('the form rules on %s', (_name, body) => {
+  const at = (name: string, p: number) => skeletonAt(spec(name), p, body);
+  const every = (names: string[], f: (k: Skeleton, p: number, name: string) => void) => {
+    for (const name of names) for (const p of SAMPLES) f(at(name, p), p, name);
+  };
+
+  it('keeps every segment at the length of that body', () => {
+    every(ALL, (k, p, name) => {
+      for (const s of ['L', 'R'] as const) {
+        expect(Math.abs(distance(k[`hip${s}`], k[`knee${s}`]) - body.thigh), `thigh ${name} p=${p}`).toBeLessThan(0.002);
+        expect(Math.abs(distance(k[`knee${s}`], k[`ankle${s}`]) - body.shin), `shin ${name} p=${p}`).toBeLessThan(0.002);
+        expect(Math.abs(distance(k[`shoulder${s}`], k[`elbow${s}`]) - body.upperArm), `upper arm ${name} p=${p}`).toBeLessThan(0.002);
+        expect(Math.abs(distance(k[`elbow${s}`], k[`wrist${s}`]) - body.forearm), `forearm ${name} p=${p}`).toBeLessThan(0.002);
+      }
+    });
+  });
+
+  it('stands as tall as its measurements say and keeps its feet on the floor', () => {
+    const k = standing(body);
+    const tall = body.ankleHeight + body.shin + body.thigh + body.pelvis + body.lumbar + body.chest + body.neck + body.head;
+    expect(Math.abs(k.headTop.y - tall)).toBeLessThan(0.02); // a slight forward lean costs about a centimetre
+    every(SQUATS, (s, _p, name) => {
+      for (const side of ['L', 'R'] as const) {
+        expect(Math.abs(s[`heel${side}`].y), name).toBeLessThan(0.01);
+        expect(Math.abs(s[`toe${side}`].y), name).toBeLessThan(0.01);
+      }
+    });
+  });
+
+  it('keeps a barbell over the mid-foot in the squat, and goes deep', () => {
+    every(BARBELL_SQUATS, (k, p, name) => expect(Math.abs(k.bar.x - k.midfoot.x), `${name} p=${p}`).toBeLessThan(0.06));
+    for (const name of BARBELL_SQUATS) expect(flexion(at(name, 1).hipL, at(name, 1).kneeL, at(name, 1).ankleL), name).toBeGreaterThan(100);
+  });
+
+  it('starts the deadlift with the bar on the floor and nearly vertical arms, and never puts the bar in the legs', () => {
+    const k = at('Barbell Deadlift', 1);
+    expect(Math.abs(k.bar.y - PLATE_RADIUS)).toBeLessThan(0.02);
+    const arm = sub(k.gripL, k.shoulderL);
+    expect(Math.atan2(Math.hypot(arm.x, arm.z), -arm.y) * DEG).toBeLessThan(10);
+    every(['Barbell Deadlift', 'Romanian Deadlift'], (s, p, name) => {
+      expect(nearestOnSegmentXY(s.bar, s.ankleL, s.kneeL).d, `shin ${name} p=${p}`).toBeGreaterThan(0.04 + BAR_RADIUS - 0.006);
+    });
+  });
+
+  it('touches the chest at the bottom of the bench press with vertical forearms and level hands', () => {
+    for (const name of ALL.filter((n) => MOTIONS[n]!.pattern === 'bench')) {
+      const k = at(name, 1);
+      expect(k.bar.y - (k.chest.y + 0.12), name).toBeGreaterThan(-0.005);
+      expect(k.bar.y - (k.chest.y + 0.12), name).toBeLessThan(0.035);
+      const forearm = sub(k.wristL, k.elbowL);
+      expect(Math.atan2(Math.hypot(forearm.x, forearm.z), forearm.y) * DEG, name).toBeLessThan(15);
+      expect(Math.abs(k.gripL.y - k.gripR.y), name).toBeLessThan(0.01);
+    }
+  });
+
+  it('keeps the joints within human ranges', () => {
+    every(ALL, (k, p, name) => {
+      for (const s of ['L', 'R'] as const) {
+        expect(flexion(k[`hip${s}`], k[`knee${s}`], k[`ankle${s}`]), `knee ${name} p=${p}`).toBeLessThan(150);
+        expect(flexion(k[`shoulder${s}`], k[`elbow${s}`], k[`wrist${s}`]), `elbow ${name} p=${p}`).toBeLessThan(168);
+      }
+    });
   });
 });

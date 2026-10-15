@@ -77,11 +77,35 @@ basemesh.data.update()
 print("VERTS", len(basemesh.data.vertices), "BONES", len(rig.data.bones), "HEIGHT", max(v.co.z for v in basemesh.data.vertices) - min(v.co.z for v in basemesh.data.vertices))
 print("BONE HEADS", {b.name: tuple(round(c, 3) for c in b.head_local) for b in rig.data.bones if not any(k in b.name for k in ("index", "middle", "ring", "pinky", "thumb"))})
 
+# Muscle weights per vertex, packed four to an attribute (_MUSCLE0 .. _MUSCLE4), so the player can tint a muscle group.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import muscle_regions  # noqa: E402
+
+weights = muscle_regions.compute(basemesh, rig)
+count = len(muscle_regions.MUSCLES)
+for k in range((count + 3) // 4):
+    attr = basemesh.data.color_attributes.new(name=f"_MUSCLE{k}", type="FLOAT_COLOR", domain="POINT")
+    for i, w in enumerate(weights):
+        chunk = w[k * 4 : k * 4 + 4] + [0.0] * 4
+        attr.data[i].color = tuple(chunk[:4])
+with open(os.path.join(out, "muscles.json"), "w") as f:
+    import json
+
+    json.dump({"muscles": muscle_regions.MUSCLES}, f)
+
+# Only what the player needs: no extra vertex groups (parts of the face, left/right) and no materials (the player has its own).
+bone_names = {b.name for b in rig.data.bones}
+for g in [g for g in basemesh.vertex_groups if g.name not in bone_names]:
+    basemesh.vertex_groups.remove(g)
+basemesh.data.materials.clear()
+for name in [a.name for a in basemesh.data.attributes if a.name.startswith("MPFB") or a.name in ("Col", "color")]:
+    pass
+
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out, f"body-{preset}.blend"))
 bpy.ops.object.select_all(action="DESELECT")
 rig.select_set(True)
 basemesh.select_set(True)
-bpy.ops.export_scene.gltf(filepath=os.path.join(out, f"body-{preset}.glb"), export_format="GLB", use_selection=True, export_skins=True, export_animations=False, export_apply=False, export_yup=True)
+bpy.ops.export_scene.gltf(filepath=os.path.join(out, f"body-{preset}.glb"), export_format="GLB", use_selection=True, export_skins=True, export_animations=False, export_apply=False, export_yup=True, export_attributes=True, export_all_influences=False, export_materials="NONE", export_vertex_color="NONE", export_texcoords=False)
 
 # A preview render: front and side, flat grey, so the shape can be judged.
 scene = bpy.context.scene

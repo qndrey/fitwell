@@ -76,7 +76,7 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [ ] D1 usage: rows read and written today in `show_dashboard` and a log line.
 - [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts` (no jobs yet, tested in `wrangler dev --test-scheduled`).
 - [ ] Open Food Facts: retry with backoff in `src/off.ts`; on a 503 answer from the D1 cache (`data/offCache.ts`) and say the results may be incomplete.
-- [ ] A1: `estimateExpenditure()` and `projectGoalDate()` in `packages/core/src/domain/energy.ts`, pure, tested against hand-computed weeks (steady loss, plateau, missing days, too little data → no estimate); shown in `show_weekly_review` (`analytics/review.ts`) and `get_progress` (`tools/body.ts`); Claude proposes, `set_goals` only after agreement.
+- [x] A1: `estimateExpenditure()` and `projectGoalDate()` in `packages/core/src/domain/energy.ts`, pure, tested against hand-computed weeks (steady loss, plateau, missing days, too little data → no estimate); shown in `show_weekly_review` (`analytics/review.ts`) and `get_progress` (`tools/body.ts`); Claude proposes, `set_goals` only after agreement.
 - [ ] D1: `log_food` takes `copy_from` (day and optional meal) and `combo`; combos saved with `save_custom_food` or a small table; allergy checks run as for any log.
 - [ ] D2: `save_custom_food` checks label values and explains a refusal.
 - [ ] A2: supersets, timed sets, plate calculator, warm-up ramp in the player.

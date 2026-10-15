@@ -1,5 +1,6 @@
 // The shape of the progress numbers. Pure types, shared with the dashboard view (which can't see server code).
 import type { Day } from '@fitwell/core/domain/dates';
+import type { Confidence, WeightGoal } from '@fitwell/core/domain/energy';
 
 export interface WeightProgress {
   daily: { day: Day; kg: number }[];
@@ -47,6 +48,33 @@ export interface MetricsProgress {
   water: { daily: { day: Day; ml: number }[]; averageMl: number | null };
 }
 
+/** Energy expenditure measured from the person's own intake and weight trend (last 28 days of the period). */
+export interface EnergyProgress {
+  /** kcal a day; null when the data can't support an estimate (then `reason` says what is missing). */
+  expenditureKcal: number | null;
+  reason: string | null;
+  confidence: Confidence | null;
+  from: Day;
+  to: Day;
+  daysCounted: number;
+  /** Days left out as probably not fully logged. */
+  daysExcluded: number;
+  weighIns: number;
+  intakeKcal: number | null;
+  /** Slope of the weight trend, kg a week; negative is losing. */
+  trendKgPerWeek: number | null;
+  trendKg: number | null;
+  goalKcal: number | null;
+  /** Which way the goal weight lies from the trend weight; null without a goal weight. */
+  direction: WeightGoal | null;
+  /** Daily calories for that direction at the default rate (0.5 kg a week to lose, 0.25 to gain), from the measured expenditure. */
+  suggestedKcal: number | null;
+  suggestedRateKgPerWeek: number | null;
+  /** When the trend line reaches the goal weight at the current rate; null when flat or heading away. */
+  goalDate: Day | null;
+  notes: string[];
+}
+
 export interface Progress {
   from: Day;
   to: Day;
@@ -57,4 +85,5 @@ export interface Progress {
   records: RecordsProgress;
   measurements: MeasurementProgress;
   metrics: MetricsProgress;
+  energy: EnergyProgress;
 }

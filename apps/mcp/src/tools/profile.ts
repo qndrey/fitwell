@@ -72,24 +72,27 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
       title: 'Suggest calorie and macro targets',
       description:
         'Estimates daily calories and macros from the profile (sex, birth year, height, weight, activity level) with Mifflin-St Jeor and standard activity factors, ' +
-        'for losing, keeping or gaining weight. Nothing is saved; show the numbers and call set_goals if the person agrees. An estimate, not medical advice.',
-      inputSchema: z.object({ goal: z.enum(['lose', 'maintain', 'gain']), rate_kg_per_week: z.number().min(0.1).max(1).optional() }),
+        'for losing, keeping or gaining weight. With expenditure_kcal (the measured burn from get_progress or the weekly review) that number replaces the formula and the activity level is not needed. ' +
+        'Nothing is saved; show the numbers and call set_goals if the person agrees. An estimate, not medical advice.',
+      inputSchema: z.object({ goal: z.enum(['lose', 'maintain', 'gain']), rate_kg_per_week: z.number().min(0.1).max(1).optional(), expenditure_kcal: z.number().min(1000).max(6000).optional() }),
       annotations: { readOnlyHint: true },
     },
-    async ({ goal, rate_kg_per_week }) => {
+    async ({ goal, rate_kg_per_week, expenditure_kcal }) => {
       const p = await data.profile();
-      const missing = [!p.sex && 'sex', !p.birthYear && 'birth_year', !p.heightCm && 'height_cm', !p.weightKg && 'weight_kg', !p.activityLevel && 'activity_level'].filter(Boolean);
+      const missing = [!p.sex && 'sex', !p.birthYear && 'birth_year', !p.heightCm && 'height_cm', !p.weightKg && 'weight_kg', !p.activityLevel && expenditure_kcal === undefined && 'activity_level'].filter(Boolean);
       if (missing.length) return toolError(`Ask for and save these profile fields first (update_profile): ${missing.join(', ')}.`);
       const targets = suggestTargets({
         sex: p.sex!,
         ageYears: new Date().getFullYear() - p.birthYear!,
         heightCm: p.heightCm!,
         weightKg: p.weightKg!,
-        activity: p.activityLevel!,
+        activity: p.activityLevel ?? undefined,
+        maintenanceKcal: expenditure_kcal,
         goal,
         rateKgPerWeek: rate_kg_per_week,
       });
-      return json({ goal, targets, method: 'Mifflin-St Jeor BMR × activity factor; 7700 kcal per kg; protein 1.6 g/kg (2.0 when losing); fat ≥ 25 % of energy' });
+      const maintenance = expenditure_kcal === undefined ? 'Mifflin-St Jeor BMR × activity factor' : 'measured expenditure as maintenance';
+      return json({ goal, targets, method: `${maintenance}; 7700 kcal per kg; protein 1.6 g/kg (2.0 when losing); fat ≥ 25 % of energy` });
     },
   );
 

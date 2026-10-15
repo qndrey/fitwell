@@ -1,0 +1,120 @@
+# Fitwell for Claude: long-term roadmap
+
+What comes after the phases in [PLAN.md](PLAN.md). Drafted 2026-10-15 from a brainstorm with research on comparable tools. Four themes: smarter coaching, friends, wearables, faster logging, plus the foundations they need and nudges that work without a phone app.
+
+## 1. Ground rules (from PLAN.md, unchanged)
+
+| Rule | What it means for new features |
+|---|---|
+| The server never calls an LLM | "Smart" features are deterministic, tested functions in `@fitwell/core`; Claude explains them and asks before saving. |
+| Free plan, stateless Worker, D1 (EU) | No Durable Objects. Cron Triggers for anything scheduled. Every new table indexed by `(user_id, …)`; watch D1 daily limits. |
+| Health data is GDPR Art. 9 | Nothing is shared between people by default. Every share is explicit, per category, revocable, recorded, and covered by `export_my_data` and `delete_my_account`. |
+| Tool budget (~9.6k tokens today) | Extend an existing tool with an argument, or put rare actions behind progressive disclosure, before adding a tool. |
+| Claude chat is the only surface | The server cannot push into a chat. Proactive features use email (`send_email`, invitees are verified addresses) or a Claude scheduled task calling the connector. |
+
+Out of scope: a native mobile app, public sign-up, billing, server-side LLM calls.
+
+## 2. Themes
+
+Effort: S (a day or two), M (a few days), L (a week or more).
+
+### A. Smarter coaching
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| A1 | **Adaptive expenditure and weekly check-in**: real TDEE from intake and the weight trend (intake − Δtrend weight × ~7700 kcal/kg, smoothed over 2–4 weeks, tolerant of missing days); a suggested calorie target for the goal rate; goal-date projection | `movingAverage`, `trendChange`, `aggregateDays` (`core/domain/stats.ts`), `suggestTargets` (`core/domain/energy.ts`), `show_weekly_review`, `get_progress`, `set_goals` | M | Phase 6 |
+| A2 | Supersets and timed sets (open from phase 2), plate calculator, warm-up ramp in the player | `ui/workout`, `workout/plan.ts`, core `workouts.ts` | M | Phase 6 |
+| A3 | Exercise swap: ranked substitutes by primary muscle, pattern and the equipment in the profile | `search_exercises`, free-exercise-db fields | S | Phase 6 |
+| A4 | Programs: blocks of N weeks of templates, progression scheme (linear, double progression, %-of-e1RM waves), scheduled deload; `start_workout` offers "Week 3, Day B" | templates, `suggestProgression` (`core/domain/progression.ts`) | L | Phase 9 |
+| A5 | RPE/RIR per set and autoregulated progression (easier than target adds load, harder holds or reduces) | player, `suggestProgression` | M | Phase 9 |
+| A6 | Weekly sets per muscle against ranges; flags under- and over-trained groups | `setsPerWeekByMuscle` in `analytics/progress.ts` | S | Phase 9 |
+| A7 | Micronutrients (fibre, sodium, iron, B12 …) and protein per meal | the Frida 5.5 dataset has them, but the bundle keeps only energy and macros: extend `packages/core/scripts/build-foods.ts` and watch the Worker size; `get_food_log`, review | M | Phase 9 |
+| A8 | Readiness: sleep, resting HR, HRV and a one-tap soreness/energy check-in suggest a lighter day | C1, `start_workout` | M | Phase 10+ |
+| A9 | Diet breaks and refeeds in long cuts; more 3D movements and a female figure (see PLAN.md 5d) | A1, `exercises/motion.ts` | M | Phase 10+ |
+| A10 | **Muscle heatmap** on the 3D body: each muscle group coloured by training load over a range (this week, 4 weeks, 12 weeks; a primary-muscle set counts 1, a secondary 0.5), drag to turn front and back, tap a muscle for its sets, top exercises and the day it was last trained. The model's reply lists the same numbers, so Claude can say "no hamstring work for 10 days". Later modes: sets against the A6 ranges (too little, in range, too much) and recovery (time since each muscle was trained hard, for "what should I train today?") | `humanBody.ts`: its per-vertex weights for the 17 `BODY_MUSCLES` and the `uPri`/`uSec` uniforms, which take fractional values (today 0 or 1), plus a heat colour ramp in place of the single tint; `setsPerWeekByMuscle` in `analytics/progress.ts` (primary muscles only today; add secondary) | M | Phase 6 (load); Phase 9 (ranges, recovery) |
+
+### B. Friends
+Foundation (with B1): a `connections` table (requester, addressee, status) and a `shares` table (who may see which category of whose data). Categories: workouts and records / consistency only / templates and recipes / weight and body (off, never in feeds). One new tool, `friends` (invite, accept, list, set_sharing); invitations reuse `manage_invites` and the sign-in email.
+
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| B1 | **Send a template, recipe or meal plan** to a friend; they get a copy when they accept (snapshot, no ongoing visibility) | templates, recipes and plans already stored as snapshots | M | Phase 7 |
+| B2 | Household: one meal plan and one set of grocery ticks for people who cook together; own portions and goals each | `save_meal_plan`, people scaling in the grocery list, `grocery_ticks` | M | Phase 7 |
+| B3 | Crew feed (MCP Apps view): friends' finished workouts, records and streaks, per their share settings, with kudos | B foundation, `finish_workout` summary | M | Phase 9 |
+| B4 | Challenges: time-boxed, opt-in, consistency-based (workouts per week, protein days, steps), rest-day friendly, leaderboard view; a cron closes them and emails results | B3, cron | M | Phase 9 |
+| B5 | Accountability buddy: opt-in weekly email to a chosen friend | E1 digests | S | Phase 10+ |
+| B6 | Train together: same template, side-by-side summary | B3 | M | Phase 10+ |
+
+### C. Wearables and data in
+One ingest path: values are normalised into `daily_metrics` (extended with resting HR, HRV, sleep stages) and cardio `workouts`, de-duplicated by source and external id, with the source stored on each value. A value typed by the person always wins. Only normalised values are kept, never raw payloads.
+
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| C1 | **Personal ingest webhook**: a long-lived, hashed, revocable secret URL per person that accepts JSON. Apple Health without a native app (the Health Auto Export app's REST automation, or an iOS Shortcut): steps, sleep, resting HR, HRV, weight, workouts. Also carries Garmin/Oura/Whoop data that syncs into Apple Health | the import link token pattern (`import/routes.ts`, `import/store.ts`), `log_body` | M | Phase 8 |
+| C2 | Strava OAuth and webhook: runs and rides as cardio, device calories when present | `log_cardio`, MET fallback | M | Phase 8 |
+| C3 | Direct APIs: Withings (scales), Oura, Whoop, Polar; a cron refreshes tokens and pulls daily. Garmin's official API needs business approval, so Garmin goes through Apple Health or Strava | C1 pipeline, cron | M each | Phase 10+ |
+
+### D. Faster logging
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| D1 | **Re-log and combos**: "same breakfast as yesterday", "copy Monday's lunch", named meal combos (a group of foods that is not a recipe) | `log_food` (`tools/foodLog.ts`), most-eaten foods in `get_planning_context` | S | Phase 6 |
+| D2 | Label photo → own food with checks: kcal against 4/4/9 × macros within ~10 %, per-100 g conversion, impossible values refused | `save_custom_food` | S | Phase 6 |
+| D3 | Today view (MCP Apps): remaining macros, today's planned meals with one-tap "eaten", frequent foods as quick-add, water and steps, today's workout | `log_planned_meal`, `get_food_log`, dashboard view | M | Phase 8 |
+| D4 | Restaurant estimates with a range (store the midpoint, marked as an estimate); the review reports the share of estimated calories | `log_food` estimates | S | Phase 8 |
+| D5 | Shared food corrections within the friend group | B foundation, `save_custom_food` | M | Phase 10+ |
+
+### E. Nudges
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| E1 | Email digests by cron: Sunday review summary, "nothing logged since Tuesday", challenge results; each opt-in in `update_profile`, with an unsubscribe link | `send_email`, `analytics/review.ts` | M | Phase 7 |
+| E2 | Morning brief: README recipe for a Claude scheduled task that opens the dashboard or Today view every morning | none (docs only) | S | Phase 6 |
+
+## 3. Phases and exit criteria
+
+**Phase 6: foundations and quick wins**
+- [ ] Deploy the backlog: remote migrations 0007 and 0008, `wrangler deploy` (phases 5–5d).
+- [ ] Tool budget: decide between a `help`/more-tools pattern and merging by domain; measure definition tokens before and after (target: no growth while adding phase 6).
+- [ ] D1 usage: rows read and written today in `show_dashboard` and a log line.
+- [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts` (no jobs yet, tested in `wrangler dev --test-scheduled`).
+- [ ] Open Food Facts: retry with backoff in `src/off.ts`; on a 503 answer from the D1 cache (`data/offCache.ts`) and say the results may be incomplete.
+- [ ] A1: `estimateExpenditure()` and `projectGoalDate()` in `packages/core/src/domain/energy.ts`, pure, tested against hand-computed weeks (steady loss, plateau, missing days, too little data → no estimate); shown in `show_weekly_review` (`analytics/review.ts`) and `get_progress` (`tools/body.ts`); Claude proposes, `set_goals` only after agreement.
+- [ ] D1: `log_food` takes `copy_from` (day and optional meal) and `combo`; combos saved with `save_custom_food` or a small table; allergy checks run as for any log.
+- [ ] D2: `save_custom_food` checks label values and explains a refusal.
+- [ ] A2: supersets, timed sets, plate calculator, warm-up ramp in the player.
+- [ ] A3: substitutes in `search_exercises` (`tools/exercises.ts`) and a "Swap" in the player.
+- [ ] A10 muscle heatmap (load mode): a pure per-muscle load function next to `setsPerWeekByMuscle`, tested against hand-counted weeks; heat colours in `humanBody.ts`; colour scale legible in light and dark, with numbers on tap so colour is never the only signal. Where it lives, to decide at build time: the dashboard view has no three.js today (0.65 MB against 1.8 MB for the views with the body), so either add the body to the dashboard (+~1.1 MB) or give the exercise view a muscle-map mode opened from `show_dashboard`; no new tool either way.
+- [ ] E2: morning brief section in `README.md`.
+- [ ] Exit: after a week of real logging, "how am I doing this week?" gives an expenditure estimate and a suggested target; "same breakfast as yesterday" logs in one call; "which muscles did I train this month?" shows the heatmap with the numbers in the reply.
+
+**Phase 7: friends v1**
+- [ ] Decisions in §4 agreed.
+- [ ] `connections` and `shares` tables, the `friends` tool, consent records; export and delete cover them; isolation tests extended (no share means no access).
+- [ ] B1 send a template, recipe or plan; B2 household plan and ticks.
+- [ ] E1 email digests (first cron job).
+- [ ] Exit: two invitees connect, one sends a push day, the other runs it; a couple plans a week and ticks one grocery list.
+
+**Phase 8: data in**
+- [ ] C1 ingest webhook with per-person token; Health Auto Export and Shortcut setup in the README; sources shown in `get_progress`.
+- [ ] C2 Strava.
+- [ ] D3 Today view; D4 restaurant estimates.
+- [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio.
+
+**Phase 9: coaching v2 and crew**
+- [ ] A4 programs with deloads; A5 RPE/RIR; A6 volume ranges with the A10 ranges mode; A10 recovery mode; A7 micronutrients.
+- [ ] B3 crew feed; B4 challenges.
+- [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
+
+**Phase 10 and later**
+- [ ] A8 readiness, A9; C3 direct device APIs; B5, B6; D5.
+- [ ] Progress photos (needs R2 storage and its own privacy decision).
+
+## 4. Decisions to make before phase 7
+- **Visibility defaults.** Proposal: nothing shared by default; weight and body never in feeds, only to an accountability buddy who was chosen explicitly.
+- **Challenges and weight.** Proposal: consistency metrics only, never weight or body fat.
+- **Wearable data retention.** Proposal: keep normalised values only; drop raw payloads after processing.
+
+## 5. Research notes
+- Lifters typically pair a log (Hevy, Strong) with a nutrition app (MacroFactor); Fitwell already joins the two, which is the gap reviewers mention most.
+- MacroFactor's core is the expenditure estimate from logged intake and weight with weekly target changes; the window length trades stability against responsiveness ([V3 algorithm](https://macrofactor.com/expenditure-v3/)).
+- Autoregulation (RPE-based load changes) showed a modest strength advantage over fixed loading in a meta-analysis summarised in a 2026 comparison; programs with built-in deloads are standard in Boostcamp, Alpha Progression and others.
+- Social features: friend groups seeing each other's activity and time-boxed challenges recur as retention levers; challenge windows that are too tight put busy people off ([study](https://www.theseus.fi/handle/10024/887910)). Rest-day-friendly streaks avoid rewarding overtraining.
+- Health data: Apple Health has no web API (exports or a companion app, e.g. Health Auto Export's REST automation); Oura, Whoop, Withings, Polar and Strava have personal OAuth APIs; Garmin's needs business approval.

@@ -1,6 +1,6 @@
 # Fitwell for Claude (`@fitwell/mcp`)
 
-A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals, build and run workouts, and show progress. Plan, decisions and phases: [PLAN.md](PLAN.md).
+A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals, build and run workouts, and show progress. Plan, decisions and phases: [PLAN.md](PLAN.md). What comes next: [ROADMAP.md](ROADMAP.md).
 
 **Status: phases 1 to 4 are deployed; phase 5 (shopping checklist, weekly review, sleep/steps/water, allergen data, recipe import, tool merge) is built and tested locally.** Invite-only email sign-in (OAuth 2.1), and per-person data in D1: profile, goals, food log, own foods, workouts, templates, weight and measurements, with a progress dashboard, recipes, weekly meal plans and a grocery list.
 

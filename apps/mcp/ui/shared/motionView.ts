@@ -44,6 +44,15 @@ const FRAMING: Record<string, { x: number; y: number; d: number }> = {
   pullup: { x: 0.0, y: 1.3, d: 6.4 },
   lunge: { x: -0.3, y: 0.88, d: 4.1 },
   pushup: { x: 0.6, y: 0.5, d: 3.6 },
+  legpress: { x: 0.35, y: 0.7, d: 4.8 },
+  kneemachine: { x: 0.1, y: 0.6, d: 3.9 },
+  lyingcurl: { x: 0.1, y: 0.55, d: 4.0 },
+  chestpress: { x: 0.1, y: 0.85, d: 4.2 },
+  machinerow: { x: 0.2, y: 0.85, d: 4.2 },
+  pecdeck: { x: 0.0, y: 0.85, d: 5.2 },
+  armmachine: { x: 0.0, y: 0.8, d: 4.0 },
+  calf: { x: 0.0, y: 0.95, d: 4.4 },
+  hipmachine: { x: 0.0, y: 0.7, d: 4.0 },
 };
 const EL_MIN = -0.35;
 const EL_MAX = 1.1;

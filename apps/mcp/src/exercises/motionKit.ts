@@ -59,11 +59,13 @@ export const JOINTS = [
 export type Joint = (typeof JOINTS)[number];
 export type Skeleton = Record<Joint, Vec3>;
 
-export type PatternId = 'squat' | 'hinge' | 'bench' | 'incline' | 'press' | 'row' | 'curl' | 'pull' | 'lunge' | 'pushup';
-export type Load = 'barbell-back' | 'barbell-front' | 'barbell-hands' | 'dumbbells' | 'goblet' | 'none';
+export type PatternId =
+  | 'squat' | 'hinge' | 'bench' | 'incline' | 'press' | 'row' | 'curl' | 'pull' | 'lunge' | 'pushup'
+  | 'legpress' | 'kneemachine' | 'lyingcurl' | 'chestpress' | 'machinerow' | 'pecdeck' | 'armmachine' | 'calf' | 'hipmachine';
+export type Load = 'barbell-back' | 'barbell-front' | 'barbell-hands' | 'dumbbells' | 'goblet' | 'machine' | 'none';
 export interface Variant {
   load: Load;
-  stance: 'normal' | 'wide';
+  stance: 'normal' | 'wide' | 'narrow';
   grip: 'close' | 'medium' | 'wide';
   hinge: 'conventional' | 'romanian' | 'stiff';
   /** Sitting (the overhead press on an upright bench, the lat pulldown) rather than standing or hanging. */
@@ -74,13 +76,15 @@ export interface Variant {
   palm: 'over' | 'under';
   /** The bar rides on the rails of a Smith machine: it moves straight up and down. */
   rails: boolean;
+  /** Which machine of a kind: extension or curl, flat or incline, butterfly or reverse, bicep or preacher, standing or seated, and so on. */
+  kind: string;
 }
 export interface MotionSpec {
   pattern: PatternId;
   variant: Variant;
 }
 
-export const DEFAULT_VARIANT: Variant = { load: 'none', stance: 'normal', grip: 'medium', hinge: 'conventional', seated: false, incline: 0, palm: 'over', rails: false };
+export const DEFAULT_VARIANT: Variant = { load: 'none', stance: 'normal', grip: 'medium', hinge: 'conventional', seated: false, incline: 0, palm: 'over', rails: false, kind: '' };
 export const spec = (pattern: PatternId, v: Partial<Variant>): MotionSpec => ({ pattern, variant: { ...DEFAULT_VARIANT, ...v } });
 
 // ---------- geometry helpers ----------

@@ -43,6 +43,7 @@ import {
   upperBody,
   vec,
 } from './motionKit';
+import { armMachine, calf, chestPress, hipMachine, kneeMachine, legPress, lyingCurl, machineRow, pecDeck } from './motionMachines';
 export * from './motionKit';
 
 // ---------- squat ----------
@@ -363,7 +364,10 @@ function pushup(p: number, v: Variant, b: Body): Skeleton {
 
 // ---------- public API ----------
 
-const SOLVERS: Record<PatternId, (p: number, v: Variant, b: Body) => Skeleton> = { squat, hinge, bench, incline: bench, press, row, curl, pull, lunge, pushup };
+const SOLVERS: Record<PatternId, (p: number, v: Variant, b: Body) => Skeleton> = {
+  squat, hinge, bench, incline: bench, press, row, curl, pull, lunge, pushup,
+  legpress: legPress, kneemachine: kneeMachine, lyingcurl: lyingCurl, chestpress: chestPress, machinerow: machineRow, pecdeck: pecDeck, armmachine: armMachine, calf, hipmachine: hipMachine,
+};
 
 export function skeletonAt(s: MotionSpec, p: number, body: Body = BODY): Skeleton {
   const q = Math.min(1, Math.max(0, p));
@@ -446,6 +450,30 @@ export const MOTIONS: Record<string, MotionSpec> = {
   'Smith Machine Bent Over Row': spec('row', { load: 'barbell-hands', rails: true }),
   'Smith Machine Stiff-Legged Deadlift': spec('hinge', { load: 'barbell-hands', hinge: 'stiff', rails: true }),
   'Smith Single-Leg Split Squat': spec('lunge', { load: 'barbell-back', rails: true }),
+  'Leg Press': spec('legpress', {}),
+  'Narrow Stance Leg Press': spec('legpress', { stance: 'narrow' }),
+  'Leg Extensions': spec('kneemachine', { kind: 'extension' }),
+  'Seated Leg Curl': spec('kneemachine', { kind: 'curl' }),
+  'Lying Leg Curls': spec('lyingcurl', {}),
+  'Machine Bench Press': spec('chestpress', { kind: 'flat' }),
+  'Leverage Chest Press': spec('chestpress', { kind: 'flat' }),
+  'Leverage Incline Chest Press': spec('chestpress', { kind: 'incline' }),
+  'Leverage Decline Chest Press': spec('chestpress', { kind: 'decline' }),
+  'Machine Shoulder (Military) Press': spec('press', { load: 'machine', seated: true }),
+  'Leverage Shoulder Press': spec('press', { load: 'machine', seated: true }),
+  'Leverage Iso Row': spec('machinerow', { kind: 'iso' }),
+  'Leverage High Row': spec('machinerow', { kind: 'high' }),
+  'Butterfly': spec('pecdeck', { kind: 'butterfly' }),
+  'Reverse Machine Flyes': spec('pecdeck', { kind: 'reverse' }),
+  'Machine Bicep Curl': spec('armmachine', { kind: 'bicep' }),
+  'Machine Preacher Curls': spec('armmachine', { kind: 'preacher' }),
+  'Machine Triceps Extension': spec('armmachine', { kind: 'triceps' }),
+  'Dip Machine': spec('armmachine', { kind: 'dip' }),
+  'Standing Calf Raises': spec('calf', { kind: 'standing' }),
+  'Seated Calf Raise': spec('calf', { kind: 'seated' }),
+  'Smith Machine Calf Raise': spec('calf', { kind: 'standing', load: 'barbell-back', rails: true }),
+  'Thigh Abductor': spec('hipmachine', { kind: 'abductor' }),
+  'Thigh Adductor': spec('hipmachine', { kind: 'adductor' }),
   'Pushups': spec('pushup', { grip: 'medium' }),
   'Push-Up Wide': spec('pushup', { grip: 'wide' }),
   'Push-Ups - Close Triceps Position': spec('pushup', { grip: 'close' }),

@@ -1,7 +1,7 @@
 // The load and the furniture of the exercise animation: barbell, dumbbells, kettlebell, bench and floor, plus the colours
 // they take from the host theme. Plain three.js geometry; nothing here needs WebGL, so tests can build and move it in Node.
 import { CircleGeometry, CylinderGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, SphereGeometry, TorusGeometry, BoxGeometry, Vector3, type Material, type Object3D } from 'three';
-import { smithFrame } from './propsMachines';
+import { machineProps, smithFrame } from './propsMachines';
 import { BAR_RADIUS, BENCH_HEIGHT, PLATE_RADIUS, PULLUP_BAR_HEIGHT, type MotionSpec, type Skeleton, type Vec3 } from '../../src/exercises/motion';
 
 export interface Materials {
@@ -200,6 +200,8 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
   if (spec.pattern === 'incline') group.add(bench(m, spec.variant.incline));
   if (spec.pattern === 'press' && spec.variant.seated) group.add(bench(m, 0, true));
   if (spec.pattern === 'pull' && !spec.variant.seated) group.add(pullupBar(m));
+  const machine = machineProps(spec, m);
+  if (machine) group.add(machine.group);
   const smith = spec.variant.rails ? smithFrame(m) : null;
   if (smith) group.add(smith.group);
   const station = spec.pattern === 'pull' && spec.variant.seated ? pulldownStation(m, -0.28, spec.variant.grip === 'wide' ? 1.15 : spec.variant.grip === 'close' ? 0.5 : 0.9) : null;
@@ -232,6 +234,7 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
     },
     update(k: Skeleton) {
       bar?.position.copy(v3(k.bar));
+      machine?.update(k);
       if (smith) {
         smith.group.position.x = k.bar.x;
         for (const sleeve of smith.sleeves) sleeve.position.y = k.bar.y;

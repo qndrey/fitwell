@@ -3,6 +3,7 @@
 // between two joints. Nothing here needs WebGL, so tests can build and pose it in Node.
 import {
   BoxGeometry,
+  CanvasTexture,
   CircleGeometry,
   Color,
   ConeGeometry,
@@ -15,12 +16,15 @@ import {
   type Object3D,
   MeshStandardMaterial,
   Quaternion,
+  RepeatWrapping,
   SphereGeometry,
+  SRGBColorSpace,
   TorusGeometry,
   Vector2,
   Vector3,
   type BufferGeometry,
   type Material,
+  type Texture,
 } from 'three';
 import { BAR_RADIUS, BENCH_HEIGHT, BODY, PLATE_RADIUS, type MotionSpec, type Skeleton, type Vec3 } from '../../src/exercises/motion';
 
@@ -53,14 +57,108 @@ function mixHex(a: number, b: number, t: number): number {
   return new Color(a).lerp(new Color(b), t).getHex();
 }
 
-export function makeMaterials(p: Palette): Materials {
-  const std = (color: number, roughness = 0.8) => new MeshStandardMaterial({ color, roughness, metalness: 0.05 });
+/** Fine surface detail, drawn once with a canvas: a skin grain for the body and lengthwise fibre lines for the muscles. */
+export interface Textures {
+  skin: Texture;
+  fibre: Texture;
+}
+
+/** A small seeded random generator, so the textures are the same every time. */
+function rng(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface Canvas {
+  width: number;
+  height: number;
+  getContext(kind: '2d'): { createImageData(w: number, h: number): { data: Uint8ClampedArray }; putImageData(image: { data: Uint8ClampedArray }, x: number, y: number): void } | null;
+}
+
+function canvasTexture(size: number, paint: (px: Uint8ClampedArray, size: number) => void, repeatU: number, repeatV: number): Texture | null {
+  // The server's own type checking has no DOM types, so the canvas is described by just what is used here.
+  const doc = (globalThis as { document?: { createElement(tag: 'canvas'): Canvas } }).document;
+  if (!doc) return null;
+  const canvas = doc.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const image = ctx.createImageData(size, size);
+  paint(image.data, size);
+  ctx.putImageData(image, 0, 0);
+  const tex = new CanvasTexture(canvas as never);
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  tex.repeat.set(repeatU, repeatV);
+  tex.colorSpace = SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+const gray = (px: Uint8ClampedArray, i: number, v: number) => {
+  const c = Math.max(0, Math.min(255, Math.round(v)));
+  px[i] = c;
+  px[i + 1] = c;
+  px[i + 2] = c;
+  px[i + 3] = 255;
+};
+
+/** Null when there is no canvas (tests in Node): the figure is then plain colour. */
+export function makeTextures(): Textures | null {
+  const rand = rng(7);
+  // Skin: a soft, even grain with slow blotches.
+  const skin = canvasTexture(
+    128,
+    (px, n) => {
+      const blot = Array.from({ length: 9 * 9 }, () => rand());
+      for (let y = 0; y < n; y++) {
+        for (let x = 0; x < n; x++) {
+          const bx = Math.floor((x / n) * 8);
+          const by = Math.floor((y / n) * 8);
+          const slow = blot[by * 9 + bx]! * 0.5 + blot[by * 9 + ((bx + 1) % 9)]! * 0.5;
+          gray(px, (y * n + x) * 4, 226 + slow * 14 + rand() * 18);
+        }
+      }
+    },
+    3,
+    3,
+  );
+  // Muscle: fibres run along the length of the muscle (the v direction), so the pattern changes across (u).
+  const fibre = canvasTexture(
+    256,
+    (px, n) => {
+      const column = Array.from({ length: n }, () => rand());
+      const smooth = column.map((_, i) => (column[i]! * 2 + column[(i + 1) % n]! + column[(i + n - 1) % n]!) / 4);
+      for (let y = 0; y < n; y++) {
+        const sway = Math.sin((y / n) * Math.PI * 2 * 3) * 0.5 + 0.5;
+        for (let x = 0; x < n; x++) {
+          // Every few columns a deeper groove between bundles of fibres.
+          const groove = x % 18 < 2 ? -24 : 0;
+          gray(px, (y * n + x) * 4, 214 + smooth[x]! * 34 + sway * 6 + groove + rand() * 8);
+        }
+      }
+    },
+    3,
+    1,
+  );
+  return skin && fibre ? { skin, fibre } : null;
+}
+
+export function makeMaterials(p: Palette, textures: Textures | null = null): Materials {
+  const std = (color: number, roughness = 0.8, tex?: Texture, bump = 0) =>
+    new MeshStandardMaterial({ color, roughness, metalness: 0.05, ...(tex ? { map: tex, bumpMap: tex, bumpScale: bump } : {}) });
   return {
-    body: std(p.body),
-    muscle: std(p.muscle, 0.7),
-    musclePrimary: std(p.load, 0.55),
-    muscleSecondary: std(mixHex(p.muscle, p.load, 0.5), 0.6),
-    joint: std(p.joint),
+    body: std(p.body, 0.8, textures?.skin, 0.5),
+    muscle: std(p.muscle, 0.7, textures?.fibre, 0.8),
+    musclePrimary: std(p.load, 0.55, textures?.fibre, 0.8),
+    muscleSecondary: std(mixHex(p.muscle, p.load, 0.5), 0.6, textures?.fibre, 0.8),
+    joint: std(p.joint, 0.8, textures?.skin, 0.5),
     load: std(p.load, 0.6),
     steel: new MeshStandardMaterial({ color: p.steel, roughness: 0.35, metalness: 0.6 }),
     furniture: std(p.furniture),

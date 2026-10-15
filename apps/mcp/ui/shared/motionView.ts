@@ -4,7 +4,7 @@
 import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { progressAt, skeletonAt, standing, type MotionSpec } from '../../src/exercises/motion';
 import { h } from './dom';
-import { buildMannequin, buildProps, makeMaterials, setPalette, type Mannequin, type Palette, type Props } from './mannequin';
+import { buildMannequin, buildProps, makeMaterials, makeTextures, setPalette, type Mannequin, type Palette, type Props } from './mannequin';
 
 export interface MotionPlayer {
   /** Put this in the page. It stays the same element for the life of the view. */
@@ -62,7 +62,7 @@ export function createMotionPlayer(): MotionPlayer | null {
   sun.position.set(2, 4, 3);
   scene.add(sun);
   const camera = new PerspectiveCamera(28, 4 / 3, 0.1, 30);
-  const materials = makeMaterials(readPalette());
+  const materials = makeMaterials(readPalette(), makeTextures());
   const mannequin: Mannequin = buildMannequin(materials);
   mannequin.update(standing());
   scene.add(mannequin.group);

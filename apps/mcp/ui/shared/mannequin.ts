@@ -268,7 +268,9 @@ const ABS: TorsoMuscle[] = [{ muscle: 'abdominals', origin: 'waist', f: 0.092, u
 /** The sides of the waist (the obliques), which give the trunk its taper. */
 const FLANKS: TorsoMuscle[] = [{ muscle: 'abdominals', origin: 'waist', f: 0.02, u: -0.005, l: 0.118, rx: 0.04, ry: 0.115, rz: 0.034, mirror: true, peak: 0.45, power: 0.8 }];
 const TORSO_MUSCLES: TorsoMuscle[] = [
-  { muscle: 'chest', origin: 'rib', f: 0.086, u: 0.05, l: 0.085, rx: 0.036, ry: 0.088, rz: 0.062, mirror: true, peak: 0.42, power: 0.7, tilt: 68 },
+  // The chest: the upper (clavicular) head runs down and out from the collarbone, the lower (sternal) head up and out from the breastbone.
+  { muscle: 'chest', origin: 'rib', f: 0.084, u: 0.09, l: 0.075, rx: 0.028, ry: 0.078, rz: 0.04, mirror: true, peak: 0.42, power: 0.5, tilt: 108 },
+  { muscle: 'chest', origin: 'rib', f: 0.088, u: 0.028, l: 0.085, rx: 0.034, ry: 0.088, rz: 0.058, mirror: true, peak: 0.42, power: 0.5, tilt: 72 },
   ...ABS,
   ...FLANKS,
   { muscle: 'lats', origin: 'rib', f: -0.07, u: -0.04, l: 0.13, rx: 0.044, ry: 0.17, rz: 0.08, mirror: true, peak: 0.3, power: 0.8 },
@@ -277,6 +279,10 @@ const TORSO_MUSCLES: TorsoMuscle[] = [
   { muscle: 'lower back', origin: 'lumbar', f: -0.088, u: 0.03, l: 0.042, rx: 0.034, ry: 0.125, rz: 0.036, mirror: true, peak: 0.5, power: 0.8 },
   { muscle: 'glutes', origin: 'pelvis', f: -0.078, u: -0.025, l: 0.08, rx: 0.034, ry: 0.092, rz: 0.072, mirror: true, peak: 0.5, power: 0.6, tilt: -50 },
   { muscle: 'neck', origin: 'neckBase', f: 0, u: 0.045, l: 0, rx: 0.062, ry: 0.065, rz: 0.062, mirror: false, peak: 0.5, power: 0.5 },
+  // The sternocleidomastoids: the V from behind the ear down to the breastbone and collarbone.
+  { muscle: 'neck', origin: 'neckBase', f: 0.034, u: 0.045, l: 0.03, rx: 0.014, ry: 0.07, rz: 0.017, mirror: true, peak: 0.5, power: 0.5, tilt: 18 },
+  // The upper trapezius: the slope from the neck to the tip of the shoulder.
+  { muscle: 'traps', origin: 'neckBase', f: -0.015, u: -0.012, l: 0.092, rx: 0.026, ry: 0.092, rz: 0.03, mirror: true, peak: 0.45, power: 0.5, tilt: 78 },
 ];
 
 const bellies = new Map<string, BufferGeometry>();
@@ -311,6 +317,8 @@ export interface Mannequin {
   update(k: Skeleton): void;
   /** The limb parts and the two joints each one is stretched between (for tests). */
   segments: { from: keyof Skeleton; to: keyof Skeleton; mesh: Mesh }[];
+  /** The collarbones, in two parts each (for tests). */
+  collarbones: { side: 1 | -1; parts: Mesh[] }[];
   /** The muscle meshes by library muscle name, each with its tint overlay (for tests and highlighting). */
   muscles: { muscle: string; mesh: Mesh; overlay: Mesh }[];
   /** Tints the muscles an exercise works: main in the accent colour, secondary in a lighter tone. */
@@ -353,14 +361,26 @@ export function buildMannequin(m: Materials): Mannequin {
   ];
   const hands = (['L', 'R'] as const).map((s) => ({ s, mesh: add(new Mesh(new SphereGeometry(1, 12, 8), m.body)) }));
   const feet = (['L', 'R'] as const).map((s) => ({ s, mesh: add(new Mesh(new SphereGeometry(1, 20, 12), m.body)) }));
-  const neck = add(new Mesh(limbGeometry(0.05, 0.055), m.body));
+  const neck = add(new Mesh(limbGeometry(0.048, 0.06), m.body));
   const head = ellipsoid(0.095, 0.115, 0.078, m.body);
   const nose = add(new Mesh(new ConeGeometry(0.02, 0.05, 6), m.joint));
-  const ribcage = ellipsoid(0.115, 0.225, 0.172, m.body);
+  // The upper torso in three kinds of part: a main rib cage in the middle, an oval on each side that makes the shoulder
+  // girdle (so the trunk is broad at the shoulders and narrow at the waist), and a distinct neck.
+  const cageProfile = [
+    [0.084, -0.37], [0.1, -0.32], [0.118, -0.25], [0.13, -0.17], [0.134, -0.1], [0.128, -0.055], [0.108, -0.03], [0.078, -0.012], [0.058, 0.004], [0.05, 0.03],
+  ].map(([r, y]) => new Vector2(r!, y!));
+  const ribcage = add(new Mesh(new LatheGeometry(cageProfile, 32), m.body));
+  ribcage.scale.set(0.86, 1, 1);
+  const sideOvals = ([1, -1] as const).map((side) => ({ side, mesh: ellipsoid(0.082, 0.118, 0.06, m.body) }));
+  const neckFlare = ellipsoid(0.07, 0.04, 0.1, m.body);
+  /** The centre the chest and back muscles are placed from (the middle of the upper torso). */
+  const ribOrigin = new Vector3();
   const waist = ellipsoid(0.105, 0.135, 0.14, m.body);
   // A bar across the shoulders joins the arms to the body, the way a mannequin's shoulder line does.
   const shoulderBar = add(new Mesh(limbGeometry(0.05, 0.05), m.body));
   const pelvisBox = ellipsoid(0.115, 0.095, 0.165, m.body);
+  // The collarbones: slender ridges from the top of the breastbone out to the tip of each shoulder.
+  const clavicles = ([1, -1] as const).map((side) => ({ side, inner: add(new Mesh(limbGeometry(0.0125, 0.0145), m.body)), outer: add(new Mesh(limbGeometry(0.0105, 0.0125), m.body)), knob: sphere(0.0155, m.joint), bend: sphere(0.0125, m.joint) }));
   const spineBall = sphere(0.1, m.joint);
   const neckBall = sphere(0.062, m.joint);
 
@@ -415,9 +435,18 @@ export function buildMannequin(m: Materials): Mannequin {
     const left = v3(k.shoulderL).sub(v3(k.shoulderR));
     const hipLeft = v3(k.hipL).sub(v3(k.hipR));
     const torso = basis(up, left);
-    ribcage.position.copy(mid(k.chest, k.neckBase)).addScaledVector(up, -0.02);
+    ribOrigin.copy(mid(k.chest, k.neckBase)).addScaledVector(up, -0.02);
+    ribcage.position.copy(v3(k.neckBase));
     ribcage.quaternion.copy(torso);
-    ribcage.scale.copy(ribcage.userData.radii as Vector3);
+    // The side ovals lean outward toward the shoulders.
+    for (const o of sideOvals) {
+      o.mesh.position.copy(ribOrigin).addScaledVector(up, 0.068).addScaledVector(left.clone().normalize(), 0.136 * o.side);
+      o.mesh.quaternion.copy(torso).multiply(new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), (0.38 * o.side)));
+      o.mesh.scale.copy(o.mesh.userData.radii as Vector3);
+    }
+    neckFlare.position.copy(v3(k.neckBase)).addScaledVector(up, -0.01);
+    neckFlare.quaternion.copy(torso);
+    neckFlare.scale.copy(neckFlare.userData.radii as Vector3);
     waist.position.copy(mid(k.lumbar, k.chest)).addScaledVector(up, -0.045);
     waist.quaternion.copy(torso);
     waist.scale.copy(waist.userData.radii as Vector3);
@@ -426,7 +455,7 @@ export function buildMannequin(m: Materials): Mannequin {
     pelvisBox.scale.copy(pelvisBox.userData.radii as Vector3);
     spineBall.position.copy(v3(k.lumbar));
     neckBall.position.copy(v3(k.neckBase));
-    stretch(neck, k.neckBase, k.neckTop);
+    stretch(neck, { x: k.neckBase.x - up.x * 0.03, y: k.neckBase.y - up.y * 0.03, z: k.neckBase.z - up.z * 0.03 }, k.neckTop);
     stretch(shoulderBar, k.shoulderR, k.shoulderL);
 
     const headUp = v3(k.headTop).sub(v3(k.neckTop)).normalize();
@@ -438,6 +467,24 @@ export function buildMannequin(m: Materials): Mannequin {
     const forward = tmp.set(1, 0, 0).applyQuaternion(headQ);
     nose.position.copy(head.position).addScaledVector(forward, 0.1).addScaledVector(headUp, -0.01);
     nose.quaternion.setFromUnitVectors(Y, forward);
+
+    // Collarbones, in the body's own directions.
+    const tf = new Vector3(1, 0, 0).applyQuaternion(torso);
+    const tu = new Vector3(0, 1, 0).applyQuaternion(torso);
+    const tl = new Vector3(0, 0, 1).applyQuaternion(torso);
+    for (const c of clavicles) {
+      // The collarbone lies on the surface of the ribcage (which is deeper than it looks at the top), bowing slightly forward.
+      const at = (f: number, u: number, l: number, from: Vector3) => from.clone().addScaledVector(tf, f).addScaledVector(tu, u).addScaledVector(tl, l * c.side);
+      const base = v3(k.neckBase);
+      const shoulder = v3(c.side === 1 ? k.shoulderL : k.shoulderR);
+      const a1 = at(0.103, -0.03, 0.016, base);
+      const a2 = at(0.098, -0.022, 0.092, base);
+      const a3 = at(0.05, 0.028, 0, shoulder);
+      stretch(c.inner, { x: a1.x, y: a1.y, z: a1.z }, { x: a2.x, y: a2.y, z: a2.z });
+      stretch(c.outer, { x: a2.x, y: a2.y, z: a2.z }, { x: a3.x, y: a3.y, z: a3.z });
+      c.knob.position.copy(a1);
+      c.bend.position.copy(a2);
+    }
 
     // ----- muscles -----
     // The body's own directions: the figure faces +x and stands on +y, or lies with its face up and its head toward -x.
@@ -464,7 +511,7 @@ export function buildMannequin(m: Materials): Mannequin {
       mesh.quaternion.setFromRotationMatrix(new Matrix4().makeBasis(anterior, axis.clone().negate(), left));
       mesh.scale.set(lm.rA, ((lm.f1 - lm.f0) * length) / 2, lm.rL);
     }
-    const origins: Record<Origin, Vector3> = { rib: ribcage.position, waist: waist.position, neckBase: v3(k.neckBase), lumbar: v3(k.lumbar), pelvis: v3(k.pelvis) };
+    const origins: Record<Origin, Vector3> = { rib: ribOrigin, waist: waist.position, neckBase: v3(k.neckBase), lumbar: v3(k.lumbar), pelvis: v3(k.pelvis) };
     const hipQ = basis(up, hipLeft);
     for (const { tm, side, mesh } of torsoMuscles) {
       const base = tm.origin === 'pelvis' ? hipQ : torso;
@@ -489,6 +536,7 @@ export function buildMannequin(m: Materials): Mannequin {
     update,
     segments: limbs.map((l) => ({ from: l.a, to: l.b, mesh: l.mesh })),
     muscles,
+    collarbones: clavicles.map((c) => ({ side: c.side, parts: [c.inner, c.outer] })),
     setHighlight(primary, secondary) {
       highlighted = { primary: new Set(primary), secondary: new Set(secondary) };
       paint();

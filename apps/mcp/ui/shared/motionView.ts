@@ -57,10 +57,14 @@ export function createMotionPlayer(): MotionPlayer | null {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 
   const scene = new Scene();
-  scene.add(new HemisphereLight(0xffffff, 0xc9bcb0, 1.6));
-  const sun = new DirectionalLight(0xffffff, 0.9);
-  sun.position.set(2, 4, 3);
+  scene.add(new HemisphereLight(0xffffff, 0xc9bcb0, 0.95));
+  // A strong light from above and the front with a soft one from the other side, so the contours of the muscles read.
+  const sun = new DirectionalLight(0xffffff, 1.5);
+  sun.position.set(1.5, 4, 3);
   scene.add(sun);
+  const fill = new DirectionalLight(0xfff1e6, 0.35);
+  fill.position.set(-3, 1.5, 2);
+  scene.add(fill);
   const camera = new PerspectiveCamera(28, 4 / 3, 0.1, 30);
   const materials = makeMaterials(readPalette(), null);
   const mannequin: Mannequin = buildMannequin(materials);

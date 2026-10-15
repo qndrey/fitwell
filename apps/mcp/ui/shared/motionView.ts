@@ -146,7 +146,9 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function frame(): void {
     const key = current?.pattern === 'pull' && !current.variant.seated ? 'pullup' : current?.pattern;
-    const where = key ? FRAMING[key] ?? FRAMING.squat! : FRAMING.rest!;
+    const base = key ? FRAMING[key] ?? FRAMING.squat! : FRAMING.rest!;
+    // A Smith machine is 2.3 m tall: stand further back so its frame shows.
+    const where = current?.variant.rails ? { ...base, y: Math.max(base.y, 1.05), d: base.d + 0.9 } : base;
     const target = closeup ?? where;
     const d = closeup?.d ?? where.d;
     props?.setCamera(view.az);

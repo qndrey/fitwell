@@ -174,8 +174,9 @@ describe('bench press', () => {
     });
   });
 
-  it('starts with the bar over the shoulders and the arms nearly straight', () => {
+  it('starts with the bar over the shoulders and the arms nearly straight (on Smith rails: arms nearly straight, bar over the chest)', () => {
     for (const name of BENCHES) {
+      if (MOTIONS[name]!.variant.rails) continue;
       const k = skeletonAt(spec(name), 0);
       expect(Math.abs(k.bar.x - k.shoulderL.x), name).toBeLessThan(0.05);
       expect(distance(k.shoulderL, k.gripL), name).toBeGreaterThan(ARM - 0.05);
@@ -209,6 +210,10 @@ describe('overhead press', () => {
   it('locks out with the bar straight over the shoulders, and over the mid-foot when standing', () => {
     for (const name of PRESSES) {
       const k = skeletonAt(spec(name), 0);
+      if (MOTIONS[name]!.variant.rails) {
+        expect(distance(k.shoulderL, k.gripL), `${name} arms straight`).toBeGreaterThan(ARM - 0.07);
+        continue;
+      }
       expect(Math.abs(k.bar.x - k.shoulderL.x), name).toBeLessThan(0.03);
       expect(tilt(k.elbowL, k.wristL), `${name} forearm`).toBeLessThan(12);
       if (!MOTIONS[name]!.variant.seated) expect(Math.abs(k.bar.x - k.midfoot.x), `${name} over the foot`).toBeLessThan(0.05);
@@ -409,11 +414,42 @@ describe('incline bench press', () => {
   });
 
   it('starts with the bar over the shoulders and the arms nearly straight', () => {
-    for (const name of INCLINES) {
+    for (const name of INCLINES.filter((n) => !MOTIONS[n]!.variant.rails)) {
       const k = skeletonAt(spec(name), 0);
       expect(Math.abs(k.bar.x - k.shoulderL.x), name).toBeLessThan(0.05);
       expect(distance(k.shoulderL, k.gripL), name).toBeGreaterThan(ARM - 0.05);
     }
+  });
+});
+
+describe('Smith machine', () => {
+  const SMITH = ALL.filter((n) => MOTIONS[n]!.variant.rails);
+  it('maps the Smith exercises of the library, and the bar goes straight up and down', () => {
+    expect(SMITH.length).toBeGreaterThanOrEqual(8);
+    for (const name of SMITH) {
+      const xs = SAMPLES.map((p) => skeletonAt(spec(name), p).bar.x);
+      expect(Math.max(...xs) - Math.min(...xs), `${name} bar path`).toBeLessThan(0.005);
+    }
+  });
+
+  it('keeps the form rules of the free version: the bar touches the chest, the lunge stays planted, the squat reaches depth', () => {
+    for (const name of ['Smith Machine Bench Press', 'Smith Machine Close-Grip Bench Press']) {
+      const k = skeletonAt(spec(name), 1);
+      const chestTop = k.chest.y + 0.12;
+      expect(k.bar.y - chestTop, name).toBeGreaterThan(0);
+      expect(k.bar.y - chestTop, name).toBeLessThan(0.03);
+    }
+    for (const name of ['Smith Machine Bench Press', 'Smith Machine Close-Grip Bench Press', 'Smith Machine Incline Bench Press']) {
+      const top = skeletonAt(spec(name), 0);
+      expect(distance(top.shoulderL, top.gripL), `${name} top`).toBeGreaterThan(ARM - 0.06);
+      expect(Math.abs(top.bar.x - top.shoulderL.x), `${name} bar over the chest, not far from the shoulders`).toBeLessThan(0.25);
+    }
+    const squat = skeletonAt(spec('Smith Machine Squat'), 1);
+    expect(flexion(squat.hipL, squat.kneeL, squat.ankleL)).toBeGreaterThan(100);
+    const upright = skeletonAt(spec('Smith Machine Squat'), 0);
+    expect(Math.abs(upright.bar.x - upright.midfoot.x), 'feet a little in front of the bar line').toBeLessThan(0.1);
+    const lunge = skeletonAt(spec('Smith Single-Leg Split Squat'), 1);
+    expect(lunge.kneeR.y).toBeGreaterThan(0.03);
   });
 });
 

@@ -72,13 +72,15 @@ export interface Variant {
   incline: number;
   /** The palms face the body (over) or away from it (under: curls, chin-ups, underhand pulldowns). */
   palm: 'over' | 'under';
+  /** The bar rides on the rails of a Smith machine: it moves straight up and down. */
+  rails: boolean;
 }
 export interface MotionSpec {
   pattern: PatternId;
   variant: Variant;
 }
 
-export const DEFAULT_VARIANT: Variant = { load: 'none', stance: 'normal', grip: 'medium', hinge: 'conventional', seated: false, incline: 0, palm: 'over' };
+export const DEFAULT_VARIANT: Variant = { load: 'none', stance: 'normal', grip: 'medium', hinge: 'conventional', seated: false, incline: 0, palm: 'over', rails: false };
 export const spec = (pattern: PatternId, v: Partial<Variant>): MotionSpec => ({ pattern, variant: { ...DEFAULT_VARIANT, ...v } });
 
 // ---------- geometry helpers ----------

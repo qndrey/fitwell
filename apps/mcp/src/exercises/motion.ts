@@ -61,7 +61,8 @@ function squat(p: number, v: Variant, b: Body): Skeleton {
   const flat = Math.hypot(hip.x, stance - b.hipHalf);
   if (flat < reach) hip = { x: hip.x, y: Math.min(hip.y, b.ankleHeight + Math.sqrt(reach * reach - flat * flat)) };
   const hipC = vec(hip.x, hip.y, 0);
-  const midfootX = b.midfoot;
+  // On a Smith machine the bar line is fixed, so the feet are set a little in front of it.
+  const midfootX = b.midfoot - (v.rails ? 0.07 : 0);
 
   // Where the load sits on the trunk, so the lean can put it over the mid-foot.
   const front = v.load === 'barbell-front';
@@ -111,7 +112,9 @@ function hinge(p: number, v: Variant, b: Body): Skeleton {
     const f = (y - knee2.y) / Math.max(1e-6, hip.y - knee2.y);
     return knee2.x + (hip.x - knee2.x) * Math.min(1, f) + 0.1;
   };
-  const barX = legFront(barY);
+  // On a Smith machine the bar goes straight up and down, so it stays at the furthest the free bar would reach.
+  const railX = v.rails ? Math.max(...Array.from({ length: 21 }, (_, i) => hinge(i / 20, { ...v, rails: false }, b).bar.x)) : undefined;
+  const barX = railX ?? legFront(barY);
   const bar = vec(barX, barY, 0);
 
   // Lean the trunk until the arms are taut; if the bar is already within reach the trunk stays upright.
@@ -158,7 +161,7 @@ function bench(p: number, v: Variant, b: Body): Skeleton {
   const elbowBottom = vec(bottom.x, gyBottom - l2, gz);
   // Top: the arms nearly straight, the bar a little toward the feet from the shoulders.
   const reach = Math.sqrt(Math.max(0, (l1 + l2) * (l1 + l2) - dz * dz)) - 0.02;
-  const top = vec(shoulder.x + 0.02, shoulder.y + reach, gz);
+  const top = vec(v.rails ? bottom.x : shoulder.x + 0.02, shoulder.y + reach, gz);
 
   // The bar sits above the shoulders at the top and slides toward the feet while it comes down.
   const g = vec(lerp(top.x, bottom.x, p), lerp(top.y, bottom.y, p), gz);
@@ -178,7 +181,7 @@ function press(p: number, v: Variant, b: Body): Skeleton {
   const { hipC, lower } = v.seated ? seatedLower(b, 0.28) : standLower(b);
   // Standing, the trunk leans a little so the lockout is over the mid-foot, and a little back to let the bar pass the face.
   const lean0 = v.seated ? 0 : Math.asin(Math.min(0.3, Math.max(-0.3, (b.midfoot - hipC.x) / trunkOf(b))));
-  const lean = lean0 - (v.seated ? 0.02 : 0.07) * p;
+  const lean = lean0 - (v.rails ? 0 : v.seated ? 0.02 : 0.07) * p;
   const t = vec(Math.sin(lean), Math.cos(lean), 0);
   const body = upperBody(b, hipC, t, neckFor(lean));
   const sc = body.shoulderC;
@@ -187,8 +190,9 @@ function press(p: number, v: Variant, b: Body): Skeleton {
   const yRack = sc.y + (barbell ? 0.01 : 0.11);
   const y = lerp(yLock, yRack, p);
   const h = y - yRack;
-  // The bar starts in front of the collarbones, swings out around the face, and ends straight above the shoulders.
-  const off = barbell ? lerp(0.07, 0.16, smooth(0.05, 0.17, h)) * (1 - smooth(0.36, 0.52, h)) : 0.06 * (1 - smooth(0, 0.5, h));
+  // The bar starts in front of the collarbones, swings out around the face, and ends straight above the shoulders
+  // (on a Smith machine it just goes straight up in front of the face).
+  const off = v.rails ? 0.13 : barbell ? lerp(0.07, 0.16, smooth(0.05, 0.17, h)) * (1 - smooth(0.36, 0.52, h)) : 0.06 * (1 - smooth(0, 0.5, h));
   const bar = vec(sc.x + off, y, 0);
   const gz = b.shoulderHalf + (barbell ? 0.06 : 0.07);
   const hands = { L: vec(bar.x, y, gz), R: vec(bar.x, y, -gz) };
@@ -212,7 +216,7 @@ function row(p: number, v: Variant, b: Body): Skeleton {
   const bottom = vec(sc.x, sc.y - armOf(b), 0);
   const front = vec(Math.cos(ROW.lean), -Math.sin(ROW.lean), 0);
   const top = add(add(hipC, mul(t, 0.34)), mul(front, 0.12));
-  const g = vec(lerp(top.x, bottom.x, p), lerp(top.y, bottom.y, p), 0);
+  const g = vec(v.rails ? top.x : lerp(top.x, bottom.x, p), lerp(top.y, bottom.y, p), 0);
   const gz = b.shoulderHalf + (v.load === 'dumbbells' ? 0.03 : 0.09);
   const grips = { L: vec(g.x, g.y, gz), R: vec(g.x, g.y, -gz) };
   return assemble(b, { ...body, ...lower, ...arms(b, sc, grips, vec(-1, 0.35, 0.5)) }, g);
@@ -434,6 +438,14 @@ export const MOTIONS: Record<string, MotionSpec> = {
   'Dumbbell Lunges': spec('lunge', { load: 'dumbbells' }),
   'Split Squats': spec('lunge', { load: 'none' }),
   'Split Squat with Dumbbells': spec('lunge', { load: 'dumbbells' }),
+  'Smith Machine Squat': spec('squat', { load: 'barbell-back', rails: true }),
+  'Smith Machine Bench Press': spec('bench', { load: 'barbell-hands', grip: 'medium', rails: true }),
+  'Smith Machine Close-Grip Bench Press': spec('bench', { load: 'barbell-hands', grip: 'close', rails: true }),
+  'Smith Machine Incline Bench Press': spec('incline', { load: 'barbell-hands', grip: 'medium', incline: 30, rails: true }),
+  'Smith Machine Overhead Shoulder Press': spec('press', { load: 'barbell-front', seated: true, rails: true }),
+  'Smith Machine Bent Over Row': spec('row', { load: 'barbell-hands', rails: true }),
+  'Smith Machine Stiff-Legged Deadlift': spec('hinge', { load: 'barbell-hands', hinge: 'stiff', rails: true }),
+  'Smith Single-Leg Split Squat': spec('lunge', { load: 'barbell-back', rails: true }),
   'Pushups': spec('pushup', { grip: 'medium' }),
   'Push-Up Wide': spec('pushup', { grip: 'wide' }),
   'Push-Ups - Close Triceps Position': spec('pushup', { grip: 'close' }),

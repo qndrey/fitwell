@@ -17,8 +17,8 @@ export interface MotionPlayer {
   setTheme(): void;
 }
 
-type ViewName = 'side' | 'front' | 'angle';
-const VIEWS: { id: ViewName; label: string }[] = [
+type ViewName = 'side' | 'front' | 'angle' | 'back';
+const VIEWS: { id: Exclude<ViewName, 'back'>; label: string }[] = [
   { id: 'side', label: 'Side' },
   { id: 'front', label: 'Front' },
   { id: 'angle', label: '45°' },
@@ -103,11 +103,11 @@ export function createMotionPlayer(): MotionPlayer | null {
     const d = bench ? 3.3 : 3.9;
     props?.setSideView(view === 'side');
     const sign = bench ? -1 : 1; // the front view of the lying figure is from the head end
-    const pos = view === 'side' ? [target.x, target.y, d] : view === 'front' ? [target.x + sign * d, target.y, 0] : [target.x + sign * d * 0.6, target.y + 0.35, d * 0.8];
+    const pos = view === 'side' ? [target.x, target.y, d] : view === 'front' ? [target.x + sign * d, target.y, 0] : view === 'back' ? [target.x - sign * d, target.y, 0] : [target.x + sign * d * 0.6, target.y + 0.35, d * 0.8];
     camera.position.set(pos[0]!, pos[1]!, pos[2]!);
     camera.lookAt(target.x, target.y, 0);
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', `Animation of ${label}, ${VIEWS.find((v) => v.id === view)!.label.toLowerCase()} view`);
+    canvas.setAttribute('aria-label', `Animation of ${label}, ${VIEWS.find((v) => v.id === view)?.label.toLowerCase() ?? 'back'} view`);
   }
 
   function draw(p: number): void {

@@ -1,5 +1,5 @@
 import { loadExercises } from '@fitwell/core/data/exercises';
-import { Vector3 } from 'three';
+import { Box3, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
 import { MOTIONS, skeletonAt, standing } from '../src/exercises/motion';
 import { buildMannequin, buildProps, makeMaterials, MUSCLE_NAMES } from '../ui/shared/mannequin';
@@ -90,6 +90,36 @@ describe('muscles', () => {
         }
       }
     }
+  });
+
+  it('lays the chest as two mirrored diagonal fans meeting at the breastbone, and the glutes as two diagonal plates', () => {
+    const man = buildMannequin(makeMaterials(palette));
+    man.update(skeletonAt(MOTIONS['Bodyweight Squat']!, 0));
+    man.group.updateMatrixWorld(true);
+    const pair = (muscle: string) => {
+      const both = man.muscles.filter((x) => x.muscle === muscle).map((x) => ({ box: new Box3().setFromObject(x.mesh), mesh: x.mesh }));
+      return { left: both.find((p) => p.mesh.position.z > 0)!, right: both.find((p) => p.mesh.position.z < 0)!, count: both.length };
+    };
+    const chest = pair('chest');
+    expect(chest.count).toBe(2);
+    // The inner ends reach the midline without crossing it much, and the two sides mirror each other.
+    expect(chest.left.box.min.z).toBeGreaterThan(-0.04);
+    expect(chest.left.box.min.z).toBeLessThan(0.03);
+    expect(chest.right.box.max.z).toBeLessThan(0.04);
+    expect(chest.left.box.max.z + chest.right.box.min.z).toBeCloseTo(0, 2);
+    expect(chest.left.box.max.z - chest.left.box.min.z).toBeGreaterThan(0.12);
+    // The glutes sit behind the pelvis, are thin, and mirror each other.
+    const glutes = pair('glutes');
+    expect(glutes.count).toBe(2);
+    expect(glutes.left.mesh.position.x).toBeLessThan(0);
+    expect(glutes.left.box.max.x - glutes.left.box.min.x).toBeLessThan(0.16);
+    expect(glutes.left.box.max.z + glutes.right.box.min.z).toBeCloseTo(0, 2);
+    // A diagonal muscle: wider than it is tall for the chest, and tilted the other way on the other side.
+    const q = (m: typeof chest.left) => new Vector3(0, 1, 0).applyQuaternion(m.mesh.quaternion);
+    expect(Math.sign(q(chest.left).z)).toBe(-Math.sign(q(chest.right).z));
+    const abs = man.muscles.filter((x) => x.muscle === 'abdominals');
+    expect(abs.length).toBe(4); // two columns and two flanks
+    for (const x of abs) expect(Number.isFinite(x.mesh.position.x + x.mesh.position.y + x.mesh.position.z)).toBe(true);
   });
 
   it('tints the main muscles strongly and the secondary ones lightly as a film over the skin, and the tint can be turned off', () => {

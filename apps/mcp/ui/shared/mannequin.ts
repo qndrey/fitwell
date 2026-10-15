@@ -260,17 +260,22 @@ interface TorsoMuscle extends Belly {
   ry: number;
   rz: number;
   mirror: boolean;
+  /** Turns the muscle about the forward direction, in degrees (positive toward the side it is on), so it can run diagonally. */
+  tilt?: number;
 }
-/** The rectus abdominis: three rows of two rounded segments, which is what gives the abdomen its look. */
-const ABS: TorsoMuscle[] = [0.075, 0.005, -0.065].map((u) => ({ muscle: 'abdominals', origin: 'waist' as const, f: 0.092, u, l: 0.038, rx: 0.014, ry: 0.046, rz: 0.042, mirror: true, peak: 0.5, power: 0.5 }));
+/** The rectus abdominis: two smooth columns either side of the midline. */
+const ABS: TorsoMuscle[] = [{ muscle: 'abdominals', origin: 'waist', f: 0.092, u: 0.0, l: 0.04, rx: 0.017, ry: 0.13, rz: 0.038, mirror: true, peak: 0.5, power: 0.55 }];
+/** The sides of the waist (the obliques), which give the trunk its taper. */
+const FLANKS: TorsoMuscle[] = [{ muscle: 'abdominals', origin: 'waist', f: 0.02, u: -0.005, l: 0.118, rx: 0.04, ry: 0.115, rz: 0.034, mirror: true, peak: 0.45, power: 0.8 }];
 const TORSO_MUSCLES: TorsoMuscle[] = [
-  { muscle: 'chest', origin: 'rib', f: 0.085, u: 0.05, l: 0.08, rx: 0.05, ry: 0.09, rz: 0.11, mirror: true, peak: 0.5, power: 0.6 },
+  { muscle: 'chest', origin: 'rib', f: 0.086, u: 0.05, l: 0.085, rx: 0.036, ry: 0.088, rz: 0.062, mirror: true, peak: 0.42, power: 0.7, tilt: 68 },
   ...ABS,
+  ...FLANKS,
   { muscle: 'lats', origin: 'rib', f: -0.07, u: -0.04, l: 0.13, rx: 0.044, ry: 0.17, rz: 0.08, mirror: true, peak: 0.3, power: 0.8 },
   { muscle: 'traps', origin: 'neckBase', f: -0.05, u: -0.085, l: 0, rx: 0.042, ry: 0.12, rz: 0.17, mirror: false, peak: 0.45, power: 0.95 },
   { muscle: 'middle back', origin: 'rib', f: -0.098, u: 0.0, l: 0, rx: 0.032, ry: 0.11, rz: 0.11, mirror: false, peak: 0.5, power: 0.7 },
   { muscle: 'lower back', origin: 'lumbar', f: -0.088, u: 0.03, l: 0.042, rx: 0.034, ry: 0.125, rz: 0.036, mirror: true, peak: 0.5, power: 0.8 },
-  { muscle: 'glutes', origin: 'pelvis', f: -0.075, u: -0.015, l: 0.078, rx: 0.09, ry: 0.088, rz: 0.088, mirror: true, peak: 0.5, power: 0.6 },
+  { muscle: 'glutes', origin: 'pelvis', f: -0.078, u: -0.025, l: 0.08, rx: 0.034, ry: 0.092, rz: 0.072, mirror: true, peak: 0.5, power: 0.6, tilt: -50 },
   { muscle: 'neck', origin: 'neckBase', f: 0, u: 0.045, l: 0, rx: 0.062, ry: 0.065, rz: 0.062, mirror: false, peak: 0.5, power: 0.5 },
 ];
 
@@ -462,7 +467,8 @@ export function buildMannequin(m: Materials): Mannequin {
     const origins: Record<Origin, Vector3> = { rib: ribcage.position, waist: waist.position, neckBase: v3(k.neckBase), lumbar: v3(k.lumbar), pelvis: v3(k.pelvis) };
     const hipQ = basis(up, hipLeft);
     for (const { tm, side, mesh } of torsoMuscles) {
-      const q = tm.origin === 'pelvis' ? hipQ : torso;
+      const base = tm.origin === 'pelvis' ? hipQ : torso;
+      const q = tm.tilt ? base.clone().multiply(new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), (tm.tilt * side * Math.PI) / 180)) : base;
       const f = new Vector3(1, 0, 0).applyQuaternion(q);
       const u = new Vector3(0, 1, 0).applyQuaternion(q);
       const l = new Vector3(0, 0, 1).applyQuaternion(q);

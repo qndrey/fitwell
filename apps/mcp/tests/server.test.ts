@@ -44,6 +44,19 @@ describe('fitwell MCP server', () => {
     expect(JSON.stringify(search.inputSchema)).toContain('quadriceps');
   });
 
+  it('answers planning tools with the role to take, from the Markdown instructions', async () => {
+    const client = await connect();
+    const texts = async (name: string, args: Record<string, unknown> = {}) => ((await client.callTool({ name, arguments: args })).content as { text?: string }[]).map((c) => c.text ?? '');
+    expect((await texts('list_workout_templates')).at(-1)).toContain('personal trainer');
+    expect((await texts('get_planning_context')).at(-1)).toContain('nutritionist');
+    expect((await texts('get_progress')).at(-1)).toContain('reviewing progress');
+    // Everything else answers with its result only, and the tool descriptions stay as they were (the list has a size budget).
+    expect((await texts('get_profile')).join('\n')).not.toContain('Role for this tool');
+    const { tools } = await client.listTools();
+    expect(tools.some((t) => t.description?.includes('Role for this tool'))).toBe(false);
+    expect(client.getInstructions()).toContain('Fitwell tracks food');
+  });
+
   it('finds Frida foods with macros per 100 g and attribution, without going online', async () => {
     const offFetch = vi.fn();
     vi.stubGlobal('fetch', offFetch);

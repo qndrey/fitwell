@@ -21,7 +21,8 @@ const state = {
   weight: 0,
   minutes: 0,
   km: 0,
-  noteOpen: false,
+  /** The exercise whose note is being edited; the textarea exists only then (see notesEditor). */
+  noteEditing: '',
   guideOpen: false,
   guides: new Map<string, ExerciseGuide>(),
   guideFailed: false,
@@ -56,6 +57,8 @@ const mmss = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 const kg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+/** One tap on the weight stepper: small enough for dumbbells and micro plates. */
+const WEIGHT_STEP = 0.5;
 const closed = (s: PlannedSet) => s.done || !!s.skipped;
 const nextSet = (e: PlannedExercise) => e.sets.find((s) => !closed(s));
 const cardioClosed = (c: PlannedCardio) => c.done || !!c.skipped;
@@ -98,7 +101,7 @@ function load(plan: WorkoutPlan) {
 function select(i: number) {
   const it = items()[i]!;
   state.current = i;
-  state.noteOpen = it.kind === 'ex' && !!it.ex.notes;
+  state.noteEditing = '';
   state.guideOpen = false;
   state.guideFailed = false;
   motion?.stop();
@@ -259,25 +262,44 @@ function stepper(label: string, value: string, dec: () => void, inc: () => void)
   );
 }
 
-/** A note field for one exercise. The text is kept in the plan at once; the server gets it when the field is left. */
+/**
+ * The note for one exercise: shown as text with an edit button, and a textarea only while it is being edited.
+ * A textarea left in the page kept iOS's "Undo typing" prompt coming back when the chat was opened again.
+ * The text is kept in the plan at once; the server gets it when the field is left.
+ */
 function notesEditor(ex: PlannedExercise) {
+  if (state.noteEditing !== ex.uid) {
+    const edit = () => {
+      state.noteEditing = ex.uid;
+      render();
+      // Still inside the tap, so iOS opens the keyboard.
+      root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus();
+    };
+    return h(
+      'div',
+      { className: 'notes' },
+      ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`),
+      h('button', { type: 'button', className: 'link', onclick: edit }, ex.notes ? 'Edit note' : 'Add a note'),
+    );
+  }
+  const before = ex.notes ?? '';
   const area = h('textarea', {
     rows: 2,
     maxLength: 300,
-    value: ex.notes ?? '',
+    value: before,
     placeholder: 'e.g. seat 4, slow on the way down',
     'aria-label': `Note for ${ex.name}`,
     oninput: (e: Event) => {
       ex.notes = (e.target as HTMLTextAreaElement).value;
     },
-    onchange: () => void saveNote(ex),
+    // No redraw here: a tap on another button blurs the field first, and redrawing now would swallow that tap.
+    // The next redraw (the save below, or any other) shows the note as text again.
+    onblur: () => {
+      state.noteEditing = '';
+      if ((ex.notes ?? '') !== before) void saveNote(ex);
+    },
   });
-  return h(
-    'details',
-    { className: 'notes', open: state.noteOpen || !!ex.notes, ontoggle: (e: Event) => ((state.noteOpen = (e.target as HTMLDetailsElement).open), undefined) },
-    h('summary', {}, ex.notes ? 'Note' : 'Add a note'),
-    area,
-  );
+  return h('div', { className: 'notes' }, area);
 }
 
 /** Asks the host to open a link; false when it cannot (the guide then shows the search words to copy). */
@@ -432,7 +454,7 @@ function render() {
           stepper('Reps', String(state.reps), () => ((state.reps = Math.max(0, state.reps - 1)), render()), () => ((state.reps += 1), render())),
           ex.bodyweight
             ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', {}, 'Bodyweight'))
-            : stepper('Weight kg', kg(state.weight), () => ((state.weight = Math.max(0, state.weight - 2.5)), render()), () => ((state.weight += 2.5), render())),
+            : stepper('Weight kg', kg(state.weight), () => ((state.weight = Math.max(0, Math.round((state.weight - WEIGHT_STEP) * 10) / 10)), render()), () => ((state.weight = Math.round((state.weight + WEIGHT_STEP) * 10) / 10), render())),
         ),
         guidePanel(ex),
         notesEditor(ex),

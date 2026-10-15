@@ -2,6 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {"name": "fitwell-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"], "port": 5173},
-    {"name": "fitwell-mcp", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:mcp", "--", "--port", "8787", "--ip", "127.0.0.1"], "port": 8787}
+    {"name": "fitwell-mcp", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:mcp", "--", "--port", "8787", "--ip", "127.0.0.1"], "port": 8787},
+    {"name": "fitwell-mcp-host", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:host", "-w", "@fitwell/mcp"], "port": 8788}
   ]
 }

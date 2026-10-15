@@ -13,5 +13,5 @@
     "noEmit": true,
     "types": []
   },
-  "include": ["*.ts"]
+  "include": ["*.ts", "../assets/*.d.ts"]
 }

@@ -3,8 +3,17 @@
 // simply leave the animation out.
 import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { progressAt, skeletonAt, standing, type MotionSpec } from '../../src/exercises/motion';
+import bodyGz from '../assets/body.glb.gz';
 import { h } from './dom';
+import { loadHumanBody, type HumanBody } from './humanBody';
 import { buildMannequin, buildProps, makeMaterials, setPalette, type Mannequin, type Palette, type Props } from './mannequin';
+
+/** Unzips the embedded model. Needs `DecompressionStream`; rejects when the browser has none (the caller then keeps the mannequin). */
+async function unzip(gz: Uint8Array): Promise<ArrayBuffer> {
+  if (typeof DecompressionStream === 'undefined') throw new Error('no DecompressionStream');
+  const stream = new Blob([gz as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(stream).arrayBuffer();
+}
 
 export interface MotionPlayer {
   /** Put this in the page. It stays the same element for the life of the view. */
@@ -70,6 +79,28 @@ export function createMotionPlayer(): MotionPlayer | null {
   const propsHolder = new Group();
   scene.add(propsHolder);
 
+  // The realistic body replaces the mannequin once it has loaded (the mannequin stays when it cannot: no DecompressionStream, a bad file).
+  let human: HumanBody | null = null;
+  let humanState: 'idle' | 'loading' | 'failed' = 'idle';
+  let worked: { primary: string[]; secondary: string[] } = { primary: [], secondary: [] };
+  function loadHuman(): void {
+    if (humanState !== 'idle') return;
+    humanState = 'loading';
+    unzip(bodyGz)
+      .then((buf) => loadHumanBody(buf, readPalette()))
+      .then((body) => {
+        human = body;
+        human.setHighlight(worked.primary, worked.secondary);
+        human.setHighlightVisible(musclesOn);
+        scene.add(human.group);
+        mannequin.group.visible = false;
+        draw(currentP());
+      })
+      .catch(() => {
+        humanState = 'failed';
+      });
+  }
+
   let current: MotionSpec | null = null;
   /** Showing the standing figure with no exercise (used for checking the look of the figure). */
   let standingMode = false;
@@ -112,19 +143,23 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function draw(p: number): void {
     if (standingMode && !current) {
-      mannequin.update(standing());
+      if (human) human.update(standing(human.body), 0.2);
+      else mannequin.update(standing());
       renderer.render(scene, camera);
       return;
     }
     if (!current) return;
-    const k = skeletonAt(current, p);
-    mannequin.update(k);
+    const k = skeletonAt(current, p, human?.body);
+    if (human) human.update(k, current.variant.load === 'none' ? 0.35 : 1);
+    else mannequin.update(k);
     props?.update(k);
     renderer.render(scene, camera);
   }
 
   const now = () => performance.now() / 1000;
-  const currentP = () => (current ? progressAt((paused ? frozenAt : now() - started) % 1000, current) : 0);
+  /** A position chosen from a script (`seek`); while set, redraws (a resize, a view change) keep it. */
+  let forced: number | null = null;
+  const currentP = () => (current ? (forced ?? progressAt((paused ? frozenAt : now() - started) % 1000, current)) : 0);
 
   function tick(): void {
     raf = 0;
@@ -138,6 +173,7 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function setPaused(next: boolean): void {
     if (next === paused) return;
+    forced = null;
     if (next) frozenAt = now() - started;
     else started = now() - frozenAt;
     paused = next;
@@ -152,6 +188,7 @@ export function createMotionPlayer(): MotionPlayer | null {
   function setMuscles(on: boolean): void {
     musclesOn = on;
     mannequin.setHighlightVisible(on);
+    human?.setHighlightVisible(on);
     muscleButton.setAttribute('aria-pressed', String(on));
     draw(currentP());
   }
@@ -194,9 +231,14 @@ export function createMotionPlayer(): MotionPlayer | null {
         return;
       }
       current = spec;
+      forced = null;
       standingMode = false;
-      mannequin.setHighlight(muscles?.primary ?? [], muscles?.secondary ?? []);
+      worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
+      mannequin.setHighlight(worked.primary, worked.secondary);
       mannequin.setHighlightVisible(musclesOn);
+      human?.setHighlight(worked.primary, worked.secondary);
+      human?.setHighlightVisible(musclesOn);
+      loadHuman();
       propsHolder.visible = true;
       label = name;
       propsHolder.clear();
@@ -226,6 +268,7 @@ export function createMotionPlayer(): MotionPlayer | null {
     },
     setTheme() {
       setPalette(materials, readPalette());
+      human?.setPalette(readPalette());
       draw(currentP());
     },
   };
@@ -234,7 +277,8 @@ export function createMotionPlayer(): MotionPlayer | null {
   (globalThis as unknown as { fitwellMotion?: unknown }).fitwellMotion = {
     seek(p: number) {
       setPaused(true);
-      draw(Math.min(1, Math.max(0, p)));
+      forced = Math.min(1, Math.max(0, p));
+      draw(forced);
     },
     view(name: ViewName) {
       setView(name);
@@ -242,11 +286,16 @@ export function createMotionPlayer(): MotionPlayer | null {
     pause() {
       setPaused(true);
     },
+    /** Whether the realistic body has loaded and replaced the mannequin. */
+    bodyReady() {
+      return human !== null;
+    },
     standing() {
       current = null;
       standingMode = true;
       propsHolder.visible = false;
       label = 'the standing figure';
+      loadHuman();
       element.hidden = false;
       frame();
       resize();

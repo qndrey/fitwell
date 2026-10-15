@@ -24,8 +24,8 @@ const VIEWS: { id: ViewName; label: string }[] = [
   { id: 'angle', label: '45°' },
 ];
 
-const LIGHT: Palette = { body: 0xd9b8a0, muscle: 0xd9b8a0, joint: 0xd9b8a0, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
-const DARK: Palette = { body: 0xbf9a83, muscle: 0xbf9a83, joint: 0xbf9a83, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
+const LIGHT: Palette = { tint: 0xe4572e, body: 0xd9b8a0, muscle: 0xd9b8a0, joint: 0xd9b8a0, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
+const DARK: Palette = { tint: 0xff7a4d, body: 0xbf9a83, muscle: 0xbf9a83, joint: 0xbf9a83, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
 
 function cssColor(name: string): Color | null {
   try {
@@ -92,6 +92,7 @@ export function createMotionPlayer(): MotionPlayer | null {
     { className: 'motion', hidden: true },
     canvas,
     h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Animation controls' }, play, ...viewButtons, muscleButton),
+    h('p', { className: 'motion-legend small' }, h('span', { className: 'key' }, h('i', { className: 'sw hot' }), 'main muscles'), h('span', { className: 'key' }, h('i', { className: 'sw warm' }), 'helping muscles')),
     h('p', { className: 'muted small' }, 'Schematic animation: follow the written cues for detail.'),
   );
 

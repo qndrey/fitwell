@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { MOTIONS, skeletonAt, standing } from '../src/exercises/motion';
 import { buildMannequin, buildProps, makeMaterials, MUSCLE_NAMES } from '../ui/shared/mannequin';
 
-const palette = { body: 0xc9bfb2, muscle: 0xbba996, joint: 0xa99f92, load: 0x2f5d50, steel: 0xb0b0b0, furniture: 0x8a8378, floor: 0xddd6cc };
+const palette = { tint: 0xe4572e, body: 0xc9bfb2, muscle: 0xbba996, joint: 0xa99f92, load: 0x2f5d50, steel: 0xb0b0b0, furniture: 0x8a8378, floor: 0xddd6cc };
 
 describe('mannequin', () => {
   it('stretches every limb part between its two joints in every pose', () => {
@@ -38,7 +38,7 @@ describe('mannequin', () => {
         expect(feet.length, name).toBe(2);
       }
     }
-    expect(man.group.children.length).toBeLessThan(90);
+    expect(man.group.children.length).toBeLessThan(140); // includes one hidden tint overlay per muscle
     man.update(standing());
   });
 
@@ -92,22 +92,24 @@ describe('muscles', () => {
     }
   });
 
-  it('lights up the main muscles in the accent tone and the secondary ones lighter, and the tint can be turned off', () => {
+  it('tints the main muscles strongly and the secondary ones lightly as a film over the skin, and the tint can be turned off', () => {
     const mats = makeMaterials(palette);
     const man = buildMannequin(mats);
+    const part = (muscle: string) => man.muscles.find((x) => x.muscle === muscle)!;
     man.setHighlight(['quadriceps'], ['glutes', 'calves']);
-    const tone = (muscle: string) => man.muscles.find((x) => x.muscle === muscle)!.mesh.material;
-    expect(tone('quadriceps')).toBe(mats.musclePrimary);
-    expect(tone('glutes')).toBe(mats.muscleSecondary);
-    expect(tone('calves')).toBe(mats.muscleSecondary);
-    expect(tone('biceps')).toBe(mats.muscle);
-    man.setHighlight([], []);
-    expect(tone('quadriceps')).toBe(mats.muscle);
-    // Turning the tint off leaves the muscle shapes in place, as plain contours under the skin.
-    man.setHighlight(['quadriceps'], ['glutes']);
+    expect(part('quadriceps').overlay.visible).toBe(true);
+    expect(part('quadriceps').overlay.material).toBe(mats.musclePrimary);
+    expect(part('glutes').overlay.material).toBe(mats.muscleSecondary);
+    expect(part('calves').overlay.visible).toBe(true);
+    expect(part('biceps').overlay.visible).toBe(false);
+    // The muscle shapes themselves always stay skin-coloured contours.
+    expect(man.muscles.every((x) => x.mesh.material === mats.muscle)).toBe(true);
+    // Turning the tint off hides every overlay but leaves the contours.
     man.setHighlightVisible(false);
-    expect(man.muscles.every((x) => x.mesh.visible && x.mesh.material === mats.muscle)).toBe(true);
+    expect(man.muscles.every((x) => !x.overlay.visible && x.mesh.visible)).toBe(true);
     man.setHighlightVisible(true);
-    expect(tone('quadriceps')).toBe(mats.musclePrimary);
+    expect(part('quadriceps').overlay.visible).toBe(true);
+    man.setHighlight([], []);
+    expect(man.muscles.every((x) => !x.overlay.visible)).toBe(true);
   });
 });

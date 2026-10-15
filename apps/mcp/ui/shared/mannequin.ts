@@ -43,6 +43,8 @@ export interface Materials {
 }
 
 export interface Palette {
+  /** The tint laid over the muscles an exercise works. */
+  tint: number;
   body: number;
   muscle: number;
   joint: number;
@@ -150,14 +152,19 @@ export function makeTextures(): Textures | null {
   return skin && fibre ? { skin, fibre } : null;
 }
 
+/** A soft coloured film that lies on the skin over a muscle group. */
+function tint(color: number, opacity: number): Material {
+  return new MeshStandardMaterial({ color, roughness: 0.55, metalness: 0, transparent: true, opacity, depthWrite: false });
+}
+
 export function makeMaterials(p: Palette, textures: Textures | null = null): Materials {
   const std = (color: number, roughness = 0.8, tex?: Texture, bump = 0) =>
     new MeshStandardMaterial({ color, roughness, metalness: 0.05, ...(tex ? { map: tex, bumpMap: tex, bumpScale: bump } : {}) });
   return {
     body: std(p.body, 0.8, textures?.skin, 0.5),
     muscle: std(p.muscle, 0.7, textures?.fibre, 0.8),
-    musclePrimary: std(p.load, 0.55, textures?.fibre, 0.8),
-    muscleSecondary: std(mixHex(p.muscle, p.load, 0.5), 0.6, textures?.fibre, 0.8),
+    musclePrimary: tint(p.tint, 0.78),
+    muscleSecondary: tint(p.tint, 0.45),
     joint: std(p.joint, 0.8, textures?.skin, 0.5),
     load: std(p.load, 0.6),
     steel: new MeshStandardMaterial({ color: p.steel, roughness: 0.35, metalness: 0.6 }),
@@ -170,8 +177,8 @@ export function makeMaterials(p: Palette, textures: Textures | null = null): Mat
 export function setPalette(m: Materials, p: Palette): void {
   (m.body as MeshStandardMaterial).color.setHex(p.body);
   (m.muscle as MeshStandardMaterial).color.setHex(p.muscle);
-  (m.musclePrimary as MeshStandardMaterial).color.setHex(p.load);
-  (m.muscleSecondary as MeshStandardMaterial).color.setHex(mixHex(p.muscle, p.load, 0.5));
+  (m.musclePrimary as MeshStandardMaterial).color.setHex(p.tint);
+  (m.muscleSecondary as MeshStandardMaterial).color.setHex(p.tint);
   (m.joint as MeshStandardMaterial).color.setHex(p.joint);
   (m.load as MeshStandardMaterial).color.setHex(p.load);
   (m.steel as MeshStandardMaterial).color.setHex(p.steel);
@@ -305,8 +312,8 @@ export interface Mannequin {
   update(k: Skeleton): void;
   /** The limb parts and the two joints each one is stretched between (for tests). */
   segments: { from: keyof Skeleton; to: keyof Skeleton; mesh: Mesh }[];
-  /** The muscle meshes by library muscle name (for tests and highlighting). */
-  muscles: { muscle: string; mesh: Mesh }[];
+  /** The muscle meshes by library muscle name, each with its tint overlay (for tests and highlighting). */
+  muscles: { muscle: string; mesh: Mesh; overlay: Mesh }[];
   /** Tints the muscles an exercise works: main in the accent colour, secondary in a lighter tone. */
   setHighlight(primary: Iterable<string>, secondary: Iterable<string>): void;
   /** Turns the tint on or off; the muscle shapes stay, as contours under the skin. */
@@ -359,12 +366,17 @@ export function buildMannequin(m: Materials): Mannequin {
   const neckBall = sphere(0.062, m.joint);
 
   // The muscle layer.
-  const muscles: { muscle: string; mesh: Mesh }[] = [];
+  const muscles: { muscle: string; mesh: Mesh; overlay: Mesh }[] = [];
   const muscleMesh = (muscle: string, shape: Belly) => {
     const mesh = new Mesh(belly(shape), m.muscle);
     mesh.userData.muscle = muscle;
     group.add(mesh);
-    muscles.push({ muscle, mesh });
+    // The tint is a slightly larger copy of the muscle, shown only for the muscles an exercise works.
+    const overlay = new Mesh(belly(shape), m.musclePrimary);
+    overlay.visible = false;
+    overlay.renderOrder = 2;
+    group.add(overlay);
+    muscles.push({ muscle, mesh, overlay });
     return mesh;
   };
   const limbMuscles = LIMB_MUSCLES.flatMap((lm) => ([1, -1] as const).map((side) => ({ lm, side, mesh: muscleMesh(lm.muscle, lm) })));
@@ -372,7 +384,11 @@ export function buildMannequin(m: Materials): Mannequin {
   let highlighted = { primary: new Set<string>(), secondary: new Set<string>() };
   let tint = true;
   const paint = () => {
-    for (const { muscle, mesh } of muscles) mesh.material = tint && highlighted.primary.has(muscle) ? m.musclePrimary : tint && highlighted.secondary.has(muscle) ? m.muscleSecondary : m.muscle;
+    for (const { muscle, overlay } of muscles) {
+      const main = highlighted.primary.has(muscle);
+      overlay.visible = tint && (main || highlighted.secondary.has(muscle));
+      overlay.material = main ? m.musclePrimary : m.muscleSecondary;
+    }
   };
 
   const tmp = new Vector3();
@@ -459,6 +475,13 @@ export function buildMannequin(m: Materials): Mannequin {
       mesh.position.copy(origins[tm.origin]).addScaledVector(f, tm.f).addScaledVector(u, tm.u).addScaledVector(l, tm.l * side);
       mesh.quaternion.copy(q);
       mesh.scale.set(tm.rx, tm.ry, tm.rz);
+    }
+    // The tint follows its muscle, a little larger so it lies on top of the skin.
+    for (const { mesh, overlay } of muscles) {
+      if (!overlay.visible) continue;
+      overlay.position.copy(mesh.position);
+      overlay.quaternion.copy(mesh.quaternion);
+      overlay.scale.set(mesh.scale.x * 1.06 + 0.002, mesh.scale.y * 1.012, mesh.scale.z * 1.06 + 0.002);
     }
   }
   return {

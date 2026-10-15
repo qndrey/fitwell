@@ -31,21 +31,21 @@ float definition() {
   // Chest: the pecs stand above a curved lower border that rises toward the arm; the breastbone and the collarbone are soft lines.
   float border = 1.205 + 1.7 * a * a;
   float pecs = front * smoothstep(0.0, 0.02, y - border) * smoothstep(1.43, 1.33, y) * smoothstep(0.2, 0.13, a) * smoothstep(0.0, 0.02, a);
-  h += 0.0045 * pecs;
-  h -= 0.0035 * front * smoothstep(0.17, 0.12, a) * smoothstep(0.01, 0.03, a) * groove(y - border, 0.008);
-  h -= 0.0035 * front * smoothstep(1.2, 1.24, y) * smoothstep(1.42, 1.38, y) * groove(r.x, 0.008);
-  h -= 0.002 * front * smoothstep(0.2, 0.15, a) * groove(y - (1.425 - 0.12 * a), 0.008);
+  h += 0.003 * pecs;
+  h -= 0.0013 * front * smoothstep(0.17, 0.12, a) * smoothstep(0.01, 0.03, a) * groove(y - border, 0.014);
+  h -= 0.0012 * front * smoothstep(1.2, 1.24, y) * smoothstep(1.42, 1.38, y) * groove(r.x, 0.012);
+  h -= 0.0008 * front * smoothstep(0.2, 0.15, a) * groove(y - (1.425 - 0.12 * a), 0.012);
 
   // Abdomen: the straight muscle in blocks (a line down the middle, three cross lines that sag away from it, an edge on each
   // side), and the diagonals of the ribs.
   float rectus = front * smoothstep(0.1, 0.08, a) * smoothstep(0.96, 0.985, y) * smoothstep(1.2, 1.18, y);
-  h += 0.0028 * rectus;
+  h += 0.0012 * rectus;
   float sag = 1.8 * a * a;
-  float rows = groove(y - (1.145 - sag), 0.0065) + groove(y - (1.093 - sag), 0.0065) + groove(y - (1.04 - sag), 0.0065);
-  h -= 0.0032 * rectus * (groove(r.x, 0.0065) + rows);
-  h -= 0.003 * front * smoothstep(0.96, 0.99, y) * smoothstep(1.2, 1.18, y) * groove(a - 0.092, 0.009);
+  float rows = groove(y - (1.145 - sag), 0.011) + groove(y - (1.093 - sag), 0.011) + groove(y - (1.04 - sag), 0.011);
+  h -= 0.0011 * rectus * (groove(r.x, 0.011) + rows);
+  h -= 0.0008 * front * smoothstep(0.96, 0.99, y) * smoothstep(1.2, 1.18, y) * groove(a - 0.092, 0.014);
   float ribs = front * smoothstep(0.2, 0.15, a) * smoothstep(0.1, 0.115, a) * smoothstep(1.1, 1.14, y) * smoothstep(1.225, 1.2, y);
-  h -= 0.002 * ribs * (0.5 - 0.5 * cos(6.2832 * (y + 1.1 * a) / 0.034));
+  h -= 0.0005 * ribs * (0.5 - 0.5 * cos(6.2832 * (y + 1.1 * a) / 0.034));
 
   // Back: a soft line down the spine, the two ridges of the lower back, and the shoulder blades.
   h -= 0.003 * back * smoothstep(0.95, 1.0, y) * smoothstep(1.44, 1.4, y) * groove(r.x, 0.012);
@@ -210,7 +210,7 @@ vRestN = normalize(normal);`,
         '#include <color_fragment>',
         `#include <color_fragment>
 float relief = definition();
-diffuseColor.rgb *= 1.0 - clamp(-relief * 70.0, 0.0, 0.32);
+diffuseColor.rgb *= 1.0 - clamp(-relief * 40.0, 0.0, 0.18);
 diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWorked.x * 0.7 + vWorked.y * 0.4, 0.0, 0.7) / 0.7) * 0.68 * uShow);`,
       )
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = bumped(-vViewPosition, normal, vec2(dFdx(relief), dFdy(relief)));');

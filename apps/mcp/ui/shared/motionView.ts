@@ -53,6 +53,11 @@ const FRAMING: Record<string, { x: number; y: number; d: number }> = {
   armmachine: { x: 0.0, y: 0.8, d: 4.0 },
   calf: { x: 0.0, y: 0.95, d: 4.4 },
   hipmachine: { x: 0.0, y: 0.7, d: 4.0 },
+  seatedrow: { x: 0.6, y: 0.7, d: 5.0 },
+  pushdown: { x: 0.2, y: 1.15, d: 5.0 },
+  facepull: { x: 0.5, y: 1.0, d: 4.6 },
+  straightarm: { x: 0.3, y: 1.15, d: 5.0 },
+  crossover: { x: 0.1, y: 1.05, d: 5.4 },
 };
 const EL_MIN = -0.35;
 const EL_MAX = 1.1;

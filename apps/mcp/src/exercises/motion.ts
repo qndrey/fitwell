@@ -43,6 +43,7 @@ import {
   upperBody,
   vec,
 } from './motionKit';
+import { facePull, crossover, pushdown, seatedRow, straightArm } from './motionCable';
 import { armMachine, calf, chestPress, hipMachine, kneeMachine, legPress, lyingCurl, machineRow, pecDeck } from './motionMachines';
 export * from './motionKit';
 
@@ -367,6 +368,7 @@ function pushup(p: number, v: Variant, b: Body): Skeleton {
 const SOLVERS: Record<PatternId, (p: number, v: Variant, b: Body) => Skeleton> = {
   squat, hinge, bench, incline: bench, press, row, curl, pull, lunge, pushup,
   legpress: legPress, kneemachine: kneeMachine, lyingcurl: lyingCurl, chestpress: chestPress, machinerow: machineRow, pecdeck: pecDeck, armmachine: armMachine, calf, hipmachine: hipMachine,
+  seatedrow: seatedRow, pushdown, facepull: facePull, straightarm: straightArm, crossover,
 };
 
 export function skeletonAt(s: MotionSpec, p: number, body: Body = BODY): Skeleton {
@@ -474,6 +476,20 @@ export const MOTIONS: Record<string, MotionSpec> = {
   'Smith Machine Calf Raise': spec('calf', { kind: 'standing', load: 'barbell-back', rails: true }),
   'Thigh Abductor': spec('hipmachine', { kind: 'abductor' }),
   'Thigh Adductor': spec('hipmachine', { kind: 'adductor' }),
+  'Seated Cable Rows': spec('seatedrow', { grip: 'close' }),
+  'Triceps Pushdown': spec('pushdown', { grip: 'wide', kind: 'bar' }),
+  'Triceps Pushdown - Rope Attachment': spec('pushdown', { grip: 'close', kind: 'rope' }),
+  'Triceps Pushdown - V-Bar Attachment': spec('pushdown', { grip: 'medium', kind: 'vbar' }),
+  'Reverse Grip Triceps Pushdown': spec('pushdown', { grip: 'wide', kind: 'bar', palm: 'under' }),
+  'Standing Biceps Cable Curl': spec('curl', { load: 'barbell-hands', palm: 'under', kind: 'cable' }),
+  'Face Pull': spec('facepull', { kind: 'rope' }),
+  'Straight-Arm Pulldown': spec('straightarm', { grip: 'wide', kind: 'bar' }),
+  'Rope Straight-Arm Pulldown': spec('straightarm', { grip: 'close', kind: 'rope' }),
+  'Cable Crossover': spec('crossover', {}),
+  'Low Cable Crossover': spec('crossover', { kind: 'low' }),
+  'Standing Cable Chest Press': spec('chestpress', { kind: 'cable' }),
+  'Seated Cable Shoulder Press': spec('press', { load: 'machine', seated: true, kind: 'cable' }),
+  'Cable Shoulder Press': spec('press', { load: 'machine', kind: 'cable' }),
   'Pushups': spec('pushup', { grip: 'medium' }),
   'Push-Up Wide': spec('pushup', { grip: 'wide' }),
   'Push-Ups - Close Triceps Position': spec('pushup', { grip: 'close' }),

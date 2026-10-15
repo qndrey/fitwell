@@ -61,7 +61,8 @@ export type Skeleton = Record<Joint, Vec3>;
 
 export type PatternId =
   | 'squat' | 'hinge' | 'bench' | 'incline' | 'press' | 'row' | 'curl' | 'pull' | 'lunge' | 'pushup'
-  | 'legpress' | 'kneemachine' | 'lyingcurl' | 'chestpress' | 'machinerow' | 'pecdeck' | 'armmachine' | 'calf' | 'hipmachine';
+  | 'legpress' | 'kneemachine' | 'lyingcurl' | 'chestpress' | 'machinerow' | 'pecdeck' | 'armmachine' | 'calf' | 'hipmachine'
+  | 'seatedrow' | 'pushdown' | 'facepull' | 'straightarm' | 'crossover';
 export type Load = 'barbell-back' | 'barbell-front' | 'barbell-hands' | 'dumbbells' | 'goblet' | 'machine' | 'none';
 export interface Variant {
   load: Load;

@@ -208,7 +208,7 @@ export function buildProps(spec: MotionSpec, m: Materials): Props {
   if (station) group.add(station.group);
 
   const load = spec.variant.load;
-  const bar = load === 'barbell-back' || load === 'barbell-front' || load === 'barbell-hands' ? barbell(m) : null;
+  const bar = (load === 'barbell-back' || load === 'barbell-front' || load === 'barbell-hands') && spec.variant.kind !== 'cable' ? barbell(m) : null;
   const bells = load === 'dumbbells' ? [dumbbell(m), dumbbell(m)] : [];
   const kettle = load === 'goblet' ? kettlebell(m) : null;
   for (const o of [bar, kettle, ...bells]) if (o) group.add(o);

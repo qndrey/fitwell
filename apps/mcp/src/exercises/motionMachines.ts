@@ -15,6 +15,7 @@ import {
   neckFor,
   norm,
   seatedLower,
+  standLower,
   sub,
   trunkOf,
   twoBone,
@@ -129,9 +130,12 @@ export function lyingCurl(p: number, _v: Variant, b: Body): Skeleton {
 
 /** Seated with the back on the pad; the handles move straight out from the chest (tilted for the incline and decline machines). */
 export function chestPress(p: number, v: Variant, b: Body): Skeleton {
-  const { hipC, lower } = seatedLower(b, SEAT.hipX + b.thigh);
-  const t = vec(-Math.sin(SEAT.lean), Math.cos(SEAT.lean), 0);
-  const body = upperBody(b, hipC, t, neckFor(-SEAT.lean));
+  // The cable version is done standing, leaning into the push.
+  const stand = v.kind === 'cable';
+  const { hipC, lower } = stand ? standLower(b) : seatedLower(b, SEAT.hipX + b.thigh);
+  const lean = stand ? 0.1 : -SEAT.lean;
+  const t = vec(Math.sin(lean), Math.cos(lean), 0);
+  const body = upperBody(b, hipC, t, neckFor(lean));
   const sc = body.shoulderC;
   const slope = Math.tan((v.kind === 'incline' ? 25 : v.kind === 'decline' ? -25 : 0) * DEG);
   const xb = sc.x + 0.12;

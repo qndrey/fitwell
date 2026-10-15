@@ -1,7 +1,8 @@
 // Frames, seats, pads and handles of gym machines for the exercise animation. Plain three.js geometry; each builder returns
 // its group and the parts that follow the pose (the caller moves them from the skeleton each frame).
-import { BoxGeometry, CylinderGeometry, Group, Mesh, Quaternion, Vector3, type Material } from 'three';
+import { BoxGeometry, CylinderGeometry, Group, Mesh, Quaternion, SphereGeometry, Vector3, type Material } from 'three';
 import type { MotionSpec, Skeleton, Vec3 } from '../../src/exercises/motion';
+import { PULLEY } from '../../src/exercises/motionCable';
 import { CALF, LEG_PRESS, LYING_CURL, SEAT } from '../../src/exercises/motionMachines';
 import type { Materials } from './props';
 
@@ -99,8 +100,169 @@ function handles(g: Group, m: Materials, pivot: (k: Skeleton, side: 1 | -1) => V
   };
 }
 
+
+// ---------- cable stations ----------
+
+/** A pulley on a post, and a cable that is re-aimed from it to each target every frame. */
+function cableRun(g: Group, m: Materials, pulleys: Vec3[], post = true): (targets: Vec3[]) => void {
+  const cables = pulleys.map(() => link(g, m.steel, 0.006));
+  for (const at of pulleys) {
+    const wheel = new Mesh(new CylinderGeometry(0.06, 0.06, 0.04, 16), m.steel);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(at.x, at.y, at.z);
+    g.add(wheel);
+    if (post) {
+      const column = new Mesh(new BoxGeometry(0.08, at.y + 0.1, 0.08), m.furniture);
+      column.position.set(at.x - 0.12, (at.y + 0.1) / 2, at.z);
+      g.add(column);
+      const arm = new Mesh(new BoxGeometry(0.16, 0.06, 0.08), m.furniture);
+      arm.position.set(at.x - 0.06, at.y + 0.05, at.z);
+      g.add(arm);
+    }
+  }
+  return (targets) => targets.forEach((to, i) => cables[i]!(pulleys[i]!, to));
+}
+
+/** The handle for a grip: a bar across the hands, or a rope end in each hand, or a short grip in each. */
+function handleAt(g: Group, m: Materials, shape: 'bar' | 'rope' | 'grips'): (k: Skeleton) => void {
+  const bar = new Mesh(new CylinderGeometry(0.014, 0.014, 1, 10), m.steel);
+  bar.rotation.x = Math.PI / 2;
+  const ends = [0, 1].map(() => new Mesh(new SphereGeometry(shape === 'rope' ? 0.03 : 0.02, 10, 8), shape === 'rope' ? m.load : m.steel));
+  g.add(...(shape === 'bar' ? [bar] : ends));
+  return (k) => {
+    if (shape === 'bar') {
+      const width = Math.abs(k.gripL.z - k.gripR.z) + 0.14;
+      bar.scale.set(1, width, 1);
+      bar.position.set(k.bar.x, k.bar.y, 0);
+      return;
+    }
+    ends[0]!.position.set(k.gripL.x, k.gripL.y, k.gripL.z);
+    ends[1]!.position.set(k.gripR.x, k.gripR.y, k.gripR.z);
+  };
+}
+
+/** The furniture of the cable exercises, or null when the movement is not one of them. */
+function cableProps(spec: MotionSpec, m: Materials): MachineProps | null {
+  const g = new Group();
+  const kind = spec.variant.kind;
+  const barShape = kind === 'rope' ? 'rope' : kind === 'vbar' ? 'grips' : 'bar';
+  switch (spec.pattern) {
+    case 'seatedrow': {
+      slab(g, m.furniture, [0.55, 0.09, 0.4], [-0.1, 0.43 - 0.045, 0]);
+      slab(g, m.furniture, [0.07, 0.38, 0.4], [0.84, 0.3, 0]);
+      slab(g, m.furniture, [1.5, 0.04, 0.5], [0.65, 0.02, 0]);
+      const pulley = { x: PULLEY.rowLow.x, y: PULLEY.rowLow.y, z: 0 };
+      const cable = cableRun(g, m, [pulley]);
+      const handle = handleAt(g, m, 'grips');
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.bar.x, y: k.bar.y, z: 0 }]);
+          handle(k);
+        },
+      };
+    }
+    case 'pushdown': {
+      const cable = cableRun(g, m, [{ x: PULLEY.pushdown.x, y: PULLEY.pushdown.y, z: 0 }]);
+      slab(g, m.furniture, [0.5, 0.04, 0.5], [0.2, 0.02, 0]);
+      const handle = handleAt(g, m, barShape);
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.bar.x, y: k.bar.y, z: 0 }]);
+          handle(k);
+        },
+      };
+    }
+    case 'facepull': {
+      const cable = cableRun(g, m, [{ x: 1.3, y: 1.62, z: 0 }]);
+      slab(g, m.furniture, [0.5, 0.04, 0.5], [0.0, 0.02, 0]);
+      const handle = handleAt(g, m, 'rope');
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.bar.x, y: k.bar.y, z: 0 }]);
+          handle(k);
+        },
+      };
+    }
+    case 'straightarm': {
+      const cable = cableRun(g, m, [{ x: 0.75, y: 2.3, z: 0 }]);
+      slab(g, m.furniture, [0.5, 0.04, 0.5], [0.2, 0.02, 0]);
+      const handle = handleAt(g, m, barShape);
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.bar.x, y: k.bar.y, z: 0 }]);
+          handle(k);
+        },
+      };
+    }
+    case 'crossover': {
+      const y = kind === 'low' ? 0.22 : 2.15;
+      const cable = cableRun(g, m, [{ x: 0.1, y, z: 0.95 }, { x: 0.1, y, z: -0.95 }]);
+      slab(g, m.furniture, [0.5, 0.04, 0.5], [0.15, 0.02, 0]);
+      const handle = handleAt(g, m, 'grips');
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.gripL.x, y: k.gripL.y, z: k.gripL.z }, { x: k.gripR.x, y: k.gripR.y, z: k.gripR.z }]);
+          handle(k);
+        },
+      };
+    }
+    case 'curl': {
+      if (kind !== 'cable') return null;
+      const cable = cableRun(g, m, [{ x: 0.95, y: 0.2, z: 0 }]);
+      slab(g, m.furniture, [0.5, 0.04, 0.5], [0.0, 0.02, 0]);
+      const handle = handleAt(g, m, 'bar');
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.bar.x, y: k.bar.y, z: 0 }]);
+          handle(k);
+        },
+      };
+    }
+    case 'chestpress': {
+      if (kind !== 'cable') return null;
+      const cable = cableRun(g, m, [{ x: -0.95, y: 1.3, z: 0.5 }, { x: -0.95, y: 1.3, z: -0.5 }]);
+      slab(g, m.furniture, [0.5, 0.04, 0.5], [0.0, 0.02, 0]);
+      const handle = handleAt(g, m, 'grips');
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.gripL.x, y: k.gripL.y, z: k.gripL.z }, { x: k.gripR.x, y: k.gripR.y, z: k.gripR.z }]);
+          handle(k);
+        },
+      };
+    }
+    case 'press': {
+      if (kind !== 'cable') return null;
+      if (spec.variant.seated) {
+        seat(g, m, { x: SEAT.hipX, y: SEAT.hipY }, 0.02, 1.0);
+      } else {
+        slab(g, m.furniture, [0.5, 0.04, 0.5], [0.0, 0.02, 0]);
+      }
+      const cable = cableRun(g, m, [{ x: -0.7, y: 0.2, z: 0.4 }, { x: -0.7, y: 0.2, z: -0.4 }]);
+      const handle = handleAt(g, m, 'grips');
+      return {
+        group: g,
+        update(k) {
+          cable([{ x: k.gripL.x, y: k.gripL.y, z: k.gripL.z }, { x: k.gripR.x, y: k.gripR.y, z: k.gripR.z }]);
+          handle(k);
+        },
+      };
+    }
+    default:
+      return null;
+  }
+}
+
 /** The furniture and moving parts of a machine for a movement, or null when the movement has none (free weights, the Smith frame). */
 export function machineProps(spec: MotionSpec, m: Materials): MachineProps | null {
+  const cable = cableProps(spec, m);
+  if (cable) return cable;
   const g = new Group();
   const kind = spec.variant.kind;
   switch (spec.pattern) {

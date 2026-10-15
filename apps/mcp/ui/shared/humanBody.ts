@@ -1,14 +1,79 @@
 // The realistic male body of the exercise animation: a rigged model (made with MPFB, see ui/assets/README.md) posed from
-// the same joint positions as the mannequin. Each bone is aimed at where the solver puts the next joint, so the form
+// the joint positions of the solvers. Each bone is aimed at where the solver puts the next joint, so the form
 // rules checked on the skeleton hold for the body too. The skin carries five attributes with per-vertex muscle weights,
 // which the material uses to tint the muscle groups an exercise works. three.js code without a renderer, usable in Node.
-import { Bone, Color, Group, Matrix4, MeshStandardMaterial, Quaternion, SkinnedMesh, Vector3, Vector4 } from 'three';
+import { Bone, Color, Float32BufferAttribute, Group, Matrix4, MeshStandardMaterial, Quaternion, SkinnedMesh, Vector3, Vector4 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { standing, type Body, type Skeleton } from '../../src/exercises/motion';
-import type { Palette } from './mannequin';
+import type { Palette } from './props';
 
 /** The muscle groups of the weights, in the order of the five `_MUSCLE` attributes (four to an attribute). */
 export const BODY_MUSCLES = ['abdominals', 'abductors', 'adductors', 'biceps', 'calves', 'chest', 'forearms', 'glutes', 'hamstrings', 'lats', 'lower back', 'middle back', 'neck', 'quadriceps', 'shoulders', 'traps', 'triceps'];
+
+/**
+ * Surface detail the model is too coarse to carry (its vertices are a centimetre apart): the grooves between muscles and
+ * the six-pack, as a height field over the rest-pose position, in metres (negative is a groove). The fragment shader
+ * turns its slope into a bump, so the detail is as fine as the screen and stays on the body as it moves.
+ */
+const DEFINITION = `
+float w(int i) { return vW[i / 4][i - (i / 4) * 4]; }
+float groove(float d, float width) { return exp(-(d * d) / (width * width)); }
+float definition() {
+  vec3 r = vRest;
+  float a = abs(r.x);
+  float y = r.y;
+  float front = smoothstep(-0.1, 0.4, vRestN.z);
+  float back = smoothstep(0.1, -0.4, vRestN.z);
+  float h = 0.0;
+  // Where one muscle group meets another along a limb.
+  h -= 0.004 * (min(w(3), w(16)) + min(w(14), w(3)) + min(w(14), w(16)) + min(w(13), w(8)) + min(w(4), w(8)) + min(w(13), w(1)) + min(w(13), w(2)) + min(w(7), w(8)));
+
+  // Chest: the pecs stand above a curved lower border that rises toward the arm; the breastbone and the collarbone are soft lines.
+  float border = 1.205 + 1.7 * a * a;
+  float pecs = front * smoothstep(0.0, 0.02, y - border) * smoothstep(1.43, 1.33, y) * smoothstep(0.2, 0.13, a) * smoothstep(0.0, 0.02, a);
+  h += 0.0045 * pecs;
+  h -= 0.0035 * front * smoothstep(0.17, 0.12, a) * smoothstep(0.01, 0.03, a) * groove(y - border, 0.008);
+  h -= 0.0035 * front * smoothstep(1.2, 1.24, y) * smoothstep(1.42, 1.38, y) * groove(r.x, 0.008);
+  h -= 0.002 * front * smoothstep(0.2, 0.15, a) * groove(y - (1.425 - 0.12 * a), 0.008);
+
+  // Abdomen: the straight muscle in blocks (a line down the middle, three cross lines that sag away from it, an edge on each
+  // side), and the diagonals of the ribs.
+  float rectus = front * smoothstep(0.1, 0.08, a) * smoothstep(0.96, 0.985, y) * smoothstep(1.2, 1.18, y);
+  h += 0.0028 * rectus;
+  float sag = 1.8 * a * a;
+  float rows = groove(y - (1.145 - sag), 0.0065) + groove(y - (1.093 - sag), 0.0065) + groove(y - (1.04 - sag), 0.0065);
+  h -= 0.0032 * rectus * (groove(r.x, 0.0065) + rows);
+  h -= 0.003 * front * smoothstep(0.96, 0.99, y) * smoothstep(1.2, 1.18, y) * groove(a - 0.092, 0.009);
+  float ribs = front * smoothstep(0.2, 0.15, a) * smoothstep(0.1, 0.115, a) * smoothstep(1.1, 1.14, y) * smoothstep(1.225, 1.2, y);
+  h -= 0.002 * ribs * (0.5 - 0.5 * cos(6.2832 * (y + 1.1 * a) / 0.034));
+
+  // Back: a soft line down the spine, the two ridges of the lower back, and the shoulder blades.
+  h -= 0.003 * back * smoothstep(0.95, 1.0, y) * smoothstep(1.44, 1.4, y) * groove(r.x, 0.012);
+  h += 0.003 * back * smoothstep(0.95, 0.99, y) * smoothstep(1.17, 1.13, y) * groove(a - 0.045, 0.018);
+  float blade = length(vec2((a - 0.115) / 0.06, (y - 1.3) / 0.08));
+  h -= 0.0018 * back * groove(blade - 1.0, 0.25);
+  h += 0.0025 * back * smoothstep(1.1, 0.7, blade);
+  // The line between the buttocks.
+  h -= 0.005 * back * smoothstep(0.3, 0.7, w(7)) * groove(r.x, 0.009);
+  // The thigh: the lines between the quadriceps' heads in front, and between the hamstrings behind.
+  float thigh = 0.107 + 0.092 * (0.925 - y);
+  float thighSpan = smoothstep(0.5, 0.58, y) * smoothstep(0.86, 0.8, y);
+  h -= 0.003 * front * thighSpan * (groove(a - (thigh - 0.03), 0.01) + groove(a - (thigh + 0.034), 0.01));
+  h -= 0.003 * back * thighSpan * groove(a - thigh, 0.011);
+  // The two heads of the calf.
+  h -= 0.003 * back * smoothstep(0.3, 0.7, w(4)) * groove(a - (0.146 + (0.5 - y) * 0.112), 0.009);
+  return h;
+}
+vec3 bumped(vec3 surfPos, vec3 surfNorm, vec2 dH) {
+  vec3 sx = dFdx(surfPos);
+  vec3 sy = dFdy(surfPos);
+  vec3 r1 = cross(sy, surfNorm);
+  vec3 r2 = cross(surfNorm, sx);
+  float det = dot(sx, r1);
+  vec3 grad = sign(det) * (dH.x * r1 + dH.y * r2);
+  return normalize(abs(det) * surfNorm - grad);
+}
+`;
 
 export interface HumanBody {
   /** Add this to the scene. The body faces +x (the way the solvers' figure faces) and stands on y = 0. */
@@ -84,9 +149,16 @@ export async function loadHumanBody(glb: ArrayBuffer, palette: Palette): Promise
   const hipMid = P('thigh_l').clone().add(P('thigh_r')).multiplyScalar(0.5);
   // The top of the head: the highest skinned vertex in the rest pose.
   mesh.skeleton.update();
+  // The model is stored quantized, so each vertex's rest position is kept as plain numbers for the shader's surface detail.
+  const count = mesh.geometry.getAttribute('position').count;
+  const rest = new Float32Array(count * 3);
   let top = 0;
   const vertex = new Vector3();
-  for (let i = 0; i < mesh.geometry.getAttribute('position').count; i++) top = Math.max(top, mesh.getVertexPosition(i, vertex).y);
+  for (let i = 0; i < count; i++) {
+    mesh.getVertexPosition(i, vertex).toArray(rest, i * 3);
+    top = Math.max(top, vertex.y);
+  }
+  mesh.geometry.setAttribute('restPosition', new Float32BufferAttribute(rest, 3));
   const trunk = P('neck_01').y - hipMid.y;
   const body: Body = {
     ankleHeight: P('foot_l').y,
@@ -120,14 +192,28 @@ export async function loadHumanBody(glb: ArrayBuffer, palette: Palette): Promise
   const material = new MeshStandardMaterial({ color: palette.body, roughness: 0.62, metalness: 0 });
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
-    const weights = [0, 1, 2, 3, 4].map((i) => `dot(_muscle${i}, uPri[${i}])`).join(' + ');
-    const weights2 = [0, 1, 2, 3, 4].map((i) => `dot(_muscle${i}, uSec[${i}])`).join(' + ');
+    const attributes = [0, 1, 2, 3, 4].map((i) => `attribute vec4 _muscle${i};`).join('\n') + '\nattribute vec3 restPosition;';
+    const worked = (u: string) => [0, 1, 2, 3, 4].map((i) => `dot(_muscle${i}, ${u}[${i}])`).join(' + ');
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${[0, 1, 2, 3, 4].map((i) => `attribute vec4 _muscle${i};`).join('\n')}\nuniform vec4 uPri[5];\nuniform vec4 uSec[5];\nvarying vec2 vWorked;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvWorked = vec2(${weights}, ${weights2});`);
+      .replace('#include <common>', `#include <common>\n${attributes}\nuniform vec4 uPri[5];\nuniform vec4 uSec[5];\nvarying vec2 vWorked;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;`)
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+vWorked = vec2(clamp(${worked('uPri')}, 0.0, 1.0), clamp(${worked('uSec')}, 0.0, 1.0));
+vW[0] = _muscle0; vW[1] = _muscle1; vW[2] = _muscle2; vW[3] = _muscle3; vW[4] = _muscle4;
+vRest = restPosition;
+vRestN = normalize(normal);`,
+      );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uTint;\nuniform float uShow;\nvarying vec2 vWorked;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, uTint, clamp(vWorked.x * 0.78 + vWorked.y * 0.45, 0.0, 0.85) * uShow);');
+      .replace('#include <common>', `#include <common>\nuniform vec3 uTint;\nuniform float uShow;\nvarying vec2 vWorked;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;\n${DEFINITION}`)
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+float relief = definition();
+diffuseColor.rgb *= 1.0 - clamp(-relief * 70.0, 0.0, 0.32);
+diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWorked.x * 0.7 + vWorked.y * 0.4, 0.0, 0.7) / 0.7) * 0.68 * uShow);`,
+      )
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = bumped(-vViewPosition, normal, vec2(dFdx(relief), dFdy(relief)));');
   };
   material.customProgramCacheKey = () => 'fitwell-human-body';
   mesh.material = material;

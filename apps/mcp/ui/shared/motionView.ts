@@ -6,9 +6,9 @@ import { progressAt, skeletonAt, standing, type MotionSpec } from '../../src/exe
 import bodyGz from '../assets/body.glb.gz';
 import { h } from './dom';
 import { loadHumanBody, type HumanBody } from './humanBody';
-import { buildMannequin, buildProps, makeMaterials, setPalette, type Mannequin, type Palette, type Props } from './mannequin';
+import { buildProps, makeMaterials, setPalette, type Palette, type Props } from './props';
 
-/** Unzips the embedded model. Needs `DecompressionStream`; rejects when the browser has none (the caller then keeps the mannequin). */
+/** Unzips the embedded model. Needs `DecompressionStream`; rejects when the browser has none (the caller then leaves the animation out). */
 async function unzip(gz: Uint8Array): Promise<ArrayBuffer> {
   if (typeof DecompressionStream === 'undefined') throw new Error('no DecompressionStream');
   const stream = new Blob([gz as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -33,8 +33,8 @@ const VIEWS: { id: Exclude<ViewName, 'back'>; label: string }[] = [
   { id: 'angle', label: '45°' },
 ];
 
-const LIGHT: Palette = { tint: 0xe4572e, body: 0xd9b8a0, muscle: 0xd9b8a0, joint: 0xd9b8a0, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
-const DARK: Palette = { tint: 0xff7a4d, body: 0xbf9a83, muscle: 0xbf9a83, joint: 0xbf9a83, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
+const LIGHT: Palette = { tint: 0xe4572e, body: 0xd9b8a0, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
+const DARK: Palette = { tint: 0xff7a4d, body: 0xbf9a83, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
 
 function cssColor(name: string): Color | null {
   try {
@@ -66,20 +66,17 @@ export function createMotionPlayer(): MotionPlayer | null {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 
   const scene = new Scene();
-  scene.add(new HemisphereLight(0xffffff, 0xc9bcb0, 1.6));
-  const sun = new DirectionalLight(0xffffff, 0.9);
-  sun.position.set(2, 4, 3);
+  scene.add(new HemisphereLight(0xffffff, 0xc9bcb0, 1.05));
+  const sun = new DirectionalLight(0xffffff, 1.5);
+  sun.position.set(2.5, 4, 3.5);
   scene.add(sun);
   const camera = new PerspectiveCamera(28, 4 / 3, 0.1, 30);
-  const materials = makeMaterials(readPalette(), null);
-  const mannequin: Mannequin = buildMannequin(materials);
-  mannequin.update(standing());
-  scene.add(mannequin.group);
+  const materials = makeMaterials(readPalette());
   let props: Props | null = null;
   const propsHolder = new Group();
   scene.add(propsHolder);
 
-  // The realistic body replaces the mannequin once it has loaded (the mannequin stays when it cannot: no DecompressionStream, a bad file).
+  // The body loads on first use. When it cannot (no DecompressionStream, a bad file) the animation is left out.
   let human: HumanBody | null = null;
   let humanState: 'idle' | 'loading' | 'failed' = 'idle';
   let worked: { primary: string[]; secondary: string[] } = { primary: [], secondary: [] };
@@ -93,11 +90,12 @@ export function createMotionPlayer(): MotionPlayer | null {
         human.setHighlight(worked.primary, worked.secondary);
         human.setHighlightVisible(musclesOn);
         scene.add(human.group);
-        mannequin.group.visible = false;
         draw(currentP());
       })
       .catch(() => {
         humanState = 'failed';
+        current = null;
+        element.hidden = true;
       });
   }
 
@@ -106,6 +104,8 @@ export function createMotionPlayer(): MotionPlayer | null {
   let standingMode = false;
   let label = '';
   let view: ViewName = 'side';
+  /** A camera target chosen from a script (`look`), for close-ups. */
+  let closeup: { x: number; y: number; d: number } | null = null;
   let musclesOn = true;
   let paused = false;
   let visible = true;
@@ -130,8 +130,8 @@ export function createMotionPlayer(): MotionPlayer | null {
   function frame(): void {
     if (!current && !standingMode) return;
     const bench = current?.pattern === 'bench';
-    const target = bench ? { x: -0.2, y: 0.8 } : { x: 0.02, y: 0.88 };
-    const d = bench ? 3.3 : 3.9;
+    const target = closeup ?? (bench ? { x: -0.2, y: 0.8 } : { x: 0.02, y: 0.88 });
+    const d = closeup?.d ?? (bench ? 3.3 : 3.9);
     props?.setSideView(view === 'side');
     const sign = bench ? -1 : 1; // the front view of the lying figure is from the head end
     const pos = view === 'side' ? [target.x, target.y, d] : view === 'front' ? [target.x + sign * d, target.y, 0] : view === 'back' ? [target.x - sign * d, target.y, 0] : [target.x + sign * d * 0.6, target.y + 0.35, d * 0.8];
@@ -142,16 +142,15 @@ export function createMotionPlayer(): MotionPlayer | null {
   }
 
   function draw(p: number): void {
+    if (!human) return; // nothing to draw until the body has loaded
     if (standingMode && !current) {
-      if (human) human.update(standing(human.body), 0.2);
-      else mannequin.update(standing());
+      human.update(standing(human.body), 0.2);
       renderer.render(scene, camera);
       return;
     }
     if (!current) return;
-    const k = skeletonAt(current, p, human?.body);
-    if (human) human.update(k, current.variant.load === 'none' ? 0.35 : 1);
-    else mannequin.update(k);
+    const k = skeletonAt(current, p, human.body);
+    human.update(k, current.variant.load === 'none' ? 0.35 : 1);
     props?.update(k);
     renderer.render(scene, camera);
   }
@@ -187,7 +186,6 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function setMuscles(on: boolean): void {
     musclesOn = on;
-    mannequin.setHighlightVisible(on);
     human?.setHighlightVisible(on);
     muscleButton.setAttribute('aria-pressed', String(on));
     draw(currentP());
@@ -230,12 +228,14 @@ export function createMotionPlayer(): MotionPlayer | null {
         raf = 0;
         return;
       }
+      if (humanState === 'failed') {
+        element.hidden = true;
+        return;
+      }
       current = spec;
       forced = null;
       standingMode = false;
       worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
-      mannequin.setHighlight(worked.primary, worked.secondary);
-      mannequin.setHighlightVisible(musclesOn);
       human?.setHighlight(worked.primary, worked.secondary);
       human?.setHighlightVisible(musclesOn);
       loadHuman();
@@ -286,7 +286,12 @@ export function createMotionPlayer(): MotionPlayer | null {
     pause() {
       setPaused(true);
     },
-    /** Whether the realistic body has loaded and replaced the mannequin. */
+    look(x?: number, y?: number, d?: number) {
+      closeup = x === undefined ? null : { x, y: y ?? 0.88, d: d ?? 1 };
+      frame();
+      draw(currentP());
+    },
+    /** Whether the body has loaded. */
     bodyReady() {
       return human !== null;
     },

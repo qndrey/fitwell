@@ -3,10 +3,11 @@ import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { loadExercises } from '@fitwell/core/data/exercises';
 import { MOTIONS, skeletonAt, standing, type Skeleton } from '../src/exercises/motion';
 import { BODY_MUSCLES, loadHumanBody, type HumanBody } from '../ui/shared/humanBody';
 
-const palette = { tint: 0xe4572e, body: 0xd9b8a0, muscle: 0xd9b8a0, joint: 0xd9b8a0, load: 0x2f5d50, steel: 0xb0b0b0, furniture: 0x8a8378, floor: 0xddd6cc };
+const palette = { tint: 0xe4572e, body: 0xd9b8a0, load: 0x2f5d50, steel: 0xb0b0b0, furniture: 0x8a8378, floor: 0xddd6cc };
 const SIDE = { L: 'r', R: 'l' } as const; // the solvers' left is the model's right side
 
 let human: HumanBody;
@@ -70,8 +71,9 @@ describe('the human body', () => {
     }
   });
 
-  it('knows the muscle groups of the library', () => {
-    expect(BODY_MUSCLES).toHaveLength(17);
+  it('has a weight for every muscle group of the library, so any exercise can light up its muscles', async () => {
+    const lib = await loadExercises();
+    expect([...BODY_MUSCLES].sort()).toEqual([...lib.muscles].sort());
     human.setHighlight(['chest'], ['triceps']);
     human.setHighlightVisible(false);
   });

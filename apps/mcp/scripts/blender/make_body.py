@@ -1,6 +1,7 @@
 # Makes the male body for the exercise animation with MPFB (MakeHuman for Blender), rigs it, and exports a GLB and a
 # preview picture. Run headless:
 #   /Applications/Blender.app/Contents/MacOS/Blender --background --python scripts/blender/make_body.py -- <out-dir>
+import json
 import os
 import sys
 
@@ -20,13 +21,14 @@ from bl_ext.blender_org.mpfb.services.targetservice import TargetService  # noqa
 macro = TargetService.get_default_macro_info_dict()
 PRESETS = {
     "lean": {"macro": {"gender": 1.0, "age": 0.5, "muscle": 0.8, "weight": 0.45, "proportions": 0.6, "height": 0.55}, "details": {}},
-    # A strongly built, lean athlete: the muscle slider at its top, low body fat, and every muscle group pushed up.
+    # A strongly built, lean athlete: the muscle slider at its top, low body fat, and every muscle group pushed up. The V-shape and
+    # lats are kept moderate: at full strength the back and shoulders looked too wide for the rest of the body.
     "muscular": {
         "macro": {"gender": 1.0, "age": 0.45, "muscle": 1.0, "weight": 0.38, "proportions": 0.65, "height": 0.55},
         "details": {
             "torso-muscle-pectoral-incr": 1.0,
-            "torso-muscle-dorsi-incr": 1.0,
-            "torso-vshape-incr": 0.9,
+            "torso-muscle-dorsi-incr": 0.5,
+            "torso-vshape-incr": 0.3,
             "l-upperarm-shoulder-muscle-incr": 1.0,
             "r-upperarm-shoulder-muscle-incr": 1.0,
             "l-upperarm-muscle-incr": 1.0,
@@ -40,6 +42,10 @@ PRESETS = {
         },
     },
 }
+# BODY_TWEAK='{"details": {"torso-vshape-incr": 0.3}, "macro": {"muscle": 0.9}}' tries changes to a preset without editing it.
+tweak = json.loads(os.environ.get("BODY_TWEAK", "{}"))
+PRESETS[preset]["details"].update(tweak.get("details", {}))
+PRESETS[preset]["macro"].update(tweak.get("macro", {}))
 macro.update(PRESETS[preset]["macro"])
 macro["race"] = {"asian": 0.1, "caucasian": 0.8, "african": 0.1}
 
@@ -89,8 +95,6 @@ for k in range((count + 3) // 4):
         chunk = w[k * 4 : k * 4 + 4] + [0.0] * 4
         attr.data[i].color = tuple(chunk[:4])
 with open(os.path.join(out, "muscles.json"), "w") as f:
-    import json
-
     json.dump({"muscles": muscle_regions.MUSCLES}, f)
 
 # Only what the player needs: no extra vertex groups (parts of the face, left/right) and no materials (the player has its own).
@@ -120,7 +124,7 @@ scene.collection.objects.link(cam)
 scene.camera = cam
 cam_data.type = "ORTHO"
 cam_data.ortho_scale = 2.1
-for name, loc, rot in (("front", (0, -6, 0.9), (1.5708, 0, 0)), ("side", (6, 0, 0.9), (1.5708, 0, 1.5708)), ("angle", (4.2, -4.2, 1.5), (1.31, 0, 0.785))):
+for name, loc, rot in (("front", (0, -6, 0.9), (1.5708, 0, 0)), ("side", (6, 0, 0.9), (1.5708, 0, 1.5708)), ("angle", (4.2, -4.2, 1.5), (1.31, 0, 0.785)), ("back", (0, 6, 0.9), (1.5708, 0, 3.1416))):
     cam.location = loc
     cam.rotation_euler = rot
     scene.render.filepath = os.path.join(out, f"preview-{preset}-{name}.png")

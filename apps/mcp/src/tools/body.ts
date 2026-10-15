@@ -68,8 +68,7 @@ export function registerBodyTools(server: McpServer, deps: ProgressDeps) {
       description:
         'How the person is doing over a period (default 90 days): weight trend and distance from goal, calories and macros against goals (days within 10 % of the calorie goal, protein reached), ' +
         'training per week and working sets per muscle, strength records (best estimated 1RM, Epley) and measurement changes. Numbers only; show_dashboard draws charts. ' +
-        'energy: the calories the person actually burns, measured from their own logs and weigh-ins over the last 28 days (with confidence, or a reason when there is not enough data), the calories for their goal weight at the default rate, and when the goal weight is reached at the current trend. ' +
-        'Prefer it to the formula once it exists; to change the calorie goal, show the numbers and call set_goals only after the person agrees (suggest_targets with expenditure_kcal gives full macros). ' +
+        'energy: the burn measured from their logs and weigh-ins (28 days), calories for the goal weight and its expected date; prefer it to the formula, and change goals only after the person agrees. ' +
         'Describe changes neutrally, and note that a trend needs several weigh-ins.',
       inputSchema: z.object({ days: z.number().int().min(7).max(365).default(90), to: day.optional() }),
       annotations: { readOnlyHint: true },

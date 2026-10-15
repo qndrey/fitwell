@@ -1,8 +1,9 @@
 import { addDays, isDay } from '@fitwell/core/domain/dates';
-import { roundForDisplay, scale, sum, type Nutrients } from '@fitwell/core/domain/nutrition';
+import { labelProblems, roundForDisplay, scale, sum, toPer100g, type Nutrients } from '@fitwell/core/domain/nutrition';
 import { SLOTS, type Slot } from '@fitwell/core/schema';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import { perServing, type PlanData } from '../data/planData';
 import { slotAt, todayIn } from '../data/time';
 import type { FoodEntry, Goals, NewFoodEntry } from '../data/userData';
 import { checkAllergens } from '../safety/allergens';
@@ -49,8 +50,12 @@ function allergyNotes(name: string, terms: string[], food: { allergens?: string[
   return out;
 }
 
-export function registerFoodLogTools(server: McpServer, deps: FoodDeps) {
-  const { data } = deps;
+export interface FoodLogDeps extends FoodDeps {
+  plans: PlanData;
+}
+
+export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
+  const { data, plans } = deps;
   const today = async () => todayIn((await data.profile()).timeZone);
 
   async function daySummary(d: string) {
@@ -65,31 +70,37 @@ export function registerFoodLogTools(server: McpServer, deps: FoodDeps) {
     {
       title: 'Log food',
       description:
-        'Record what the person ate. Several items in one call. Each item is either a food id from search_foods, lookup_barcode or save_custom_food ' +
-        '(macros come from that source) with grams, or, only when nothing suitable exists, a name with estimated per-100 g values (stored as an estimate; say so). ' +
-        "Convert portions to grams first. day defaults to today in the person's time zone, slot to the meal for the current time. Returns the day's totals, and allergyWarnings when something logged matches the person's allergies (tell them plainly). " +
-        'From a photo of a meal: name each item, find it with search_foods, estimate the grams from the plate and portion sizes, set amount_estimated, and tell the person what you assumed so they can correct it.',
+        'Record what the person ate, several items per call: a food id (search_foods, lookup_barcode, save_custom_food) with grams; a saved recipe with servings; ' +
+        'or, only when nothing fits, a name with estimated per-100 g values (stored as an estimate; say so). copy_from repeats a meal or a whole day ("same breakfast as yesterday"). ' +
+        "Convert portions to grams. day defaults to today, slot to the meal for the current time. Returns the day's totals and allergyWarnings (tell them plainly). " +
+        'From a photo: find each item, estimate grams, set amount_estimated and say what you assumed.',
       inputSchema: z.object({
         day: day.optional(),
-        slot: slot.optional(),
+        slot: slot.optional().describe('With copy_from, default: each entry keeps its meal'),
+        copy_from: z.object({ day, slot: slot.optional().describe('Default: the whole day') }).optional(),
         items: z
           .array(
             z
               .object({
                 food_id: z.string().optional().describe('e.g. "frida:413", "off:5701234567892", "custom:<id>"'),
-                grams: z.number().positive().max(5000),
+                recipe: z.string().min(1).max(80).optional().describe('Saved recipe id or name'),
+                servings: z.number().positive().max(20).optional().describe('With recipe; default 1'),
+                grams: z.number().positive().max(5000).optional(),
                 name: z.string().min(1).max(100).optional().describe('Only for an estimate'),
                 estimate_per100g: per100g.optional().describe('Only when no food id fits'),
-                amount_estimated: z.boolean().optional().describe('The grams are a guess, e.g. from a photo of the plate: stored as an estimate (shown with ~) even though the food id gives exact macros per 100 g'),
+                amount_estimated: z.boolean().optional().describe('The grams are a guess (photo): stored as an estimate'),
               })
-              .refine((i) => i.food_id !== undefined || (i.name !== undefined && i.estimate_per100g !== undefined), 'Give food_id, or name with estimate_per100g'),
+              .refine((i) => i.recipe !== undefined || i.food_id !== undefined || (i.name !== undefined && i.estimate_per100g !== undefined), 'Give food_id, recipe, or name with estimate_per100g')
+              .refine((i) => i.recipe !== undefined || i.grams !== undefined, 'grams is needed for a food or an estimate'),
           )
           .min(1)
-          .max(20),
+          .max(20)
+          .optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     async (args) => {
+      if (!args.items && !args.copy_from) return toolError('Give items, copy_from, or both.');
       const profile = await data.profile();
       const d = args.day ?? todayIn(profile.timeZone);
       const s = args.slot ?? slotAt(profile.timeZone);
@@ -97,21 +108,43 @@ export function registerFoodLogTools(server: McpServer, deps: FoodDeps) {
       const missing: string[] = [];
       const allergyTerms = profile.diet.allergies.map((a) => a.trim().toLowerCase()).filter(Boolean);
       const allergyWarnings: string[] = [];
-      for (const item of args.items) {
-        if (item.food_id) {
+      if (args.copy_from) {
+        const from = args.copy_from;
+        const source = (await data.foodEntries(from.day)).filter((e) => !from.slot || e.slot === from.slot);
+        if (!source.length) return toolError(`Nothing was logged: there is nothing logged on ${from.day}${from.slot ? ` for ${from.slot}` : ''} to copy.`);
+        for (const e of source) {
+          // Copies keep the stored snapshot (name and nutrition as logged then); the allergy check runs again in case allergies changed since.
+          rows.push({ day: d, slot: args.slot ?? e.slot, foodRef: e.foodRef, foodName: e.foodName, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, estimated: e.estimated });
+          allergyWarnings.push(...allergyNotes(e.foodName, allergyTerms, {}));
+        }
+      }
+      for (const item of args.items ?? []) {
+        if (item.recipe) {
+          const key = item.recipe.replace(/^recipe:/, '');
+          const recipe = (await plans.recipe(key)) ?? (await plans.recipeByName(item.recipe.trim()));
+          if (!recipe) {
+            missing.push(`recipe "${item.recipe}"`);
+            continue;
+          }
+          const servings = item.servings ?? 1;
+          const per = perServing(recipe);
+          const grams = (recipe.items.reduce((n, i) => n + i.grams, 0) / recipe.servings) * servings;
+          rows.push({ day: d, slot: s, foodRef: `recipe:${recipe.id}`, foodName: servings === 1 ? recipe.name : `${recipe.name} (${servings} servings)`, brand: null, grams, kcal: per.kcal * servings, protein: per.protein * servings, carbs: per.carbs * servings, fat: per.fat * servings, estimated: recipe.items.some((i) => !i.foodId) });
+          for (const i of recipe.items) allergyWarnings.push(...allergyNotes(i.name, allergyTerms, i));
+        } else if (item.food_id) {
           const food = await resolveFood(item.food_id, deps);
           if (!food) {
             missing.push(item.food_id);
             continue;
           }
-          rows.push({ day: d, slot: s, foodRef: food.id, foodName: food.name, brand: food.brand ?? null, grams: item.grams, ...scale(food.per100g, item.grams), estimated: item.amount_estimated === true });
+          rows.push({ day: d, slot: s, foodRef: food.id, foodName: food.name, brand: food.brand ?? null, grams: item.grams!, ...scale(food.per100g, item.grams!), estimated: item.amount_estimated === true });
           allergyWarnings.push(...allergyNotes(food.name, allergyTerms, food));
         } else {
-          rows.push({ day: d, slot: s, foodRef: null, foodName: item.name!, brand: null, grams: item.grams, ...scale(item.estimate_per100g!, item.grams), estimated: true });
+          rows.push({ day: d, slot: s, foodRef: null, foodName: item.name!, brand: null, grams: item.grams!, ...scale(item.estimate_per100g!, item.grams!), estimated: true });
           allergyWarnings.push(...allergyNotes(item.name!, allergyTerms, {}));
         }
       }
-      if (missing.length) return toolError(`Nothing was logged: unknown food ids ${missing.join(', ')}. Search again with search_foods.`);
+      if (missing.length) return toolError(`Nothing was logged: unknown ${missing.join(', ')}. Search again with search_foods, or list saved recipes with get_recipes.`);
       const added = await data.addFoodEntries(rows);
       return json({ logged: added.map(view), ...(allergyWarnings.length ? { allergyWarnings } : {}), ...(await daySummary(d)) });
     },
@@ -156,17 +189,28 @@ export function registerFoodLogTools(server: McpServer, deps: FoodDeps) {
     {
       title: 'Save your own food',
       description:
-        "Save a food the databases don't have (e.g. from a nutrition label or a home recipe), with values per 100 g and optional portion sizes. " +
-        'Returns an id ("custom:<id>") for log_food; search_foods finds it by name later.',
+        "Save a food the databases don't have (a nutrition label, a home recipe) per 100 g or per serving, with optional portions. Use kcal, not kJ. " +
+        'Values that do not match 4/4/9 kcal per g are refused with the reason: read the label again, then values_checked if it really says so. Returns "custom:<id>" for log_food.',
       inputSchema: z.object({
         name: z.string().min(1).max(100),
         brand: z.string().max(60).optional(),
-        per100g,
+        per100g: per100g.optional(),
+        per_serving: z
+          .object({ grams: z.number().positive().max(2000), kcal: z.number().min(0).max(5000), protein: z.number().min(0).max(500), carbs: z.number().min(0).max(500), fat: z.number().min(0).max(500) })
+          .optional()
+          .describe('Instead of per100g'),
         portions: z.array(z.object({ label: z.string().min(1).max(40), grams: z.number().positive().max(5000) })).max(10).default([]),
+        values_checked: z.boolean().default(false),
       }),
     },
-    async ({ name, brand, per100g: values, portions }) => {
-      const food = await data.addCustomFood({ name, brand: brand ?? null, per100g: values, portions });
+    async ({ name, brand, per100g: given, per_serving, portions, values_checked }) => {
+      if ((given === undefined) === (per_serving === undefined)) return toolError('Give the values either per100g or per_serving, not both.');
+      const values = given ?? roundForDisplay(toPer100g(per_serving!, per_serving!.grams));
+      const problems = labelProblems(values);
+      if (problems.impossible.length) return toolError(`Nothing was saved. ${problems.impossible.join(' ')} Read the label again.`);
+      if (problems.mismatch.length && !values_checked) return toolError(`Nothing was saved. ${problems.mismatch.join(' ')} Read the label again; if it really says this (alcohol, sweeteners), save again with values_checked: true.`);
+      const withServing = per_serving && !portions.some((p) => p.grams === per_serving.grams) ? [...portions, { label: 'serving', grams: per_serving.grams }] : portions;
+      const food = await data.addCustomFood({ name, brand: brand ?? null, per100g: values, portions: withServing });
       return json({ food: { id: `custom:${food.id}`, name: food.name, ...(food.brand ? { brand: food.brand } : {}), per100g: food.per100g, portions: food.portions } });
     },
   );

@@ -53,3 +53,31 @@ export function parseAmount(input: string): number | null {
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
+
+/**
+ * Problems with label values per 100 g, in plain language. `impossible`: values no food can have (macros heavier
+ * than the food, more energy than pure fat). `mismatch`: energy far from 4 kcal per g of protein and carbohydrate and
+ * 9 per g of fat. Labels also count fibre (2 kcal/g), alcohol (7) and polyols, so energy may run a little above the
+ * macros; a big gap usually means a misread label, often kJ typed as kcal, but a drink or a sweetener can be real.
+ */
+export function labelProblems(per100g: Nutrients): { impossible: string[]; mismatch: string[] } {
+  const impossible: string[] = [];
+  const mismatch: string[] = [];
+  const grams = per100g.protein + per100g.carbs + per100g.fat;
+  if (grams > 101) impossible.push(`Protein, carbohydrate and fat add up to ${Math.round(grams)} g in 100 g of food, which is not possible.`);
+  if (per100g.kcal > 902) impossible.push(`${Math.round(per100g.kcal)} kcal in 100 g is not possible; pure fat has 900.`);
+  const fromMacros = per100g.protein * 4 + per100g.carbs * 4 + per100g.fat * 9;
+  const low = fromMacros * 0.85 - 10;
+  const high = fromMacros * 1.15 + 25;
+  if (per100g.kcal < low || per100g.kcal > high) {
+    const asKcal = per100g.kcal / 4.184;
+    const kj = Math.abs(asKcal - fromMacros) <= Math.max(fromMacros * 0.15, 10) ? ` ${per100g.kcal} looks like kJ (${Math.round(asKcal)} kcal).` : '';
+    mismatch.push(`${Math.round(per100g.kcal)} kcal does not match the macros, which give about ${Math.round(fromMacros)} kcal.${kj}`);
+  }
+  return { impossible, mismatch };
+}
+
+/** Values given for a serving of `grams`, as values per 100 g. */
+export function toPer100g(values: Nutrients, grams: number): Nutrients {
+  return scale(values, 10000 / grams);
+}

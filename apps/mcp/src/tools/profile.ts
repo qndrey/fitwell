@@ -72,7 +72,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
       title: 'Suggest calorie and macro targets',
       description:
         'Estimates daily calories and macros from the profile (sex, birth year, height, weight, activity level) with Mifflin-St Jeor and standard activity factors, ' +
-        'for losing, keeping or gaining weight. With expenditure_kcal (the measured burn from get_progress or the weekly review) that number replaces the formula and the activity level is not needed. ' +
+        'for losing, keeping or gaining weight; expenditure_kcal (the measured burn, energy in get_progress) replaces the formula. ' +
         'Nothing is saved; show the numbers and call set_goals if the person agrees. An estimate, not medical advice.',
       inputSchema: z.object({ goal: z.enum(['lose', 'maintain', 'gain']), rate_kg_per_week: z.number().min(0.1).max(1).optional(), expenditure_kcal: z.number().min(1000).max(6000).optional() }),
       annotations: { readOnlyHint: true },

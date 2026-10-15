@@ -77,8 +77,8 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts` (no jobs yet, tested in `wrangler dev --test-scheduled`).
 - [ ] Open Food Facts: retry with backoff in `src/off.ts`; on a 503 answer from the D1 cache (`data/offCache.ts`) and say the results may be incomplete.
 - [x] A1: `estimateExpenditure()` and `projectGoalDate()` in `packages/core/src/domain/energy.ts`, pure, tested against hand-computed weeks (steady loss, plateau, missing days, too little data → no estimate); shown in `show_weekly_review` (`analytics/review.ts`) and `get_progress` (`tools/body.ts`); Claude proposes, `set_goals` only after agreement.
-- [ ] D1: `log_food` takes `copy_from` (day and optional meal) and `combo`; combos saved with `save_custom_food` or a small table; allergy checks run as for any log.
-- [ ] D2: `save_custom_food` checks label values and explains a refusal.
+- [x] D1: `log_food` takes `copy_from` (a day, or one meal of it) and `recipe` items: a usual meal is a saved recipe logged by name, so combos need no new table; allergy checks run on copies and recipe ingredients.
+- [x] D2: `save_custom_food` checks label values (`labelProblems` in core: impossible values always refused, a kcal/macro mismatch refused once with the reason and a kJ hint, `values_checked` to confirm) and takes per-serving values.
 - [ ] A2: supersets, timed sets, plate calculator, warm-up ramp in the player.
 - [ ] A3: substitutes in `search_exercises` (`tools/exercises.ts`) and a "Swap" in the player.
 - [ ] A10 muscle heatmap (load mode): a pure per-muscle load function next to `setsPerWeekByMuscle`, tested against hand-counted weeks; heat colours in `humanBody.ts`; colour scale legible in light and dark, with numbers on tap so colour is never the only signal. Where it lives, to decide at build time: the dashboard view has no three.js today (0.65 MB against 1.8 MB for the views with the body), so either add the body to the dashboard (+~1.1 MB) or give the exercise view a muscle-map mode opened from `show_dashboard`; no new tool either way.

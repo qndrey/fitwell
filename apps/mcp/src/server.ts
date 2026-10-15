@@ -38,7 +38,7 @@ export interface ServerDeps {
 
 const INSTRUCTIONS = `Fitwell tracks food, workouts, body data and meal plans for the signed-in person.
 Start with get_profile when planning anything: it has their time zone, goals, equipment, diet preferences and allergies.
-Food: search_foods (their own foods, Frida generic foods, optionally Open Food Facts) or lookup_barcode. Values are per 100 g; convert portions to grams, then log_food with the food ids. get_food_log shows a day (or several) and what remains of their goals.
+Food: search_foods (their own foods, Frida generic foods, optionally Open Food Facts) or lookup_barcode. Values are per 100 g; convert portions to grams, then log_food with the food ids. For a repeat ("same breakfast as yesterday") use log_food copy_from; a meal eaten often can be saved as a recipe and logged by name. get_food_log shows a day (or several) and what remains of their goals.
 Never invent macros silently: if a food is not found, say so; log an estimate only as one (log_food with estimate_per100g) or save a custom food from a label. From a photo of a meal, name each item, find it with search_foods, estimate the grams and log with amount_estimated, telling the person what you assumed.
 Allergies: log_food and save_meal_plan report allergy matches (from names and, for packaged foods, Open Food Facts allergen data). Say them plainly, never present a plan with an ALLERGY warning, and remember foods without allergen data are matched by name only.
 Goals: suggest_targets estimates calories and macros from the profile; save with set_goals only after the person agrees. Once there are a few weeks of logs and weigh-ins, get_progress and the weekly review measure the real burn (energy); prefer it to the formula (suggest_targets with expenditure_kcal).
@@ -59,7 +59,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const plans = new PlanData(deps.db, deps.user.id);
   registerProfileTools(server, { data, email: deps.user.email });
   registerFoodTools(server, { off: deps.off, data });
-  registerFoodLogTools(server, { off: deps.off, data });
+  registerFoodLogTools(server, { off: deps.off, data, plans });
   registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
   await registerExerciseTools(server);
   await registerWorkoutTools(server, { data, workouts });

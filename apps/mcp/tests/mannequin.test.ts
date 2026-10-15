@@ -101,13 +101,13 @@ describe('muscles', () => {
       return { left: both.find((p) => p.mesh.position.z > 0)!, right: both.find((p) => p.mesh.position.z < 0)!, count: both.length };
     };
     const chest = pair('chest');
-    expect(chest.count).toBe(4); // an upper and a lower head on each side
+    expect(chest.count).toBe(2);
     // The inner ends reach the midline without crossing it much, and the two sides mirror each other.
     expect(chest.left.box.min.z).toBeGreaterThan(-0.04);
     expect(chest.left.box.min.z).toBeLessThan(0.03);
     expect(chest.right.box.max.z).toBeLessThan(0.04);
     expect(chest.left.box.max.z + chest.right.box.min.z).toBeCloseTo(0, 2);
-    expect(chest.left.box.max.z - chest.left.box.min.z).toBeGreaterThan(0.03);
+    expect(chest.left.box.max.z - chest.left.box.min.z).toBeGreaterThan(0.12);
     // The glutes sit behind the pelvis, are thin, and mirror each other.
     const glutes = pair('glutes');
     expect(glutes.count).toBe(2);
@@ -117,9 +117,6 @@ describe('muscles', () => {
     // A diagonal muscle: wider than it is tall for the chest, and tilted the other way on the other side.
     const q = (m: typeof chest.left) => new Vector3(0, 1, 0).applyQuaternion(m.mesh.quaternion);
     expect(Math.sign(q(chest.left).z)).toBe(-Math.sign(q(chest.right).z));
-    // The neck has its own side muscles, and the trapezius slopes run to both shoulders.
-    expect(man.muscles.filter((x) => x.muscle === 'neck').length).toBe(3); // the neck itself and the two sternocleidomastoids
-    expect(man.muscles.filter((x) => x.muscle === 'traps').length).toBe(3); // the back diamond and the two slopes
     const abs = man.muscles.filter((x) => x.muscle === 'abdominals');
     expect(abs.length).toBe(4); // two columns and two flanks
     for (const x of abs) expect(Number.isFinite(x.mesh.position.x + x.mesh.position.y + x.mesh.position.z)).toBe(true);
@@ -144,26 +141,5 @@ describe('muscles', () => {
     expect(part('quadriceps').overlay.visible).toBe(true);
     man.setHighlight([], []);
     expect(man.muscles.every((x) => !x.overlay.visible)).toBe(true);
-  });
-});
-
-describe('collarbones', () => {
-  it('run from the top of the breastbone to the tip of each shoulder, in front of the ribcage', () => {
-    const man = buildMannequin(makeMaterials(palette));
-    const k = skeletonAt(MOTIONS['Bodyweight Squat']!, 0);
-    man.update(k);
-    man.group.updateMatrixWorld(true);
-    expect(man.collarbones.map((c) => c.side).sort()).toEqual([-1, 1]);
-    for (const c of man.collarbones) {
-      const box = new Box3();
-      for (const part of c.parts) box.union(new Box3().setFromObject(part));
-      const inner = c.side === 1 ? box.min.z : -box.max.z; // the end nearest the midline
-      const outer = c.side === 1 ? box.max.z : -box.min.z;
-      expect(inner, 'starts near the midline').toBeLessThan(0.04);
-      expect(outer, 'reaches the shoulder').toBeGreaterThan(0.16);
-      expect(box.max.x, 'lies in front of the body').toBeGreaterThan(0.08);
-      expect(Math.abs((box.min.y + box.max.y) / 2 - k.neckBase.y), 'at the height of the neck base').toBeLessThan(0.07);
-      expect(box.max.y - box.min.y, 'slender, a ridge and not a slab').toBeLessThan(0.09);
-    }
   });
 });

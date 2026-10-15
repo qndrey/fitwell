@@ -305,7 +305,7 @@ async function loadGuide(id: string) {
 
 /** The animation element for an open guide, created on first use and started once per exercise. */
 function animation(g: ExerciseGuide): HTMLElement | null {
-  if (!state.guideOpen || !g.motion) return null;
+  if (!state.guideOpen) return null;
   if (motion === undefined) motion = createMotionPlayer();
   if (!motion) return null;
   if (motionFor !== g.ref) {

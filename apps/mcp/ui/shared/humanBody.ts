@@ -80,6 +80,8 @@ export interface HumanBody {
   group: Group;
   /** The measurements of this body, to hand to the solvers so the pose fits it. */
   body: Body;
+  /** Puts the body back in its rest pose: standing with the arms away from the sides, which shows every muscle. */
+  rest(): void;
   /** Poses the body. `grip` is how tightly the hands close (0 relaxed, 1 around a bar). */
   update(k: Skeleton, grip?: number): void;
   setHighlight(primary: Iterable<string>, secondary: Iterable<string>): void;
@@ -347,6 +349,14 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
     group.updateMatrixWorld(true);
   }
 
+  function toRestPose(): void {
+    for (const [n, b] of bones) {
+      b.position.copy(restLocalPos.get(n)!);
+      b.quaternion.copy(restLocal.get(n)!);
+    }
+    group.updateMatrixWorld(true);
+  }
+
   const highlight = (primary: Iterable<string>, secondary: Iterable<string>) => {
     const fill = (set: Iterable<string>, into: Vector4[]) => {
       const flat = new Float32Array(20);
@@ -365,6 +375,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
   return {
     group,
     body,
+    rest: toRestPose,
     skin: mesh,
     bones,
     update,

@@ -8,6 +8,7 @@ import {
   ConeGeometry,
   CylinderGeometry,
   Group,
+  LatheGeometry,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
@@ -16,6 +17,7 @@ import {
   Quaternion,
   SphereGeometry,
   TorusGeometry,
+  Vector2,
   Vector3,
   type BufferGeometry,
   type Material,
@@ -113,7 +115,15 @@ type Segment = 'upperArm' | 'forearm' | 'thigh' | 'shin';
 const SEGMENT_LENGTH: Record<Segment, number> = { upperArm: BODY.upperArm, forearm: BODY.forearm, thigh: BODY.thigh, shin: BODY.shin };
 const SEGMENT_JOINTS: Record<Segment, [string, string]> = { upperArm: ['shoulder', 'elbow'], forearm: ['elbow', 'wrist'], thigh: ['hip', 'knee'], shin: ['knee', 'ankle'] };
 
-interface LimbMuscle {
+/** How a muscle swells along its length: where it is fullest (0 at the near end, 1 at the far end) and how full it is. */
+interface Belly {
+  /** Where the muscle is thickest. */
+  peak: number;
+  /** Below 1 the muscle is full along its length, above 1 it tapers sharply. */
+  power: number;
+}
+
+interface LimbMuscle extends Belly {
   muscle: string;
   seg: Segment;
   /** Start and end along the segment, 0 at the proximal joint, 1 at the distal one. */
@@ -122,24 +132,24 @@ interface LimbMuscle {
   /** Offset toward the front (positive) or the back of the limb, and toward the outside (positive) or the inside. */
   front: number;
   lat: number;
-  /** Half thickness front to back and side to side. */
+  /** Half thickness front to back and side to side at the thickest point. */
   rA: number;
   rL: number;
 }
 const LIMB_MUSCLES: LimbMuscle[] = [
-  { muscle: 'shoulders', seg: 'upperArm', f0: -0.18, f1: 0.45, front: 0, lat: 0.026, rA: 0.052, rL: 0.05 },
-  { muscle: 'biceps', seg: 'upperArm', f0: 0.12, f1: 0.88, front: 0.03, lat: 0, rA: 0.03, rL: 0.032 },
-  { muscle: 'triceps', seg: 'upperArm', f0: 0.1, f1: 0.9, front: -0.032, lat: 0.004, rA: 0.032, rL: 0.036 },
-  { muscle: 'forearms', seg: 'forearm', f0: -0.02, f1: 0.78, front: 0.004, lat: 0, rA: 0.034, rL: 0.036 },
-  { muscle: 'quadriceps', seg: 'thigh', f0: 0.08, f1: 0.93, front: 0.036, lat: 0.006, rA: 0.056, rL: 0.062 },
-  { muscle: 'hamstrings', seg: 'thigh', f0: 0.1, f1: 0.92, front: -0.04, lat: 0, rA: 0.048, rL: 0.056 },
-  { muscle: 'adductors', seg: 'thigh', f0: 0.05, f1: 0.75, front: -0.004, lat: -0.04, rA: 0.036, rL: 0.032 },
-  { muscle: 'abductors', seg: 'thigh', f0: -0.12, f1: 0.34, front: 0.0, lat: 0.062, rA: 0.046, rL: 0.034 },
-  { muscle: 'calves', seg: 'shin', f0: 0.06, f1: 0.66, front: -0.036, lat: 0.002, rA: 0.046, rL: 0.05 },
+  { muscle: 'shoulders', seg: 'upperArm', f0: -0.2, f1: 0.5, front: 0, lat: 0.026, rA: 0.058, rL: 0.056, peak: 0.34, power: 0.7 },
+  { muscle: 'biceps', seg: 'upperArm', f0: 0.1, f1: 0.92, front: 0.03, lat: 0, rA: 0.034, rL: 0.035, peak: 0.42, power: 0.75 },
+  { muscle: 'triceps', seg: 'upperArm', f0: 0.08, f1: 0.92, front: -0.034, lat: 0.004, rA: 0.036, rL: 0.04, peak: 0.4, power: 0.7 },
+  { muscle: 'forearms', seg: 'forearm', f0: -0.04, f1: 0.86, front: 0.004, lat: 0, rA: 0.038, rL: 0.04, peak: 0.2, power: 0.8 },
+  { muscle: 'quadriceps', seg: 'thigh', f0: 0.06, f1: 0.96, front: 0.036, lat: 0.006, rA: 0.062, rL: 0.07, peak: 0.46, power: 0.62 },
+  { muscle: 'hamstrings', seg: 'thigh', f0: 0.08, f1: 0.95, front: -0.042, lat: 0, rA: 0.054, rL: 0.062, peak: 0.4, power: 0.7 },
+  { muscle: 'adductors', seg: 'thigh', f0: 0.03, f1: 0.8, front: -0.004, lat: -0.042, rA: 0.04, rL: 0.036, peak: 0.28, power: 0.8 },
+  { muscle: 'abductors', seg: 'thigh', f0: -0.14, f1: 0.4, front: 0.0, lat: 0.064, rA: 0.05, rL: 0.038, peak: 0.4, power: 0.8 },
+  { muscle: 'calves', seg: 'shin', f0: 0.04, f1: 0.72, front: -0.038, lat: 0.002, rA: 0.052, rL: 0.056, peak: 0.28, power: 0.72 },
 ];
 
 type Origin = 'rib' | 'waist' | 'neckBase' | 'lumbar' | 'pelvis';
-interface TorsoMuscle {
+interface TorsoMuscle extends Belly {
   muscle: string;
   origin: Origin;
   /** Offset forward, up and to the left of the origin, in the body's own directions. */
@@ -152,16 +162,41 @@ interface TorsoMuscle {
   rz: number;
   mirror: boolean;
 }
+/** The rectus abdominis: three rows of two rounded segments, which is what gives the abdomen its look. */
+const ABS: TorsoMuscle[] = [0.075, 0.005, -0.065].map((u) => ({ muscle: 'abdominals', origin: 'waist' as const, f: 0.086, u, l: 0.038, rx: 0.022, ry: 0.042, rz: 0.04, mirror: true, peak: 0.5, power: 0.5 }));
 const TORSO_MUSCLES: TorsoMuscle[] = [
-  { muscle: 'chest', origin: 'rib', f: 0.085, u: 0.06, l: 0.075, rx: 0.045, ry: 0.082, rz: 0.098, mirror: true },
-  { muscle: 'abdominals', origin: 'waist', f: 0.088, u: 0.0, l: 0, rx: 0.032, ry: 0.13, rz: 0.075, mirror: false },
-  { muscle: 'lats', origin: 'rib', f: -0.07, u: -0.05, l: 0.125, rx: 0.04, ry: 0.15, rz: 0.075, mirror: true },
-  { muscle: 'traps', origin: 'neckBase', f: -0.05, u: -0.08, l: 0, rx: 0.04, ry: 0.115, rz: 0.16, mirror: false },
-  { muscle: 'middle back', origin: 'rib', f: -0.098, u: 0.0, l: 0, rx: 0.03, ry: 0.1, rz: 0.1, mirror: false },
-  { muscle: 'lower back', origin: 'lumbar', f: -0.088, u: 0.03, l: 0.042, rx: 0.032, ry: 0.115, rz: 0.034, mirror: true },
-  { muscle: 'glutes', origin: 'pelvis', f: -0.075, u: -0.015, l: 0.078, rx: 0.082, ry: 0.078, rz: 0.082, mirror: true },
-  { muscle: 'neck', origin: 'neckBase', f: 0, u: 0.045, l: 0, rx: 0.06, ry: 0.06, rz: 0.06, mirror: false },
+  { muscle: 'chest', origin: 'rib', f: 0.085, u: 0.05, l: 0.08, rx: 0.05, ry: 0.09, rz: 0.11, mirror: true, peak: 0.5, power: 0.6 },
+  ...ABS,
+  { muscle: 'lats', origin: 'rib', f: -0.07, u: -0.04, l: 0.13, rx: 0.044, ry: 0.17, rz: 0.08, mirror: true, peak: 0.3, power: 0.8 },
+  { muscle: 'traps', origin: 'neckBase', f: -0.05, u: -0.085, l: 0, rx: 0.042, ry: 0.12, rz: 0.17, mirror: false, peak: 0.45, power: 0.95 },
+  { muscle: 'middle back', origin: 'rib', f: -0.098, u: 0.0, l: 0, rx: 0.032, ry: 0.11, rz: 0.11, mirror: false, peak: 0.5, power: 0.7 },
+  { muscle: 'lower back', origin: 'lumbar', f: -0.088, u: 0.03, l: 0.042, rx: 0.034, ry: 0.125, rz: 0.036, mirror: true, peak: 0.5, power: 0.8 },
+  { muscle: 'glutes', origin: 'pelvis', f: -0.075, u: -0.015, l: 0.078, rx: 0.09, ry: 0.088, rz: 0.088, mirror: true, peak: 0.5, power: 0.6 },
+  { muscle: 'neck', origin: 'neckBase', f: 0, u: 0.045, l: 0, rx: 0.062, ry: 0.065, rz: 0.062, mirror: false, peak: 0.5, power: 0.5 },
 ];
+
+const bellies = new Map<string, BufferGeometry>();
+/**
+ * A muscle belly of unit radius from y = +1 (near end) to y = -1 (far end): pointed at both ends, fullest at `peak`.
+ * Scaled by its thickness and half length it becomes one muscle.
+ */
+function belly({ peak, power }: Belly): BufferGeometry {
+  const key = `${peak}|${power}`;
+  let g = bellies.get(key);
+  if (!g) {
+    const rings = 14;
+    const pts: Vector2[] = [];
+    // Points run from the far end (y = -1) to the near end (y = +1) so the surface faces outward.
+    for (let i = 0; i <= rings; i++) {
+      const t = 1 - i / rings; // distance from the near end, 0 to 1
+      const swell = t < peak ? (0.5 * t) / peak : 0.5 + (0.5 * (t - peak)) / (1 - peak);
+      pts.push(new Vector2(Math.pow(Math.sin(Math.PI * swell), power), -1 + (2 * i) / rings));
+    }
+    g = new LatheGeometry(pts, 12);
+    bellies.set(key, g);
+  }
+  return g;
+}
 
 /** Every muscle name the figure can show. */
 export const MUSCLE_NAMES = [...new Set([...LIMB_MUSCLES.map((m) => m.muscle), ...TORSO_MUSCLES.map((m) => m.muscle)])];
@@ -225,17 +260,16 @@ export function buildMannequin(m: Materials): Mannequin {
   const neckBall = sphere(0.056, m.joint);
 
   // The muscle layer.
-  const ball = new SphereGeometry(1, 14, 10);
   const muscles: { muscle: string; mesh: Mesh }[] = [];
-  const muscleMesh = (muscle: string) => {
-    const mesh = new Mesh(ball, m.muscle);
+  const muscleMesh = (muscle: string, shape: Belly) => {
+    const mesh = new Mesh(belly(shape), m.muscle);
     mesh.userData.muscle = muscle;
     group.add(mesh);
     muscles.push({ muscle, mesh });
     return mesh;
   };
-  const limbMuscles = LIMB_MUSCLES.flatMap((lm) => ([1, -1] as const).map((side) => ({ lm, side, mesh: muscleMesh(lm.muscle) })));
-  const torsoMuscles = TORSO_MUSCLES.flatMap((tm) => (tm.mirror ? ([1, -1] as const) : ([1] as const)).map((side) => ({ tm, side, mesh: muscleMesh(tm.muscle) })));
+  const limbMuscles = LIMB_MUSCLES.flatMap((lm) => ([1, -1] as const).map((side) => ({ lm, side, mesh: muscleMesh(lm.muscle, lm) })));
+  const torsoMuscles = TORSO_MUSCLES.flatMap((tm) => (tm.mirror ? ([1, -1] as const) : ([1] as const)).map((side) => ({ tm, side, mesh: muscleMesh(tm.muscle, tm) })));
   let highlighted = { primary: new Set<string>(), secondary: new Set<string>() };
   const paint = () => {
     for (const { muscle, mesh } of muscles) mesh.material = highlighted.primary.has(muscle) ? m.musclePrimary : highlighted.secondary.has(muscle) ? m.muscleSecondary : m.muscle;

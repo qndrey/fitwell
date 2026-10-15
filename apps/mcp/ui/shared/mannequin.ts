@@ -5,7 +5,6 @@ import {
   BoxGeometry,
   CanvasTexture,
   CircleGeometry,
-  Color,
   ConeGeometry,
   CylinderGeometry,
   Group,
@@ -52,11 +51,6 @@ export interface Palette {
   steel: number;
   furniture: number;
   floor: number;
-}
-
-/** A blend of two 0xRRGGBB colours. */
-function mixHex(a: number, b: number, t: number): number {
-  return new Color(a).lerp(new Color(b), t).getHex();
 }
 
 /** Fine surface detail, drawn once with a canvas: a skin grain for the body and lengthwise fibre lines for the muscles. */

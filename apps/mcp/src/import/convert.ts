@@ -1,4 +1,4 @@
-// Converts records of the Fitwell web app's backup file (apps/web/src/backup/schema.ts) into rows for the
+// Converts records of the retired Fitwell web app's backup file (tests/support/webBackup.ts) into rows for the
 // server's tables. Pure and defensive: the file comes from a browser, so every field is checked, and anything
 // that can't be converted is counted with a reason instead of failing the import.
 import { PRESETS } from '@fitwell/core/data/measurements';

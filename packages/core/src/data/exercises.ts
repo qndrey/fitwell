@@ -86,7 +86,7 @@ export function searchExercises(
   f: ExerciseFilter,
   limit = 40,
   yours: ReadonlySet<string> = new Set(),
-  /** "A movement we can draw", i.e. a common one. The web app passes its illustration matcher; core has no drawings. */
+  /** "A movement we can draw", i.e. a common one. A caller with illustrations can pass its matcher; core has no drawings. */
   isCommon: (name: string) => unknown = () => false,
 ): Exercise[] {
   const keep = (e: Exercise) => (!f.muscle || e.primary.includes(f.muscle) || e.secondary.includes(f.muscle)) && (!f.equipment || e.equipment === f.equipment);

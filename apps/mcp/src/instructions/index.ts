@@ -13,8 +13,8 @@ export type Role = keyof typeof ROLES;
 
 /**
  * The server as the register* functions see it: each tool named in `roles` answers with that role's instructions after
- * its own result. They go with the results, not the descriptions: the tool list has a size budget (tests/phase5.test.ts),
- * and the role matters when Claude is about to plan or advise, which these tools come just before.
+ * its own result. They go with the results, not the descriptions: the role matters when Claude is about to plan or
+ * advise, which these tools come just before.
  */
 export function withRoles(target: McpServer, roles: Record<Role, readonly string[]>): McpServer {
   const roleOf = new Map(Object.entries(roles).flatMap(([role, names]) => names.map((n) => [n, ROLES[role as Role].trim()] as const)));

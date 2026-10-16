@@ -17,16 +17,20 @@ beforeEach(async () => {
 const SQUAT = 'ex:Barbell_Squat';
 const PULLUP = 'ex:Pullups';
 
+/** The working sets of a planned exercise: heavy lifts start with warm-up sets. */
+const work = (e: WorkoutPlan['exercises'][number]) => e.sets.filter((s) => !s.warmup);
+
 async function start(args: Record<string, unknown>): Promise<WorkoutPlan> {
   const { data, isError, text } = await call(client, 'start_workout', args);
   expect(isError, text).toBe(false);
   return data.workout as WorkoutPlan;
 }
 
-/** Logs every planned set with the given reps (and weight), then finishes. */
+/** Logs warm-ups as planned and every working set with the given reps (and weight; `set` counts working sets), then finishes. */
 async function doWorkout(plan: WorkoutPlan, reps: (exercise: number, set: number) => number, weight?: (exercise: number) => number) {
   for (const [i, e] of plan.exercises.entries()) {
-    for (const [k, s] of e.sets.entries()) {
+    for (const s of e.sets.filter((x) => x.warmup)) await call(client, 'log_set', { workoutId: plan.workoutId, setId: s.id, reps: s.targetReps, weightKg: s.weightKg });
+    for (const [k, s] of work(e).entries()) {
       await call(client, 'log_set', { workoutId: plan.workoutId, setId: s.id, reps: reps(i, k), ...(e.bodyweight ? {} : { weightKg: weight?.(i) ?? s.weightKg }) });
     }
   }
@@ -43,7 +47,7 @@ describe('strength workouts', () => {
     // Next time, no weight given: the rule adds 2.5 kg because every set hit 5 reps.
     const second = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5 }] });
     const squat = second.exercises[0]!;
-    expect(squat.sets[0]!.weightKg).toBe(82.5);
+    expect(work(squat)[0]!.weightKg).toBe(82.5);
     expect(squat.lastTime).toMatch(/^3×5 @ 80 kg \(\d{4}-\d{2}-\d{2}\)$/);
     expect(squat.note).toContain('add 2.5 kg');
     const after = await doWorkout(second, () => 5);
@@ -53,9 +57,9 @@ describe('strength workouts', () => {
   it('repeats the weight after a missed set, and an explicit weight always wins', async () => {
     await doWorkout(await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 100 }] }), (_i, k) => (k === 0 ? 5 : 3));
     const next = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5 }] });
-    expect(next.exercises[0]!.sets[0]!.weightKg).toBe(100);
+    expect(work(next.exercises[0]!)[0]!.weightKg).toBe(100);
     const explicit = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 60 }] });
-    expect(explicit.exercises[0]!.sets[0]!.weightKg).toBe(60);
+    expect(work(explicit.exercises[0]!)[0]!.weightKg).toBe(60);
     expect(explicit.exercises[0]!.note).toBeUndefined();
   });
 
@@ -66,7 +70,7 @@ describe('strength workouts', () => {
     await call(client, 'log_set', { workoutId: plan.workoutId, setId: 's2.1', reps: 9 });
     const { data } = await call(client, 'get_workout', { workoutId: plan.workoutId });
     const state = data.workout as WorkoutPlan;
-    expect(state.exercises[0]!.sets.map((s) => [s.done, s.skipped ?? false])).toEqual([[true, false], [false, true]]);
+    expect(work(state.exercises[0]!).map((s) => [s.done, s.skipped ?? false])).toEqual([[true, false], [false, true]]);
     expect(state.exercises[1]!.sets[0]).toMatchObject({ done: true, reps: 9 });
     expect(state.finished).toBe(false);
   });
@@ -107,7 +111,7 @@ describe('past workouts', () => {
   it('feeds last time and progression like any workout, and rejects unknown ids', async () => {
     await past('2026-09-01', [[5, 80], [5, 80], [5, 80]]);
     const next = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5 }] });
-    expect(next.exercises[0]!.sets[0]!.weightKg).toBe(82.5);
+    expect(work(next.exercises[0]!)[0]!.weightKg).toBe(82.5);
     expect(next.exercises[0]!.lastTime).toContain('3×5 @ 80 kg (2026-09-01)');
     const bad = await call(client, 'log_past_workout', { day: '2026-09-01', exercises: [{ id: 'ex:Nope', sets: [{ reps: 5 }] }] });
     expect(bad.isError).toBe(true);

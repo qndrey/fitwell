@@ -82,6 +82,7 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
       waterMl: w.metrics.water.averageMl,
       previousWaterMl: pv.metrics.water.averageMl,
     },
+    energy: h.energy,
     plan: i.plan,
     highlights: [],
     suggestions: [],
@@ -93,6 +94,8 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
   if (review.training.goalPerWeek && sessions >= review.training.goalPerWeek && !inProgress) review.highlights.push(`Trained ${sessions} times, on or above the goal of ${review.training.goalPerWeek}.`);
   if (goals.proteinG && review.nutrition.proteinReached !== null && review.nutrition.daysLogged >= 3 && review.nutrition.proteinReached >= review.nutrition.daysLogged * 0.8) review.highlights.push(`Protein goal reached on ${review.nutrition.proteinReached} of ${review.nutrition.daysLogged} logged days.`);
   if (review.nutrition.daysLogged === daysCounted && daysCounted >= 5) review.highlights.push(`Food logged every day (${daysCounted} of ${daysCounted}).`);
+  const en = review.energy;
+  if (en.goalDate && en.trendKgPerWeek !== null && w.weight.goalKg !== null) review.highlights.push(`At the current trend (${en.trendKgPerWeek > 0 ? '+' : ''}${en.trendKgPerWeek} kg a week) the goal weight of ${w.weight.goalKg} kg is reached around ${en.goalDate}.`);
   if (review.plan && review.plan.meals > 0 && review.plan.logged / review.plan.meals >= 0.75) review.highlights.push(`Stuck to the meal plan: ${review.plan.logged} of ${review.plan.meals} planned meals logged.`);
 
   // ---- suggestions: observations with a possible next step
@@ -111,6 +114,12 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
     const wantsUp = gw.goalKg > gw.previousAverageKg + 0.5;
     if (wantsDown && gw.changeKg >= 0.2) review.suggestions.push(`The 7-day average is up ${gw.changeKg} kg while the goal weight is lower. One week is a short time, so it is worth watching a second week before changing anything.`);
     if (wantsUp && gw.changeKg <= -0.2) review.suggestions.push(`The 7-day average is down ${Math.abs(gw.changeKg)} kg while the goal weight is higher. Watch one more week before changing anything.`);
+  }
+  // The check-in: the measured burn against the calorie goal. Only once the estimate is more than an early guess.
+  if (en.expenditureKcal !== null && en.confidence !== 'low' && en.suggestedKcal !== null && goals.kcal && Math.abs(en.suggestedKcal - goals.kcal) >= 100) {
+    const aim = en.direction === 'maintain' ? 'to keep the weight' : `to ${en.direction} ${en.suggestedRateKgPerWeek} kg a week`;
+    const n = (x: number) => x.toLocaleString('en-GB');
+    review.suggestions.push(`Over the last 4 weeks the logs and weigh-ins show a burn of about ${n(en.expenditureKcal)} kcal a day. ${aim[0]!.toUpperCase()}${aim.slice(1)}, that means about ${n(en.suggestedKcal)} kcal a day; the goal is ${n(goals.kcal)}. The goal could be updated; ask first.`);
   }
   const hb = review.habits;
   if (hb.sleepHours !== null && hb.sleepHours < 7) review.suggestions.push(`Sleep averaged ${hb.sleepHours} h, under the 7 to 9 hours usually advised for adults. It is often the first thing to improve before changing food or training.`);

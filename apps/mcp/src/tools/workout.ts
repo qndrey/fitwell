@@ -1,9 +1,10 @@
 import { ACTIVITIES } from '@fitwell/core/data/activities';
-import { loadExercises, type Exercise } from '@fitwell/core/data/exercises';
+import { loadExercises, substitutes, type Exercise } from '@fitwell/core/data/exercises';
 import { addDays, isDay } from '@fitwell/core/domain/dates';
 import { estimateKcal } from '@fitwell/core/domain/met';
+import { STANDARD_GYM, warmupRamp, type Gym } from '@fitwell/core/domain/plates';
 import { suggestProgression, type Progression, type SessionSets } from '@fitwell/core/domain/progression';
-import { estimatedOneRepMax, formatDuration, summarizeSets } from '@fitwell/core/domain/workouts';
+import { estimatedOneRepMax, formatDuration, normalizeSupersets, summarizeSets } from '@fitwell/core/domain/workouts';
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
@@ -24,10 +25,32 @@ const exerciseId = z.string().regex(/^ex:/, 'Library ids start with "ex:"');
 const planItem = z.object({
   id: exerciseId,
   sets: z.number().int().min(1).max(10),
-  reps: z.number().int().min(1).max(50),
+  reps: z.number().int().min(1).max(50).optional().describe('Target reps; leave out for a timed exercise'),
+  seconds: z.number().int().min(5).max(600).optional().describe('A timed exercise (plank, hold): seconds per set instead of reps'),
   weight_kg: z.number().min(0).max(500).optional().describe('Omit to use the suggestion from past sessions (or last time\'s weight)'),
   rest_sec: z.number().int().min(0).max(600).default(90),
   notes: z.string().max(300).optional().describe('A note for this exercise, shown in the player ("seat 4", "slow negatives")'),
+  superset: z.string().regex(/^[A-Za-z]$/, 'One letter').optional().describe('Neighbouring exercises with the same letter form a superset: done back to back, rest after the round'),
+  warmup: z.boolean().optional().describe('Warm-up sets: leave out to let Fitwell decide (heavy barbell compound lifts get a ramp), true or false to choose'),
+});
+
+/** An error when a plan item has neither reps nor seconds. */
+function missingReps(items: z.infer<typeof planItem>[] | undefined): string | null {
+  const bad = (items ?? []).find((e) => e.reps === undefined && e.seconds === undefined);
+  return bad ? `Give reps (or seconds for a timed exercise) for ${bad.id}.` : null;
+}
+
+/** The stored form of a plan item (templates and new workouts). */
+const templateItemOf = (e: z.infer<typeof planItem>): TemplateExercise => ({
+  id: e.id,
+  sets: e.sets,
+  reps: e.seconds ? 0 : (e.reps ?? 8),
+  ...(e.seconds ? { seconds: e.seconds } : {}),
+  ...(e.weight_kg !== undefined ? { weightKg: e.weight_kg } : {}),
+  restSec: e.rest_sec,
+  ...(e.notes ? { notes: e.notes } : {}),
+  ...(e.superset ? { superset: e.superset.toUpperCase() } : {}),
+  ...(e.warmup !== undefined ? { warmup: e.warmup } : {}),
 });
 const cardioItem = z.object({
   activity_id: z.string().regex(/^act:/, 'Activity ids start with "act:"').describe('The same activity ids log_cardio takes, e.g. act:run-10'),
@@ -38,11 +61,15 @@ const cardioItem = z.object({
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const isBodyweight = (ex: Exercise) => ex.equipment === 'body only';
+/** Lifts that get a warm-up ramp unless the plan says otherwise. */
+const heavyLift = (ex: Exercise) => ex.equipment === 'barbell' && ex.mechanic === 'compound';
+/** Warm-up steps for equipment without a bar: whole 2.5 kg steps. */
+const NO_BAR: Gym = { barKg: 0, platesKg: [1.25] };
 const sessionOf = (d: string, e: StoredExercise): SessionSets => ({ day: d, sets: e.sets });
 
 /** "3×5 @ 80 kg", "8, 8, 6 @ BW", or one line for a cardio session. */
 function summarizeExercise(e: StoredExercise): string {
-  return summarizeSets(e.sets, 'metric', { load: e.load });
+  return summarizeSets(e.sets, 'metric', { load: e.load, ...(e.mode ? { mode: e.mode } : {}) });
 }
 
 /** One finished cardio block as Claude reads it. */
@@ -69,7 +96,7 @@ function summarizeWorkout(w: Workout) {
 }
 
 /** The player's view of a stored workout (also used to resume one). */
-function toPlan(w: Workout): WorkoutPlan {
+function toPlan(w: Workout, gym?: Gym): WorkoutPlan {
   return {
     workoutId: w.id,
     name: w.name ?? 'Workout',
@@ -83,12 +110,16 @@ function toPlan(w: Workout): WorkoutPlan {
         equipment: e.equipment ?? '',
         restSec: e.restSec ?? 90,
         bodyweight: e.load === 'bodyweight',
+        ...(e.mode === 'time' ? { timed: true } : {}),
+        ...(e.supersetId ? { supersetId: e.supersetId } : {}),
         sets: e.sets.map((s) => ({
           id: s.id,
+          ...(s.type === 'warmup' ? { warmup: true } : {}),
           targetReps: s.targetReps ?? s.reps,
+          ...(e.mode === 'time' ? { targetSec: s.targetSec ?? s.durationSec ?? 0 } : {}),
           ...(e.load === 'bodyweight' ? {} : { weightKg: s.weightKg }),
           done: s.done !== false,
-          ...(s.done !== false ? { reps: s.reps } : {}),
+          ...(s.done !== false ? { reps: s.reps, ...(e.mode === 'time' ? { seconds: s.durationSec ?? 0 } : {}) } : {}),
           ...(s.skipped ? { skipped: true } : {}),
         })),
         ...(e.lastTime ? { lastTime: e.lastTime } : {}),
@@ -97,6 +128,7 @@ function toPlan(w: Workout): WorkoutPlan {
         ...(e.lastNotes ? { lastNotes: e.lastNotes } : {}),
       }),
     ),
+    ...(gym ? { gym } : {}),
     cardio: w.cardioBlocks.map(
       (b): PlannedCardio => ({
         id: b.id,
@@ -142,6 +174,14 @@ function blocksFrom(specs: TemplateCardio[], done = false, weightKg?: number | n
   return out;
 }
 
+/** What earlier sessions say about an exercise: last time, the last note and the next weight. */
+interface History {
+  lastTime?: string;
+  lastDay?: string;
+  lastNotes?: string;
+  progression: Progression | null;
+}
+
 export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps) {
   const lib = await loadExercises();
   const byId = new Map(lib.exercises.map((e) => [e.ref, e]));
@@ -150,7 +190,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
   /** Last time + suggestion for each exercise id. */
   async function history(ids: string[], exclude?: string) {
     const sessions = await workouts.recentSessions(ids, 3, exclude);
-    const out = new Map<string, { lastTime?: string; lastDay?: string; lastNotes?: string; progression: Progression | null }>();
+    const out = new Map<string, History>();
     for (const id of ids) {
       const list = sessions.get(id) ?? [];
       const last = list[0];
@@ -161,6 +201,63 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       });
     }
     return out;
+  }
+
+  /** One planned exercise of a new workout: sets at the planned (or progressed) weight, last time and last note. */
+  /**
+   * One planned exercise of a new workout: sets at the planned (or progressed) weight, last time and last note, and
+   * warm-up sets when `ramp` says so (decided per workout: the first heavy lift gets the full ramp, later ones a short one).
+   */
+  function buildExercise(item: TemplateExercise, i: number, h: History, bodyKg: number | null, ramp: 'full' | 'short' | null = null, gym: Gym = STANDARD_GYM): StoredExercise {
+    const ex = byId.get(item.id)!;
+    const bodyweight = isBodyweight(ex);
+    const timed = (item.seconds ?? 0) > 0;
+    const p = timed ? null : h.progression;
+    // An explicit weight wins; otherwise the progression suggestion; otherwise last time's working weight.
+    const weightKg = bodyweight ? (bodyKg ?? 0) : (item.weightKg ?? p?.weightKg ?? 0);
+    const note = item.weightKg !== undefined || bodyweight || timed ? undefined : (p?.reason ?? 'No earlier sessions to go on: choose a starting weight.');
+    const warmups = ramp && !bodyweight && !timed ? warmupRamp(weightKg, ramp, ex.equipment === 'barbell' ? gym : NO_BAR) : [];
+    const sets: StoredSet[] = [
+      ...warmups.map((wu, k): StoredSet => ({ id: `w${i + 1}.${k + 1}`, type: 'warmup', reps: wu.reps, targetReps: wu.reps, weightKg: wu.weightKg, done: false })),
+      ...Array.from({ length: item.sets }, (_, k): StoredSet => ({
+        id: `s${i + 1}.${k + 1}`,
+        type: 'working',
+        reps: timed ? 0 : item.reps,
+        targetReps: timed ? 0 : item.reps,
+        ...(timed ? { durationSec: item.seconds, targetSec: item.seconds } : {}),
+        weightKg,
+        ...(bodyweight && bodyKg ? { bodyweightKg: bodyKg } : {}),
+        done: false,
+      })),
+    ];
+    return {
+      uid: `e${i + 1}`,
+      exerciseRef: item.id,
+      exerciseName: ex.name,
+      equipment: ex.equipment,
+      load: bodyweight ? 'bodyweight' : 'weight',
+      ...(timed ? { mode: 'time' as const } : {}),
+      ...(item.superset ? { supersetId: `ss-${item.superset}` } : {}),
+      restSec: item.restSec,
+      sets,
+      ...(h.lastTime ? { lastTime: `${h.lastTime} (${h.lastDay})` } : {}),
+      ...(note ? { note } : {}),
+      ...(item.notes ? { notes: item.notes } : {}),
+      ...(h.lastNotes ? { lastNotes: h.lastNotes } : {}),
+    };
+  }
+
+  /** Warm-up ramps for a workout, in order: the first heavy lift (or any marked warmup: true) gets the full ramp, later ones a short one. */
+  function ramps(items: TemplateExercise[]): ('full' | 'short' | null)[] {
+    let first = true;
+    return items.map((item) => {
+      const ex = byId.get(item.id)!;
+      const wanted = item.warmup ?? (heavyLift(ex) && !item.seconds);
+      if (!wanted || isBodyweight(ex) || item.seconds) return null;
+      const kind = first ? 'full' : 'short';
+      first = false;
+      return kind;
+    });
   }
 
   /** Time, volume and personal records of a strength workout. Records compare with sessions up to that workout's day. */
@@ -201,7 +298,10 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         '(progression rule: add a step when every set hit its reps, repeat after a miss, deload after two). Bodyweight exercises need no weight. ' +
         'Each exercise shows "last time" in the player. The person logs sets there; at the end the player sends you a summary. ' +
         'cardio adds cardio blocks to the workout: when "before" is a warm-up ahead of the lifting, "after" a finisher; the player runs them as steps and they count toward cardio minutes. ' +
-        'Each exercise can carry a note, and the note from the last session shows as a reminder. save_as_template stores the plan (with cardio and notes) under a name for next time.',
+        'Each exercise can carry a note, and the note from the last session shows as a reminder. save_as_template stores the plan (with cardio and notes) under a name for next time. ' +
+        'seconds instead of reps makes a timed exercise (plank, hold) with a countdown in the player. Neighbouring exercises with the same superset letter are done back to back with rest after the round. ' +
+        'Heavy barbell compound lifts get warm-up sets automatically (a ramp from the empty bar for the first, a short one for later lifts; they never count in records); warmup: false turns that off, true adds a ramp to another exercise. ' +
+        'The player shows the plates for each side from the person\'s bar and plates (update_profile bar_kg, plates_kg).',
       inputSchema: z.object({
         name: z.string().min(1).max(60).optional(),
         template_id: z.uuid().optional(),
@@ -225,54 +325,36 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         name ??= t.name;
         await workouts.touchTemplate(t.id);
       } else if (args.exercises) {
-        items = args.exercises.map((e) => ({ id: e.id, sets: e.sets, reps: e.reps, ...(e.weight_kg !== undefined ? { weightKg: e.weight_kg } : {}), restSec: e.rest_sec, ...(e.notes ? { notes: e.notes } : {}) }));
+        items = args.exercises.map(templateItemOf);
       } else {
         return toolError('Give template_id or exercises.');
       }
       const unknown = items.filter((e) => !byId.has(e.id)).map((e) => e.id);
       if (unknown.length) return toolError(`Unknown exercise ids: ${unknown.join(', ')}. Use search_exercises to find valid ids.`);
-      const badActivity = unknownActivity(args.cardio);
+      const badActivity = unknownActivity(args.cardio) ?? missingReps(args.exercises);
       if (badActivity) return toolError(badActivity);
       if (args.cardio) cardioSpecs = args.cardio.map(templateCardioOf);
       if (args.save_as_template) templateId = (await workouts.saveTemplate(args.save_as_template, items, cardioSpecs)).id;
 
       const past = await history(items.map((e) => e.id));
       const profile = await data.profile();
-      const exercises: StoredExercise[] = items.map((item, i) => {
-        const ex = byId.get(item.id)!;
-        const bodyweight = isBodyweight(ex);
-        const h = past.get(item.id)!;
-        const p = h.progression;
-        // An explicit weight wins; otherwise the progression suggestion; otherwise last time's working weight.
-        const weightKg = bodyweight ? (profile.weightKg ?? 0) : (item.weightKg ?? p?.weightKg ?? 0);
-        const note = item.weightKg !== undefined || bodyweight ? undefined : (p?.reason ?? 'No earlier sessions to go on: choose a starting weight.');
-        const sets: StoredSet[] = Array.from({ length: item.sets }, (_, k) => ({
-          id: `s${i + 1}.${k + 1}`,
-          type: 'working',
-          reps: item.reps,
-          targetReps: item.reps,
-          weightKg,
-          ...(bodyweight && profile.weightKg ? { bodyweightKg: profile.weightKg } : {}),
-          done: false,
-        }));
-        return {
-          uid: `e${i + 1}`,
-          exerciseRef: item.id,
-          exerciseName: ex.name,
-          equipment: ex.equipment,
-          load: bodyweight ? 'bodyweight' : 'weight',
-          restSec: item.restSec,
-          sets,
-          ...(h.lastTime ? { lastTime: `${h.lastTime} (${h.lastDay})` } : {}),
-          ...(note ? { note } : {}),
-          ...(item.notes ? { notes: item.notes } : {}),
-          ...(h.lastNotes ? { lastNotes: h.lastNotes } : {}),
-        };
-      });
+      const kinds = ramps(items);
+      const exercises = normalizeSupersets(
+        items.map((item, i) => buildExercise(item, i, past.get(item.id)!, profile.weightKg, kinds[i], profile.gym)),
+        (() => {
+          let n = 0;
+          return () => `ss${++n}`;
+        })(),
+      ) as StoredExercise[];
       const cardioBlocks = blocksFrom(cardioSpecs);
       const w = await workouts.create({ day: todayIn(profile.timeZone), type: 'strength', name: name ?? 'Workout', startedAt: Date.now(), finishedAt: null, exercises, cardio: null, cardioBlocks, templateId });
-      const lines = exercises.map((e) => `${e.exerciseName} ${e.sets.length}×${e.sets[0]!.targetReps}${e.load === 'bodyweight' ? '' : ` @ ${e.sets[0]!.weightKg} kg`}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`);
-      const result = json({ workout: toPlan(w), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
+      const lines = exercises.map((e) => {
+        const work = e.sets.filter((x) => x.type === 'working');
+        const warm = e.sets.length - work.length;
+        const what = e.mode === 'time' ? `${work.length}×${work[0]!.durationSec} s` : `${work.length}×${work[0]!.targetReps}${e.load === 'bodyweight' ? '' : ` @ ${work[0]!.weightKg} kg`}`;
+        return `${e.supersetId ? '[superset] ' : ''}${e.exerciseName} ${what}${warm ? ` after ${warm} warm-up sets` : ''}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`;
+      });
+      const result = json({ workout: toPlan(w, profile.gym), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
       const cardioText = cardioBlocks.length ? ` Cardio: ${cardioBlocks.map((b) => `${b.plannedMin} min ${b.activityName} (${b.when === 'before' ? 'warm-up' : 'finisher'})`).join('; ')}.` : '';
       result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText}` }];
       return result;
@@ -291,7 +373,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     },
     async ({ workoutId }) => {
       const w = await workouts.get(workoutId);
-      return w && w.type === 'strength' ? json({ workout: toPlan(w) }) : toolError('No such workout.');
+      return w && w.type === 'strength' ? json({ workout: toPlan(w, (await data.profile()).gym) }) : toolError('No such workout.');
     },
   );
 
@@ -306,11 +388,12 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         setId: z.string().max(20),
         reps: z.number().int().min(0).max(100),
         weightKg: z.number().min(0).max(500).optional(),
+        seconds: z.number().int().min(0).max(3600).optional().describe('For a timed set'),
         skip: z.boolean().default(false),
       }),
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
-    async ({ workoutId, setId, reps, weightKg, skip }) => {
+    async ({ workoutId, setId, reps, weightKg, seconds, skip }) => {
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       let found = false;
@@ -321,7 +404,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
           found = true;
           if (skip) return { ...s, done: false, skipped: true };
           const bodyweight = e.load === 'bodyweight';
-          const next: StoredSet = { ...s, reps, weightKg: bodyweight ? s.weightKg : (weightKg ?? s.weightKg), done: true };
+          const next: StoredSet = { ...s, reps, weightKg: bodyweight ? s.weightKg : (weightKg ?? s.weightKg), ...(seconds !== undefined ? { durationSec: seconds } : {}), done: true };
           delete next.skipped;
           return next;
         }),
@@ -392,6 +475,60 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       if (!found) return toolError('No such exercise in this workout.');
       await workouts.saveExercises(workoutId, exercises);
       return json({ saved: true, exerciseId });
+    },
+  );
+
+  registerAppTool(
+    server,
+    'get_substitutes',
+    {
+      title: 'Substitutes for an exercise in a workout',
+      description: 'Called by the workout player when the person wants to swap an exercise: similar exercises for the same main muscles, within their equipment.',
+      inputSchema: z.object({ workoutId: z.uuid(), exerciseId: z.string().max(20) }),
+      annotations: { readOnlyHint: true },
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
+    },
+    async ({ workoutId, exerciseId }) => {
+      const w = await workouts.get(workoutId);
+      const e = w?.type === 'strength' ? w.exercises.find((x) => x.uid === exerciseId) : undefined;
+      const target = e && byId.get(e.exerciseRef);
+      if (!target) return toolError('No such exercise in this workout.');
+      const inWorkout = new Set(w!.exercises.map((x) => x.exerciseRef));
+      const subs = substitutes(target, lib.exercises, { equipment: (await data.profile()).equipment, limit: 12 }).filter((x) => !inWorkout.has(x.ref)).slice(0, 8);
+      return json({ substitutes: subs.map((x) => ({ id: x.ref, name: x.name, equipment: x.equipment === 'none' || x.equipment === 'body only' ? 'bodyweight' : x.equipment })) });
+    },
+  );
+
+  registerAppTool(
+    server,
+    'swap_exercise',
+    {
+      title: 'Swap an exercise in a workout',
+      description: 'Called by the workout player: replaces an exercise that has no logged sets with another (same sets, reps and rest; weight from its own history).',
+      inputSchema: z.object({ workoutId: z.uuid(), exerciseId: z.string().max(20), newId: exerciseId }),
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
+    },
+    async ({ workoutId, exerciseId, newId }) => {
+      const w = await workouts.get(workoutId);
+      if (!w || w.type !== 'strength' || w.finishedAt !== null) return toolError('No such workout in progress.');
+      const i = w.exercises.findIndex((x) => x.uid === exerciseId);
+      const old = w.exercises[i];
+      if (!old) return toolError('No such exercise in this workout.');
+      if (!byId.has(newId)) return toolError(`Unknown exercise id ${newId}.`);
+      if (old.sets.some((s) => s.done !== false || s.skipped)) return toolError('Sets of this exercise are already logged; it can no longer be swapped.');
+      const past = await history([newId], w.id);
+      // The plan's note stays with the slot (the person can edit it); last time and the progression come from the new exercise.
+      const work = old.sets.filter((x) => x.type === 'working');
+      const seconds = old.mode === 'time' ? (work[0]?.targetSec ?? work[0]?.durationSec) : undefined;
+      const item: TemplateExercise = { id: newId, sets: work.length || old.sets.length, reps: seconds ? 0 : (work[0]?.targetReps ?? work[0]?.reps ?? 8), ...(seconds ? { seconds } : {}), restSec: old.restSec ?? 90, ...(old.notes ? { notes: old.notes } : {}) };
+      // A swapped-in heavy lift keeps a ramp: the full one if the old exercise had it, else a short one.
+      const hadFull = old.sets.filter((x) => x.type === 'warmup').length >= 3;
+      const ramp = heavyLift(byId.get(newId)!) && !seconds ? (hadFull ? 'full' : 'short') : null;
+      const profile = await data.profile();
+      const next: StoredExercise = { ...buildExercise(item, i, past.get(newId)!, profile.weightKg, ramp, profile.gym), uid: old.uid, ...(old.supersetId ? { supersetId: old.supersetId } : {}) };
+      const exercises = w.exercises.map((x, k) => (k === i ? next : x));
+      await workouts.saveExercises(workoutId, exercises);
+      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: toPlan({ ...w, exercises }, profile.gym) });
     },
   );
 
@@ -519,11 +656,11 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       inputSchema: z.object({ name: z.string().min(1).max(60), exercises: z.array(planItem).min(1).max(15), cardio: z.array(cardioItem).max(4).optional() }),
     },
     async ({ name, exercises, cardio }) => {
-      const badActivity = unknownActivity(cardio);
+      const badActivity = unknownActivity(cardio) ?? missingReps(exercises);
       if (badActivity) return toolError(badActivity);
       const unknown = exercises.filter((e) => !byId.has(e.id)).map((e) => e.id);
       if (unknown.length) return toolError(`Unknown exercise ids: ${unknown.join(', ')}.`);
-      const t = await workouts.saveTemplate(name, exercises.map((e) => ({ id: e.id, sets: e.sets, reps: e.reps, ...(e.weight_kg !== undefined ? { weightKg: e.weight_kg } : {}), restSec: e.rest_sec, ...(e.notes ? { notes: e.notes } : {}) })), (cardio ?? []).map(templateCardioOf));
+      const t = await workouts.saveTemplate(name, exercises.map(templateItemOf), (cardio ?? []).map(templateCardioOf));
       return json({ template: { id: t.id, name: t.name, exercises: t.exercises.map((e) => ({ ...e, name: byId.get(e.id)?.name })), ...(t.cardio.length ? { cardio: t.cardio } : {}) } });
     },
   );

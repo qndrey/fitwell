@@ -1,0 +1,5 @@
+# Static pages served by the Worker's assets (the Fitwell for Claude page at /about/). Nothing inline, nothing third-party.
+/about*
+  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff

@@ -102,6 +102,24 @@ function draw() {
     ),
   );
 
+  const en = r.energy;
+  cards.push(
+    card(
+      'Energy',
+      en.expenditureKcal !== null
+        ? h(
+            'div',
+            { className: 'tiles' },
+            tile('Burn a day', `${num(en.expenditureKcal)} kcal`, h('span', { className: 'delta' }, `${en.confidence} confidence · ${en.daysCounted} days, ${en.weighIns} weigh-ins`)),
+            tile('Weight trend', en.trendKgPerWeek !== null ? `${en.trendKgPerWeek > 0 ? '+' : en.trendKgPerWeek < 0 ? '−' : ''}${num(Math.abs(en.trendKgPerWeek), 2)} kg` : null, h('span', { className: 'delta' }, 'a week')),
+            en.suggestedKcal !== null && tile(en.direction === 'maintain' ? 'To keep the weight' : `To ${en.direction} ${num(en.suggestedRateKgPerWeek ?? 0, 2)} kg a week`, `${num(en.suggestedKcal)} kcal`, en.goalKcal ? h('span', { className: 'delta' }, `goal ${num(en.goalKcal)}`) : null),
+            en.goalDate && tile('Goal weight around', fmtDay(en.goalDate), h('span', { className: 'delta' }, 'at the current trend')),
+          )
+        : h('p', { className: 'muted small' }, `No estimate yet. ${en.reason ?? ''}`),
+      en.expenditureKcal !== null && h('p', { className: 'muted small' }, `From what you logged and how your weight moved over ${fmtDay(en.from)} to ${fmtDay(en.to)}.${en.notes.length ? ` ${en.notes.join(' ')}` : ''}`),
+    ),
+  );
+
   if (hb.sleepHours !== null || hb.steps !== null || hb.waterMl !== null) {
     cards.push(
       card(

@@ -1,5 +1,6 @@
 // The shape of a weekly review. Pure types, shared with the review view (which can't see server code).
 import type { Day } from '@fitwell/core/domain/dates';
+import type { EnergyProgress } from './types';
 
 export interface WeekReview {
   weekStart: Day;
@@ -41,6 +42,8 @@ export interface WeekReview {
     waterMl: number | null;
     previousWaterMl: number | null;
   };
+  /** Expenditure measured over the 28 days up to the end of the week, and what it means for the goal. */
+  energy: EnergyProgress;
   /** Meals in the week's plan and how many were logged from it; null without a plan. */
   plan: { meals: number; logged: number } | null;
   highlights: string[];

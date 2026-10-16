@@ -119,8 +119,9 @@ describe('exercise guide tools', () => {
     expect(await motion('barbell squat')).toMatchObject({ pattern: 'squat', variant: { load: 'barbell-back' } });
     expect(await motion('romanian deadlift')).toMatchObject({ pattern: 'hinge', variant: { hinge: 'romanian' } });
     expect(await motion('dumbbell bench press')).toMatchObject({ pattern: 'bench', variant: { load: 'dumbbells' } });
-    expect(await motion('leg press')).toBeNull();
-    const press = await find('leg press');
+    expect(await motion('leg press')).toMatchObject({ pattern: 'legpress' });
+    expect(await motion('ab crunch machine')).toBeNull();
+    const press = await find('ab crunch machine');
     const viaPlayer = (await client.callTool({ name: 'get_exercise_guide', arguments: { id: press.ref } })).structuredContent as { guide: ExerciseGuide };
     expect(viaPlayer.guide.motion).toBeNull();
   });

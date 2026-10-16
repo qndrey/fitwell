@@ -16,6 +16,8 @@
   "build": { "command": "npm run build:ui", "watch_dir": "ui" },
   // Server instructions and tool roles are Markdown files (src/instructions), bundled as text.
   "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
+  // Static pages (the Fitwell for Claude page at /about/), served before the Worker runs; security headers in public/_headers.
+  "assets": { "directory": "./public", "html_handling": "auto-trailing-slash" },
   "vars": {
     // The public origin; .dev.vars overrides it for local development.
     "PUBLIC_URL": "https://mcp.fitwell.fyi",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAmount, quantityGrams, roundForDisplay, scale, sum } from '../src/domain/nutrition';
+import { labelProblems, parseAmount, quantityGrams, roundForDisplay, scale, sum, toPer100g } from '../src/domain/nutrition';
 import { dayTotals } from '../src/domain/totals';
 import type { FoodEntry } from '../src/schema';
 
@@ -53,5 +53,31 @@ describe('hand-verified day (values per 100 g from the bundled dataset)', () => 
       fat: Math.round((0.2 * 1.2 + 6.9 * 0.6 + 100 * 0.1) * 10) / 10,
     });
     expect(total.kcal).toBe(419);
+  });
+});
+
+describe('label checks', () => {
+  const none = { impossible: [], mismatch: [] };
+  it('accepts real labels, fibre and a little alcohol included', () => {
+    expect(labelProblems({ kcal: 372, protein: 13.5, carbs: 58.7, fat: 7 })).toEqual(none); // oat flakes, 10 g fibre
+    expect(labelProblems({ kcal: 740, protein: 0.6, carbs: 0.6, fat: 82 })).toEqual(none); // butter
+    expect(labelProblems({ kcal: 43, protein: 0.5, carbs: 3.6, fat: 0 })).toEqual(none); // lager, 3.9 g alcohol
+    expect(labelProblems({ kcal: 0, protein: 0, carbs: 0, fat: 0 })).toEqual(none); // water
+  });
+
+  it('catches kJ typed as kcal, and macros heavier than the food', () => {
+    const kj = labelProblems({ kcal: 460, protein: 23, carbs: 0, fat: 1.5 }).mismatch; // chicken: 460 kJ = 110 kcal
+    expect(kj).toHaveLength(1);
+    expect(kj[0]).toContain('looks like kJ (110 kcal)');
+    expect(labelProblems({ kcal: 120, protein: 23, carbs: 0, fat: 1.5 })).toEqual(none); // within tolerance
+    const off = labelProblems({ kcal: 200, protein: 23, carbs: 0, fat: 1.5 }).mismatch;
+    expect(off[0]).toContain('give about 106 kcal');
+    expect(off[0]).not.toContain('kJ'); // wrong, but not by the kJ factor
+    expect(labelProblems({ kcal: 500, protein: 50, carbs: 40, fat: 20 }).impossible[0]).toContain('110 g in 100 g');
+    expect(labelProblems(toPer100g({ kcal: 300, protein: 0, carbs: 0, fat: 30 }, 25)).impossible.join(' ')).toContain('1200 kcal in 100 g is not possible; pure fat has 900'); // a serving misread
+  });
+
+  it('converts a serving to per 100 g', () => {
+    expect(toPer100g({ kcal: 150, protein: 6, carbs: 27, fat: 3 }, 40)).toEqual({ kcal: 375, protein: 15, carbs: 67.5, fat: 7.5 });
   });
 });

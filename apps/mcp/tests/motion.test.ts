@@ -1,5 +1,6 @@
 import { loadExercises } from '@fitwell/core/data/exercises';
 import { describe, expect, it } from 'vitest';
+import { CALF } from '../src/exercises/motionMachines';
 import { ARM, BAR_RADIUS, BREATH_SECONDS, relaxed, BENCH_HEIGHT, BODY, distance, type Body, JOINTS, LOOP_SECONDS, MOTIONS, PLATE_RADIUS, PULLUP_BAR_HEIGHT, motionFor, progressAt, skeletonAt, standing, type MotionSpec, type Skeleton, type Vec3 } from '../src/exercises/motion';
 
 const SAMPLES = Array.from({ length: 21 }, (_, i) => i / 20);
@@ -174,8 +175,9 @@ describe('bench press', () => {
     });
   });
 
-  it('starts with the bar over the shoulders and the arms nearly straight', () => {
+  it('starts with the bar over the shoulders and the arms nearly straight (on Smith rails: arms nearly straight, bar over the chest)', () => {
     for (const name of BENCHES) {
+      if (MOTIONS[name]!.variant.rails) continue;
       const k = skeletonAt(spec(name), 0);
       expect(Math.abs(k.bar.x - k.shoulderL.x), name).toBeLessThan(0.05);
       expect(distance(k.shoulderL, k.gripL), name).toBeGreaterThan(ARM - 0.05);
@@ -209,6 +211,10 @@ describe('overhead press', () => {
   it('locks out with the bar straight over the shoulders, and over the mid-foot when standing', () => {
     for (const name of PRESSES) {
       const k = skeletonAt(spec(name), 0);
+      if (MOTIONS[name]!.variant.rails) {
+        expect(distance(k.shoulderL, k.gripL), `${name} arms straight`).toBeGreaterThan(ARM - 0.07);
+        continue;
+      }
       expect(Math.abs(k.bar.x - k.shoulderL.x), name).toBeLessThan(0.03);
       expect(tilt(k.elbowL, k.wristL), `${name} forearm`).toBeLessThan(12);
       if (!MOTIONS[name]!.variant.seated) expect(Math.abs(k.bar.x - k.midfoot.x), `${name} over the foot`).toBeLessThan(0.05);
@@ -409,11 +415,255 @@ describe('incline bench press', () => {
   });
 
   it('starts with the bar over the shoulders and the arms nearly straight', () => {
-    for (const name of INCLINES) {
+    for (const name of INCLINES.filter((n) => !MOTIONS[n]!.variant.rails)) {
       const k = skeletonAt(spec(name), 0);
       expect(Math.abs(k.bar.x - k.shoulderL.x), name).toBeLessThan(0.05);
       expect(distance(k.shoulderL, k.gripL), name).toBeGreaterThan(ARM - 0.05);
     }
+  });
+});
+
+describe('seated and lying machines', () => {
+  const MACHINES = ['legpress', 'kneemachine', 'lyingcurl', 'chestpress', 'machinerow', 'pecdeck', 'armmachine', 'calf', 'hipmachine'];
+  const names = (pattern: string) => ALL.filter((n) => MOTIONS[n]!.pattern === pattern);
+  const fixed = (name: string, joint: keyof Skeleton, tol: number) => {
+    const first = skeletonAt(spec(name), 0)[joint] as Vec3;
+    for (const p of SAMPLES) expect(distance(skeletonAt(spec(name), p)[joint] as Vec3, first), `${name} ${joint} p=${p}`).toBeLessThan(tol);
+  };
+
+  it('maps at least thirty machine exercises of the library', () => {
+    const mapped = ALL.filter((n) => MACHINES.includes(MOTIONS[n]!.pattern) || (MOTIONS[n]!.pattern === 'press' && MOTIONS[n]!.variant.load === 'machine'));
+    expect(mapped.length).toBeGreaterThanOrEqual(23);
+  });
+
+  it('leg press: hips fixed, feet flat on a platform that slides along one line, knees from nearly straight to deep', () => {
+    for (const name of names('legpress')) {
+      fixed(name, 'hipL', 0.001);
+      const angle = (p: number) => { const k = skeletonAt(spec(name), p); return Math.atan2(k.ankleL.y - k.hipL.y, k.ankleL.x - k.hipL.x) * DEG; };
+      expect(Math.abs(angle(0) - angle(1)), `${name} sled line`).toBeLessThan(2);
+      for (const p of SAMPLES) {
+        const k = skeletonAt(spec(name), p);
+        // The foot lies in the platform plane: heel and toe are as far from the plate's front as the ankle sole is.
+        const d = { x: Math.cos((42 * Math.PI) / 180), y: Math.sin((42 * Math.PI) / 180), z: 0 };
+        expect(Math.abs(dot(sub(k.toeL, k.heelL), d)), `${name} p=${p} foot flat on the plate`).toBeLessThan(0.005);
+        expect(distance(k.kneeL, k.chest), `${name} p=${p} knee clear of the chest`).toBeGreaterThan(0.12);
+        expect(k.ankleL.z - k.ankleR.z, `${name} stance`).toBeGreaterThan(0.12);
+      }
+      const top = skeletonAt(spec(name), 0);
+      const bottom = skeletonAt(spec(name), 1);
+      expect(flexion(top.hipL, top.kneeL, top.ankleL), name).toBeLessThan(15);
+      expect(flexion(bottom.hipL, bottom.kneeL, bottom.ankleL), name).toBeGreaterThan(95);
+    }
+    expect(skeletonAt(spec('Narrow Stance Leg Press'), 0.5).ankleL.z).toBeLessThan(skeletonAt(spec('Leg Press'), 0.5).ankleL.z);
+  });
+
+  it('leg extension and seated curl: hips and knees stay on the seat while the shins swing about the knees', () => {
+    for (const name of ['Leg Extensions', 'Seated Leg Curl']) {
+      fixed(name, 'hipL', 0.001);
+      fixed(name, 'kneeL', 0.001);
+      const k0 = skeletonAt(spec(name), 0);
+      expect(Math.abs(k0.hipL.y - k0.kneeL.y), `${name} thighs level`).toBeLessThan(0.06);
+    }
+    const out = (n: string, p: number) => flexion(...(() => { const k = skeletonAt(spec(n), p); return [k.hipL, k.kneeL, k.ankleL] as [Vec3, Vec3, Vec3]; })());
+    expect(out('Leg Extensions', 0)).toBeLessThan(15);
+    expect(out('Leg Extensions', 1)).toBeGreaterThan(80);
+    expect(out('Seated Leg Curl', 0)).toBeGreaterThan(80);
+    expect(out('Seated Leg Curl', 1)).toBeLessThan(15);
+    // The roller sits in front of the shin for the extension and behind it for the curl.
+    const ext = skeletonAt(spec('Leg Extensions'), 1);
+    const curl = skeletonAt(spec('Seated Leg Curl'), 0);
+    expect(ext.bar.x).toBeGreaterThan(ext.ankleL.x);
+    expect(curl.bar.x).toBeLessThan(curl.ankleL.x);
+  });
+
+  it('lying leg curl: face down on the bench with the hips and knees still while the heels curl up', () => {
+    const name = 'Lying Leg Curls';
+    fixed(name, 'hipL', 0.001);
+    fixed(name, 'kneeL', 0.001);
+    for (const p of SAMPLES) {
+      const k = skeletonAt(spec(name), p);
+      expect(k.pelvis.y - BENCH_HEIGHT, `p=${p} on the bench`).toBeGreaterThan(0.05);
+      expect(k.pelvis.y - BENCH_HEIGHT, `p=${p} on the bench`).toBeLessThan(0.1);
+      expect(k.shoulderL.x, `p=${p} head toward +x`).toBeGreaterThan(k.pelvis.x + 0.3);
+      expect(k.ankleL.y, `p=${p} heels not below the bench top`).toBeGreaterThan(BENCH_HEIGHT);
+    }
+    expect(flexion(...(() => { const k = skeletonAt(spec(name), 0); return [k.hipL, k.kneeL, k.ankleL] as [Vec3, Vec3, Vec3]; })())).toBeGreaterThan(110);
+    expect(flexion(...(() => { const k = skeletonAt(spec(name), 1); return [k.hipL, k.kneeL, k.ankleL] as [Vec3, Vec3, Vec3]; })())).toBeLessThan(15);
+  });
+
+  it('chest press and press machine: seated with the hips fixed, hands level, from folded to nearly straight arms', () => {
+    for (const name of [...names('chestpress'), 'Machine Shoulder (Military) Press', 'Leverage Shoulder Press']) {
+      fixed(name, 'hipL', 0.001);
+      for (const p of SAMPLES) expect(Math.abs(skeletonAt(spec(name), p).gripL.y - skeletonAt(spec(name), p).gripR.y), `${name} level`).toBeLessThan(0.01);
+      const top = skeletonAt(spec(name), 0);
+      const bottom = skeletonAt(spec(name), 1);
+      expect(flexion(top.shoulderL, top.elbowL, top.wristL), `${name} top`).toBeLessThan(40);
+      expect(flexion(bottom.shoulderL, bottom.elbowL, bottom.wristL), `${name} bottom`).toBeGreaterThan(100);
+    }
+    const top = (n: string) => skeletonAt(spec(n), 0).gripL.y;
+    expect(top('Leverage Incline Chest Press')).toBeGreaterThan(top('Leverage Chest Press') + 0.05);
+    expect(top('Leverage Decline Chest Press')).toBeLessThan(top('Leverage Chest Press') - 0.05);
+  });
+
+  it('row machine: trunk still, arms straight at the start, elbows past the body at the end', () => {
+    for (const name of names('machinerow')) {
+      fixed(name, 'pelvis', 0.001);
+      fixed(name, 'shoulderL', 0.001);
+      const start = skeletonAt(spec(name), 1);
+      const end = skeletonAt(spec(name), 0);
+      expect(flexion(start.shoulderL, start.elbowL, start.wristL), `${name} start`).toBeLessThan(40);
+      expect(end.elbowL.x, `${name} elbow back`).toBeLessThan(end.shoulderL.x + 0.1);
+    }
+  });
+
+  it('pec deck: forearms vertical and elbows at shoulder height in the fly; arms wide and level in the reverse fly', () => {
+    for (const p of SAMPLES) {
+      const k = skeletonAt(spec('Butterfly'), p);
+      expect(tilt(k.elbowL, k.wristL), `p=${p} forearm`).toBeLessThan(3);
+      expect(Math.abs(k.elbowL.y - k.shoulderL.y), `p=${p} elbow height`).toBeLessThan(0.02);
+      const r = skeletonAt(spec('Reverse Machine Flyes'), p);
+      expect(Math.abs(r.gripL.y - r.shoulderL.y), `p=${p} hands at shoulder height`).toBeLessThan(0.05);
+    }
+    const closed = skeletonAt(spec('Butterfly'), 0);
+    const open = skeletonAt(spec('Butterfly'), 1);
+    expect(closed.elbowL.z - closed.elbowR.z, 'pads meet').toBeLessThan(0.3);
+    expect(open.elbowL.z - open.elbowR.z, 'arms open').toBeGreaterThan(0.8);
+    expect(open.elbowL.x, 'elbows back').toBeLessThan(open.shoulderL.x);
+    expect(skeletonAt(spec('Reverse Machine Flyes'), 0).gripL.z - skeletonAt(spec('Reverse Machine Flyes'), 0).gripR.z).toBeGreaterThan(1.2);
+  });
+
+  it('arm machines: the elbows stay put on the pad while the forearms swing; the dip machine pushes the hands down', () => {
+    for (const name of ['Machine Bicep Curl', 'Machine Preacher Curls', 'Machine Triceps Extension']) {
+      fixed(name, 'elbowL', 0.001);
+      fixed(name, 'shoulderL', 0.001);
+    }
+    const flexAt = (n: string, p: number) => { const k = skeletonAt(spec(n), p); return flexion(k.shoulderL, k.elbowL, k.wristL); };
+    expect(flexAt('Machine Bicep Curl', 0)).toBeGreaterThan(120);
+    expect(flexAt('Machine Bicep Curl', 1)).toBeLessThan(25);
+    expect(flexAt('Machine Triceps Extension', 0)).toBeLessThan(25);
+    expect(flexAt('Machine Triceps Extension', 1)).toBeGreaterThan(120);
+    expect(skeletonAt(spec('Dip Machine'), 0).gripL.y).toBeLessThan(skeletonAt(spec('Dip Machine'), 1).gripL.y - 0.2);
+    fixed('Dip Machine', 'shoulderL', 0.001);
+  });
+
+  it('calf raise: the toes stay on the block while the heels rise, standing or seated', () => {
+    for (const name of names('calf')) {
+      for (const p of SAMPLES) expect(Math.abs(skeletonAt(spec(name), p).toeL.y - CALF.block), `${name} p=${p} toes on the block`).toBeLessThan(0.006);
+      const up = skeletonAt(spec(name), 0);
+      const down = skeletonAt(spec(name), 1);
+      expect(up.ankleL.y - down.ankleL.y, `${name} heel travel`).toBeGreaterThan(0.08);
+      const knee = (k: Skeleton) => flexion(k.hipL, k.kneeL, k.ankleL);
+      if (MOTIONS[name]!.variant.kind === 'seated') expect(Math.abs(knee(up) - 90), name).toBeLessThan(12);
+      else expect(knee(up), name).toBeLessThan(15);
+    }
+  });
+
+  it('hip machines: knees open for the abductor and close for the adductor with the shins vertical', () => {
+    const gap = (n: string, p: number) => skeletonAt(spec(n), p).kneeL.z - skeletonAt(spec(n), p).kneeR.z;
+    expect(gap('Thigh Abductor', 0) - gap('Thigh Abductor', 1)).toBeGreaterThan(0.2);
+    expect(gap('Thigh Adductor', 1) - gap('Thigh Adductor', 0)).toBeGreaterThan(0.2);
+    for (const name of names('hipmachine')) {
+      fixed(name, 'hipL', 0.001);
+      for (const p of SAMPLES) expect(tilt(skeletonAt(spec(name), p).kneeL, skeletonAt(spec(name), p).ankleL), `${name} shin`).toBeLessThan(2);
+    }
+  });
+});
+
+describe('cable exercises', () => {
+  const names = (pattern: string) => ALL.filter((n) => MOTIONS[n]!.pattern === pattern);
+  const flexOf = (n: string, p: number) => { const k = skeletonAt(spec(n), p); return flexion(k.shoulderL, k.elbowL, k.wristL); };
+
+  it('seated row: feet and hips stay put, the bar goes from straight arms to the belly while the trunk leans back', () => {
+    const name = 'Seated Cable Rows';
+    for (const j of ['hipL', 'ankleL'] as const) {
+      const first = skeletonAt(spec(name), 0)[j];
+      for (const p of SAMPLES) expect(distance(skeletonAt(spec(name), p)[j], first), `${j} p=${p}`).toBeLessThan(0.001);
+    }
+    expect(flexOf(name, 1)).toBeLessThan(40);
+    const pulled = skeletonAt(spec(name), 0);
+    expect(nearestOnSegmentXY(pulled.bar, pulled.pelvis, pulled.shoulderL).d, 'bar at the belly').toBeLessThan(0.25);
+    const lean = (p: number) => { const k = skeletonAt(spec(name), p); return Math.atan2(k.shoulderL.x - k.hipL.x, k.shoulderL.y - k.hipL.y) * DEG; };
+    expect(lean(0)).toBeLessThan(lean(1) - 10);
+  });
+
+  it('pushdown: elbows pinned at the sides, forearms from level to straight down, hands as far apart as the handle', () => {
+    for (const name of names('pushdown')) {
+      const first = skeletonAt(spec(name), 0).elbowL;
+      for (const p of SAMPLES) expect(distance(skeletonAt(spec(name), p).elbowL, first), `${name} elbow`).toBeLessThan(0.001);
+      expect(flexOf(name, 0), `${name} straight (the forearms angle in toward a narrow handle)`).toBeLessThan(40);
+      expect(flexOf(name, 1), `${name} bent`).toBeGreaterThan(90);
+      const k = skeletonAt(spec(name), 0.5);
+      expect(k.gripL.z - k.gripR.z, `${name} grip width`).toBeCloseTo(2 * { close: 0.05, medium: 0.1, wide: 0.17 }[MOTIONS[name]!.variant.grip as 'close' | 'medium' | 'wide'], 1);
+    }
+  });
+
+  it('face pull: from straight arms to the rope beside the head with the elbows high', () => {
+    const start = skeletonAt(spec('Face Pull'), 1);
+    const end = skeletonAt(spec('Face Pull'), 0);
+    expect(flexion(start.shoulderL, start.elbowL, start.wristL)).toBeLessThan(40);
+    expect(Math.abs(end.gripL.z), 'beside the head').toBeGreaterThan(0.12);
+    expect(end.gripL.y, 'at head height').toBeGreaterThan(end.shoulderL.y + 0.1);
+    expect(end.elbowL.y, 'elbow high').toBeGreaterThan(end.shoulderL.y - 0.1);
+  });
+
+  it('straight-arm pulldown: the arms stay straight while they sweep from overhead to the thighs', () => {
+    for (const name of names('straightarm')) {
+      for (const p of SAMPLES) expect(flexOf(name, p), `${name} p=${p}`).toBeLessThan(25);
+      const up = skeletonAt(spec(name), 1);
+      const down = skeletonAt(spec(name), 0);
+      expect(up.bar.y, `${name} overhead`).toBeGreaterThan(up.neckTop.y);
+      expect(down.bar.y, `${name} at the thighs`).toBeLessThan(down.pelvis.y + 0.1);
+    }
+  });
+
+  it('crossover: the hands start wide and meet in front; the low version rises, the high version falls', () => {
+    const gap = (n: string, p: number) => skeletonAt(spec(n), p).gripL.z - skeletonAt(spec(n), p).gripR.z;
+    for (const name of ['Cable Crossover', 'Low Cable Crossover']) {
+      expect(gap(name, 1), name).toBeGreaterThan(1.0);
+      expect(gap(name, 0), name).toBeLessThan(0.25);
+      expect(skeletonAt(spec(name), 0).bar.x, `${name} in front`).toBeGreaterThan(skeletonAt(spec(name), 0).shoulderL.x + 0.2);
+    }
+    expect(skeletonAt(spec('Low Cable Crossover'), 0).bar.y).toBeGreaterThan(skeletonAt(spec('Low Cable Crossover'), 1).bar.y + 0.2);
+    expect(skeletonAt(spec('Cable Crossover'), 0).bar.y).toBeLessThan(skeletonAt(spec('Cable Crossover'), 1).bar.y - 0.2);
+  });
+
+  it('maps fourteen cable exercises of the library, and the cable versions stand where the machine versions sit', () => {
+    const cable = ALL.filter((n) => ['seatedrow', 'pushdown', 'facepull', 'straightarm', 'crossover'].includes(MOTIONS[n]!.pattern) || MOTIONS[n]!.variant.kind === 'cable');
+    expect(cable.length).toBeGreaterThanOrEqual(14);
+    const stand = skeletonAt(spec('Standing Cable Chest Press'), 0.5);
+    expect(stand.hipL.y, 'standing, not seated').toBeGreaterThan(0.8);
+    expect(skeletonAt(spec('Seated Cable Shoulder Press'), 0.5).hipL.y, 'seated').toBeLessThan(0.6);
+  });
+});
+
+describe('Smith machine', () => {
+  const SMITH = ALL.filter((n) => MOTIONS[n]!.variant.rails);
+  it('maps the Smith exercises of the library, and the bar goes straight up and down', () => {
+    expect(SMITH.length).toBeGreaterThanOrEqual(8);
+    for (const name of SMITH) {
+      const xs = SAMPLES.map((p) => skeletonAt(spec(name), p).bar.x);
+      expect(Math.max(...xs) - Math.min(...xs), `${name} bar path`).toBeLessThan(0.005);
+    }
+  });
+
+  it('keeps the form rules of the free version: the bar touches the chest, the lunge stays planted, the squat reaches depth', () => {
+    for (const name of ['Smith Machine Bench Press', 'Smith Machine Close-Grip Bench Press']) {
+      const k = skeletonAt(spec(name), 1);
+      const chestTop = k.chest.y + 0.12;
+      expect(k.bar.y - chestTop, name).toBeGreaterThan(0);
+      expect(k.bar.y - chestTop, name).toBeLessThan(0.03);
+    }
+    for (const name of ['Smith Machine Bench Press', 'Smith Machine Close-Grip Bench Press', 'Smith Machine Incline Bench Press']) {
+      const top = skeletonAt(spec(name), 0);
+      expect(distance(top.shoulderL, top.gripL), `${name} top`).toBeGreaterThan(ARM - 0.06);
+      expect(Math.abs(top.bar.x - top.shoulderL.x), `${name} bar over the chest, not far from the shoulders`).toBeLessThan(0.25);
+    }
+    const squat = skeletonAt(spec('Smith Machine Squat'), 1);
+    expect(flexion(squat.hipL, squat.kneeL, squat.ankleL)).toBeGreaterThan(100);
+    const upright = skeletonAt(spec('Smith Machine Squat'), 0);
+    expect(Math.abs(upright.bar.x - upright.midfoot.x), 'feet a little in front of the bar line').toBeLessThan(0.1);
+    const lunge = skeletonAt(spec('Smith Single-Leg Split Squat'), 1);
+    expect(lunge.kneeR.y).toBeGreaterThan(0.03);
   });
 });
 
@@ -458,12 +708,12 @@ describe('loop and mapping', () => {
     const lib = await loadExercises();
     const names = new Set(lib.exercises.map((e) => e.name));
     for (const n of ALL) expect(names.has(n), n).toBe(true);
-    expect(motionFor('Leg Press')).toBeNull();
+    expect(motionFor('Ab Crunch Machine')).toBeNull();
     expect(motionFor('Hack Squat')).toBeNull();
     expect(motionFor('Barbell Hack Squat')).toBeNull();
     expect(motionFor('Barbell Bench Press - Medium Grip')?.pattern).toBe('bench');
     expect(motionFor('Pullups')?.pattern).toBe('pull');
-    expect(motionFor('Leg Extensions')).toBeNull();
+    expect(motionFor('Glute Ham Raise')).toBeNull();
   });
 });
 

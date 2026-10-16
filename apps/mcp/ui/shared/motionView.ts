@@ -20,6 +20,8 @@ export interface MotionPlayer {
   element: HTMLElement;
   /** Show an exercise's movement with its muscles lit up; with no movement, the standing figure with the muscles lit. */
   show(spec: MotionSpec | null, label: string, muscles?: { primary: string[]; secondary: string[] }): void;
+  /** The standing figure with each muscle group in its own colour (hex by group name); groups not listed keep the skin colour. */
+  showHeat(colours: Map<string, number>, label: string): void;
   /** Stop animating (the panel is closed or the exercise changed). */
   stop(): void;
   /** Re-read the colours after the host theme changed. */
@@ -44,6 +46,20 @@ const FRAMING: Record<string, { x: number; y: number; d: number }> = {
   pullup: { x: 0.0, y: 1.3, d: 6.4 },
   lunge: { x: -0.3, y: 0.88, d: 4.1 },
   pushup: { x: 0.6, y: 0.5, d: 3.6 },
+  legpress: { x: 0.35, y: 0.7, d: 4.8 },
+  kneemachine: { x: 0.1, y: 0.6, d: 3.9 },
+  lyingcurl: { x: 0.1, y: 0.55, d: 4.0 },
+  chestpress: { x: 0.1, y: 0.85, d: 4.2 },
+  machinerow: { x: 0.2, y: 0.85, d: 4.2 },
+  pecdeck: { x: 0.0, y: 0.85, d: 5.2 },
+  armmachine: { x: 0.0, y: 0.8, d: 4.0 },
+  calf: { x: 0.0, y: 0.95, d: 4.4 },
+  hipmachine: { x: 0.0, y: 0.7, d: 4.0 },
+  seatedrow: { x: 0.6, y: 0.7, d: 5.0 },
+  pushdown: { x: 0.2, y: 1.15, d: 5.0 },
+  facepull: { x: 0.5, y: 1.0, d: 4.6 },
+  straightarm: { x: 0.3, y: 1.15, d: 5.0 },
+  crossover: { x: 0.1, y: 1.05, d: 5.4 },
 };
 const EL_MIN = -0.35;
 const EL_MAX = 1.1;
@@ -60,11 +76,15 @@ function cssColor(name: string): Color | null {
   }
 }
 
+/** Whether the host's theme is dark: from its background colour, else the system setting. */
+export function isDarkTheme(): boolean {
+  const bg = cssColor('--bg') ?? cssColor('--surface');
+  return bg ? bg.getHSL({ h: 0, s: 0, l: 0 }).l < 0.45 : window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
+}
+
 /** Colours follow the theme: warm neutrals for the figure, the accent colour for the load. */
 function readPalette(): Palette {
-  const bg = cssColor('--bg') ?? cssColor('--surface');
-  const dark = bg ? bg.getHSL({ h: 0, s: 0, l: 0 }).l < 0.45 : window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
-  const base = dark ? DARK : LIGHT;
+  const base = isDarkTheme() ? DARK : LIGHT;
   const accent = cssColor('--accent');
   return accent ? { ...base, load: accent.getHex() } : base;
 }
@@ -95,6 +115,8 @@ export function createMotionPlayer(): MotionPlayer | null {
   let human: HumanBody | null = null;
   let humanState: 'idle' | 'loading' | 'failed' = 'idle';
   let worked: { primary: string[]; secondary: string[] } = { primary: [], secondary: [] };
+  /** The heat map on show instead of the worked muscles; null for an exercise. */
+  let heat: Map<string, number> | null = null;
   function loadHuman(): void {
     if (humanState !== 'idle') return;
     humanState = 'loading';
@@ -103,6 +125,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       .then((body) => {
         human = body;
         human.setHighlight(worked.primary, worked.secondary);
+        human.setHeat(heat);
         human.setHighlightVisible(musclesOn);
         scene.add(human.group);
         draw(currentP());
@@ -146,7 +169,9 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function frame(): void {
     const key = current?.pattern === 'pull' && !current.variant.seated ? 'pullup' : current?.pattern;
-    const where = key ? FRAMING[key] ?? FRAMING.squat! : FRAMING.rest!;
+    const base = key ? FRAMING[key] ?? FRAMING.squat! : FRAMING.rest!;
+    // A Smith machine is 2.3 m tall: stand further back so its frame shows.
+    const where = current?.variant.rails ? { ...base, y: Math.max(base.y, 1.05), d: base.d + 0.9 } : base;
     const target = closeup ?? where;
     const d = closeup?.d ?? where.d;
     props?.setCamera(view.az);
@@ -154,7 +179,7 @@ export function createMotionPlayer(): MotionPlayer | null {
     camera.position.set(target.x + d * Math.sin(view.az) * flat, target.y + d * Math.sin(view.el), d * Math.cos(view.az) * flat);
     camera.lookAt(target.x, target.y, 0);
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', `${current ? `Animation of ${label}` : `The muscles worked by ${label}`}. Drag or use the arrow keys to turn it.`);
+    canvas.setAttribute('aria-label', `${current ? `Animation of ${label}` : heat ? label : `The muscles worked by ${label}`}. Drag or use the arrow keys to turn it.`);
   }
 
   function draw(p: number): void {
@@ -272,6 +297,21 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   const player: MotionPlayer = {
     element,
+    showHeat(colours, name) {
+      // A new period on the map only recolours: the figure keeps the angle the person turned it to.
+      if (heat && !current && !element.hidden) {
+        heat = colours;
+        human?.setHeat(heat);
+        draw(currentP());
+        return;
+      }
+      player.show(null, name);
+      heat = colours;
+      human?.setHeat(heat);
+      muscleButton.textContent = 'Colours';
+      frame();
+      draw(currentP());
+    },
     show(spec, name, muscles) {
       if (humanState === 'failed') {
         element.hidden = true;
@@ -280,6 +320,9 @@ export function createMotionPlayer(): MotionPlayer | null {
       current = spec;
       forced = null;
       stopped = false;
+      heat = null;
+      human?.setHeat(null);
+      muscleButton.textContent = 'Highlight';
       worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
       human?.setHighlight(worked.primary, worked.secondary);
       human?.setHighlightVisible(musclesOn);

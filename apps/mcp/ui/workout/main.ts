@@ -1,5 +1,6 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
+import { platesFor, STANDARD_GYM } from '@fitwell/core/domain/plates';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -19,6 +20,9 @@ const state = {
   current: 0,
   reps: 0,
   weight: 0,
+  /** Timed sets: the seconds to log, and the running countdown (0 when stopped). */
+  seconds: 0,
+  holdUntil: 0,
   minutes: 0,
   km: 0,
   /** The exercise whose note is being edited; the textarea exists only then (see notesEditor). */
@@ -26,6 +30,10 @@ const state = {
   guideOpen: false,
   guides: new Map<string, ExerciseGuide>(),
   guideFailed: false,
+  /** Swapping the current exercise: substitutes per exercise uid (fetched when the panel opens). */
+  swapOpen: false,
+  swaps: new Map<string, { id: string; name: string; equipment: string }[]>(),
+  swapNote: '',
   restUntil: 0,
   finished: null as FinishSummary | null,
   finishing: false,
@@ -104,14 +112,19 @@ function select(i: number) {
   state.noteEditing = '';
   state.guideOpen = false;
   state.guideFailed = false;
+  state.swapOpen = false;
+  state.swapNote = '';
   motion?.stop();
   motionFor = '';
   if (it.kind === 'ex') {
     const ex = it.ex;
     const target = nextSet(ex) ?? ex.sets[ex.sets.length - 1]!;
-    const prev = [...ex.sets].reverse().find((x) => x.done);
+    // Carry over from the last done set of the same kind: a working set never starts from a warm-up's weight.
+    const prev = [...ex.sets].reverse().find((x) => x.done && !!x.warmup === !!target.warmup);
     state.reps = prev?.reps ?? target.targetReps;
     state.weight = prev?.weightKg ?? target.weightKg ?? 0;
+    state.seconds = prev?.seconds ?? target.targetSec ?? 30;
+    state.holdUntil = 0;
   } else {
     state.minutes = it.c.minutes ?? it.c.plannedMin;
     state.km = it.c.distanceKm ?? it.c.plannedKm ?? 0;
@@ -128,21 +141,51 @@ function nextOpen(from: number): number {
   return -1;
 }
 
+/** Exercises (as step indices) of the superset `ex` belongs to, in order; just `ex` when it is in none. */
+function supersetSteps(ex: PlannedExercise): number[] {
+  const all = items();
+  if (!ex.supersetId) return [all.findIndex((x) => x.kind === 'ex' && x.ex === ex)];
+  return all.flatMap((x, i) => (x.kind === 'ex' && x.ex.supersetId === ex.supersetId ? [i] : []));
+}
+
 function logSet(skip = false) {
   const it = items()[state.current]!;
   if (it.kind !== 'ex') return;
   const ex = it.ex;
   const set = nextSet(ex);
   if (!set) return;
+  state.holdUntil = 0;
   if (skip) set.skipped = true;
   else {
     set.done = true;
-    set.reps = state.reps;
+    set.reps = ex.timed ? 0 : state.reps;
+    if (ex.timed) set.seconds = state.seconds;
     if (!ex.bodyweight) set.weightKg = state.weight;
-    if (ex.restSec > 0) state.restUntil = Date.now() + ex.restSec * 1000;
+    // A warm-up needs only a short breather.
+    const rest = set.warmup ? Math.min(ex.restSec, 60) : ex.restSec;
+    if (rest > 0) state.restUntil = Date.now() + rest * 1000;
   }
   void sync(set, ex, skip);
-  if (nextSet(ex)) return render(); // next set of the same exercise starts from what was just done
+  if (ex.supersetId) {
+    // A superset goes round by round: straight on to the next exercise of the round, rest after the last one.
+    const steps = supersetSteps(ex);
+    const open = steps.filter((i) => itemOpen(items()[i]!));
+    const later = open.find((i) => i > state.current);
+    if (later !== undefined) {
+      state.restUntil = 0;
+      return select(later);
+    }
+    if (open.length) return select(open[0]!); // a new round, after the rest
+  }
+  const following = nextSet(ex);
+  if (following) {
+    // Working sets carry over what was just done; warm-ups, and the first working set after them, start from the plan.
+    if (following.warmup || set.warmup) {
+      state.reps = following.targetReps;
+      state.weight = following.weightKg ?? state.weight;
+    }
+    return render();
+  }
   const next = nextOpen(state.current + 1);
   if (next === -1) {
     state.restUntil = 0;
@@ -191,7 +234,7 @@ async function saveNote(ex: PlannedExercise) {
 
 async function sync(set: PlannedSet, ex: PlannedExercise, skip: boolean) {
   try {
-    const args = { workoutId: state.plan!.workoutId, setId: set.id, reps: skip ? 0 : (set.reps ?? 0), skip, ...(ex.bodyweight || skip ? {} : { weightKg: set.weightKg }) };
+    const args = { workoutId: state.plan!.workoutId, setId: set.id, reps: skip ? 0 : (set.reps ?? 0), skip, ...(ex.bodyweight || skip ? {} : { weightKg: set.weightKg }), ...(ex.timed && !skip ? { seconds: set.seconds ?? 0 } : {}) };
     const res = await app.callServerTool({ name: 'log_set', arguments: args });
     state.serverOk = !res.isError;
   } catch {
@@ -209,7 +252,7 @@ function progressText(): string {
     const done = ex.sets.filter((x) => x.done);
     const note = ex.notes ? ` (note: ${ex.notes})` : '';
     if (!done.length) return `${ex.name}: not done${note}`;
-    return `${ex.name}: ${done.map((x) => (ex.bodyweight ? `${x.reps}` : `${x.reps}×${kg(x.weightKg ?? 0)} kg`)).join(', ')}${note}`;
+    return `${ex.name}: ${done.filter((x) => !x.warmup).map((x) => (ex.timed ? `${x.seconds ?? 0} s` : ex.bodyweight ? `${x.reps}` : `${x.reps}×${kg(x.weightKg ?? 0)} kg`)).join(', ')}${note}`;
   });
   return `${plan.name} (${mmss(Date.now() - plan.startedAt)}). ${parts.join('; ')}.`;
 }
@@ -260,6 +303,25 @@ function stepper(label: string, value: string, dec: () => void, inc: () => void)
       h('button', { type: 'button', 'aria-label': `More ${label.toLowerCase()}`, onclick: inc }, '+'),
     ),
   );
+}
+
+/** "Each side: 20 + 5 + 1.25" for a barbell, from the person's bar and plates. */
+function plateText(ex: PlannedExercise, weight: number): string | null {
+  if (ex.equipment !== 'barbell' || ex.bodyweight) return null;
+  const gym = state.plan?.gym ?? STANDARD_GYM;
+  const l = platesFor(weight, gym);
+  if (!l) return `Lighter than the ${kg(gym.barKg)} kg bar`;
+  const plate = (n: number) => String(Math.round(n * 100) / 100); // 1.25, not 1.3
+  const side = l.perSide.length ? `Each side: ${l.perSide.map(plate).join(' + ')}` : 'Empty bar';
+  return l.shortKg > 0 ? `${side} (${kg(l.totalKg)} kg; your plates can't make ${kg(weight)})` : `${side} · bar ${kg(gym.barKg)} kg`;
+}
+
+/** Where an exercise sits in its superset: "Superset · 1 of 2". */
+function supersetLabel(ex: PlannedExercise): string | null {
+  if (!ex.supersetId) return null;
+  const steps = supersetSteps(ex);
+  const at = steps.findIndex((i) => { const x = items()[i]!; return x.kind === 'ex' && x.ex === ex; });
+  return `Superset · ${at + 1} of ${steps.length}`;
 }
 
 /**
@@ -359,6 +421,60 @@ function guidePanel(ex: PlannedExercise) {
   );
 }
 
+async function loadSwaps(ex: PlannedExercise) {
+  try {
+    const res = await app.callServerTool({ name: 'get_substitutes', arguments: { workoutId: state.plan!.workoutId, exerciseId: ex.uid } });
+    const list = (res.structuredContent as { substitutes?: { id: string; name: string; equipment: string }[] } | undefined)?.substitutes;
+    if (res.isError || !list) throw new Error('no data');
+    state.swaps.set(ex.uid, list);
+    state.swapNote = list.length ? '' : 'No similar exercise fits your equipment.';
+  } catch {
+    state.swapNote = 'Could not load alternatives. Close and open this to try again.';
+  }
+  render();
+}
+
+async function swap(ex: PlannedExercise, to: { id: string; name: string }) {
+  state.swapNote = `Swapping to ${to.name}…`;
+  render();
+  try {
+    const res = await app.callServerTool({ name: 'swap_exercise', arguments: { workoutId: state.plan!.workoutId, exerciseId: ex.uid, newId: to.id } });
+    const plan = (res.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
+    if (res.isError || !plan) throw new Error('refused');
+    plan.cardio ??= [];
+    state.plan = plan;
+    state.swaps.delete(ex.uid);
+    motion?.stop();
+    motionFor = '';
+    select(state.current); // prefill the steppers from the new exercise
+  } catch {
+    state.swapNote = 'Could not swap the exercise. Try again.';
+    render();
+  }
+}
+
+/** "Swap exercise": similar exercises for the same muscles, offered until the first set of this exercise is logged. */
+function swapPanel(ex: PlannedExercise) {
+  if (ex.sets.some(closed)) return null;
+  const list = state.swaps.get(ex.uid);
+  return h(
+    'details',
+    {
+      className: 'swapbox',
+      open: state.swapOpen,
+      ontoggle: (e: Event) => {
+        state.swapOpen = (e.target as HTMLDetailsElement).open;
+        if (state.swapOpen && !list) void loadSwaps(ex);
+      },
+    },
+    h('summary', {}, 'Swap exercise'),
+    list
+      ? h('div', { className: 'swaps' }, ...list.map((x) => h('button', { type: 'button', onclick: () => void swap(ex, x) }, h('span', {}, x.name), h('span', { className: 'muted small' }, x.equipment))))
+      : !state.swapNote && h('p', { className: 'muted small' }, 'Loading…'),
+    state.swapNote && h('p', { className: 'muted small' }, state.swapNote),
+  );
+}
+
 /** What comes after the set that was just logged, shown while resting: reps and weight, last time, notes. */
 function upNext(it: Item | undefined): Child {
   if (!it || !itemOpen(it)) return h('p', { className: 'next' }, h('strong', {}, 'That was the last set.'), ' Next: finish the workout.');
@@ -438,25 +554,42 @@ function render() {
   } else if (it.kind === 'ex' && nextSet(it.ex)) {
     const ex = it.ex;
     const set = nextSet(ex)!;
+    const warm = ex.sets.filter((x) => x.warmup);
+    const working = ex.sets.filter((x) => !x.warmup);
+    const which = set.warmup ? `Warm-up ${warm.indexOf(set) + 1} of ${warm.length}` : `Set ${working.indexOf(set) + 1} of ${working.length}`;
+    const target = ex.timed ? `target ${set.targetSec ?? 0} s` : `target ${set.targetReps} reps`;
+    const plates = plateText(ex, state.weight);
+    const holding = state.holdUntil > Date.now();
     body.push(
       h(
         'section',
-        { className: 'card', 'aria-label': 'Current set' },
-        h('p', { className: 'muted small' }, `Exercise ${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length} · ${ex.equipment}`),
+        { className: set.warmup ? 'card warmup' : 'card', 'aria-label': set.warmup ? 'Warm-up set' : 'Current set' },
+        h('p', { className: 'muted small' }, `Exercise ${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length} · ${ex.equipment}`, supersetLabel(ex) && ` · ${supersetLabel(ex)}`),
         h('h1', {}, ex.name),
-        h('p', {}, `Set ${ex.sets.indexOf(set) + 1} of ${ex.sets.length} · target ${set.targetReps} reps`),
+        h('p', {}, set.warmup && h('span', { className: 'pill' }, 'Warm-up'), set.warmup && ' ', `${which} · ${target}`),
         ex.lastTime && h('p', { className: 'muted small' }, `Last time: ${ex.lastTime}`),
         ex.note && h('p', { className: 'muted small' }, ex.note),
         ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
         h(
           'div',
           { className: 'steppers' },
-          stepper('Reps', String(state.reps), () => ((state.reps = Math.max(0, state.reps - 1)), render()), () => ((state.reps += 1), render())),
+          ex.timed
+            ? stepper('Seconds', String(state.seconds), () => ((state.seconds = Math.max(0, state.seconds - 5)), render()), () => ((state.seconds += 5), render()))
+            : stepper('Reps', String(state.reps), () => ((state.reps = Math.max(0, state.reps - 1)), render()), () => ((state.reps += 1), render())),
           ex.bodyweight
             ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', {}, 'Bodyweight'))
             : stepper('Weight kg', kg(state.weight), () => ((state.weight = Math.max(0, Math.round((state.weight - WEIGHT_STEP) * 10) / 10)), render()), () => ((state.weight = Math.round((state.weight + WEIGHT_STEP) * 10) / 10), render())),
         ),
+        plates && h('p', { className: 'muted small plates' }, plates),
+        ex.timed &&
+          h(
+            'div',
+            { className: 'hold' },
+            holding && h('p', { className: 'time', role: 'timer', id: 'hold' }, mmss(state.holdUntil - Date.now())),
+            h('button', { type: 'button', onclick: () => ((state.holdUntil = holding ? 0 : Date.now() + state.seconds * 1000), render()) }, holding ? 'Stop the timer' : `Start a ${state.seconds} s timer`),
+          ),
         guidePanel(ex),
+        swapPanel(ex),
         notesEditor(ex),
         h('button', { type: 'button', className: 'primary', onclick: () => logSet() }, 'Log set'),
         h('button', { type: 'button', onclick: () => logSet(true) }, 'Skip set'),
@@ -489,7 +622,7 @@ function render() {
         'section',
         { className: 'card', 'aria-label': 'Finished exercise' },
         h('h1', {}, ex.name),
-        h('p', { className: 'muted' }, ex.sets.map((x) => (x.done ? (ex.bodyweight ? `${x.reps}` : `${x.reps}×${kg(x.weightKg ?? 0)} kg`) : 'skipped')).join(' · ')),
+        h('p', { className: 'muted' }, ex.sets.filter((x) => !x.warmup).map((x) => (x.done ? (ex.timed ? `${x.seconds ?? 0} s` : ex.bodyweight ? `${x.reps}` : `${x.reps}×${kg(x.weightKg ?? 0)} kg`) : 'skipped')).join(' · ')),
         notesEditor(ex),
         !allDone && h('button', { type: 'button', className: 'primary', onclick: () => select(nextOpen(state.current + 1)) }, 'Continue the workout'),
       ),
@@ -560,6 +693,18 @@ setInterval(() => {
     render();
     return;
   }
+  if (state.holdUntil && state.holdUntil <= Date.now()) {
+    state.holdUntil = 0;
+    try {
+      navigator.vibrate?.([200, 100, 200]);
+    } catch {
+      /* not allowed in this frame */
+    }
+    render();
+    return;
+  }
+  const hold = document.getElementById('hold');
+  if (hold) hold.textContent = mmss(state.holdUntil - Date.now());
   const elapsed = document.getElementById('elapsed');
   if (elapsed) elapsed.textContent = mmss(Date.now() - state.plan.startedAt);
   const rest = document.getElementById('rest');

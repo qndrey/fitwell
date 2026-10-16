@@ -119,7 +119,7 @@ describe('privacy', () => {
     const boClient = await connectAs(env, bo);
     const { data } = await call(client, 'log_food', { day: '2026-10-13', items: [{ food_id: 'frida:413', grams: 100 }] });
     const anaEntry = (data.logged as Entry[])[0]!.id;
-    await call(client, 'save_custom_food', { name: 'Ana secret recipe', per100g: { kcal: 100, protein: 1, carbs: 1, fat: 1 } });
+    await call(client, 'save_custom_food', { name: 'Ana secret recipe', per100g: { kcal: 120, protein: 3, carbs: 20, fat: 3 } });
     await call(client, 'set_goals', { kcal: 1800 });
 
     expect(((await call(boClient, 'get_food_log', { day: '2026-10-13' })).data.entries as Entry[]).length).toBe(0);

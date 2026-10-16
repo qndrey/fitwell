@@ -14,6 +14,7 @@ import { registerReviewTools } from './tools/review';
 import { registerShoppingTools } from './tools/shopping';
 import { registerBodyTools } from './tools/body';
 import { registerDashboardTools } from './tools/dashboard';
+import { registerMuscleTools } from './tools/muscles';
 import { registerExerciseTools } from './tools/exercises';
 import { registerFoodLogTools } from './tools/foodLog';
 import { registerFoodTools } from './tools/foods';
@@ -46,15 +47,15 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const plans = new PlanData(deps.db, deps.user.id);
   // The tools Claude reads before planning or advising answer with the role to take (src/instructions/*.md).
   const server = withRoles(mcp, {
-    trainer: ['search_exercises', 'list_workout_templates', 'suggest_progression', 'get_workout_history'],
+    trainer: ['search_exercises', 'list_workout_templates', 'suggest_progression', 'get_workout_history', 'show_muscle_map'],
     nutritionist: ['suggest_targets', 'get_planning_context', 'suggest_meals', 'get_food_log', 'get_meal_plan'],
     progressCoach: ['get_progress', 'show_weekly_review', 'show_dashboard'],
   });
   registerProfileTools(server, { data, email: deps.user.email });
   registerFoodTools(server, { off: deps.off, data });
-  registerFoodLogTools(server, { off: deps.off, data });
+  registerFoodLogTools(server, { off: deps.off, data, plans });
   registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
-  await registerExerciseTools(server);
+  await registerExerciseTools(server, { data });
   await registerWorkoutTools(server, { data, workouts });
   registerBodyTools(server, { data, workouts, body });
   registerRecipeTools(server, { off: deps.off, data, plans, fetch: deps.fetch ?? fetch, userAgent: 'Fitwell/0.3 (+https://mcp.fitwell.fyi)' });
@@ -63,6 +64,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerCookTools(server, { off: deps.off, data, plans });
   registerImportTools(server, { db: deps.db, userId: deps.user.id, publicUrl: deps.publicUrl });
   registerDashboardTools(server, { data, workouts, body });
+  registerMuscleTools(server, { data, workouts });
   registerReviewTools(server, { data, workouts, body, plans });
   registerDeleteTool(server, { data, workouts, body, plans });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email });

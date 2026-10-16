@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Track food, training and weight by talking to Claude: food logging, meal plans, a workout player, a muscle map and your measured calorie burn.">
+<title>Fitwell for Claude</title>
+<link rel="stylesheet" href="style.css">
+<script src="main.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="stack">
+    <p class="label">Fitwell for Claude</p>
+    <h1>Track food, training and weight by talking to Claude</h1>
+    <p class="lede">Tell Claude what you ate, ask it to plan your week, start a workout from the chat and open a dashboard when you want to see how you are doing.</p>
+    <ul class="chips" aria-label="Key facts">
+      <li>Claude on desktop, web and iPhone</li>
+      <li>Health data stored in the EU</li>
+      <li><a href="#join">Invite-only: ask for one</a></li>
+    </ul>
+    <p class="small muted">Updated 16 October 2026: <a href="#burn">your measured calorie burn</a>, <a href="#muscles">a muscle map</a>, <a href="#sets">warm-ups, supersets, plates and swaps</a> in the workout player, and <a href="#food">quicker logging</a>.</p>
+  </div>
+  <div class="pair">
+    <figure><div class="phone"><img src="img/hero-squat.png" alt="The workout player showing Barbell Squat, set 1 of 2, with last time 2 by 5 at 85 kilograms and a suggestion to add 2.5 kilograms, so 87.5"></div></figure>
+  </div>
+</header>
+
+<section class="feature wide" aria-labelledby="talk">
+  <div class="copy">
+    <h2 id="talk">You talk, it keeps the records</h2>
+    <p class="muted">Three things you might say in a normal week. The numbers in the replies come from the demo person used for the screenshots on this page, and Claude's exact wording will differ.</p>
+  </div>
+  <div class="chats">
+    <div class="chat" role="group" aria-label="Logging breakfast">
+      <div class="bubble you">Same breakfast as yesterday.</div>
+      <div class="bubble claude">Logged: 80 g oats, 280 g milk and a banana, 495 kcal and 22 g protein. You have 1,805 kcal and 128 g protein left today.</div>
+    </div>
+    <div class="chat" role="group" aria-label="Checking the calorie goal">
+      <div class="bubble you">Is my calorie goal still right?</div>
+      <div class="bubble claude">Your logs and weigh-ins over 4 weeks show you burn about 2,940 kcal a day. To lose 0.5 kg a week that means about 2,390 kcal. Shall I update the goal?</div>
+    </div>
+    <div class="chat" role="group" aria-label="Starting a workout">
+      <div class="bubble you">Start Workout A. The squat rack is taken.</div>
+      <div class="bubble claude">Swapped the back squat for the leg press and kept your 3 sets of 8. Last time you hit every rep at 120 kg, so today is 122.5 kg.</div>
+    </div>
+  </div>
+</section>
+
+<section class="feature" aria-labelledby="food">
+  <div class="copy">
+    <h2 id="food">Food and macros without the typing</h2>
+    <p>Describe a meal in your own words. Claude turns amounts into grams, finds each food in a database and saves calories, protein, carbs and fat.</p>
+    <ul>
+      <li>1,381 everyday foods from Frida, the Danish national food composition database, plus packaged products by barcode through Open Food Facts.</li>
+      <li>The numbers come from the food's own data. When nothing matches, Claude says so and any estimate is marked as one.</li>
+      <li>"Same breakfast as yesterday" or "copy Monday's lunch" repeats a meal in one step. A meal you eat often can be saved once and logged by name.</li>
+      <li>Snap a nutrition label and Claude saves the product. Fitwell checks the numbers add up, and catches the classic mistake of reading kJ as kcal.</li>
+      <li>What is left of your calorie and macro goals for the day.</li>
+    </ul>
+  </div>
+  <figure><div class="phone"><img loading="lazy" src="img/nutrition.png" alt="Nutrition card: a bar chart of daily calories against a goal line, a note that calories were within 10 percent of the goal on 53 of 81 logged days, and that the protein goal was reached on 75"></div><figcaption>Calories per day against your goal, over 90 days.</figcaption></figure>
+</section>
+
+<section class="feature flip" aria-labelledby="burn">
+  <div class="copy">
+    <h2 id="burn">A calorie goal that learns your real burn</h2>
+    <p>Formulas guess how much you burn. Fitwell measures it: after a few weeks of logging food and weighing in, it compares what you ate with how your weight actually moved.</p>
+    <ul>
+      <li>Your burn per day, with how sure it is. Days that look half logged are left out, so a forgotten dinner does not count as a low day.</li>
+      <li>The calories for your goal weight at a steady pace, and the date you reach it at your current trend.</li>
+      <li>The weekly review brings it up when your goal is off by 100 kcal or more. Claude asks before changing anything.</li>
+    </ul>
+  </div>
+  <figure><div class="phone"><img loading="lazy" src="img/energy.png" alt="Energy card in the weekly review: burn a day 2,940 kcal with high confidence from 24 days and 23 weigh-ins, weight trend minus 0.67 kg a week, 2,390 kcal a day to lose 0.5 kg a week against a goal of 1,800, and the goal weight around 23 November"></div><figcaption>The Energy card in the weekly review.</figcaption></figure>
+</section>
+
+<section class="feature wide" aria-labelledby="plan">
+  <div class="copy">
+    <h2 id="plan">A week of meals, checked, with the shopping list</h2>
+    <p>Claude proposes a week from your goals, your allergies and dislikes, the foods you really eat and your saved recipes. Before you see it, Fitwell checks every day against your calorie and protein goals and every item against your allergy list.</p>
+  </div>
+  <div class="feature inner">
+    <div class="panel" aria-labelledby="mon">
+      <h3 id="mon">Monday in the demo plan</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th scope="col">Meal</th><th scope="col">What</th><th scope="col" class="num">kcal</th><th scope="col" class="num">Protein g</th></tr></thead>
+        <tbody><tr><th scope="row">Breakfast</th><td>Overnight oats with berries</td><td class="num">525</td><td class="num">24</td></tr><tr><th scope="row">Lunch</th><td>Chicken, rice and broccoli <span class="muted">(1.5 servings)</span></td><td class="num">993</td><td class="num">82</td></tr><tr><th scope="row">Dinner</th><td>Salmon with potatoes and spinach</td><td class="num">582</td><td class="num">40</td></tr><tr><th scope="row">Snack</th><td>Skyr, 0.2 % fat</td><td class="num">153</td><td class="num">27</td></tr></tbody>
+        <tfoot><tr class="totals"><th scope="row">Day</th><td>47 kcal under the 2,300 kcal goal, 23 g over the 150 g protein goal</td><td class="num">2,253</td><td class="num">173</td></tr></tfoot>
+      </table></div>
+      <h3>Cook once</h3>
+      <ul class="batch"><li><strong>Overnight oats with berries</strong> <span class="muted">cook 7 servings once, eat on 7 days</span></li><li><strong>Chicken, rice and broccoli</strong> <span class="muted">cook 10.5 servings once, eat on 7 days</span></li><li><strong>Salmon with potatoes and spinach</strong> <span class="muted">cook 7 servings once, eat on 7 days</span></li></ul>
+      <p class="small muted">Allergy and dislike matches are found by name in every item and ingredient. Say "I ate Tuesday's dinner as planned" and Claude adds it to your food log.</p>
+    </div>
+    <div class="panel" aria-labelledby="shop">
+      <h3 id="shop">The shopping list for that week</h3>
+      <p class="small muted">Ingredients added up across all meals, rounded up to what a shop sells, in shopping order. Tick items off to try it.</p>
+      <div class="groceries"><section class="aisle" aria-labelledby="aisle-0"><h4 id="aisle-0">Produce</h4><ul><li><label for="g-0-0"><input id="g-0-0" type="checkbox"><span class="gname">Potato, raw</span><span class="gbuy">2.1 kg</span></label></li><li><label for="g-0-1"><input id="g-0-1" type="checkbox"><span class="gname">Broccoli, raw</span><span class="gbuy">1.6 kg</span></label></li><li><label for="g-0-2"><input id="g-0-2" type="checkbox"><span class="gname">Blueberries, raw</span><span class="gbuy">700 g</span></label></li><li><label for="g-0-3"><input id="g-0-3" type="checkbox"><span class="gname">Spinach, raw</span><span class="gbuy">700 g</span></label></li></ul></section><section class="aisle" aria-labelledby="aisle-1"><h4 id="aisle-1">Meat</h4><ul><li><label for="g-1-0"><input id="g-1-0" type="checkbox"><span class="gname">Chicken, breast, flesh and skin, raw</span><span class="gbuy">2.1 kg</span></label></li></ul></section><section class="aisle" aria-labelledby="aisle-2"><h4 id="aisle-2">Fish and seafood</h4><ul><li><label for="g-2-0"><input id="g-2-0" type="checkbox"><span class="gname">Salmon, Atlantic, wild, raw</span><span class="gbuy">1.2 kg</span></label></li></ul></section><section class="aisle" aria-labelledby="aisle-3"><h4 id="aisle-3">Dairy and eggs</h4><ul><li><label for="g-3-0"><input id="g-3-0" type="checkbox"><span class="gname">Milk, skimmed</span><span class="gbuy">1.8 kg</span></label></li><li><label for="g-3-1"><input id="g-3-1" type="checkbox"><span class="gname">Skyr, 0.2 % fat</span><span class="gbuy">1.8 kg</span></label></li></ul></section><section class="aisle" aria-labelledby="aisle-4"><h4 id="aisle-4">Pantry</h4><ul><li><label for="g-4-0"><input id="g-4-0" type="checkbox"><span class="gname">Rice, polished, raw</span><span class="gbuy">750 g</span></label></li><li><label for="g-4-1"><input id="g-4-1" type="checkbox"><span class="gname">Oats, rolled, enriched</span><span class="gbuy">500 g</span></label></li><li><label for="g-4-2"><input id="g-4-2" type="checkbox"><span class="gname">Almond, raw</span><span class="gbuy">150 g</span></label></li></ul></section></div>
+      <p class="small muted">Foods you already have at home can be left out, and the amounts scale for more people.</p>
+    </div>
+  </div>
+</section>
+
+<section class="feature" aria-labelledby="shoplist">
+  <div class="copy">
+    <h2 id="shoplist">Take the list to the shop</h2>
+    <p>"Open my shopping list" shows the week's list inside the chat as a checklist, grouped by the sections of the shop. Tap an item to tick it off. Your ticks are saved, so you can close the chat and come back to the same list.</p>
+    <ul>
+      <li>Say how many people you cook for and what you already have at home, and the list adjusts.</li>
+      <li>Ask Claude "what is left to buy?" and it can tell from your ticks.</li>
+      <li>Light and dark themes follow your Claude app.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Shopping checklist, scrollable"><img loading="lazy" src="img/shopping-light.png" alt="The shopping checklist for the week: a progress bar saying 9 left of 12 items, then Produce, Meat, Fish, Dairy and Pantry sections with amounts, and three items ticked off"></div><figcaption>Ticks are saved</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Shopping checklist, dark theme, scrollable"><img loading="lazy" src="img/shopping-dark.png" alt="The same shopping checklist in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="train">
+  <div class="copy">
+    <h2 id="train">Training you can start from the chat</h2>
+    <p>Claude plans the session, then opens a workout player right in the conversation. Log each set with big buttons, watch the rest timer and finish with a summary that goes back to Claude.</p>
+  </div>
+  <div class="pair">
+    <figure><div class="phone"><img loading="lazy" src="img/player-set.png" alt="The workout player on a set of barbell squats with the reps and weight steppers and a Log set button"></div><figcaption>Last time and the suggested weight are on the first screen.</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/player-rest.png" alt="The workout player showing a rest timer with plus 15 seconds and Skip rest buttons"></div><figcaption>A rest timer between sets.</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/player-summary.png" alt="The finished workout summary: 45 minutes, 1,355 kilograms lifted, and a new best estimated one-rep max for the squat"></div><figcaption>The summary flags a new personal best.</figcaption></figure>
+  </div>
+  <div class="copy">
+    <ul>
+      <li>876 exercises to choose from, by name, muscle and equipment.</li>
+      <li>Weights are filled in from your history by a fixed rule: add 2.5 kg (2 kg for dumbbells) when every set hit its reps, repeat after a miss, ease off about 10 % after two misses in a row, and for bodyweight moves add a rep. The player shows why.</li>
+      <li>Save a workout as a template ("Push day") and start it again later.</li>
+      <li>Log runs and rides with a calorie estimate, or tell Claude about a workout you already did.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="sets">
+  <div class="copy">
+    <h2 id="sets">Warm-ups, plates, supersets and swaps</h2>
+    <p>The player now handles the details you would otherwise keep in your head.</p>
+    <ul>
+      <li><strong>Warm-up sets</strong> are planned for you on heavy barbell lifts: a ramp from the empty bar for the first lift, a short one for later lifts. They are marked, rest is short, and they never count in your records.</li>
+      <li><strong>Plates per side</strong> for every barbell weight, from your own bar and plates ("I have a 15 kg bar and no 25s").</li>
+      <li><strong>Supersets</strong> go round by round: a set of one exercise, straight on to the next, and the rest comes after the round.</li>
+      <li><strong>Timed exercises</strong> like planks get a seconds counter and a countdown.</li>
+      <li><strong>Swap an exercise</strong> when the machine is busy: similar exercises for the same muscles, within your equipment. Sets, reps and your note stay, and the weight comes from your history with the new exercise.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone"><img loading="lazy" src="img/warmup.png" alt="A warm-up set of barbell squats: warm-up 2 of 4, 5 reps at 50 kg, each side 15 kg on a 20 kg bar"></div><figcaption>A warm-up set with its plates</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/working.png" alt="The first working set of barbell squats at 102.5 kg: each side 25 plus 15 plus 1.25 on a 20 kg bar"></div><figcaption>Plates for the working weight</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/superset.png" alt="Barbell curl marked as superset 1 of 2, set 1 of 2, 10 reps at 30 kg"></div><figcaption>A superset</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/timed.png" alt="A plank set with a seconds counter at 10 and a countdown showing 9 seconds with a Stop the timer button"></div><figcaption>A timed plank</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Swap exercise list, scrollable"><img loading="lazy" src="img/swap.png" alt="Swap exercise opened under the barbell squat, listing dumbbell lunges, front barbell squat, bodyweight squat, dumbbell squat and more, each with its equipment"></div><figcaption>Swap when the rack is taken</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="flow">
+  <div class="copy">
+    <h2 id="flow">The player tells you what is next</h2>
+    <p>While you rest between sets, the player already shows what comes after: the next set or exercise with the reps and weight to use, what you did last time, and your own note for it.</p>
+    <ul>
+      <li>"Add a 5 minute rower warm-up and a 10 minute run at the end" works in a plan or a saved template. Cardio shows up as steps in the list, with minutes and distance you can adjust. It counts as cardio time in your stats, not as a second workout.</li>
+      <li>A note per exercise ("seat 4", "slow on the way down") is saved when you leave the field. Next time the player reminds you of it as "Last note", and the summary Claude gets includes it.</li>
+      <li>When the last exercise is done, the player goes straight to "Finish and send to Claude".</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone"><img loading="lazy" src="img/rest-next.png" alt="The rest screen with a timer and a card saying Next exercise: Pullups, set 1 of 1, 8 reps bodyweight, with last time"></div><figcaption>Rest: what is next</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/note.png" alt="An exercise with an open note field containing seat 4"></div><figcaption>A note on an exercise</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/cardio.png" alt="A cardio finisher step: running, planned 10 minutes and 1.5 kilometres, with minutes and distance steppers and a Done button"></div><figcaption>A cardio finisher</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/summary-cardio.png" alt="The finished workout summary listing the lifts with their notes, the rowing warm-up and the run with estimated calories"></div><figcaption>The summary includes cardio and notes</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="howto">
+  <div class="copy">
+    <h2 id="howto">How to do it, including the machines</h2>
+    <p>Ask "how do I do a leg press?" and Claude opens a guide. The workout player has the same guide under "How to do it" on every exercise.</p>
+    <ul>
+      <li>A 3D body you can turn around with a finger or the mouse, with the main muscles tinted strongly and the helping muscles lightly. Squats, deadlifts, bench and overhead presses, rows, curls, pull-ups, lunges, push-ups and many machine, Smith machine and cable exercises are animated, with the form checked: the bar stays over the middle of the foot, the forearms stay vertical at the bottom of the bench press, and so on. Every other exercise shows the body at rest with its muscles lit.</li>
+      <li>Step-by-step instructions for all the exercises in the library.</li>
+      <li>For machines and cable stations: how to set the seat and pads, what good form feels like and the common mistakes, written for Fitwell.</li>
+      <li>A button that searches for a demo video of the exercise. There are no photos yet, because the free exercise images have no clear license.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Leg press guide, scrollable"><img loading="lazy" src="img/guide-legpress.png" alt="The leg press guide: a 3D male body at rest with the quadriceps tinted, then the steps, and setup, form and mistakes for the leg press machine"></div><figcaption>A machine guide: drag the body to turn it</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Barbell squat guide, dark theme, scrollable"><img loading="lazy" src="img/guide-squat-dark.png" alt="The barbell squat guide in the dark theme: the 3D body at the bottom of a back squat with the bar on its back and the thighs and glutes tinted"></div><figcaption>An animated lift, dark theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="The guide inside the workout player, scrollable"><img loading="lazy" src="img/guide-in-player.png" alt="The workout player with How to do it open under the barbell squat, showing the animated 3D body above the steps"></div><figcaption>Inside the workout player</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="muscles">
+  <div class="copy">
+    <h2 id="muscles">Which muscles you actually train</h2>
+    <p>Ask "which muscles did I train this month?" and the 3D body comes back coloured by how much work each muscle group got: hard sets per week against the usual 10 to 20 for muscle growth.</p>
+    <ul>
+      <li>Grey for not trained, blue for under the range, green for in it, orange for over it. Switch between 1, 4 and 12 weeks and turn the body to see the back.</li>
+      <li>Every muscle is listed with its sets per week, the exercises that gave them and when you last trained it, so colour is never the only clue.</li>
+      <li>A set counts fully for the muscles an exercise mainly works and half for the ones that help. The range is a rough guide for the big muscle groups.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Muscle map, light theme, scrollable"><img loading="lazy" src="img/muscles-light.png" alt="The muscle map for 4 weeks: a 3D body with most muscle groups coloured blue for under the range, a legend, and every muscle listed with its sets per week, lats 7.8 at the top"></div><figcaption>Light theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Muscle map, dark theme, scrollable"><img loading="lazy" src="img/muscles-dark.png" alt="The same muscle map in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="progress">
+  <div class="copy">
+    <h2 id="progress">See how you are doing</h2>
+    <p>Ask "how am I doing?" and a dashboard opens in the chat, for the last 30 days, 90 days or a year. Scroll inside either phone below to see all of it.</p>
+    <ul>
+      <li>Weight is shown as a 7-day average, because a single weigh-in swings with water and food. In the demo the average moved down 4.4 kg over 90 days.</li>
+      <li>Calories and macros against your goals, workouts per week, working sets per muscle and the estimated one-rep max of each lift over time.</li>
+      <li>Sleep, steps and water per day, charted once you start logging them.</li>
+      <li>Waist, hips and other measurements, with a chart for each one.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Dashboard, light theme, scrollable"><img loading="lazy" src="img/dashboard-light.png" alt="The progress dashboard in the light theme: weight, nutrition, training, strength and measurements cards"></div><figcaption>Light theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Dashboard, dark theme, scrollable"><img loading="lazy" src="img/dashboard-dark.png" alt="The same dashboard in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/sleep.png" alt="Sleep card: average 7 hours over the logged nights, a bar per night with a dashed 8 hour line, and Sleep, Steps and Water tabs"></div><figcaption>Sleep, steps and water</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="review">
+  <div class="copy">
+    <h2 id="review">A weekly review, not just numbers</h2>
+    <p>Ask "how did my week go?" and Claude opens a review: this week next to the week before, with what went well and a few things to consider. Use the arrows in the view to look at earlier weeks.</p>
+    <ul>
+      <li>Calories and protein against your goals, how many days you logged, workouts against your goal and any new strength records.</li>
+      <li>Your 7-day average weight, your measured burn, plus sleep, steps and water if you log them, and how many planned meals you actually ate.</li>
+      <li>Suggestions are phrased as options and kept neutral. Ask Claude about any of them, and you decide.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Weekly review, light theme, scrollable"><img loading="lazy" src="img/review-light.png" alt="The weekly review for 5 to 11 October: what went well, then food, training, body and sleep tiles each compared with the week before, and one thing to consider about sleep"></div><figcaption>Light theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Weekly review, dark theme, scrollable"><img loading="lazy" src="img/review-dark.png" alt="The same weekly review in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="more">
+  <div class="copy">
+    <h2 id="more">Little things that save time</h2>
+  </div>
+  <div class="facts">
+    <div class="panel"><h3>Recipes from a link</h3><p class="small">Paste the address of a recipe page. Claude reads the recipe, matches the ingredients to foods and saves it with the method, so it counts toward your plan and shopping list. Pages that do not publish their recipe can be pasted as text instead.</p></div>
+    <div class="panel"><h3>What can I cook?</h3><p class="small">Tell Claude what is in the fridge. It ranks your saved recipes by how much of each you already have, what is missing, and whether a serving fits the calories you have left today.</p></div>
+    <div class="panel"><h3>Log a meal from a photo</h3><p class="small">Send a picture of your plate. Claude names what it sees, estimates the amounts, finds the foods in the database and tells you what it assumed. Photo amounts are saved as estimates.</p></div>
+    <div class="panel"><h3>Allergen warnings</h3><p class="small">When you log or plan a packaged food, Fitwell compares its allergen list and "may contain" traces with your allergies, on top of matching names.</p></div>
+    <div class="panel"><h3>A morning brief</h3><p class="small">Set up a daily scheduled task in Claude, and it can look at your plan, what is left of your goals and last week's trend every morning without being asked.</p></div>
+    <div class="panel"><h3>Works when Open Food Facts is slow</h3><p class="small">Packaged products you have looked up before are kept, so a busy Open Food Facts no longer stops you from logging them.</p></div>
+  </div>
+</section>
+
+<section class="feature" aria-labelledby="data">
+  <div class="copy">
+    <h2 id="data">Your data stays yours</h2>
+    <ul>
+      <li>Sign in with your email address. No password: a 6-digit code arrives by email, and only invited addresses can sign in.</li>
+      <li>Your food, workouts, weigh-ins and plans are stored in a database restricted to the EU. They are never sold or shared, and not used for ads or analytics. Sign-in sessions use Cloudflare's global storage and hold no health data.</li>
+      <li>Ask Claude to export everything, or to delete your account. Deleting erases all of it right away.</li>
+      <li>Coming from the private Fitwell app? Import its backup file through a one-time page. Entries you already have are never changed or duplicated.</li>
+    </ul>
+  </div>
+  <div class="pair">
+    <figure><div class="phone"><img loading="lazy" src="img/signin.png" alt="The sign-in page: enter your email, tick the consent box, and ask for a sign-in code"></div><figcaption>Sign in</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/code.png" alt="The page asking for the 6-digit code from the email"></div><figcaption>Type the code</figcaption></figure>
+    <figure><div class="phone"><img loading="lazy" src="img/import.png" alt="The import page after importing a Fitwell backup: 640 food entries, 38 workouts, 96 weigh-ins and 1 goal added"></div><figcaption>Importing a backup</figcaption></figure>
+  </div>
+</section>
+
+<section class="feature wide" aria-labelledby="join">
+  <div class="copy">
+    <h2 id="join">How to join</h2>
+  </div>
+  <ol class="steps">
+    <li><div><strong>Ask for an invite.</strong> Email the address you want to sign in with to the Fitwell address below. You can only sign in once you have been added, and you will be asked to confirm one email from Cloudflare, which sends the sign-in codes.
+      <div class="url spaced"><code class="u" id="invite-email">fitwell.fyi@pm.me</code><button class="copy-btn" id="copy-email" type="button">Copy address</button><a class="small" href="mailto:fitwell.fyi@pm.me?subject=Fitwell%20invite">Open in your email app</a><span class="small muted" id="copied-email" role="status" aria-live="polite"></span></div></div></li>
+    <li><div><strong>Add the connector in Claude.</strong> In Claude on the web or desktop, open Settings, then Connectors, then Add custom connector, and paste this address. It then shows up in the Claude app on your phone too.
+      <div class="url spaced"><code class="u" id="connector">https://mcp.fitwell.fyi/mcp</code><button class="copy-btn" id="copy" type="button">Copy address</button><span class="small muted" id="copied" role="status" aria-live="polite"></span></div></div></li>
+    <li><div><strong>Sign in.</strong> Claude opens the sign-in page. Enter your email, tick the consent box and type the 6-digit code from the email.</div></li>
+    <li><div><strong>Start talking.</strong> A good first message is "Set up my Fitwell profile". Claude asks for your height, weight and activity, and can suggest calorie and macro targets.</div></li>
+  </ol>
+</section>
+
+<section class="feature wide" aria-labelledby="know">
+  <div class="copy"><h2 id="know">Good to know</h2></div>
+  <div class="facts">
+    <div class="panel"><h3>Estimates, not medical advice</h3><p class="small">Calorie targets start from a standard formula, and after a few weeks of logging Fitwell measures your own burn instead. Workout calories use typical values. Real numbers vary from person to person.</p></div>
+    <div class="panel"><h3>Allergy checks are a help, not a guarantee</h3><p class="small">Names are matched, and packaged products are checked against Open Food Facts allergen data when it exists. Generic foods and your own foods are matched by name only, and labels can be wrong or missing, so always read them.</p></div>
+    <div class="panel"><h3>Danish food data</h3><p class="small">Generic foods come from a Danish database with English names. Packaged products use Open Food Facts, which is sometimes slow or missing a product.</p></div>
+    <div class="panel"><h3>Early days</h3><p class="small">Tested on Claude for desktop, web and iPhone. Android is not tested yet. Things will change and improve.</p></div>
+  </div>
+</section>
+
+<footer class="end">
+  <p class="small muted">Screenshots show made-up demo data: a person who lost about 4.4 kg over 12 weeks while training three times a week.</p>
+  <p class="small muted">Food data: Frida 5.5, DTU National Food Institute (CC BY 4.0), and Open Food Facts contributors (ODbL). Exercises: free-exercise-db (public domain). Activity energy values follow the Compendium of Physical Activities. Typeface: Figtree (SIL Open Font License).</p>
+  <p class="small muted"><a href="/privacy">Privacy notice</a></p>
+</footer>
+</div>
+</body>
+</html>

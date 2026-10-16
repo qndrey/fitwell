@@ -73,7 +73,7 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [ ] Deploy the backlog: remote migrations 0007 and 0008, `wrangler deploy` (phases 5–5d).
 - [ ] D1 usage: rows read and written today in `show_dashboard` and a log line.
 - [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts` (no jobs yet, tested in `wrangler dev --test-scheduled`).
-- [ ] Open Food Facts: retry with backoff in `src/off.ts`; on a 503 answer from the D1 cache (`data/offCache.ts`) and say the results may be incomplete.
+- [x] Open Food Facts: when OFF fails, an older cached answer is served (`data/offCache.ts`). No retry inside a request: after a 503 the client already pauses its rate limiter for up to 30 s.
 - [x] A1: `estimateExpenditure()` and `projectGoalDate()` in `packages/core/src/domain/energy.ts`, pure, tested against hand-computed weeks (steady loss, plateau, missing days, too little data → no estimate); shown in `show_weekly_review` (`analytics/review.ts`) and `get_progress` (`tools/body.ts`); Claude proposes, `set_goals` only after agreement.
 - [x] D1: `log_food` takes `copy_from` (a day, or one meal of it) and `recipe` items: a usual meal is a saved recipe logged by name, so combos need no new table; allergy checks run on copies and recipe ingredients.
 - [x] D2: `save_custom_food` checks label values (`labelProblems` in core: impossible values always refused, a kcal/macro mismatch refused once with the reason and a kJ hint, `values_checked` to confirm) and takes per-serving values.

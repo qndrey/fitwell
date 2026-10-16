@@ -7,20 +7,10 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @fitwell/web --",
-    "dev:mcp": "npm run dev -w @fitwell/mcp --",
+    "dev": "npm run dev -w @fitwell/mcp --",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "check": "npm run check --workspaces --if-present",
-    "build": "npm run build -w @fitwell/web",
-    "preview": "npm run preview -w @fitwell/web --",
-    "test:e2e": "npm run test:e2e -w @fitwell/web",
-    "contrast": "npm run contrast -w @fitwell/web",
-    "tokens": "npm run tokens -w @fitwell/web",
-    "licenses": "npm run licenses -w @fitwell/web",
-    "check:about": "npm run check:about -w @fitwell/web",
-    "size": "npm run size -w @fitwell/web",
-    "lighthouse": "npm run lighthouse -w @fitwell/web"
+    "check": "npm run check --workspaces --if-present"
   }
 }

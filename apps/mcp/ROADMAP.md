@@ -71,8 +71,8 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 
 **Phase 6: foundations and quick wins**
 - [ ] Deploy the backlog: remote migrations 0007 and 0008, `wrangler deploy` (phases 5–5d).
-- [ ] D1 usage: rows read and written today in `show_dashboard` and a log line.
-- [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts` (no jobs yet, tested in `wrangler dev --test-scheduled`).
+- [-] D1 usage: dropped (2026-10-16). Cloudflare's dashboard already shows D1 rows read and written per day and per query; a handful of people is far from the free plan's limits, and counting in code would add writes of its own.
+- [-] Cron: moved to phase 7, built with its first job (E1 email digests) rather than as an empty scaffold.
 - [x] Open Food Facts: when OFF fails, an older cached answer is served (`data/offCache.ts`). No retry inside a request: after a 503 the client already pauses its rate limiter for up to 30 s.
 - [x] A1: `estimateExpenditure()` and `projectGoalDate()` in `packages/core/src/domain/energy.ts`, pure, tested against hand-computed weeks (steady loss, plateau, missing days, too little data → no estimate); shown in `show_weekly_review` (`analytics/review.ts`) and `get_progress` (`tools/body.ts`); Claude proposes, `set_goals` only after agreement.
 - [x] D1: `log_food` takes `copy_from` (a day, or one meal of it) and `recipe` items: a usual meal is a saved recipe logged by name, so combos need no new table; allergy checks run on copies and recipe ingredients.
@@ -80,13 +80,14 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [ ] A2: supersets, timed sets, plate calculator, warm-up ramp in the player.
 - [x] A3: `substitutes()` in core (same main muscles and kind of exercise; ranked by muscle overlap, push/pull, compound/isolation; profile equipment, bodyweight always counts); `search_exercises` with `similar_to` and `exclude_equipment`; a "Swap exercise" panel in the player (app-only `get_substitutes`, `swap_exercise`) until the first set is logged, keeping sets, reps, rest and the plan's note, with the weight from the new exercise's history.
 - [x] A10 muscle heatmap: `buildMuscleMap()` (`analytics/muscles.ts`, tested against hand-counted sets), `show_muscle_map` and the app-only `get_muscle_map`, drawn by the exercise view (it already carries three.js and the body, so the Worker grows by 4.5 KB instead of another 1.7 MB view); a heat mode in `humanBody.ts`; colours for light and dark; period switch keeps the figure's angle.
-- [ ] E2: morning brief section in `README.md`.
+- [x] E2: morning brief section in `apps/mcp/README.md` (a Claude scheduled task; text tools only, since a scheduled run shows no views).
 - [ ] Exit: after a week of real logging, "how am I doing this week?" gives an expenditure estimate and a suggested target; "same breakfast as yesterday" logs in one call; "which muscles did I train this month?" shows the heatmap with the numbers in the reply.
 
 **Phase 7: friends v1**
 - [ ] Decisions in §4 agreed.
 - [ ] `connections` and `shares` tables, the `friends` tool, consent records; export and delete cover them; isolation tests extended (no share means no access).
 - [ ] B1 send a template, recipe or plan; B2 household plan and ticks.
+- [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts`, tested with `wrangler dev --test-scheduled`.
 - [ ] E1 email digests (first cron job).
 - [ ] Exit: two invitees connect, one sends a push day, the other runs it; a couple plans a week and ticks one grocery list.
 

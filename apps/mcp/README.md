@@ -6,16 +6,22 @@ A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals,
 
 | Area | Tools |
 |---|---|
-| Profile and goals | `get_profile`, `update_profile`, `suggest_targets` (Mifflin-St Jeor, nothing saved), `set_goals` |
-| Foods | `search_foods` (own foods, Frida, optionally Open Food Facts), `lookup_barcode`, `save_custom_food` |
-| Food log | `log_food` (several items; macros resolved from the source; estimates marked; allergy warnings), `get_food_log` (a day, or several), `edit_food_entry`, `save_custom_food` |
-| Exercises and workouts | `search_exercises` (with `id` for instructions), `show_exercise` (guide with muscle drawing, steps, machine setup and, for some lifts, a 3D animation), `start_workout` (opens the player; saves the workout; weights from the progression rule), `log_set` and `finish_workout` (from the player), `get_workout_history`, `suggest_progression`, `save_workout_template`, `list_workout_templates`, `log_cardio`, `log_past_workout` |
-| Body and progress | `log_body` (weight, measurements, sleep, steps, water), `get_progress`, `show_dashboard` (opens the dashboard), `show_weekly_review` (the week against the one before) |
+| Profile and goals | `get_profile`, `update_profile`, `suggest_targets` (Mifflin-St Jeor, or the measured burn with `expenditure_kcal`; nothing saved), `set_goals` |
+| Foods | `search_foods` (own foods, Frida, optionally Open Food Facts; an older cached answer when OFF is down), `lookup_barcode`, `save_custom_food` (label values checked; per 100 g or per serving) |
+| Food log | `log_food` (several items; saved recipes by name; `copy_from` another day or meal; macros resolved from the source; estimates marked; allergy warnings), `get_food_log` (a day, or several), `edit_food_entry`, `save_custom_food` |
+| Exercises and workouts | `search_exercises` (with `id` for instructions, `similar_to` for substitutes), `show_muscle_map` (weekly hard sets per muscle on the 3D body, against 10–20), `show_exercise` (guide with muscle drawing, steps, machine setup and, for some lifts, a 3D animation), `start_workout` (opens the player; saves the workout; weights from the progression rule; swap an exercise in the player), `log_set` and `finish_workout` (from the player), `get_workout_history`, `suggest_progression`, `save_workout_template`, `list_workout_templates`, `log_cardio`, `log_past_workout` |
+| Body and progress | `log_body` (weight, measurements, sleep, steps, water), `get_progress` (with the burn measured from logs and weigh-ins, and the goal date), `show_dashboard` (opens the dashboard), `show_weekly_review` (the week against the one before, with a calorie check-in) |
 | Meals | `get_planning_context`, `save_recipe`, `import_recipe` (from a web page), `get_recipes`, `suggest_meals` (what can I cook), `save_meal_plan` (checked against goals, allergies, dislikes), `get_meal_plan`, `show_grocery_list` (tick-off checklist), `log_planned_meal` |
 | Anything | `delete_item` (food entry, workout, template, recipe, meal plan, weigh-in, measurements, daily metrics) |
 | Owner only | `manage_invites` (list, add, remove unused invitations), for emails in `ADMIN_EMAILS` |
 | Import | `import_fitwell_backup` (one-time upload link for a backup from the private Fitwell app; `check_result` reports the outcome) |
 | Account | `export_my_data`, `delete_my_account` (erases everything, signs out everywhere) |
+
+**Morning brief (optional):** Claude can look at Fitwell every morning on its own with a scheduled task (Claude desktop or Cowork, paid plans; connectors are attached to the task). Create a daily task with a prompt like:
+
+> Using Fitwell: get my food log for today and what remains of my goals, today's planned meals (get_meal_plan), and my progress for the last 7 days (get_progress). Give me a short morning brief: what to eat today, whether a workout is due, and one thing to watch from last week.
+
+Use the text tools (`get_food_log`, `get_meal_plan`, `get_progress`), not the `show_*` views: a scheduled run has nobody to show a view to, and some hosts drop it.
 
 **Sign-in:** Claude registers itself (dynamic registration or a Client ID Metadata Document) and opens `/authorize`. The person enters their email and ticks consent; invited addresses get a 6-digit code and a link (single use, 10 minutes, stored hashed). The code works from any device; the link only in the browser that started the sign-in. Privacy notice: `/privacy`.
 

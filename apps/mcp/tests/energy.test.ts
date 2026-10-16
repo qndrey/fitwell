@@ -54,7 +54,7 @@ describe('measured expenditure', () => {
     await seed();
     const r = (await call(client, 'show_weekly_review', { week_start: addDays(TO, -6) })).data as unknown as { review: WeekReview };
     expect(r.review.energy.expenditureKcal).toBe(2860);
-    expect(r.review.suggestions.join('\n')).toContain('a burn of about 2860 kcal a day. To lose 0.5 kg a week, that means about 2310 kcal a day; the goal is 1800.');
+    expect(r.review.suggestions.join('\n')).toContain('a burn of about 2,860 kcal a day. To lose 0.5 kg a week, that means about 2,310 kcal a day; the goal is 1,800.');
     expect(r.review.highlights.join('\n')).toContain(`goal weight of 78.5 kg is reached around ${addDays(TO, 28)}`);
   });
 

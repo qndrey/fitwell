@@ -14,6 +14,8 @@
   // Views (ui/*) are bundled into src/ui/generated before every dev session and deploy.
   // Only ui/ needs the build step again; Wrangler reloads the Worker on source changes by itself. (Watching src/ would loop: the build writes into src/ui/generated.)
   "build": { "command": "npm run build:ui", "watch_dir": "ui" },
+  // Static pages (the Fitwell for Claude page at /about/), served before the Worker runs; security headers in public/_headers.
+  "assets": { "directory": "./public", "html_handling": "auto-trailing-slash" },
   "vars": {
     // The public origin; .dev.vars overrides it for local development.
     "PUBLIC_URL": "https://mcp.fitwell.fyi",

@@ -118,7 +118,8 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
   // The check-in: the measured burn against the calorie goal. Only once the estimate is more than an early guess.
   if (en.expenditureKcal !== null && en.confidence !== 'low' && en.suggestedKcal !== null && goals.kcal && Math.abs(en.suggestedKcal - goals.kcal) >= 100) {
     const aim = en.direction === 'maintain' ? 'to keep the weight' : `to ${en.direction} ${en.suggestedRateKgPerWeek} kg a week`;
-    review.suggestions.push(`Over the last 4 weeks the logs and weigh-ins show a burn of about ${en.expenditureKcal} kcal a day. ${aim[0]!.toUpperCase()}${aim.slice(1)}, that means about ${en.suggestedKcal} kcal a day; the goal is ${goals.kcal}. The goal could be updated; ask first.`);
+    const n = (x: number) => x.toLocaleString('en-GB');
+    review.suggestions.push(`Over the last 4 weeks the logs and weigh-ins show a burn of about ${n(en.expenditureKcal)} kcal a day. ${aim[0]!.toUpperCase()}${aim.slice(1)}, that means about ${n(en.suggestedKcal)} kcal a day; the goal is ${n(goals.kcal)}. The goal could be updated; ask first.`);
   }
   const hb = review.habits;
   if (hb.sleepHours !== null && hb.sleepHours < 7) review.suggestions.push(`Sleep averaged ${hb.sleepHours} h, under the 7 to 9 hours usually advised for adults. It is often the first thing to improve before changing food or training.`);

@@ -48,7 +48,8 @@ const site = {
     }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
-    if (url.pathname === '/') return new Response(`Fitwell MCP server. Add ${env.PUBLIC_URL}/mcp to Claude as a custom connector.\n`, { headers: { 'content-type': 'text/plain' } });
+    // The page about Fitwell for Claude (static assets in public/about) explains how to add the connector.
+    if (url.pathname === '/') return Response.redirect(`${url.origin}/about/`, 302);
     return new Response('Not found', { status: 404 });
   },
 };

@@ -47,9 +47,9 @@ export function registerShoppingTools(server: McpServer, deps: FoodDeps & { plan
     {
       title: 'Grocery list for a meal plan',
       description:
-        "A week's shopping list as a tick-off checklist (ticks are saved): ingredients added up, rounded to what a shop sells, grouped by section. " +
-        'people multiplies quantities; already_have leaves out foods by name; meals logged as eaten are skipped unless include_eaten. The reply says what is ticked. ' +
-        'Amounts are the planned weights, so plan foods as bought (rice, pasta, meat raw); cooked weights are flagged in the notes.',
+        "The shopping list for a week's plan, opened as a tick-off checklist in the chat: every ingredient added up, rounded up to what a shop sells, grouped by section in shopping order, with where each is used. " +
+        'The person ticks items off while shopping and the ticks are saved. people multiplies the quantities (cooking for two = 2); already_have leaves out foods by name (e.g. ["olive oil","salt"]); meals already logged as eaten are skipped unless include_eaten. ' +
+        'The reply lists every item with whether it is ticked, so you can say what is left to buy. Amounts are the weights of the foods as planned: plan with foods in the form they are bought (rice, pasta and meat raw, not boiled), otherwise the amounts are cooked weights and the notes say so.',
       inputSchema: listInput,
       annotations: { readOnlyHint: true },
       _meta: { ui: { resourceUri: SHOPPING_VIEW_URI } },

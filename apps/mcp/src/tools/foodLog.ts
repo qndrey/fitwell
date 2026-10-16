@@ -70,25 +70,27 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
     {
       title: 'Log food',
       description:
-        'Record what the person ate, several items per call: a food id (search_foods, lookup_barcode, save_custom_food) with grams; a saved recipe with servings; ' +
-        'or, only when nothing fits, a name with estimated per-100 g values (stored as an estimate; say so). copy_from repeats a meal or a whole day ("same breakfast as yesterday"). ' +
-        "Convert portions to grams. day defaults to today, slot to the meal for the current time. Returns the day's totals and allergyWarnings (tell them plainly). " +
-        'From a photo: find each item, estimate grams, set amount_estimated and say what you assumed.',
+        'Record what the person ate. Several items in one call. Each item is either a food id from search_foods, lookup_barcode or save_custom_food ' +
+        '(macros come from that source) with grams, or, only when nothing suitable exists, a name with estimated per-100 g values (stored as an estimate; say so). ' +
+        "Convert portions to grams first. day defaults to today in the person's time zone, slot to the meal for the current time. Returns the day's totals, and allergyWarnings when something logged matches the person's allergies (tell them plainly). " +
+        'From a photo of a meal: name each item, find it with search_foods, estimate the grams from the plate and portion sizes, set amount_estimated, and tell the person what you assumed so they can correct it. ' +
+        'Quicker ways: copy_from repeats what was logged on another day (one meal with its slot, or the whole day), e.g. "same breakfast as yesterday"; ' +
+        'an item with recipe logs servings of a saved recipe as one entry. A meal the person eats often (their usual breakfast) can be saved once with save_recipe and logged by name.',
       inputSchema: z.object({
         day: day.optional(),
-        slot: slot.optional().describe('With copy_from, default: each entry keeps its meal'),
-        copy_from: z.object({ day, slot: slot.optional().describe('Default: the whole day') }).optional(),
+        slot: slot.optional().describe('For copy_from: put everything copied in this meal; default each entry keeps its meal'),
+        copy_from: z.object({ day, slot: slot.optional().describe('Only this meal; default the whole day') }).optional(),
         items: z
           .array(
             z
               .object({
                 food_id: z.string().optional().describe('e.g. "frida:413", "off:5701234567892", "custom:<id>"'),
-                recipe: z.string().min(1).max(80).optional().describe('Saved recipe id or name'),
+                recipe: z.string().min(1).max(80).optional().describe('A saved recipe, by id ("recipe:<id>" or the id) or by name'),
                 servings: z.number().positive().max(20).optional().describe('With recipe; default 1'),
-                grams: z.number().positive().max(5000).optional(),
+                grams: z.number().positive().max(5000).optional().describe('Needed except for a recipe'),
                 name: z.string().min(1).max(100).optional().describe('Only for an estimate'),
                 estimate_per100g: per100g.optional().describe('Only when no food id fits'),
-                amount_estimated: z.boolean().optional().describe('The grams are a guess (photo): stored as an estimate'),
+                amount_estimated: z.boolean().optional().describe('The grams are a guess, e.g. from a photo of the plate: stored as an estimate (shown with ~) even though the food id gives exact macros per 100 g'),
               })
               .refine((i) => i.recipe !== undefined || i.food_id !== undefined || (i.name !== undefined && i.estimate_per100g !== undefined), 'Give food_id, recipe, or name with estimate_per100g')
               .refine((i) => i.recipe !== undefined || i.grams !== undefined, 'grams is needed for a food or an estimate'),
@@ -189,8 +191,9 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
     {
       title: 'Save your own food',
       description:
-        "Save a food the databases don't have (a nutrition label, a home recipe) per 100 g or per serving, with optional portions. Use kcal, not kJ. " +
-        'Values that do not match 4/4/9 kcal per g are refused with the reason: read the label again, then values_checked if it really says so. Returns "custom:<id>" for log_food.',
+        "Save a food the databases don't have (e.g. from a nutrition label or a home recipe), with values per 100 g, or per serving when the label only gives those (converted here), and optional portion sizes. " +
+        'From a photo of a label: use the kcal figure, not kJ. The values are checked: kcal must roughly match 4/4/9 kcal per g of protein, carbohydrate and fat, and macros cannot weigh more than the food. ' +
+        'When the check fails, read the label again; if it really says that (alcohol, sweeteners), save again with values_checked. Returns an id ("custom:<id>") for log_food; search_foods finds it by name later.',
       inputSchema: z.object({
         name: z.string().min(1).max(100),
         brand: z.string().max(60).optional(),
@@ -198,9 +201,9 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
         per_serving: z
           .object({ grams: z.number().positive().max(2000), kcal: z.number().min(0).max(5000), protein: z.number().min(0).max(500), carbs: z.number().min(0).max(500), fat: z.number().min(0).max(500) })
           .optional()
-          .describe('Instead of per100g'),
+          .describe('Instead of per100g: the values for one serving of that many grams'),
         portions: z.array(z.object({ label: z.string().min(1).max(40), grams: z.number().positive().max(5000) })).max(10).default([]),
-        values_checked: z.boolean().default(false),
+        values_checked: z.boolean().default(false).describe('The label really says this although the energy does not match the macros'),
       }),
     },
     async ({ name, brand, per100g: given, per_serving, portions, values_checked }) => {

@@ -9,7 +9,6 @@ What comes after the phases in [PLAN.md](PLAN.md). Drafted 2026-10-15 from a bra
 | The server never calls an LLM | "Smart" features are deterministic, tested functions in `@fitwell/core`; Claude explains them and asks before saving. |
 | Free plan, stateless Worker, D1 (EU) | No Durable Objects. Cron Triggers for anything scheduled. Every new table indexed by `(user_id, …)`; watch D1 daily limits. |
 | Health data is GDPR Art. 9 | Nothing is shared between people by default. Every share is explicit, per category, revocable, recorded, and covered by `export_my_data` and `delete_my_account`. |
-| Tool budget (~9.6k tokens today) | Extend an existing tool with an argument, or put rare actions behind progressive disclosure, before adding a tool. |
 | Claude chat is the only surface | The server cannot push into a chat. Proactive features use email (`send_email`, invitees are verified addresses) or a Claude scheduled task calling the connector. |
 
 Out of scope: a native mobile app, public sign-up, billing, server-side LLM calls.
@@ -72,7 +71,6 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 
 **Phase 6: foundations and quick wins**
 - [ ] Deploy the backlog: remote migrations 0007 and 0008, `wrangler deploy` (phases 5–5d).
-- [ ] Tool budget: decide between a `help`/more-tools pattern and merging by domain; measure definition tokens before and after (target: no growth while adding phase 6).
 - [ ] D1 usage: rows read and written today in `show_dashboard` and a log line.
 - [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts` (no jobs yet, tested in `wrangler dev --test-scheduled`).
 - [ ] Open Food Facts: retry with backoff in `src/off.ts`; on a 503 answer from the D1 cache (`data/offCache.ts`) and say the results may be incomplete.
@@ -81,7 +79,7 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [x] D2: `save_custom_food` checks label values (`labelProblems` in core: impossible values always refused, a kcal/macro mismatch refused once with the reason and a kJ hint, `values_checked` to confirm) and takes per-serving values.
 - [ ] A2: supersets, timed sets, plate calculator, warm-up ramp in the player.
 - [ ] A3: substitutes in `search_exercises` (`tools/exercises.ts`) and a "Swap" in the player.
-- [ ] A10 muscle heatmap (load mode): a pure per-muscle load function next to `setsPerWeekByMuscle`, tested against hand-counted weeks; heat colours in `humanBody.ts`; colour scale legible in light and dark, with numbers on tap so colour is never the only signal. Where it lives, to decide at build time: the dashboard view has no three.js today (0.65 MB against 1.8 MB for the views with the body), so either add the body to the dashboard (+~1.1 MB) or give the exercise view a muscle-map mode opened from `show_dashboard`; no new tool either way.
+- [ ] A10 muscle heatmap (load mode): a pure per-muscle load function next to `setsPerWeekByMuscle`, tested against hand-counted weeks; heat colours in `humanBody.ts`; colour scale legible in light and dark, with numbers on tap so colour is never the only signal. Where it lives, to decide at build time: the dashboard view has no three.js today (0.65 MB against 1.8 MB for the views with the body), so either add the body to the dashboard (+~1.1 MB) or give the exercise view a muscle-map mode opened from `show_dashboard`.
 - [ ] E2: morning brief section in `README.md`.
 - [ ] Exit: after a week of real logging, "how am I doing this week?" gives an expenditure estimate and a suggested target; "same breakfast as yesterday" logs in one call; "which muscles did I train this month?" shows the heatmap with the numbers in the reply.
 

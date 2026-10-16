@@ -143,7 +143,7 @@ Phases 6 and later (coaching, friends, wearables, faster logging) are in [ROADMA
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.
 - **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
-- **Tool count**: 36 tools visible to the model (41 with the app-only ones), about 9,600 tokens of definitions that every conversation reads. Phase 5 merged the small delete/list pairs (47 → 36 visible while adding features), but the definitions did not get smaller: merged tools carry bigger schemas. Next lever if it matters: hide rarely used tools behind a single `help` tool.
+- **Tool count** (decided 2026-10-16): no limit on the number or size of tool definitions (about 10k tokens for 37 visible tools). Merging tools where it reads naturally is still fine, but new features add tools when that is clearer.
 - **View bundle size**: the player is 597 KB (129 KB gzip), almost all zod pulled in by the MCP Apps SDK; our code is 6 KB. Fine for the spike; look for a slimmer import before phase 2.
 - **Player state** lives in the view only during phase 0b; a reload of the conversation loses progress until sets are stored (phase 1/2).
 - **EU jurisdiction for D1**: confirm the current setting and that it is available on the free plan before creating the database.

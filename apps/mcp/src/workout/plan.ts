@@ -2,7 +2,12 @@
 export interface PlannedSet {
   /** Stable id inside the workout; `log_set` refers to it. */
   id: string;
+  /** A warm-up set: lighter, a short rest after it, and it never counts in summaries or records. */
+  warmup?: boolean;
   targetReps: number;
+  /** Timed exercises: the planned seconds, and what was done once logged. */
+  targetSec?: number;
+  seconds?: number;
   /** Absent for bodyweight exercises. */
   weightKg?: number;
   done: boolean;
@@ -19,6 +24,10 @@ export interface PlannedExercise {
   equipment: string;
   restSec: number;
   bodyweight: boolean;
+  /** Sets are measured in seconds (a plank), not reps. */
+  timed?: boolean;
+  /** Neighbouring exercises with the same id are done back to back, round by round. */
+  supersetId?: string;
   sets: PlannedSet[];
   /** "3×5 @ 80 kg" from the last session with this exercise. */
   lastTime?: string;
@@ -52,6 +61,8 @@ export interface WorkoutPlan {
   exercises: PlannedExercise[];
   /** Empty for a workout without cardio. */
   cardio: PlannedCardio[];
+  /** The person's bar and plates, for the plate calculator. */
+  gym?: { barKg: number; platesKg: number[] };
 }
 
 export const WORKOUT_VIEW_URI = 'ui://fitwell/workout.html';

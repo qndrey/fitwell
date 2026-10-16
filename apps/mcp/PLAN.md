@@ -82,7 +82,7 @@ Phases 6 and later (coaching, friends, wearables, faster logging) are in [ROADMA
 - [x] Exit (user test 2026-10-13): signed in by email through the new connector, profile and food logging worked. Privacy contact: fitwell.fyi@pm.me.
 
 **Phase 2: workouts**
-- [ ] Templates, sessions, sets; "last time" values per exercise; supersets and timed sets as in the web app.
+- [x] Templates, sessions, sets; "last time" values per exercise; supersets and timed sets as in the web app (supersets and timed sets in phase 6, see ROADMAP.md).
 - [ ] Workout player UI: current set, rest timer, log/skip, next exercise; state saved on every set so a dropped connection loses nothing.
 
 **Phase 3: body, analytics, dashboard, import (built 2026-10-13)**

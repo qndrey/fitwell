@@ -40,6 +40,8 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         weight_kg: z.number().min(30).max(300).optional(),
         activity_level: z.enum(ACTIVITY).optional(),
         equipment: z.array(z.string().max(40)).max(30).optional().describe('Equipment available for training, e.g. ["barbell","dumbbell","body only"]'),
+        bar_kg: z.number().min(0).max(50).optional().describe('Weight of their barbell (default 20)'),
+        plates_kg: z.array(z.number().positive().max(50)).min(1).max(12).optional().describe('Plate sizes they have (default 25, 20, 15, 10, 5, 2.5, 1.25)'),
         diet: z
           .object({
             preferences: z.array(z.string().max(60)).max(20).optional(),
@@ -60,6 +62,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         ...(a.weight_kg !== undefined && { weightKg: a.weight_kg }),
         ...(a.activity_level !== undefined && { activityLevel: a.activity_level }),
         ...(a.equipment !== undefined && { equipment: a.equipment }),
+        ...((a.bar_kg !== undefined || a.plates_kg !== undefined) && { gym: { ...(await data.profile()).gym, ...(a.bar_kg !== undefined && { barKg: a.bar_kg }), ...(a.plates_kg !== undefined && { platesKg: [...new Set(a.plates_kg)].sort((x, y) => y - x) }) } }),
         ...(a.diet !== undefined && { diet: Object.fromEntries(Object.entries(a.diet).filter(([, v]) => v !== undefined)) as never }),
       });
       return json({ profile });

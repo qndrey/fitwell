@@ -1,6 +1,7 @@
 // The only way tools touch a person's data: every query is bound to the signed-in user's id,
 // which comes from the verified OAuth token, never from a tool argument.
 import type { ActivityLevel, Sex } from '@fitwell/core/domain/energy';
+import { STANDARD_GYM, type Gym } from '@fitwell/core/domain/plates';
 import type { Nutrients, Portion } from '@fitwell/core/domain/nutrition';
 import type { Slot } from '@fitwell/core/schema';
 
@@ -20,6 +21,8 @@ export interface Profile {
   activityLevel: ActivityLevel | null;
   equipment: string[];
   diet: Diet;
+  /** Bar and plates for the plate calculator and warm-up ramps. */
+  gym: Gym;
 }
 
 export interface Goals {
@@ -68,6 +71,7 @@ const DEFAULT_PROFILE: Profile = {
   activityLevel: null,
   equipment: [],
   diet: { preferences: [], allergies: [], dislikes: [] },
+  gym: STANDARD_GYM,
 };
 
 const SLOT_ORDER = "CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END";
@@ -125,6 +129,7 @@ export class UserData {
       activityLevel: (r.activity_level as ActivityLevel | null) ?? null,
       equipment: json<string[]>(r.equipment, []),
       diet: { ...DEFAULT_PROFILE.diet, ...json<Partial<Diet>>(r.diet, {}) },
+      gym: { ...STANDARD_GYM, ...json<Partial<Gym>>(r.gym, {}) },
     };
   }
 
@@ -133,13 +138,13 @@ export class UserData {
     const p = { ...current, ...patch, diet: { ...current.diet, ...patch.diet } };
     await this.db
       .prepare(
-        `INSERT INTO profiles (user_id, time_zone, units, sex, birth_year, height_cm, weight_kg, activity_level, equipment, diet, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO profiles (user_id, time_zone, units, sex, birth_year, height_cm, weight_kg, activity_level, equipment, diet, gym, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (user_id) DO UPDATE SET time_zone = excluded.time_zone, units = excluded.units, sex = excluded.sex,
            birth_year = excluded.birth_year, height_cm = excluded.height_cm, weight_kg = excluded.weight_kg,
-           activity_level = excluded.activity_level, equipment = excluded.equipment, diet = excluded.diet, updated_at = excluded.updated_at`,
+           activity_level = excluded.activity_level, equipment = excluded.equipment, diet = excluded.diet, gym = excluded.gym, updated_at = excluded.updated_at`,
       )
-      .bind(this.userId, p.timeZone, p.units, p.sex, p.birthYear, p.heightCm, p.weightKg, p.activityLevel, JSON.stringify(p.equipment), JSON.stringify(p.diet), this.now())
+      .bind(this.userId, p.timeZone, p.units, p.sex, p.birthYear, p.heightCm, p.weightKg, p.activityLevel, JSON.stringify(p.equipment), JSON.stringify(p.diet), JSON.stringify(p.gym), this.now())
       .run();
     return p;
   }

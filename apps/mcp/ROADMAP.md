@@ -70,14 +70,14 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 ## 3. Phases and exit criteria
 
 **Phase 6: foundations and quick wins**
-- [ ] Deploy the backlog: remote migrations 0007 and 0008, `wrangler deploy` (phases 5–5d).
+- [ ] Deploy the backlog: remote migrations 0007, 0008 and 0009, `wrangler deploy` (phases 5–5d and 6).
 - [-] D1 usage: dropped (2026-10-16). Cloudflare's dashboard already shows D1 rows read and written per day and per query; a handful of people is far from the free plan's limits, and counting in code would add writes of its own.
 - [-] Cron: moved to phase 7, built with its first job (E1 email digests) rather than as an empty scaffold.
 - [x] Open Food Facts: when OFF fails, an older cached answer is served (`data/offCache.ts`). No retry inside a request: after a 503 the client already pauses its rate limiter for up to 30 s.
 - [x] A1: `estimateExpenditure()` and `projectGoalDate()` in `packages/core/src/domain/energy.ts`, pure, tested against hand-computed weeks (steady loss, plateau, missing days, too little data → no estimate); shown in `show_weekly_review` (`analytics/review.ts`) and `get_progress` (`tools/body.ts`); Claude proposes, `set_goals` only after agreement.
 - [x] D1: `log_food` takes `copy_from` (a day, or one meal of it) and `recipe` items: a usual meal is a saved recipe logged by name, so combos need no new table; allergy checks run on copies and recipe ingredients.
 - [x] D2: `save_custom_food` checks label values (`labelProblems` in core: impossible values always refused, a kcal/macro mismatch refused once with the reason and a kJ hint, `values_checked` to confirm) and takes per-serving values.
-- [ ] A2: supersets, timed sets, plate calculator, warm-up ramp in the player.
+- [x] A2: supersets (`superset` letters; the player goes round by round, rest after the round), timed sets (`seconds`; a countdown in the player), warm-up ramps (automatic for heavy barbell compound lifts: full for the first, short for later ones, `warmup` to choose; never counted in summaries or progression), plate calculator (`platesFor` in core; the person's bar and plates in the profile, migration 0009).
 - [x] A3: `substitutes()` in core (same main muscles and kind of exercise; ranked by muscle overlap, push/pull, compound/isolation; profile equipment, bodyweight always counts); `search_exercises` with `similar_to` and `exclude_equipment`; a "Swap exercise" panel in the player (app-only `get_substitutes`, `swap_exercise`) until the first set is logged, keeping sets, reps, rest and the plan's note, with the weight from the new exercise's history.
 - [x] A10 muscle heatmap: `buildMuscleMap()` (`analytics/muscles.ts`, tested against hand-counted sets), `show_muscle_map` and the app-only `get_muscle_map`, drawn by the exercise view (it already carries three.js and the body, so the Worker grows by 4.5 KB instead of another 1.7 MB view); a heat mode in `humanBody.ts`; colours for light and dark; period switch keeps the figure's angle.
 - [x] E2: morning brief section in `apps/mcp/README.md` (a Claude scheduled task; text tools only, since a scheduled run shows no views).

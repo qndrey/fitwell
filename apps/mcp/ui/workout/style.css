@@ -66,10 +66,11 @@ footer { font-size: 0.75rem; color: var(--muted); text-align: center; word-break
 .next { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--border, currentColor); border-radius: 12px; }
 .nexttitle { font-size: 1.15rem; font-weight: 700; }
 .block { display: block; }
-details.notes { text-align: left; }
-details.notes summary { cursor: pointer; padding: 6px 0; min-height: 32px; }
-details.notes textarea { width: 100%; font: inherit; color: inherit; background: transparent; border: 1px solid var(--border, currentColor); border-radius: 10px; padding: 8px 10px; resize: vertical; }
-details.notes textarea:focus-visible { outline: 3px solid var(--accent, currentColor); outline-offset: 2px; }
+/* 16px at least: a smaller field makes iOS zoom the page when it is focused. */
+.notes { text-align: left; }
+.notes button.link { border: 0; background: transparent; padding: 0; text-decoration: underline; }
+.notes textarea { width: 100%; font: inherit; font-size: max(1rem, 16px); color: inherit; background: transparent; border: 1px solid var(--border, currentColor); border-radius: 10px; padding: 8px 10px; resize: vertical; }
+.notes textarea:focus-visible { outline: 3px solid var(--accent, currentColor); outline-offset: 2px; }
 details.guidebox { text-align: left; }
 details.guidebox summary { cursor: pointer; padding: 6px 0; min-height: 32px; }
 details.swapbox { text-align: left; }

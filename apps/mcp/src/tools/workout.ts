@@ -1,5 +1,5 @@
 import { ACTIVITIES } from '@fitwell/core/data/activities';
-import { loadExercises, type Exercise } from '@fitwell/core/data/exercises';
+import { loadExercises, substitutes, type Exercise } from '@fitwell/core/data/exercises';
 import { addDays, isDay } from '@fitwell/core/domain/dates';
 import { estimateKcal } from '@fitwell/core/domain/met';
 import { suggestProgression, type Progression, type SessionSets } from '@fitwell/core/domain/progression';
@@ -142,6 +142,14 @@ function blocksFrom(specs: TemplateCardio[], done = false, weightKg?: number | n
   return out;
 }
 
+/** What earlier sessions say about an exercise: last time, the last note and the next weight. */
+interface History {
+  lastTime?: string;
+  lastDay?: string;
+  lastNotes?: string;
+  progression: Progression | null;
+}
+
 export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps) {
   const lib = await loadExercises();
   const byId = new Map(lib.exercises.map((e) => [e.ref, e]));
@@ -150,7 +158,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
   /** Last time + suggestion for each exercise id. */
   async function history(ids: string[], exclude?: string) {
     const sessions = await workouts.recentSessions(ids, 3, exclude);
-    const out = new Map<string, { lastTime?: string; lastDay?: string; lastNotes?: string; progression: Progression | null }>();
+    const out = new Map<string, History>();
     for (const id of ids) {
       const list = sessions.get(id) ?? [];
       const last = list[0];
@@ -161,6 +169,38 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       });
     }
     return out;
+  }
+
+  /** One planned exercise of a new workout: sets at the planned (or progressed) weight, last time and last note. */
+  function buildExercise(item: TemplateExercise, i: number, h: History, bodyKg: number | null): StoredExercise {
+    const ex = byId.get(item.id)!;
+    const bodyweight = isBodyweight(ex);
+    const p = h.progression;
+    // An explicit weight wins; otherwise the progression suggestion; otherwise last time's working weight.
+    const weightKg = bodyweight ? (bodyKg ?? 0) : (item.weightKg ?? p?.weightKg ?? 0);
+    const note = item.weightKg !== undefined || bodyweight ? undefined : (p?.reason ?? 'No earlier sessions to go on: choose a starting weight.');
+    const sets: StoredSet[] = Array.from({ length: item.sets }, (_, k) => ({
+      id: `s${i + 1}.${k + 1}`,
+      type: 'working',
+      reps: item.reps,
+      targetReps: item.reps,
+      weightKg,
+      ...(bodyweight && bodyKg ? { bodyweightKg: bodyKg } : {}),
+      done: false,
+    }));
+    return {
+      uid: `e${i + 1}`,
+      exerciseRef: item.id,
+      exerciseName: ex.name,
+      equipment: ex.equipment,
+      load: bodyweight ? 'bodyweight' : 'weight',
+      restSec: item.restSec,
+      sets,
+      ...(h.lastTime ? { lastTime: `${h.lastTime} (${h.lastDay})` } : {}),
+      ...(note ? { note } : {}),
+      ...(item.notes ? { notes: item.notes } : {}),
+      ...(h.lastNotes ? { lastNotes: h.lastNotes } : {}),
+    };
   }
 
   /** Time, volume and personal records of a strength workout. Records compare with sessions up to that workout's day. */
@@ -238,37 +278,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
 
       const past = await history(items.map((e) => e.id));
       const profile = await data.profile();
-      const exercises: StoredExercise[] = items.map((item, i) => {
-        const ex = byId.get(item.id)!;
-        const bodyweight = isBodyweight(ex);
-        const h = past.get(item.id)!;
-        const p = h.progression;
-        // An explicit weight wins; otherwise the progression suggestion; otherwise last time's working weight.
-        const weightKg = bodyweight ? (profile.weightKg ?? 0) : (item.weightKg ?? p?.weightKg ?? 0);
-        const note = item.weightKg !== undefined || bodyweight ? undefined : (p?.reason ?? 'No earlier sessions to go on: choose a starting weight.');
-        const sets: StoredSet[] = Array.from({ length: item.sets }, (_, k) => ({
-          id: `s${i + 1}.${k + 1}`,
-          type: 'working',
-          reps: item.reps,
-          targetReps: item.reps,
-          weightKg,
-          ...(bodyweight && profile.weightKg ? { bodyweightKg: profile.weightKg } : {}),
-          done: false,
-        }));
-        return {
-          uid: `e${i + 1}`,
-          exerciseRef: item.id,
-          exerciseName: ex.name,
-          equipment: ex.equipment,
-          load: bodyweight ? 'bodyweight' : 'weight',
-          restSec: item.restSec,
-          sets,
-          ...(h.lastTime ? { lastTime: `${h.lastTime} (${h.lastDay})` } : {}),
-          ...(note ? { note } : {}),
-          ...(item.notes ? { notes: item.notes } : {}),
-          ...(h.lastNotes ? { lastNotes: h.lastNotes } : {}),
-        };
-      });
+      const exercises = items.map((item, i) => buildExercise(item, i, past.get(item.id)!, profile.weightKg));
       const cardioBlocks = blocksFrom(cardioSpecs);
       const w = await workouts.create({ day: todayIn(profile.timeZone), type: 'strength', name: name ?? 'Workout', startedAt: Date.now(), finishedAt: null, exercises, cardio: null, cardioBlocks, templateId });
       const lines = exercises.map((e) => `${e.exerciseName} ${e.sets.length}×${e.sets[0]!.targetReps}${e.load === 'bodyweight' ? '' : ` @ ${e.sets[0]!.weightKg} kg`}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`);
@@ -392,6 +402,54 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       if (!found) return toolError('No such exercise in this workout.');
       await workouts.saveExercises(workoutId, exercises);
       return json({ saved: true, exerciseId });
+    },
+  );
+
+  registerAppTool(
+    server,
+    'get_substitutes',
+    {
+      title: 'Substitutes for an exercise in a workout',
+      description: 'Called by the workout player when the person wants to swap an exercise: similar exercises for the same main muscles, within their equipment.',
+      inputSchema: z.object({ workoutId: z.uuid(), exerciseId: z.string().max(20) }),
+      annotations: { readOnlyHint: true },
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
+    },
+    async ({ workoutId, exerciseId }) => {
+      const w = await workouts.get(workoutId);
+      const e = w?.type === 'strength' ? w.exercises.find((x) => x.uid === exerciseId) : undefined;
+      const target = e && byId.get(e.exerciseRef);
+      if (!target) return toolError('No such exercise in this workout.');
+      const inWorkout = new Set(w!.exercises.map((x) => x.exerciseRef));
+      const subs = substitutes(target, lib.exercises, { equipment: (await data.profile()).equipment, limit: 12 }).filter((x) => !inWorkout.has(x.ref)).slice(0, 8);
+      return json({ substitutes: subs.map((x) => ({ id: x.ref, name: x.name, equipment: x.equipment === 'none' || x.equipment === 'body only' ? 'bodyweight' : x.equipment })) });
+    },
+  );
+
+  registerAppTool(
+    server,
+    'swap_exercise',
+    {
+      title: 'Swap an exercise in a workout',
+      description: 'Called by the workout player: replaces an exercise that has no logged sets with another (same sets, reps and rest; weight from its own history).',
+      inputSchema: z.object({ workoutId: z.uuid(), exerciseId: z.string().max(20), newId: exerciseId }),
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
+    },
+    async ({ workoutId, exerciseId, newId }) => {
+      const w = await workouts.get(workoutId);
+      if (!w || w.type !== 'strength' || w.finishedAt !== null) return toolError('No such workout in progress.');
+      const i = w.exercises.findIndex((x) => x.uid === exerciseId);
+      const old = w.exercises[i];
+      if (!old) return toolError('No such exercise in this workout.');
+      if (!byId.has(newId)) return toolError(`Unknown exercise id ${newId}.`);
+      if (old.sets.some((s) => s.done !== false || s.skipped)) return toolError('Sets of this exercise are already logged; it can no longer be swapped.');
+      const past = await history([newId], w.id);
+      // The plan's note stays with the slot (the person can edit it); last time and the progression come from the new exercise.
+      const item: TemplateExercise = { id: newId, sets: old.sets.length, reps: old.sets[0]?.targetReps ?? old.sets[0]?.reps ?? 8, restSec: old.restSec ?? 90, ...(old.notes ? { notes: old.notes } : {}) };
+      const next = { ...buildExercise(item, i, past.get(newId)!, (await data.profile()).weightKg), uid: old.uid };
+      const exercises = w.exercises.map((x, k) => (k === i ? next : x));
+      await workouts.saveExercises(workoutId, exercises);
+      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: toPlan({ ...w, exercises }) });
     },
   );
 

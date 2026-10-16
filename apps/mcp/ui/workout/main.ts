@@ -25,6 +25,10 @@ const state = {
   guideOpen: false,
   guides: new Map<string, ExerciseGuide>(),
   guideFailed: false,
+  /** Swapping the current exercise: substitutes per exercise uid (fetched when the panel opens). */
+  swapOpen: false,
+  swaps: new Map<string, { id: string; name: string; equipment: string }[]>(),
+  swapNote: '',
   restUntil: 0,
   finished: null as FinishSummary | null,
   finishing: false,
@@ -101,6 +105,8 @@ function select(i: number) {
   state.noteOpen = it.kind === 'ex' && !!it.ex.notes;
   state.guideOpen = false;
   state.guideFailed = false;
+  state.swapOpen = false;
+  state.swapNote = '';
   motion?.stop();
   motionFor = '';
   if (it.kind === 'ex') {
@@ -337,6 +343,60 @@ function guidePanel(ex: PlannedExercise) {
   );
 }
 
+async function loadSwaps(ex: PlannedExercise) {
+  try {
+    const res = await app.callServerTool({ name: 'get_substitutes', arguments: { workoutId: state.plan!.workoutId, exerciseId: ex.uid } });
+    const list = (res.structuredContent as { substitutes?: { id: string; name: string; equipment: string }[] } | undefined)?.substitutes;
+    if (res.isError || !list) throw new Error('no data');
+    state.swaps.set(ex.uid, list);
+    state.swapNote = list.length ? '' : 'No similar exercise fits your equipment.';
+  } catch {
+    state.swapNote = 'Could not load alternatives. Close and open this to try again.';
+  }
+  render();
+}
+
+async function swap(ex: PlannedExercise, to: { id: string; name: string }) {
+  state.swapNote = `Swapping to ${to.name}…`;
+  render();
+  try {
+    const res = await app.callServerTool({ name: 'swap_exercise', arguments: { workoutId: state.plan!.workoutId, exerciseId: ex.uid, newId: to.id } });
+    const plan = (res.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
+    if (res.isError || !plan) throw new Error('refused');
+    plan.cardio ??= [];
+    state.plan = plan;
+    state.swaps.delete(ex.uid);
+    motion?.stop();
+    motionFor = '';
+    select(state.current); // prefill the steppers from the new exercise
+  } catch {
+    state.swapNote = 'Could not swap the exercise. Try again.';
+    render();
+  }
+}
+
+/** "Swap exercise": similar exercises for the same muscles, offered until the first set of this exercise is logged. */
+function swapPanel(ex: PlannedExercise) {
+  if (ex.sets.some(closed)) return null;
+  const list = state.swaps.get(ex.uid);
+  return h(
+    'details',
+    {
+      className: 'swapbox',
+      open: state.swapOpen,
+      ontoggle: (e: Event) => {
+        state.swapOpen = (e.target as HTMLDetailsElement).open;
+        if (state.swapOpen && !list) void loadSwaps(ex);
+      },
+    },
+    h('summary', {}, 'Swap exercise'),
+    list
+      ? h('div', { className: 'swaps' }, ...list.map((x) => h('button', { type: 'button', onclick: () => void swap(ex, x) }, h('span', {}, x.name), h('span', { className: 'muted small' }, x.equipment))))
+      : !state.swapNote && h('p', { className: 'muted small' }, 'Loading…'),
+    state.swapNote && h('p', { className: 'muted small' }, state.swapNote),
+  );
+}
+
 /** What comes after the set that was just logged, shown while resting: reps and weight, last time, notes. */
 function upNext(it: Item | undefined): Child {
   if (!it || !itemOpen(it)) return h('p', { className: 'next' }, h('strong', {}, 'That was the last set.'), ' Next: finish the workout.');
@@ -435,6 +495,7 @@ function render() {
             : stepper('Weight kg', kg(state.weight), () => ((state.weight = Math.max(0, state.weight - 2.5)), render()), () => ((state.weight += 2.5), render())),
         ),
         guidePanel(ex),
+        swapPanel(ex),
         notesEditor(ex),
         h('button', { type: 'button', className: 'primary', onclick: () => logSet() }, 'Log set'),
         h('button', { type: 'button', onclick: () => logSet(true) }, 'Skip set'),

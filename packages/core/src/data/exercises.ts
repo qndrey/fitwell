@@ -9,6 +9,10 @@ export interface Exercise {
   category?: string;
   level?: string;
   equipment: string;
+  /** push, pull or static, when the library says. */
+  force?: string;
+  /** compound or isolation, when the library says. */
+  mechanic?: string;
   primary: string[];
   secondary: string[];
   custom?: boolean;
@@ -19,7 +23,7 @@ interface Index {
   categories: string[];
   equipment: string[];
   muscles: string[];
-  exercises: { id: string; name: string; category: string; level: string; equipment: string; primary: string[]; secondary: string[] }[];
+  exercises: { id: string; name: string; category: string; level: string; equipment: string; force?: string; mechanic?: string; primary: string[]; secondary: string[] }[];
 }
 
 let cache: Promise<{ meta: Index['meta']; equipment: string[]; muscles: string[]; exercises: Exercise[] }> | null = null;
@@ -32,7 +36,7 @@ export function loadExercises() {
       meta: raw.meta,
       equipment: raw.equipment,
       muscles: raw.muscles,
-      exercises: raw.exercises.map((e): Exercise => ({ ref: `ex:${e.id}`, name: e.name, category: e.category, level: e.level, equipment: e.equipment, primary: e.primary, secondary: e.secondary })),
+      exercises: raw.exercises.map((e): Exercise => ({ ref: `ex:${e.id}`, name: e.name, category: e.category, level: e.level, equipment: e.equipment, ...(e.force ? { force: e.force } : {}), ...(e.mechanic ? { mechanic: e.mechanic } : {}), primary: e.primary, secondary: e.secondary })),
     };
   });
   cache.catch(() => (cache = null));
@@ -124,4 +128,48 @@ export function plainFirst(query: string, hits: Exercise[]): Exercise[] {
     .map((e, i) => ({ e, i, x: extra(e), c: e.category === 'strength' ? 0 : 1, l: LEVEL[e.level ?? ''] ?? 1 }))
     .sort((a, b) => a.x - b.x || a.c - b.c || a.l - b.l || a.i - b.i)
     .map((r) => r.e);
+}
+
+export interface SubstituteOptions {
+  /** Equipment the person has (their profile); bodyweight exercises always count. Empty or absent: anything. */
+  equipment?: readonly string[];
+  /** Equipment to avoid right now, e.g. ["barbell"] when the rack is taken. */
+  excludeEquipment?: readonly string[];
+  limit?: number;
+}
+
+const LIFTING = new Set(['strength', 'powerlifting', 'olympic weightlifting', 'strongman']);
+/** "dumbbells" and "Dumbbell" are the same equipment. */
+const kit = (s: string) => s.trim().toLowerCase().replace(/s$/, '');
+
+/**
+ * Exercises that can stand in for `target` (the machine is busy, the person has no barbell, a joint objects): they must
+ * work at least one of its main muscles and be the same kind of exercise (a lift for a lift, a stretch for a stretch).
+ * Ranked by how much the main muscles overlap, then the helping muscles, the same push/pull and compound/isolation
+ * character, and how common the exercise is; odd variants (chains, bands, jerks) sink. A different piece of equipment
+ * gets a small nudge, since that is usually why someone swaps.
+ */
+export function substitutes(target: Exercise, all: Exercise[], o: SubstituteOptions = {}): Exercise[] {
+  const overlap = (a: string[], b: string[]) => {
+    const union = new Set([...a, ...b]).size;
+    return union ? a.filter((x) => b.includes(x)).length / union : 0;
+  };
+  const have = o.equipment?.length ? new Set(o.equipment.map(kit)) : null;
+  const avoid = new Set((o.excludeEquipment ?? []).map(kit));
+  const usable = (e: Exercise) => !avoid.has(kit(e.equipment)) && (!have || have.has(kit(e.equipment)) || e.equipment === 'body only' || e.equipment === 'none');
+  const sameKind = (e: Exercise) => (LIFTING.has(target.category ?? 'strength') ? LIFTING.has(e.category ?? 'strength') : e.category === target.category);
+  return all
+    .filter((e) => e.ref !== target.ref && e.primary.some((m) => target.primary.includes(m)) && sameKind(e) && usable(e))
+    .map((e) => {
+      let score = 4 * overlap(e.primary, target.primary) + 1.5 * overlap(e.secondary, target.secondary);
+      if (e.mechanic && e.mechanic === target.mechanic) score += 1;
+      if (e.force && e.force === target.force) score += 1;
+      if (STAPLES.has(e.name.toLowerCase())) score += 1;
+      if (UNUSUAL.test(e.name) || MODIFIER.test(e.name)) score -= 1.5;
+      if (kit(e.equipment) !== kit(target.equipment)) score += 0.25;
+      return { e, score };
+    })
+    .sort((a, b) => b.score - a.score || a.e.name.localeCompare(b.e.name))
+    .slice(0, o.limit ?? 8)
+    .map((x) => x.e);
 }

@@ -1,8 +1,9 @@
-import { loadExercises, loadInstructions, plainFirst, prepareExercises, searchExercises, type Exercise } from '@fitwell/core/data/exercises';
+import { loadExercises, loadInstructions, plainFirst, prepareExercises, searchExercises, substitutes, type Exercise } from '@fitwell/core/data/exercises';
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { demoUrl, type ExerciseGuide } from '../exercises/guide';
+import type { UserData } from '../data/userData';
 import { machineGuideFor } from '../exercises/machines';
 import { motionFor } from '../exercises/motion';
 import exerciseHtml from '../ui/generated/exercise';
@@ -16,7 +17,7 @@ const ATTRIBUTION = 'free-exercise-db (public domain, The Unlicense)';
 const view = (e: Exercise) => ({ ref: e.ref, name: e.name, category: e.category, level: e.level, equipment: e.equipment, primary: e.primary, secondary: e.secondary });
 
 /** Async because the muscle and equipment lists come from the dataset and become enums Claude can see. */
-export async function registerExerciseTools(server: McpServer) {
+export async function registerExerciseTools(server: McpServer, deps: { data: UserData }) {
   const lib = await loadExercises();
   const index = prepareExercises(lib.exercises);
   const muscle = z.enum(lib.muscles as [string, ...string[]]);
@@ -34,17 +35,28 @@ export async function registerExerciseTools(server: McpServer) {
       description:
         'Search the exercise library (876 exercises) by name, target muscle and/or equipment. ' +
         'Use it to pick real exercises with stable ids when building a workout. With no query, lists exercises matching the filters. ' +
-        'With id (e.g. "ex:Barbell_Squat") it returns that one exercise with its step-by-step instructions instead.',
+        'With id (e.g. "ex:Barbell_Squat") it returns that one exercise with its step-by-step instructions instead. ' +
+        'With similar_to (an id) it returns substitutes instead: exercises for the same main muscles and of the same kind, ranked by how closely they match, limited to the equipment in the person\'s profile (bodyweight always counts); ' +
+        'use exclude_equipment when something is busy or missing right now (e.g. ["barbell"] when the rack is taken).',
       inputSchema: z.object({
         query: z.string().max(100).default('').describe('Name words, typos tolerated, e.g. "bench press", "romanian deadlift"'),
         muscle: muscle.optional().describe('Primary or secondary muscle'),
         equipment: equipment.optional(),
         limit: z.number().int().min(1).max(50).default(15),
         id: z.string().regex(/^ex:/, 'Library ids start with "ex:"').optional().describe('Details and instructions for this one exercise'),
+        similar_to: exerciseIdSchema.optional().describe('Substitutes for this exercise'),
+        exclude_equipment: z.array(equipment).max(10).optional().describe('With similar_to: equipment to leave out'),
       }),
       annotations: { readOnlyHint: true },
     },
-    async ({ query, muscle, equipment, limit, id }) => {
+    async ({ query, muscle, equipment, limit, id, similar_to, exclude_equipment }) => {
+      if (similar_to) {
+        const target = lib.exercises.find((e) => e.ref === similar_to);
+        if (!target) return toolError(`No exercise with id ${similar_to}. Search by name first.`);
+        const own = (await deps.data.profile()).equipment;
+        const subs = substitutes(target, lib.exercises, { equipment: own, excludeEquipment: exclude_equipment, limit: Math.min(limit, 15) });
+        return json({ substitutesFor: view(target), equipment: own.length ? `Only equipment in the profile (${own.join(', ')}) or bodyweight.` : 'Any equipment (none saved in the profile).', exercises: subs.map(view), source: ATTRIBUTION });
+      }
       if (id) {
         const ex = lib.exercises.find((e) => e.ref === id);
         if (!ex) return toolError(`No exercise with id ${id}. Search by name instead.`);

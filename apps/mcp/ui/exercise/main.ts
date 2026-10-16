@@ -1,12 +1,19 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
+import type { MuscleMap } from '../../src/analytics/muscleTypes';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { h } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
-import { createMotionPlayer } from '../shared/motionView';
+import { createMotionPlayer, isDarkTheme } from '../shared/motionView';
+import { heatColours, renderMuscleMap } from '../shared/muscleMap';
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell exercise guide', version: '0.1.0' }, {}, { autoResize: true });
 let guide: ExerciseGuide | null = null;
+/** This view also draws the muscle map (show_muscle_map), on the same body. */
+let map: MuscleMap | null = null;
+let mapShown: MuscleMap | null = null;
+let loading = false;
+let error = '';
 /** One WebGL player for the life of the view; null when the device cannot do WebGL (the guide then has no animation). */
 const motion = createMotionPlayer();
 let shown: ExerciseGuide | null = null;
@@ -21,8 +28,34 @@ async function openLink(url: string): Promise<boolean> {
   }
 }
 
+async function changeWeeks(weeks: number) {
+  if (!map) return;
+  loading = true;
+  error = '';
+  render();
+  try {
+    const res = await app.callServerTool({ name: 'get_muscle_map', arguments: { weeks, to: map.to } });
+    const next = (res.structuredContent as { muscleMap?: MuscleMap } | undefined)?.muscleMap;
+    if (res.isError || !next) throw new Error('no data');
+    map = next;
+  } catch {
+    error = 'Could not load that period. Try again.';
+  }
+  loading = false;
+  render();
+}
+
 function render() {
   try {
+    if (map) {
+      const dark = isDarkTheme();
+      if (map !== mapShown) {
+        motion?.showHeat(heatColours(map, dark), 'A body with each muscle group coloured by how much it was trained');
+        mapShown = map;
+      }
+      root.replaceChildren(h('section', { className: 'card single' }, renderMuscleMap(map, dark, motion?.element ?? null, (w) => void changeWeeks(w), loading)), error ? h('p', { className: 'error small center' }, error) : '');
+      return;
+    }
     if (guide && guide !== shown) {
       motion?.show(guide.motion, guide.name, { primary: guide.primary, secondary: guide.secondary });
       shown = guide;
@@ -44,7 +77,11 @@ function applyHost(ctx: McpUiHostContext | undefined) {
 
 app.ontoolresult = (result) => {
   const g = (result.structuredContent as { guide?: ExerciseGuide } | undefined)?.guide;
-  if (g) {
+  const m = (result.structuredContent as { muscleMap?: MuscleMap } | undefined)?.muscleMap;
+  if (m) {
+    map = m;
+    render();
+  } else if (g) {
     guide = g;
     render();
   } else if (result.isError) {
@@ -54,6 +91,7 @@ app.ontoolresult = (result) => {
 app.onhostcontextchanged = (ctx) => {
   applyHost(ctx);
   motion?.setTheme();
+  mapShown = null; // the heat colours follow the theme too
   render();
 };
 

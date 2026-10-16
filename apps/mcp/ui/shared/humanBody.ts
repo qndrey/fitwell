@@ -88,6 +88,8 @@ export interface HumanBody {
   update(k: Skeleton, grip?: number, palm?: 'over' | 'under' | 'inward'): void;
   setHighlight(primary: Iterable<string>, secondary: Iterable<string>): void;
   setHighlightVisible(on: boolean): void;
+  /** Colours each muscle group on its own (a heat map) instead of the one tint; null goes back to the tint. Groups not in the map keep the skin colour. */
+  setHeat(colours: Map<string, number> | null): void;
   /** Breathing, from -1 (breathed out) to 1 (breathed in): the ribs and belly swell a few millimetres. */
   setBreath(x: number): void;
   setPalette(p: Palette): void;
@@ -195,18 +197,24 @@ export async function loadHumanBody(glb: ArrayBuffer, palette: Palette): Promise
     uTint: { value: tint },
     uShow: { value: 1 },
     uBreath: { value: 0 },
+    /** Per muscle group: rgb, and in w whether the group is coloured at all. */
+    uHeat: { value: Array.from({ length: 20 }, () => new Vector4()) },
+    uHeatOn: { value: 0 },
   };
   const material = new MeshStandardMaterial({ color: palette.body, roughness: 0.62, metalness: 0 });
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     const attributes = [0, 1, 2, 3, 4].map((i) => `attribute vec4 _muscle${i};`).join('\n') + '\nattribute vec3 restPosition;';
     const worked = (u: string) => [0, 1, 2, 3, 4].map((i) => `dot(_muscle${i}, ${u}[${i}])`).join(' + ');
+    // Each vertex's muscle weights blend the groups' heat colours (premultiplied by whether the group is coloured).
+    const heat = [0, 1, 2, 3, 4].flatMap((i) => ['x', 'y', 'z', 'w'].map((c, k) => `_muscle${i}.${c} * vec4(uHeat[${i * 4 + k}].rgb * uHeat[${i * 4 + k}].w, uHeat[${i * 4 + k}].w)`)).join(' + ');
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${attributes}\nuniform vec4 uPri[5];\nuniform vec4 uSec[5];\nuniform float uBreath;\nvarying vec2 vWorked;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;`)
+      .replace('#include <common>', `#include <common>\n${attributes}\nuniform vec4 uPri[5];\nuniform vec4 uSec[5];\nuniform vec4 uHeat[20];\nuniform float uBreath;\nvarying vec2 vWorked;\nvarying vec4 vHeat;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;`)
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
 vWorked = vec2(clamp(${worked('uPri')}, 0.0, 1.0), clamp(${worked('uSec')}, 0.0, 1.0));
+vHeat = ${heat};
 vW[0] = _muscle0; vW[1] = _muscle1; vW[2] = _muscle2; vW[3] = _muscle3; vW[4] = _muscle4;
 vRest = restPosition;
 vRestN = normalize(normal);
@@ -214,13 +222,17 @@ vRestN = normalize(normal);
 transformed += normal * uBreath * 0.006 * smoothstep(0.98, 1.1, restPosition.y) * (1.0 - smoothstep(1.28, 1.4, restPosition.y)) * (1.0 - smoothstep(0.16, 0.21, abs(restPosition.x)));`,
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform vec3 uTint;\nuniform float uShow;\nvarying vec2 vWorked;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;\n${DEFINITION}`)
+      .replace('#include <common>', `#include <common>\nuniform vec3 uTint;\nuniform float uShow;\nuniform float uHeatOn;\nvarying vec2 vWorked;\nvarying vec4 vHeat;\nvarying vec4 vW[5];\nvarying vec3 vRest;\nvarying vec3 vRestN;\n${DEFINITION}`)
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
 float relief = definition();
 diffuseColor.rgb *= 1.0 - clamp(-relief * 40.0, 0.0, 0.18);
-diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWorked.x * 0.7 + vWorked.y * 0.4, 0.0, 0.7) / 0.7) * 0.68 * uShow);`,
+if (uHeatOn > 0.5) {
+  diffuseColor.rgb = mix(diffuseColor.rgb, vHeat.rgb / max(vHeat.a, 0.001), smoothstep(0.05, 0.6, vHeat.a) * 0.82 * uShow);
+} else {
+  diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWorked.x * 0.7 + vWorked.y * 0.4, 0.0, 0.7) / 0.7) * 0.68 * uShow);
+}`,
       )
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = bumped(-vViewPosition, normal, vec2(dFdx(relief), dFdy(relief)));');
   };
@@ -393,6 +405,18 @@ diffuseColor.rgb = mix(diffuseColor.rgb, uTint, smoothstep(0.08, 0.9, clamp(vWor
     setHighlight: highlight,
     setHighlightVisible(on) {
       uniforms.uShow.value = on ? 1 : 0;
+    },
+    setHeat(colours) {
+      uniforms.uHeatOn.value = colours ? 1 : 0;
+      const c = new Color();
+      uniforms.uHeat.value.forEach((v, i) => {
+        const hex = colours?.get(BODY_MUSCLES[i] ?? '');
+        if (hex === undefined) v.set(0, 0, 0, 0);
+        else {
+          c.set(hex);
+          v.set(c.r, c.g, c.b, 1);
+        }
+      });
     },
     setBreath(x) {
       uniforms.uBreath.value = x;

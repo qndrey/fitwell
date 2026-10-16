@@ -28,11 +28,12 @@ document.documentElement.dataset.theme = theme;
 const client = new Client({ name: 'fitwell-dev-host', version: '0.1.0' });
 await client.connect(new StreamableHTTPClientTransport(new URL('/mcp', location.href)));
 
-// ?view=dashboard, review or shopping shows that view instead of the workout player.
+// ?view=dashboard, review, shopping, exercise or muscles shows that view instead of the workout player.
 const VIEWS: Record<string, { tool: string; args: Record<string, unknown>; uri: string }> = {
   dashboard: { tool: 'show_dashboard', args: { days: 90 }, uri: 'ui://fitwell/dashboard.html' },
   review: { tool: 'show_weekly_review', args: {}, uri: 'ui://fitwell/review.html' },
   shopping: { tool: 'show_grocery_list', args: { people: 2 }, uri: 'ui://fitwell/shopping.html' },
+  muscles: { tool: 'show_muscle_map', args: { weeks: Number(new URLSearchParams(location.search).get('weeks') ?? 4) }, uri: 'ui://fitwell/exercise.html' },
   exercise: { tool: 'show_exercise', args: { query: new URLSearchParams(location.search).get('q') ?? 'leg press' }, uri: 'ui://fitwell/exercise.html' },
   workout: { tool: 'start_workout', args: SAMPLE, uri: 'ui://fitwell/workout.html' },
 };

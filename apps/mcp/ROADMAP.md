@@ -29,7 +29,7 @@ Effort: S (a day or two), M (a few days), L (a week or more).
 | A7 | Micronutrients (fibre, sodium, iron, B12 …) and protein per meal | the Frida 5.5 dataset has them, but the bundle keeps only energy and macros: extend `packages/core/scripts/build-foods.ts` and watch the Worker size; `get_food_log`, review | M | Phase 9 |
 | A8 | Readiness: sleep, resting HR, HRV and a one-tap soreness/energy check-in suggest a lighter day | C1, `start_workout` | M | Phase 10+ |
 | A9 | Diet breaks and refeeds in long cuts; more 3D movements and a female figure (see PLAN.md 5d) | A1, `exercises/motion.ts` | M | Phase 10+ |
-| A10 | **Muscle heatmap** on the 3D body: each muscle group coloured by training load over a range (this week, 4 weeks, 12 weeks; a primary-muscle set counts 1, a secondary 0.5), drag to turn front and back, tap a muscle for its sets, top exercises and the day it was last trained. The model's reply lists the same numbers, so Claude can say "no hamstring work for 10 days". Later modes: sets against the A6 ranges (too little, in range, too much) and recovery (time since each muscle was trained hard, for "what should I train today?") | `humanBody.ts`: its per-vertex weights for the 17 `BODY_MUSCLES` and the `uPri`/`uSec` uniforms, which take fractional values (today 0 or 1), plus a heat colour ramp in place of the single tint; `setsPerWeekByMuscle` in `analytics/progress.ts` (primary muscles only today; add secondary) | M | Phase 6 (load); Phase 9 (ranges, recovery) |
+| A10 | **Muscle heatmap** on the 3D body, answering "how well is each muscle trained?": weekly hard sets per muscle group (a set counts 1 for a main muscle, 0.5 for a helping one) against the usual 10–20 range, coloured not trained / under / in range / over, over 1, 4 or 12 weeks; drag to turn; a list with the numbers, top exercises and last trained day per muscle (colour is never the only signal). The model's reply has the same numbers. Later modes: strength progress (e1RM trend per muscle) and recovery (time since each muscle was trained hard) | `humanBody.ts` (per-vertex weights for the 17 `BODY_MUSCLES`; a heat mode in the shader), the exercise view's body, library primary/secondary muscles | M | Phase 6 (sets against the range); Phase 9 (strength, recovery) |
 
 ### B. Friends
 Foundation (with B1): a `connections` table (requester, addressee, status) and a `shares` table (who may see which category of whose data). Categories: workouts and records / consistency only / templates and recipes / weight and body (off, never in feeds). One new tool, `friends` (invite, accept, list, set_sharing); invitations reuse `manage_invites` and the sign-in email.
@@ -79,7 +79,7 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [x] D2: `save_custom_food` checks label values (`labelProblems` in core: impossible values always refused, a kcal/macro mismatch refused once with the reason and a kJ hint, `values_checked` to confirm) and takes per-serving values.
 - [ ] A2: supersets, timed sets, plate calculator, warm-up ramp in the player.
 - [ ] A3: substitutes in `search_exercises` (`tools/exercises.ts`) and a "Swap" in the player.
-- [ ] A10 muscle heatmap (load mode): a pure per-muscle load function next to `setsPerWeekByMuscle`, tested against hand-counted weeks; heat colours in `humanBody.ts`; colour scale legible in light and dark, with numbers on tap so colour is never the only signal. Where it lives, to decide at build time: the dashboard view has no three.js today (0.65 MB against 1.8 MB for the views with the body), so either add the body to the dashboard (+~1.1 MB) or give the exercise view a muscle-map mode opened from `show_dashboard`.
+- [x] A10 muscle heatmap: `buildMuscleMap()` (`analytics/muscles.ts`, tested against hand-counted sets), `show_muscle_map` and the app-only `get_muscle_map`, drawn by the exercise view (it already carries three.js and the body, so the Worker grows by 4.5 KB instead of another 1.7 MB view); a heat mode in `humanBody.ts`; colours for light and dark; period switch keeps the figure's angle.
 - [ ] E2: morning brief section in `README.md`.
 - [ ] Exit: after a week of real logging, "how am I doing this week?" gives an expenditure estimate and a suggested target; "same breakfast as yesterday" logs in one call; "which muscles did I train this month?" shows the heatmap with the numbers in the reply.
 
@@ -97,7 +97,7 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio.
 
 **Phase 9: coaching v2 and crew**
-- [ ] A4 programs with deloads; A5 RPE/RIR; A6 volume ranges with the A10 ranges mode; A10 recovery mode; A7 micronutrients.
+- [ ] A4 programs with deloads; A5 RPE/RIR; A6 volume ranges; A10 strength and recovery modes; A7 micronutrients.
 - [ ] B3 crew feed; B4 challenges.
 - [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
 

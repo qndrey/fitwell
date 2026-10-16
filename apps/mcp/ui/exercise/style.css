@@ -1,3 +1,10 @@
 @import '../dashboard/style.css';
 @import '../shared/guide.css';
 .card.single { padding: 14px; }
+.musclemap .seg { justify-self: start; }
+.musclemap .legend { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.85rem; }
+.musclemap .group h3 { margin: 8px 0 4px; font-size: 0.95rem; }
+.musclemap .muscles { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.musclemap summary { display: flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.musclemap summary .sets { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.musclemap details p { margin: 0 0 6px 20px; }

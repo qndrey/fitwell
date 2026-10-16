@@ -40,6 +40,8 @@ async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'ema
   return handler.fetch(request);
 }
 
+const LANDING_URL = 'https://fitwell.fyi/';
+
 const site = {
   async fetch(request: Request, env: EnvWithOAuth): Promise<Response> {
     const url = new URL(request.url);
@@ -48,8 +50,9 @@ const site = {
     }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
-    // The page about Fitwell for Claude (static assets in public/about) explains how to add the connector.
-    if (url.pathname === '/') return Response.redirect(`${url.origin}/about/`, 302);
+    // The page about Fitwell for Claude, with how to add the connector, is the landing page (apps/landing). It used to be
+    // /about/ here, so old links to it go there too.
+    if (url.pathname === '/' || url.pathname === '/about' || url.pathname.startsWith('/about/')) return Response.redirect(LANDING_URL, 301);
     return new Response('Not found', { status: 404 });
   },
 };

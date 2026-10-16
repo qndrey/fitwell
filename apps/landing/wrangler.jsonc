@@ -1,6 +1,9 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   // The landing page at fitwell.fyi: static files only, no Worker code. The MCP server stays at mcp.fitwell.fyi.
+  // The page is designed in Lovable (project "Fitwell Coach"); its source is in site/ and is prerendered to
+  // site/.output/public, with the security headers written by site/scripts/static-headers.mjs.
+  // Build and deploy with `npm --prefix apps/landing/site run deploy` (preview: `run dev:cf`).
   "name": "fitwell-landing",
   "compatibility_date": "2026-10-01",
   // www serves the same page; its canonical link points at fitwell.fyi.
@@ -9,5 +12,5 @@
     { "pattern": "www.fitwell.fyi", "custom_domain": true }
   ],
   "workers_dev": false,
-  "assets": { "directory": "./public", "html_handling": "auto-trailing-slash" }
+  "assets": { "directory": "./site/.output/public", "html_handling": "auto-trailing-slash" }
 }

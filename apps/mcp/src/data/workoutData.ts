@@ -2,7 +2,7 @@
 import type { CardioDetails, WorkoutExercise, WorkoutSet } from '@fitwell/core/schema';
 
 /** A set as the server stores it: the web shape plus the target the plan asked for. */
-export type StoredSet = WorkoutSet & { targetReps?: number; skipped?: boolean };
+export type StoredSet = WorkoutSet & { targetReps?: number; targetSec?: number; skipped?: boolean };
 /** The web shape plus plan details shown in the player (the web backup format ignores the extras). */
 export type StoredExercise = Omit<WorkoutExercise, 'sets'> & {
   sets: StoredSet[];
@@ -54,10 +54,17 @@ export interface Workout {
 export interface TemplateExercise {
   id: string;
   sets: number;
+  /** Target reps; 0 for a timed exercise. */
   reps: number;
+  /** A timed exercise (plank, hold): seconds per set. */
+  seconds?: number;
   weightKg?: number;
   restSec: number;
   notes?: string;
+  /** Neighbouring exercises with the same letter are done back to back, round by round. */
+  superset?: string;
+  /** Warm-up sets: true always, false never; absent lets Fitwell decide (heavy barbell compound lifts get a ramp). */
+  warmup?: boolean;
 }
 
 /** A cardio block of a template, before it has an id or has been done. */

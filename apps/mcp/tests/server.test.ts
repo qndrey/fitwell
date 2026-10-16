@@ -127,10 +127,12 @@ describe('fitwell MCP server', () => {
       ],
     });
     expect(isError).toBe(false);
-    const plan = data.workout as { workoutId: string; exercises: { name: string; restSec: number; bodyweight: boolean; sets: { id: string; targetReps: number; weightKg?: number; done: boolean }[] }[] };
+    const plan = data.workout as { workoutId: string; exercises: { name: string; restSec: number; bodyweight: boolean; sets: { id: string; warmup?: boolean; targetReps: number; weightKg?: number; done: boolean }[] }[] };
     expect(plan.workoutId).toMatch(/^[0-9a-f-]{36}$/);
     expect(plan.exercises.map((e) => e.name)).toEqual(['Barbell Squat', 'Pullups']);
-    expect(plan.exercises[0]!.sets).toEqual([
+    // A heavy barbell lift starts with a warm-up ramp: bar, 40, 56 → 55 and 68 → 67.5 kg (loadable with standard plates).
+    expect(plan.exercises[0]!.sets.filter((s) => s.warmup).map((s) => [s.weightKg, s.targetReps])).toEqual([[20, 8], [40, 5], [55, 3], [67.5, 1]]);
+    expect(plan.exercises[0]!.sets.filter((s) => !s.warmup)).toEqual([
       { id: 's1.1', targetReps: 5, weightKg: 80, done: false },
       { id: 's1.2', targetReps: 5, weightKg: 80, done: false },
       { id: 's1.3', targetReps: 5, weightKg: 80, done: false },

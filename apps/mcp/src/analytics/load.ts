@@ -4,6 +4,7 @@ import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
 import type { WorkoutData } from '../data/workoutData';
 import { addDays, dayDiff, dayNumber, weekStart as mondayOf } from '@fitwell/core/domain/dates';
+import { bmr } from '@fitwell/core/domain/energy';
 import { buildProgress, rangeStart, type Progress } from './progress';
 import { buildWeeklyReview, weekEndOf, type WeekReview } from './review';
 
@@ -15,7 +16,8 @@ export interface ProgressDeps {
 
 /** Reads the rows for a period (a handful of indexed queries) and computes the progress numbers. */
 export async function loadProgress(deps: ProgressDeps, days: number, to?: string): Promise<Progress> {
-  const end = to ?? todayIn((await deps.data.profile()).timeZone);
+  const profile = await deps.data.profile();
+  const end = to ?? todayIn(profile.timeZone);
   const from = rangeStart(end, days);
   const lib = await loadExercises();
   const primary = new Map(lib.exercises.map((e) => [e.ref, e.primary]));
@@ -27,7 +29,9 @@ export async function loadProgress(deps: ProgressDeps, days: number, to?: string
     deps.workouts.between(from, end),
     deps.data.goals(),
   ]);
-  return buildProgress({ from, to: end, weights, measurements, metrics, nutrition, workouts, goals, musclesOf: (ref) => primary.get(ref) ?? [] });
+  const weightKg = weights.at(-1)?.kg ?? profile.weightKg;
+  const bmrKcal = profile.sex && profile.birthYear && profile.heightCm && weightKg ? bmr({ sex: profile.sex, ageYears: Number(end.slice(0, 4)) - profile.birthYear, heightCm: profile.heightCm, weightKg }) : undefined;
+  return buildProgress({ from, to: end, weights, measurements, metrics, nutrition, workouts, goals, musclesOf: (ref) => primary.get(ref) ?? [], bmrKcal });
 }
 
 export interface ReviewDeps extends ProgressDeps {

@@ -9,4 +9,9 @@ export default tseslint.config(
     files: ['src/**/*.ts'],
     rules: { '@typescript-eslint/no-explicit-any': 'error' },
   },
+  {
+    // Plain scripts of the static pages (public/), run in the browser as they are.
+    files: ['public/**/*.js'],
+    languageOptions: { sourceType: 'script', globals: { document: 'readonly', window: 'readonly', navigator: 'readonly' } },
+  },
 );

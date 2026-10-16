@@ -1,0 +1,109 @@
+@font-face { font-family: 'Figtree'; font-style: normal; font-display: swap; font-weight: 300 900; src: url('figtree.woff2') format('woff2'); }
+
+/* Layout: one calm scroll. Each feature is a text column beside its screenshots, alternating sides on wide screens and stacked on a phone.
+   Palette and typeface follow Fitwell's own design: warm paper, forest green, one amber for the second data series. */
+:root {
+  --bg: #faf8f5;
+  --surface: #f1ede7;
+  --ink: #1f1d1a;
+  --muted: #6b655d;
+  --line: #ddd6cc;
+  --accent: #2f5d50;
+  --on-accent: #ffffff;
+  --amber: #8a5d1c;
+  --font: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --shadow: 0 1px 2px rgba(31, 29, 26, 0.06), 0 8px 24px rgba(31, 29, 26, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #1b1a18; --surface: #262421; --ink: #f2efe9; --muted: #b2aba1; --line: #3a3733; --accent: #8fc7b4; --on-accent: #10201b; --amber: #e0b060;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #1b1a18; --surface: #262421; --ink: #f2efe9; --muted: #b2aba1; --line: #3a3733; --accent: #8fc7b4; --on-accent: #10201b; --amber: #e0b060;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 17px/1.55 var(--font); padding-inline: 20px; padding-block: 0 72px; }
+.wrap { max-width: 1040px; margin-inline: auto; }
+h1, h2, h3, h4 { font-weight: 800; line-height: 1.12; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.2rem, 6vw, 3.6rem); }
+h2 { font-size: clamp(1.6rem, 3.6vw, 2.2rem); }
+h3 { font-size: 1.15rem; letter-spacing: -0.01em; }
+p { margin: 0; }
+a { color: inherit; text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.875rem; }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+header.top { padding-block: 56px 40px; display: grid; gap: 28px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: center; }
+.lede { font-size: 1.2rem; max-width: 34em; color: var(--muted); }
+.stack { display: grid; gap: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 0; }
+.chips li { border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 0.9rem; font-weight: 500; }
+.chips a { text-decoration: none; color: var(--accent); font-weight: 600; }
+.chips li:has(a) { border-color: var(--accent); }
+.label { font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--accent); }
+
+.phone { border-radius: 24px; overflow: hidden; box-shadow: var(--shadow); max-width: 380px; width: 100%; background: var(--surface); }
+.phone img { display: block; width: 100%; height: auto; }
+.phone.scroll { max-height: 600px; overflow-y: auto; }
+.pair { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; align-items: flex-start; }
+figure { margin: 0; display: grid; gap: 10px; justify-items: center; }
+figcaption { font-size: 0.9rem; color: var(--muted); text-align: center; max-width: 30ch; }
+
+.feature { display: grid; gap: 40px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; padding-block: 56px; border-top: 1px solid var(--line); }
+.feature.flip > .copy { order: 2; }
+.feature.wide { grid-template-columns: 1fr; }
+.copy { display: grid; gap: 16px; min-width: 0; }
+.copy ul { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
+.copy li::marker { color: var(--accent); }
+
+.chat { display: grid; gap: 12px; align-content: start; }
+.chats { display: grid; gap: 28px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bubble { align-self: start; border-radius: 18px; padding: 12px 16px; max-width: 92%; font-size: 0.97rem; }
+.you { background: var(--accent); color: var(--on-accent); justify-self: end; border-bottom-right-radius: 6px; }
+.claude { background: var(--surface); border: 1px solid var(--line); justify-self: start; border-bottom-left-radius: 6px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+thead th { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+tbody th { font-weight: 600; white-space: nowrap; }
+.totals td, .totals th { border-bottom: 0; font-weight: 700; }
+.batch { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.groceries { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.aisle h4 { font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.aisle ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.aisle label { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 6px 0; cursor: pointer; }
+.aisle input { width: 18px; height: 18px; accent-color: var(--accent); }
+.aisle input:checked + .gname { text-decoration: line-through; color: var(--muted); }
+.gbuy { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.92rem; }
+
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: start; }
+.steps li::before { content: counter(s); width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 700; display: grid; place-items: center; }
+.url { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+code.u { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font: 600 0.95rem ui-monospace, 'SF Mono', Menlo, monospace; overflow-wrap: anywhere; user-select: all; }
+button.copy-btn { font: 600 0.95rem var(--font); background: var(--accent); color: var(--on-accent); border: 0; border-radius: 10px; padding: 9px 16px; min-height: 40px; cursor: pointer; }
+.facts { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.facts .panel h3 { font-size: 1rem; }
+footer.end { border-top: 1px solid var(--line); padding-top: 28px; display: grid; gap: 8px; }
+
+@media (max-width: 860px) {
+  header.top, .feature { grid-template-columns: 1fr; }
+  .feature.flip > .copy { order: 0; }
+  .chats { grid-template-columns: 1fr; }
+  .feature { padding-block: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* Classes for what used to be inline style attributes (the hosted page's CSP allows no inline styles). */
+.feature.inner { padding-block: 0; border-top: 0; gap: 28px; }
+.url.spaced { margin-top: 10px; }
+.wrap a:not(.copy-btn) { color: var(--accent); }

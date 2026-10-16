@@ -31,6 +31,7 @@ export function registerReviewTools(server: McpServer, deps: ReviewDeps) {
       title: 'Show the weekly review',
       description:
         'Opens the weekly review: one week of food (calories and protein against goals), training (sessions, new records), weight (7-day average), sleep, steps and water, and the meal plan, each against the week before, with what went well and things to consider. ' +
+        'It includes a check-in on energy: the burn measured from 4 weeks of logs and weigh-ins, calories for the goal and the expected date for the goal weight; propose a new calorie goal from it and save with set_goals only if the person agrees. ' +
         'Use it when the person asks how the week went or what to change, or at the end of a week. Early in the week (Monday, Tuesday) it shows the week that just ended. ' +
         'Talk about it neutrally, offer the suggestions as options, and let the person decide.',
       inputSchema: input,

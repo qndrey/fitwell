@@ -13,6 +13,7 @@ import { registerReviewTools } from './tools/review';
 import { registerShoppingTools } from './tools/shopping';
 import { registerBodyTools } from './tools/body';
 import { registerDashboardTools } from './tools/dashboard';
+import { registerMuscleTools } from './tools/muscles';
 import { registerExerciseTools } from './tools/exercises';
 import { registerFoodLogTools } from './tools/foodLog';
 import { registerFoodTools } from './tools/foods';
@@ -38,10 +39,10 @@ export interface ServerDeps {
 
 const INSTRUCTIONS = `Fitwell tracks food, workouts, body data and meal plans for the signed-in person.
 Start with get_profile when planning anything: it has their time zone, goals, equipment, diet preferences and allergies.
-Food: search_foods (their own foods, Frida generic foods, optionally Open Food Facts) or lookup_barcode. Values are per 100 g; convert portions to grams, then log_food with the food ids. get_food_log shows a day (or several) and what remains of their goals.
+Food: search_foods (their own foods, Frida generic foods, optionally Open Food Facts) or lookup_barcode. Values are per 100 g; convert portions to grams, then log_food with the food ids. For a repeat ("same breakfast as yesterday") use log_food copy_from; a meal eaten often can be saved as a recipe and logged by name. get_food_log shows a day (or several) and what remains of their goals.
 Never invent macros silently: if a food is not found, say so; log an estimate only as one (log_food with estimate_per100g) or save a custom food from a label. From a photo of a meal, name each item, find it with search_foods, estimate the grams and log with amount_estimated, telling the person what you assumed.
 Allergies: log_food and save_meal_plan report allergy matches (from names and, for packaged foods, Open Food Facts allergen data). Say them plainly, never present a plan with an ALLERGY warning, and remember foods without allergen data are matched by name only.
-Goals: suggest_targets estimates calories and macros from the profile; save with set_goals only after the person agrees.
+Goals: suggest_targets estimates calories and macros from the profile; save with set_goals only after the person agrees. Once there are a few weeks of logs and weigh-ins, get_progress and the weekly review measure the real burn (energy); prefer it to the formula (suggest_targets with expenditure_kcal).
 Exercises: search_exercises (with id for instructions). Use library ids when building workouts. show_exercise opens a guide (muscles on a body drawing, steps, machine setup, a link to find a demo video): offer it when the person asks how to do an exercise or use a machine. The workout player has the same guide under "How to do it".
 Workouts: when the person wants to train now, plan it with them (or offer a saved template from list_workout_templates), then call start_workout to open the interactive player; leave weights out to let Fitwell apply its progression rule from their history. They log sets in the player, which sends you a summary with any personal records at the end. get_workout_history and suggest_progression show past sessions and next weights. Add a warm-up or finisher to a strength workout with the cardio argument (when: before or after); exercises can carry a note, and the person can write their own in the player (the last note is shown as a reminder next time). Log runs, rides and other activities on their own with log_cardio.
 Meal plans: get_planning_context first (goals, allergies, what they actually eat, saved recipes), then build the week from foods and recipes with ids and save_meal_plan; its reply lists problems against the calorie and protein goals and any allergy or dislike match: fix and save again before presenting. get_meal_plan shows the week and what to batch-cook; show_grocery_list opens the shopping checklist the person ticks off in the shop; log_planned_meal logs a planned meal as eaten.
@@ -59,9 +60,9 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const plans = new PlanData(deps.db, deps.user.id);
   registerProfileTools(server, { data, email: deps.user.email });
   registerFoodTools(server, { off: deps.off, data });
-  registerFoodLogTools(server, { off: deps.off, data });
+  registerFoodLogTools(server, { off: deps.off, data, plans });
   registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
-  await registerExerciseTools(server);
+  await registerExerciseTools(server, { data });
   await registerWorkoutTools(server, { data, workouts });
   registerBodyTools(server, { data, workouts, body });
   registerRecipeTools(server, { off: deps.off, data, plans, fetch: deps.fetch ?? fetch, userAgent: 'Fitwell/0.3 (+https://mcp.fitwell.fyi)' });
@@ -70,6 +71,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerCookTools(server, { off: deps.off, data, plans });
   registerImportTools(server, { db: deps.db, userId: deps.user.id, publicUrl: deps.publicUrl });
   registerDashboardTools(server, { data, workouts, body });
+  registerMuscleTools(server, { data, workouts });
   registerReviewTools(server, { data, workouts, body, plans });
   registerDeleteTool(server, { data, workouts, body, plans });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email });

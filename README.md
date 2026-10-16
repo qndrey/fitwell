@@ -5,7 +5,7 @@ A calm fitness and meal tracker. This repository is an npm workspaces monorepo:
 | Workspace | What it is |
 |---|---|
 | [`apps/web`](apps/web/README.md) (`@fitwell/web`) | The Fitwell PWA: private, runs entirely in your browser, no accounts, no server. |
-| [`apps/mcp`](apps/mcp/README.md) (`@fitwell/mcp`) | Fitwell for Claude: a remote MCP server on Cloudflare Workers (in progress, see [its plan](apps/mcp/PLAN.md)). |
+| [`apps/mcp`](apps/mcp/README.md) (`@fitwell/mcp`) | Fitwell for Claude: a remote MCP server on Cloudflare Workers (in progress, see [its plan](apps/mcp/PLAN.md) and [roadmap](apps/mcp/ROADMAP.md)). |
 | [`packages/core`](packages/core/README.md) (`@fitwell/core`) | Shared data model, domain logic, bundled datasets (Frida 5.5, free-exercise-db), search and the Open Food Facts client. |
 
 ## Develop

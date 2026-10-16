@@ -72,3 +72,12 @@ details.notes textarea { width: 100%; font: inherit; color: inherit; background:
 details.notes textarea:focus-visible { outline: 3px solid var(--accent, currentColor); outline-offset: 2px; }
 details.guidebox { text-align: left; }
 details.guidebox summary { cursor: pointer; padding: 6px 0; min-height: 32px; }
+details.swapbox { text-align: left; }
+details.swapbox summary { cursor: pointer; padding: 6px 0; min-height: 32px; }
+.swaps { display: grid; gap: 6px; }
+.swaps button { display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; }
+.card.warmup h1 { opacity: 0.85; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border, currentColor); font-size: 0.8rem; }
+.plates { margin-top: -4px; }
+.hold { display: grid; gap: 6px; justify-items: center; }
+.hold .time { margin: 0; }

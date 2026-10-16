@@ -2,14 +2,15 @@
 import { PRESETS } from '@fitwell/core/data/measurements';
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import { distanceFromGoal } from '@fitwell/core/domain/body';
+import { estimateExpenditure, goalDirection, projectGoalDate, targetFromExpenditure } from '@fitwell/core/domain/energy';
 import { movingAverage, trendChange, weeksIn } from '@fitwell/core/domain/stats';
 import { estimatedOneRepMax } from '@fitwell/core/domain/workouts';
 import type { Goals, DayTotal } from '../data/userData';
 import type { DailyMetrics, MeasurementSet, WeightPoint } from '../data/bodyData';
 import type { Workout } from '../data/workoutData';
-import type { MeasurementProgress, MetricsProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
+import type { EnergyProgress, MeasurementProgress, MetricsProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
 
-export type { MeasurementProgress, MetricsProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
+export type { EnergyProgress, MeasurementProgress, MetricsProgress, NutritionProgress, Progress, RecordsProgress, TrainingProgress, WeightProgress } from './types';
 
 export interface ProgressInput {
   from: Day;
@@ -22,6 +23,8 @@ export interface ProgressInput {
   goals: Goals | null;
   /** Primary muscles of a library exercise id. */
   musclesOf: (exerciseRef: string) => string[];
+  /** Basal metabolic rate when the profile allows it: suggested calories never go below it. */
+  bmrKcal?: number;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -143,7 +146,35 @@ export function buildProgress(i: ProgressInput): Progress {
     water: { daily: water, averageMl: mean(water.map((x) => x.ml), 0) },
   };
 
-  return { from: i.from, to: i.to, days, weight, nutrition, training, records, measurements: { types }, metrics };
+  return { from: i.from, to: i.to, days, weight, nutrition, training, records, measurements: { types }, metrics, energy: buildEnergy(i, days) };
+}
+
+/** Expenditure from the last (up to) 28 days of the period, what it means for the goal weight, and when it is reached. */
+function buildEnergy(i: ProgressInput, days: number): EnergyProgress {
+  const e = estimateExpenditure({ intake: i.nutrition.map((d) => ({ day: d.day, kcal: d.kcal })), weights: i.weights.map((w) => ({ day: w.day, kg: w.kg })), to: i.to, windowDays: Math.min(28, days) });
+  const goalKg = i.goals?.goalWeightKg ?? null;
+  const direction = e.trendKg !== null && goalKg !== null ? goalDirection(e.trendKg, goalKg) : null;
+  const target = e.kcal !== null && direction ? targetFromExpenditure(e.kcal, direction, undefined, i.bmrKcal) : null;
+  const goalDate = direction && direction !== 'maintain' && e.trendKg !== null && e.trendKgPerWeek !== null ? projectGoalDate(e.trendKg, e.trendKgPerWeek, goalKg!, i.to) : null;
+  return {
+    expenditureKcal: e.kcal,
+    reason: e.reason,
+    confidence: e.confidence,
+    from: e.from,
+    to: e.to,
+    daysCounted: e.daysCounted,
+    daysExcluded: e.daysExcluded,
+    weighIns: e.weighIns,
+    intakeKcal: e.intakeKcal,
+    trendKgPerWeek: e.trendKgPerWeek,
+    trendKg: e.trendKg,
+    goalKcal: i.goals?.kcal ?? null,
+    direction,
+    suggestedKcal: target?.kcal ?? null,
+    suggestedRateKgPerWeek: target?.rateKgPerWeek ?? null,
+    goalDate,
+    notes: [...e.notes, ...(target?.notes ?? [])],
+  };
 }
 
 /** The short version for the model: no daily series, just what to talk about. */
@@ -156,6 +187,7 @@ export function summarize(p: Progress) {
     training: { sessions: t.sessions, perWeek: r1((t.sessions.strength + t.sessions.cardio) / Math.max(1, t.weeks.length)), goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
     records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
     measurements: m.types.map((t) => ({ key: t.key, label: t.label, unit: t.unit, firstDay: t.firstDay, first: t.first, latestDay: t.latestDay, latest: t.latest, change: t.change })),
+    energy: { ...p.energy, method: 'Average intake on fully logged days minus the weight trend (least squares) × 7700 kcal/kg; each 0.1 kg a week is about 110 kcal a day. suggest_targets with expenditure_kcal gives macros for any rate.' },
     dailyMetrics: { sleepAverageHours: x.sleep.averageHours, nightsLogged: x.sleep.daily.length, stepsAverage: x.steps.average, stepsDaysLogged: x.steps.daily.length, waterAverageMl: x.water.averageMl, waterDaysLogged: x.water.daily.length },
   };
 }

@@ -6,7 +6,7 @@ A remote MCP server so Claude (claude.ai, desktop and mobile) can track food and
 
 | Decision | Choice | Why |
 |---|---|---|
-| Relation to the web app | Separate product in the same monorepo; shares `@fitwell/core`. The PWA stays local-only and private, unchanged. | Keep Fitwell's privacy promise; reuse the data model, domain logic and datasets without copying. |
+| Relation to the web app | Separate product in the same monorepo; shares `@fitwell/core`. The PWA stayed local-only and private. (The web app was retired and removed on 2026-10-16; Fitwell is now only this server. Its backups can still be imported.) | Keep Fitwell's privacy promise; reuse the data model, domain logic and datasets without copying. |
 | Users | Friends and family, invite-only. | No billing, no public sign-up; GDPR still applies (health data, Art. 9). |
 | Hosting | Cloudflare Workers free plan, EU data location. | €0 for a handful of users; the web app already deploys to Cloudflare. |
 | MCP stack | `@modelcontextprotocol/server` v2 `createMcpHandler`: stateless, one server instance per request. No `agents` package, no Durable Objects. | Smallest moving part that serves both the 2026-07-28 protocol and 2025-era clients; nothing to keep alive between requests. |
@@ -143,7 +143,7 @@ Phases 6 and later (coaching, friends, wearables, faster logging) are in [ROADMA
 ## 6. Risks and open items
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
 - **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.
-- **Open Food Facts** text search is intermittently 503 (see web TECH_SPEC); cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
+- **Open Food Facts** text search is intermittently 503; cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
 - **Tool count** (decided 2026-10-16): no limit on the number or size of tool definitions (about 10k tokens for 37 visible tools). Merging tools where it reads naturally is still fine, but new features add tools when that is clearer.
 - **View bundle size**: the player is 597 KB (129 KB gzip), almost all zod pulled in by the MCP Apps SDK; our code is 6 KB. Fine for the spike; look for a slimmer import before phase 2.
 - **Player state** lives in the view only during phase 0b; a reload of the conversation loses progress until sets are stored (phase 1/2).

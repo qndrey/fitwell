@@ -5,7 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
 
-# One run per branch; a newer push cancels the older run (but never cancels a production deploy that is already running).
+# One run per branch; a newer push cancels the older run (but never on main).
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -13,12 +13,11 @@ concurrency:
 permissions:
   contents: read
 
-# Actions are pinned to full commit SHAs (a tag can be moved; the Cloudflare one runs with the deploy token).
-# Dependabot proposes updates (see dependabot.yml).
+# Actions are pinned to full commit SHAs (a tag can be moved). Dependabot proposes updates (see dependabot.yml).
 jobs:
-  # Everything that does not need a browser to drive the app, in one job; the end-to-end tests run beside it, one job per browser.
+  # Typecheck, lint and unit tests of every workspace (packages/core and apps/mcp).
   check:
-    name: Check and build
+    name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -29,118 +28,3 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
-      - run: npm run contrast
-      - run: npm run tokens
-      - run: npm run licenses
-      - run: npm run check:about
-      - run: npm run build
-      - run: npm run size
-      # Lighthouse drives Playwright's Chromium.
-      - run: npx playwright install --with-deps chromium
-      - run: npm run lighthouse
-      # The exact build that passed every check is what gets deployed (nothing is rebuilt later).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: dist
-          path: apps/web/dist
-          if-no-files-found: error
-          retention-days: 7
-
-  e2e:
-    name: E2E (${{ matrix.project }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      # Let every browser finish, so one failure does not hide another.
-      fail-fast: false
-      matrix:
-        include:
-          - { project: chromium, browser: chromium }
-          - { project: mobile-chrome, browser: chromium }
-          - { project: webkit, browser: webkit }
-          - { project: firefox, browser: firefox }
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: { node-version: 24, cache: npm }
-      - run: npm ci
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
-      # The Playwright config builds and serves the app itself.
-      - run: npm run test:e2e -w @fitwell/web -- --project=${{ matrix.project }}
-        env: { CI: 'true' }
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: failure()
-        with: { name: 'playwright-report-${{ matrix.project }}', path: apps/web/playwright-report }
-
-  deploy:
-    name: Deploy to Cloudflare Pages
-    needs: [check, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Production: pushes to main. Preview: pull requests from this repository (forks have no access to secrets).
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-    environment:
-      name: ${{ github.event_name == 'push' && 'production' || 'preview' }}
-      url: ${{ steps.deploy.outputs.deployment-url }}
-    permissions:
-      contents: read
-      deployments: write
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
-    steps:
-      # Without the Cloudflare secrets the deploy is skipped, not failed, so CI stays green on forks and fresh clones.
-      - name: Is Cloudflare configured? (and which branch name is safe to use)
-        id: cfg
-        env:
-          # Untrusted text (a branch name can contain ; $( ) ` etc.): only ever read through the environment, never interpolated into a script or command.
-          RAW_BRANCH: ${{ github.event_name == 'push' && 'main' || github.head_ref }}
-        run: |
-          # Keep only characters that are harmless in a command line and a URL; never start with "-" so it cannot be read as an option.
-          branch=$(printf '%s' "$RAW_BRANCH" | tr -c 'A-Za-z0-9._-' '-' | sed 's/^[-.]*//' | cut -c1-60)
-          [ -n "$branch" ] || branch="preview"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          if ! printf '%s' "$PROJECT" | grep -Eq '^[a-z0-9][a-z0-9-]{0,57}$'; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping deploy: variable CLOUDFLARE_PAGES_PROJECT is missing or not a valid Pages project name (see README, Deploy)."
-          elif [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping deploy: set secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (see README, Deploy)."
-          fi
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: steps.cfg.outputs.ready == 'true'
-        with: { name: dist, path: dist }
-      - name: Deploy
-        id: deploy
-        if: steps.cfg.outputs.ready == 'true'
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # main -> the production branch of the Pages project; anything else -> a preview URL named after the branch.
-          # Only validated values reach this line: the project name matched a strict pattern and the branch was reduced to [A-Za-z0-9._-].
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=${{ steps.cfg.outputs.branch }} --commit-hash=${{ github.sha }} --commit-dirty=true
-      - name: Check the deployed site
-        if: steps.cfg.outputs.ready == 'true' && steps.deploy.outputs.deployment-url != ''
-        env:
-          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
-        run: |
-          url="$DEPLOY_URL"
-          case "$url" in https://*.pages.dev|https://*.pages.dev/) ;; *) echo "::error::Unexpected deployment URL"; exit 1 ;; esac
-          url="${url%/}"
-          # A fresh deployment can take a few seconds to answer everywhere.
-          for i in 1 2 3 4 5 6; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$url/")
-            [ "$code" = 200 ] && break
-            sleep 5
-          done
-          csp=$(curl -sI "$url/" | tr -d '\r' | grep -i '^content-security-policy:' || true)
-          manifest=$(curl -s -o /dev/null -w "%{http_code}" "$url/manifest.webmanifest")
-          echo "page=$code manifest=$manifest"
-          test "$code" = 200
-          test "$manifest" = 200
-          # _headers must have been applied, otherwise the privacy promise (no third-party requests) is not enforced.
-          echo "$csp" | grep -q "default-src 'self'" || { echo "::error::The Content-Security-Policy header is missing on the deployed site"; exit 1; }

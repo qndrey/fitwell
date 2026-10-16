@@ -1,6 +1,6 @@
 # @fitwell/core
 
-Platform-neutral code shared by the Fitwell web app (`apps/web`) and the Claude MCP server. No runtime dependencies, no DOM, no IndexedDB: it is type-checked against plain ES2023 so it runs in browsers, Node and Cloudflare Workers.
+Platform-neutral code used by Fitwell for Claude (`apps/mcp`, the MCP server). No runtime dependencies, no DOM, no IndexedDB: it is type-checked against plain ES2023 so it runs in browsers, Node and Cloudflare Workers.
 
 | Path | What |
 |---|---|

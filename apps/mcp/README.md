@@ -14,7 +14,7 @@ A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals,
 | Meals | `get_planning_context`, `save_recipe`, `import_recipe` (from a web page), `get_recipes`, `suggest_meals` (what can I cook), `save_meal_plan` (checked against goals, allergies, dislikes), `get_meal_plan`, `show_grocery_list` (tick-off checklist), `log_planned_meal` |
 | Anything | `delete_item` (food entry, workout, template, recipe, meal plan, weigh-in, measurements, daily metrics) |
 | Owner only | `manage_invites` (list, add, remove unused invitations), for emails in `ADMIN_EMAILS` |
-| Import | `import_fitwell_backup` (one-time upload link for a backup from the private Fitwell app; `check_result` reports the outcome) |
+| Import | `import_fitwell_backup` (one-time upload link for a backup file from the retired Fitwell web app; `check_result` reports the outcome) |
 | Account | `export_my_data`, `delete_my_account` (erases everything, signs out everywhere) |
 
 **About page:** `https://mcp.fitwell.fyi/about/` (and `/` redirects there) explains Fitwell for Claude with screenshots and how to join. It is static files in `public/about/`, served by the Worker's static assets before the Worker runs; `public/_headers` gives it a strict CSP (nothing inline, nothing third-party). The same page is published as a claude.ai artifact, with everything inlined.
@@ -41,7 +41,7 @@ npm run db:migrate -w @fitwell/mcp
 Then start the server (the real Workers runtime, with local D1, KV and email):
 
 ```bash
-npm run dev:mcp
+npm run dev
 ```
 
 On `http://127.0.0.1:8787/mcp`, requests *without* a token run as a local dev person (`dev@localhost`), so tools are easy to try:

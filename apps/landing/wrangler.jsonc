@@ -3,7 +3,11 @@
   // The landing page at fitwell.fyi: static files only, no Worker code. The MCP server stays at mcp.fitwell.fyi.
   "name": "fitwell-landing",
   "compatibility_date": "2026-10-01",
-  "routes": [{ "pattern": "fitwell.fyi", "custom_domain": true }],
+  // www serves the same page; its canonical link points at fitwell.fyi.
+  "routes": [
+    { "pattern": "fitwell.fyi", "custom_domain": true },
+    { "pattern": "www.fitwell.fyi", "custom_domain": true }
+  ],
   "workers_dev": false,
   "assets": { "directory": "./public", "html_handling": "auto-trailing-slash" }
 }

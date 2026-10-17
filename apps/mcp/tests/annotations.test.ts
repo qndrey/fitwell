@@ -1,4 +1,4 @@
-// Anthropic's connector directory requires a title and an explicit readOnlyHint or destructiveHint on every tool;
+// Anthropic's connector directory requires a title (annotations.title) and an explicit readOnlyHint or destructiveHint on every tool;
 // Claude uses them for permissions (read-only tools run without asking, destructive ones always ask).
 import { describe, expect, it } from 'vitest';
 import { createTestEnv } from './support/env';
@@ -32,6 +32,7 @@ describe('tool annotations', () => {
     for (const tool of await listTools(isAdmin)) {
       const a = tool.annotations ?? {};
       expect(tool.title, tool.name).toBeTruthy();
+      expect(a.title, `${tool.name} annotations.title`).toBe(tool.title); // the directory reads this one
       expect(typeof a.readOnlyHint, `${tool.name} readOnlyHint`).toBe('boolean');
       if (a.readOnlyHint) {
         expect(a.destructiveHint, `${tool.name} is read-only`).not.toBe(true);

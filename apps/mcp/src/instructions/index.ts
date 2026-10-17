@@ -14,14 +14,15 @@ export type Role = keyof typeof ROLES;
 /**
  * The server as the register* functions see it: each tool named in `roles` answers with that role's instructions after
  * its own result. They go with the results, not the descriptions: the role matters when Claude is about to plan or
- * advise, which these tools come just before.
+ * advise, which these tools come just before. Every tool's title is also copied into its annotations
+ * (annotations.title), where Anthropic's connector directory reads the name it lists.
  */
 export function withRoles(target: McpServer, roles: Record<Role, readonly string[]>): McpServer {
   const roleOf = new Map(Object.entries(roles).flatMap(([role, names]) => names.map((n) => [n, ROLES[role as Role].trim()] as const)));
   const registerTool = (name: string, config: unknown, callback: (...args: unknown[]) => CallToolResult | Promise<CallToolResult>) => {
     const text = roleOf.get(name);
     const cb = text ? async (...args: unknown[]) => addRole(await callback(...args), text) : callback;
-    return (target.registerTool as (...args: unknown[]) => unknown).call(target, name, config, cb);
+    return (target.registerTool as (...args: unknown[]) => unknown).call(target, name, withAnnotationTitle(config), cb);
   };
   return new Proxy(target, {
     get(t, prop) {
@@ -31,6 +32,11 @@ export function withRoles(target: McpServer, roles: Record<Role, readonly string
       return typeof v === 'function' ? v.bind(t) : v;
     },
   });
+}
+
+function withAnnotationTitle(config: unknown): unknown {
+  const c = config as { title?: string; annotations?: Record<string, unknown> };
+  return c.title && !c.annotations?.title ? { ...c, annotations: { ...c.annotations, title: c.title } } : config;
 }
 
 const addRole = (res: CallToolResult, text: string): CallToolResult => (res.isError ? res : { ...res, content: [...res.content, { type: 'text', text }] });

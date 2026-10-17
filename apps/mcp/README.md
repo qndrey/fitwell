@@ -67,6 +67,7 @@ npm run dev:host -w @fitwell/mcp
 | `npm run check -w @fitwell/mcp` | typecheck + lint + tests (a real MCP client against the Worker's fetch handler, Open Food Facts stubbed) |
 | `npm run build:ui -w @fitwell/mcp` | Bundle each view in `ui/<name>` into one HTML string (`src/ui/generated`, git-ignored); runs automatically before dev, deploy, typecheck and tests |
 | `npm run invite -w @fitwell/mcp -- <email> [--remote]` | Add someone to the invite list (local or deployed database). On the free plan they must also be a verified destination address in Email Routing |
+| `npm run seed:review -w @fitwell/mcp -- [--apply local\|remote]` | Fill the directory reviewers' demo account (`review@fitwell.fyi`) with 12 weeks of history; it signs in with the `REVIEW_LOGIN` secret. See [REVIEW.md](REVIEW.md) |
 | `npm run types -w @fitwell/mcp` | Regenerate `worker-configuration.d.ts` after changing `wrangler.jsonc` |
 
 Data sources: Frida 5.5, DTU National Food Institute (CC BY 4.0); Open Food Facts (ODbL); free-exercise-db (The Unlicense). Tool results carry the attribution.

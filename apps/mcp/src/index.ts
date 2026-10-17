@@ -1,6 +1,6 @@
 import { OAuthProvider, type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
 import { createMcpHandler } from '@modelcontextprotocol/server';
-import { handleAuthorize, SCOPE } from './auth/login';
+import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
 import { cloudflareMailer } from './auth/mailer';
 import { page, privacyBody } from './auth/pages';
 import { handleImport } from './import/routes';
@@ -14,7 +14,16 @@ interface Props {
   userId: string;
   email: string;
 }
-type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
+// REVIEW_LOGIN is an optional secret (wrangler secret put REVIEW_LOGIN), so it is not in the generated Env.
+type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string };
+
+const adminEmails = (env: Env) => (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+/** The reviewers' fixed-code sign-in, never for an admin address (manage_invites must stay behind a real email). */
+function reviewLogin(env: EnvWithOAuth) {
+  const review = parseReviewLogin(env.REVIEW_LOGIN);
+  return review && !adminEmails(env).includes(review.email) ? review : undefined;
+}
 
 const DEV_EMAIL = 'dev@localhost';
 const DAY = 86_400;
@@ -28,7 +37,7 @@ async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'ema
         db: env.DB,
         publicUrl: env.PUBLIC_URL,
         user,
-        isAdmin: (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean).includes(user.email.toLowerCase()),
+        isAdmin: adminEmails(env).includes(user.email.toLowerCase()),
         deleteAccount: async () => {
           // Sign out everywhere first, then erase the data.
           if (oauth) for (const g of (await oauth.listUserGrants(user.id)).items) await oauth.revokeGrant(g.id, user.id);
@@ -46,7 +55,7 @@ const site = {
   async fetch(request: Request, env: EnvWithOAuth): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
-      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL, contact: env.CONTACT_EMAIL });
+      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL, contact: env.CONTACT_EMAIL, review: reviewLogin(env) });
     }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));

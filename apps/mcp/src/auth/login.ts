@@ -36,7 +36,29 @@ export interface LoginDeps {
   publicUrl: string;
   /** Where people can ask for an invite; shown on the sign-in pages. */
   contact?: string;
+  /** The directory reviewers' demo account, which signs in with a fixed code instead of an email (see parseReviewLogin). */
+  review?: ReviewLogin;
   now?: () => number;
+}
+
+export interface ReviewLogin {
+  email: string;
+  code: string;
+}
+
+/**
+ * The secret REVIEW_LOGIN, "email:code" with a 6-digit code: Anthropic's directory reviewers can't receive our
+ * sign-in emails, so this one address signs in with a code they are given instead. It still has to be invited,
+ * tick the consent box and stay within the same expiry, attempt and rate limits; only the email is skipped.
+ * Anything malformed turns it off. Delete the secret when no review is running.
+ */
+export function parseReviewLogin(raw: string | undefined): ReviewLogin | undefined {
+  const value = (raw ?? '').trim();
+  const at = value.lastIndexOf(':');
+  if (at < 0) return undefined;
+  const email = normalizeEmail(value.slice(0, at));
+  const code = value.slice(at + 1).trim();
+  return EMAIL_RE.test(email) && /^\d{6}$/.test(code) ? { email, code } : undefined;
 }
 
 interface LoginRow {
@@ -103,7 +125,8 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const user = await findUserByEmail(deps.db, email);
   const id = crypto.randomUUID();
-  const code = randomCode();
+  const reviewer = deps.review?.email === email;
+  const code = reviewer ? deps.review!.code : randomCode();
   const token = randomToken();
   const browserSecret = randomToken();
   await deps.db
@@ -121,7 +144,8 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
     return problem('Too many sign-in attempts. Wait an hour and try again.', 429);
   }
   // Only invited addresses get an email; the page is the same either way, so it reveals nothing.
-  if (user) {
+  // The reviewers' account gets none: they were given its code.
+  if (user && !reviewer) {
     const link = `${deps.publicUrl}/authorize/link?l=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`;
     try {
       await deps.mailer.send(signInMail(email, code, link, 'Claude'));

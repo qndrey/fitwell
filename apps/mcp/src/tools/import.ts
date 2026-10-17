@@ -15,6 +15,7 @@ export function registerImportTools(server: McpServer, deps: { db: D1Database; u
         'Existing entries are never changed or duplicated, so repeating it is safe. ' +
         'With check_result it makes no link and instead reports what the most recent finished import added, skipped or found already there: use it after the person says they uploaded the file.',
       inputSchema: z.object({ check_result: z.boolean().default(false) }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
     async ({ check_result }) => {
       if (check_result) {

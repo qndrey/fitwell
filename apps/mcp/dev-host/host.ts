@@ -5,7 +5,7 @@ import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/
 
 /** ?sample=a2: warm-ups and plates (squat), a superset (curl + pushdown) and a timed plank. */
 const SAMPLE_A2 = {
-  name: 'Player features',
+  name: 'Legs and arms',
   exercises: [
     { id: 'ex:Barbell_Squat', sets: 2, reps: 5, weight_kg: 102.5, rest_sec: 3 },
     { id: 'ex:Barbell_Curl', sets: 2, reps: 10, weight_kg: 30, rest_sec: 3, superset: 'A' },

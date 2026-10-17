@@ -242,6 +242,23 @@ describe('email sign-in', () => {
     const text = await res.text();
     expect(text).toContain('EU');
     expect(text).toContain('privacy@fitwell.test');
+    expect(text).toContain('How long');
+    expect(text).toContain('Sign-in records are deleted after 30 days');
+  });
+
+  it('deletes sign-in requests older than 30 days whenever a code is asked for', async () => {
+    const day = 86_400_000;
+    const add = (id: string, age: number) =>
+      env.DB.prepare('INSERT INTO login_requests (id, email, user_id, code_hash, link_hash, browser_hash, ip, created_at, expires_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)')
+        .bind(id, 'someone@example.com', 'x', 'x', 'x', '198.51.100.1', Date.now() - age, Date.now() - age + 600_000)
+        .run();
+    await add('old', 31 * day);
+    await add('recent', 29 * day);
+    const clientId = await registerClient();
+    const { b, html } = await startSignIn(clientId);
+    await b('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email: 'ana@example.com', consent: 'yes' }));
+    const ids = (await env.DB.prepare("SELECT id FROM login_requests WHERE email = 'someone@example.com'").all<{ id: string }>()).results.map((r) => r.id);
+    expect(ids).toEqual(['recent']);
   });
 });
 

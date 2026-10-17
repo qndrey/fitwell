@@ -50,7 +50,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
           })
           .optional(),
       }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async (a) => {
       const profile = await data.updateProfile({
@@ -112,7 +112,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         workouts_per_week: z.number().int().min(0).max(14).nullable().optional(),
         goal_weight_kg: z.number().min(30).max(300).nullable().optional(),
       }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async (a) => {
       const patch: Partial<Goals> = {

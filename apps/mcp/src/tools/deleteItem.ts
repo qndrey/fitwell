@@ -34,7 +34,7 @@ export function registerDeleteTool(server: McpServer, deps: DeleteDeps) {
         day: day.optional().describe('For weigh_in, measurements, daily_metrics'),
         week_start: day.optional().describe('For meal_plan'),
       }),
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async ({ kind, id, day: d, week_start }) => {
       const need = (v: string | undefined, field: string) => (v ? null : toolError(`${kind} needs ${field}.`));

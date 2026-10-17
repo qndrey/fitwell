@@ -34,7 +34,7 @@ export function registerAccountTools(server: McpServer, deps: AccountDeps) {
         'Permanently erases everything Fitwell stores about the person and signs them out of every client. Cannot be undone. ' +
         `Only call it after the person explicitly asked, offered them export_my_data first, and they typed "${CONFIRM}".`,
       inputSchema: z.object({ confirm: z.literal(CONFIRM) }),
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async () => {
       await deps.deleteAccount();

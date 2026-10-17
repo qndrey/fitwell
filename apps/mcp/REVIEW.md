@@ -63,6 +63,7 @@ The account and its data can stay. Without the secret it can only sign in by ema
 
 - **One-liner:** "Track food, training and weight by talking to Claude." Keep the invite in the description and the requirements field rather than here.
 - **Description:** start with what it does (food logging with macros, meal plans and shopping lists, a workout player, progress dashboards). End with: "Fitwell is invite-only during early access; see fitwell.fyi to ask for an invitation."
+- **Carousel (MCP App screenshots):** the five PNGs in [directory/](directory/README.md), with their paired prompts.
 - **Documentation URL:** https://fitwell.fyi (how to join, what it does). **Privacy policy:** https://mcp.fitwell.fyi/privacy. **Support:** fitwell.fyi@pm.me.
 
 An uninvited person who signs in from the directory sees the same "Check your email" page as everyone (so it doesn't reveal who is invited). Both sign-in pages say "Fitwell is invite-only… Not invited yet? Ask at fitwell.fyi@pm.me".

@@ -4,6 +4,7 @@
 //   npm run seed:review -w @fitwell/mcp -- --apply local         and load it into the local dev database
 //   npm run seed:review -w @fitwell/mcp -- --apply remote        and load it into the deployed database
 //   ... -- --email someone@example.com                           another address (default review@fitwell.fyi)
+//   ... -- --email dev@localhost --apply local                   the local dev user, for screenshots in the dev host
 //
 // The history is built by calling Fitwell's own tools in-process, against a throwaway SQLite copy of the schema,
 // so every row went through the same validation as a real person's. The SQL then replaces only that address's
@@ -34,7 +35,9 @@ if (!existsSync(join(MCP_DIR, 'wrangler.jsonc'))) {
 }
 const OUT = flag('out') ?? join(MCP_DIR, '.wrangler/review-seed.sql');
 // Strict shape check; the address also goes into the SQL.
-if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(EMAIL) || (APPLY && !['local', 'remote'].includes(APPLY))) {
+// dev@localhost is the local dev user (DEV_UNAUTHENTICATED), for screenshots through the dev host; never remote.
+const DEV_USER = EMAIL === 'dev@localhost' && APPLY !== 'remote';
+if ((!DEV_USER && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(EMAIL)) || (APPLY && !['local', 'remote'].includes(APPLY))) {
   console.error('Usage: npm run seed:review -w @fitwell/mcp -- [--email review@fitwell.fyi] [--apply local|remote] [--out file.sql]');
   process.exit(1);
 }
@@ -264,5 +267,5 @@ console.log(`${EMAIL}: ${days.length} days (${fullDays} fully logged), ${workout
 
 if (APPLY) {
   execFileSync('npx', ['wrangler', 'd1', 'execute', 'fitwell', `--${APPLY}`, '--file', OUT, '--yes'], { stdio: 'inherit', cwd: MCP_DIR });
-  console.log(`Loaded into the ${APPLY} database. Sign in as ${EMAIL} with the REVIEW_LOGIN code.`);
+  console.log(DEV_USER ? 'Loaded into the local database: npm run dev:mcp and npm run dev:host show it.' : `Loaded into the ${APPLY} database. Sign in as ${EMAIL} with the REVIEW_LOGIN code.`);
 }

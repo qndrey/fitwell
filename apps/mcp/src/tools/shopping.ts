@@ -74,7 +74,7 @@ export function registerShoppingTools(server: McpServer, deps: FoodDeps & { plan
       title: 'Tick a grocery item',
       description: 'Called by the shopping list when an item is ticked or unticked, or all ticks are cleared.',
       inputSchema: z.object({ week_start: day, key: z.string().min(1).max(200).optional(), checked: z.boolean().optional(), clear: z.boolean().optional() }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: SHOPPING_VIEW_URI, visibility: ['app'] } },
     },
     async ({ week_start, key, checked, clear }) => {

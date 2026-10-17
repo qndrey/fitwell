@@ -24,6 +24,9 @@ const PER_IP_PER_HOUR = 20;
 // 20 guesses at a 6-digit code is a 1 in 50,000 chance.
 const REVIEW_MAX_WRONG = 20;
 const REVIEW_WINDOW_MS = 30 * 86_400_000;
+// Sign-in requests (email, IP address, times, hashed codes) are kept only as long as a limit needs them: the
+// longest is the reviewers' guess count above. Older ones are deleted whenever someone asks for a code.
+const KEEP_LOGIN_REQUESTS_MS = REVIEW_WINDOW_MS;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BROWSER_COOKIE = '__Host-fitwell-signin';
 
@@ -140,6 +143,7 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
     .prepare('INSERT INTO login_requests (id, email, user_id, code_hash, link_hash, browser_hash, ip, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(id, email, user?.id ?? null, await sha256(`${id}:${code}`), await sha256(token), await sha256(browserSecret), ip, now, now + TTL_MS)
     .run();
+  await deps.db.prepare('DELETE FROM login_requests WHERE created_at < ?').bind(now - KEEP_LOGIN_REQUESTS_MS).run();
   // Rate limits, counted after recording this attempt so parallel requests can't slip past them.
   const hourAgo = now - 3_600_000;
   const recent = await deps.db

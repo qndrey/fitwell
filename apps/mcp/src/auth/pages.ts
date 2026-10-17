@@ -104,11 +104,12 @@ export function privacyBody(contact: string): string {
   return `
 <h1>Privacy notice</h1>
 <div class="card">
-  <p><strong>What:</strong> your email address, and what you choose to share through Claude: profile and goals, foods you log, your own foods, and later workouts and body measurements. This includes health data.</p>
-  <p><strong>Why:</strong> only to store it and show it back to you (tracking, plans, progress). Legal basis: your explicit consent, given at sign-in.</p>
-  <p><strong>Where:</strong> Cloudflare (D1 database restricted to the EU). Sign-in emails are sent through Cloudflare. Food lookups send only search words or barcodes to Open Food Facts.</p>
+  <p><strong>What:</strong> your email address, and what you choose to share through Claude: your profile (time zone, sex, birth year, height, weight, activity level, equipment, diet preferences and allergies) and goals; the foods you log and your own foods; recipes, meal plans and shopping-list ticks; workouts, workout templates and exercise notes; weigh-ins, body measurements, sleep, steps and water. This includes health data. For sign-in we also record the email address, IP address and time of each request for a code.</p>
+  <p><strong>Why:</strong> only to store it and show it back to you (tracking, plans, progress); the sign-in records are used only to limit repeated attempts. Legal basis: your explicit consent, given at sign-in.</p>
+  <p><strong>Where:</strong> Cloudflare (D1 database restricted to the EU). Sign-in emails are sent through Cloudflare, and sign-in sessions use Cloudflare's global storage, holding no health data. Food lookups send only search words or barcodes to Open Food Facts.</p>
+  <p><strong>How long:</strong> your data is kept until you delete it: one item at a time (delete_item), or everything with your account. Sign-in records are deleted after 30 days. Signing in to Claude stays valid while you use Fitwell and expires after 60 days without use. A link for importing a backup works for 30 minutes. Recent Open Food Facts results are cached for up to 7 days, without any link to you.</p>
   <p><strong>Not done:</strong> no ads, no analytics, no selling or sharing, no AI training by Fitwell.</p>
-  <p><strong>Your rights:</strong> ask Claude to export your data (export_my_data) or delete your account (delete_my_account) at any time; this erases everything immediately. You can also withdraw consent or ask questions by email.</p>
+  <p><strong>Your rights:</strong> ask Claude to export your data (export_my_data) or delete your account (delete_my_account) at any time; deleting erases everything immediately and signs you out everywhere. You can also withdraw consent or ask questions by email.</p>
   <p><strong>Contact:</strong> ${escape(contact)}</p>
 </div>`;
 }

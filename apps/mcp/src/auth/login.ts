@@ -18,6 +18,11 @@ const TTL_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 5;
 const PER_EMAIL_PER_HOUR = 5;
 const PER_IP_PER_HOUR = 20;
+// The reviewers' code is fixed, so wrong guesses add up across sign-ins: after this many in REVIEW_WINDOW_MS the
+// fixed code stops working (that address gets a random, emailed code like anyone else) until the count ages out
+// or the stored requests are cleared. 20 guesses at a 6-digit code is a 1 in 50,000 chance.
+const REVIEW_MAX_WRONG = 20;
+const REVIEW_WINDOW_MS = 30 * 86_400_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BROWSER_COOKIE = '__Host-fitwell-signin';
 
@@ -50,7 +55,8 @@ export interface ReviewLogin {
  * The secret REVIEW_LOGIN, "email:code" with a 6-digit code: Anthropic's directory reviewers can't receive our
  * sign-in emails, so this one address signs in with a code they are given instead. It still has to be invited,
  * tick the consent box and stay within the same expiry, attempt and rate limits; only the email is skipped.
- * Anything malformed turns it off. Delete the secret when no review is running.
+ * Wrong codes are also counted across sign-ins (REVIEW_MAX_WRONG). Anything malformed turns it off. Delete the
+ * secret when no review is running.
  */
 export function parseReviewLogin(raw: string | undefined): ReviewLogin | undefined {
   const value = (raw ?? '').trim();
@@ -125,7 +131,7 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const user = await findUserByEmail(deps.db, email);
   const id = crypto.randomUUID();
-  const reviewer = deps.review?.email === email;
+  const reviewer = deps.review?.email === email && (await reviewWrongGuesses(deps.db, email, now)) < REVIEW_MAX_WRONG;
   const code = reviewer ? deps.review!.code : randomCode();
   const token = randomToken();
   const browserSecret = randomToken();
@@ -157,6 +163,15 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   // Lax: sent when the emailed link is opened in this same browser (a top-level navigation from the mail app).
   const headers = new Headers({ 'Set-Cookie': `${BROWSER_COOKIE}=${browserSecret}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${TTL_MS / 1000}` });
   return page('Check your email', body, { script, headers });
+}
+
+/** Wrong codes typed for this address recently: every try on a sign-in that never succeeded (the last try on one that did was right). */
+async function reviewWrongGuesses(db: D1Database, email: string, now: number): Promise<number> {
+  const row = await db
+    .prepare('SELECT COALESCE(SUM(CASE WHEN verified_at IS NULL THEN attempts WHEN attempts > 0 THEN attempts - 1 ELSE 0 END), 0) AS wrong FROM login_requests WHERE email = ? AND created_at > ?')
+    .bind(email, now - REVIEW_WINDOW_MS)
+    .first<{ wrong: number }>();
+  return row?.wrong ?? 0;
 }
 
 async function loadLogin(db: D1Database, id: string): Promise<LoginRow | null> {

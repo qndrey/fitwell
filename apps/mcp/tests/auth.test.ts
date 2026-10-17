@@ -285,6 +285,29 @@ describe('directory reviewer sign-in (REVIEW_LOGIN)', () => {
     expect((await ana.code(codeIn(sent[0]!))).status).toBe(302);
   });
 
+  it('stops taking the fixed code after 20 wrong guesses across sign-ins', async () => {
+    await withReviewLogin(`${REVIEW}:${CODE}`);
+    for (let i = 0; i < 4; i++) {
+      const { code } = await enterEmail(REVIEW);
+      for (let j = 0; j < 5; j++) expect((await code('111111')).status).toBe(400);
+    }
+    const { code } = await enterEmail(REVIEW);
+    expect(sent.map((m) => m.to)).toEqual([REVIEW]); // a random, emailed code from now on
+    if (codeIn(sent[0]!) !== CODE) expect((await code(CODE)).status).toBe(400);
+  });
+
+  it('counts only wrong codes: a successful sign-in uses none of the allowance', async () => {
+    await withReviewLogin(`${REVIEW}:${CODE}`);
+    for (let i = 0; i < 4; i++) {
+      const { code } = await enterEmail(REVIEW);
+      for (let j = 0; j < 4; j++) expect((await code('111111')).status).toBe(400);
+      expect((await code(CODE)).status).toBe(302);
+    }
+    // 16 wrong so far: the fixed code still works.
+    expect((await (await enterEmail(REVIEW)).code(CODE)).status).toBe(302);
+    expect(sent).toHaveLength(0);
+  });
+
   it('does nothing for an address that is not invited', async () => {
     ({ env, sent } = createTestEnv({ REVIEW_LOGIN: `${REVIEW}:${CODE}` } as Partial<Env>));
     const { code } = await enterEmail(REVIEW);

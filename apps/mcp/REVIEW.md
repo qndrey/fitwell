@@ -3,7 +3,7 @@
 Anthropic's Connectors Directory review needs a test account with data in it ([submission guide](https://claude.com/docs/connectors/building/submission)). Fitwell signs people in with an emailed code, and reviewers can't read our emails, so one address has a fixed code instead:
 
 - **Address:** `review@fitwell.fyi`. It doesn't need a mailbox, because no email is ever sent to it.
-- **Sign-in:** the Worker secret `REVIEW_LOGIN` (`email:code`, 6 digits) lets that address sign in with the code. Everything else is unchanged: it must be invited, tick the consent box, and stay within 10 minutes, 5 tries per sign-in and 5 sign-ins an hour. A malformed secret, or one naming an address in `ADMIN_EMAILS`, turns it off (`src/auth/login.ts`, `parseReviewLogin`).
+- **Sign-in:** the Worker secret `REVIEW_LOGIN` (`email:code`, 6 digits) lets that address sign in with the code. Everything else is unchanged: it must be invited, tick the consent box, and stay within 10 minutes, 5 tries per sign-in and 5 sign-ins an hour. Because the code is fixed, wrong codes also add up across sign-ins: after 20 in 30 days the fixed code stops working, and that address gets an emailed random code like anyone else, which nobody reads. A malformed secret, or one naming an address in `ADMIN_EMAILS`, turns it off (`src/auth/login.ts`, `parseReviewLogin`).
 - **Data:** `scripts/seed-review.ts` builds 12 weeks of history by calling Fitwell's own tools, then replaces that account's rows in D1. Running it again resets the demo, and dates are always relative to today. The history covers food (about 85 % of days fully logged), weigh-ins (84 → 79.5 kg), waist and hips, sleep, steps and water, Workout A and B three times a week with progression, runs, four recipes, and meal plans with ticked groceries for this week and next. It also includes a peanut allergy, so allergy warnings show.
 
 ## Before a review
@@ -22,6 +22,12 @@ npm run seed:review -w @fitwell/mcp -- --apply remote
 
 Run this again just before a reviewer is likely to look, so "today" and "this week" have data. The server must be deployed with the `REVIEW_LOGIN` support (this change) for the code to work.
 
+If reviewers report that the code stopped working, someone has guessed wrong 20 times. Set a new code with `wrangler secret put REVIEW_LOGIN`, then clear the count:
+
+```bash
+npx wrangler d1 execute fitwell --remote -c apps/mcp/wrangler.jsonc --command "DELETE FROM login_requests WHERE email = 'review@fitwell.fyi'"
+```
+
 ## After the review
 
 ```bash
@@ -36,7 +42,7 @@ The account and its data can stay. Without the secret it can only sign in by ema
 
 > 1. In Claude (web or desktop), open Settings → Connectors → Add custom connector and enter `https://mcp.fitwell.fyi/mcp`.
 > 2. Claude opens the Fitwell sign-in page. Enter `review@fitwell.fyi`, tick the consent box and continue.
-> 3. No email arrives for this test address. Type the code `<the 6 digits>` on the "Check your email" page. The code works for 5 tries per sign-in.
+> 3. No email arrives for this test address. Type the code `<the 6 digits>` on the "Check your email" page. Please type it carefully: after repeated wrong codes it stops working (write to fitwell.fyi@pm.me and we'll reset it).
 > 4. The account has 12 weeks of made-up history: food logs, weigh-ins, workouts, recipes and this week's and next week's meal plans. Its time zone is Europe/Copenhagen.
 >
 > Example prompts:

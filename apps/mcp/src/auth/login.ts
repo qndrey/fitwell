@@ -18,9 +18,10 @@ const TTL_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 5;
 const PER_EMAIL_PER_HOUR = 5;
 const PER_IP_PER_HOUR = 20;
-// The reviewers' code is fixed, so wrong guesses add up across sign-ins: after this many in REVIEW_WINDOW_MS the
-// fixed code stops working (that address gets a random, emailed code like anyone else) until the count ages out
-// or the stored requests are cleared. 20 guesses at a 6-digit code is a 1 in 50,000 chance.
+// The reviewers' code is fixed, so guesses add up across sign-ins: in REVIEW_WINDOW_MS at most this many wrong codes
+// can ever be typed at it (open sign-ins count as if all their tries were used), after which that address gets a
+// random, emailed code like anyone else until the count ages out or the stored requests are cleared.
+// 20 guesses at a 6-digit code is a 1 in 50,000 chance.
 const REVIEW_MAX_WRONG = 20;
 const REVIEW_WINDOW_MS = 30 * 86_400_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -131,8 +132,8 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const user = await findUserByEmail(deps.db, email);
   const id = crypto.randomUUID();
-  const reviewer = deps.review?.email === email && (await reviewWrongGuesses(deps.db, email, now)) < REVIEW_MAX_WRONG;
-  const code = reviewer ? deps.review!.code : randomCode();
+  let reviewer = deps.review?.email === email; // settled below, once this request is recorded
+  let code = reviewer ? deps.review!.code : randomCode();
   const token = randomToken();
   const browserSecret = randomToken();
   await deps.db
@@ -148,6 +149,13 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   if (!recent || recent.by_email > PER_EMAIL_PER_HOUR || recent.by_ip > PER_IP_PER_HOUR) {
     await deps.db.prepare('UPDATE login_requests SET completed_at = ? WHERE id = ?').bind(now, id).run(); // void it
     return problem('Too many sign-in attempts. Wait an hour and try again.', 429);
+  }
+  // The fixed code only while the guesses it could still take fit the allowance; checked after recording this
+  // request (which counts as open), so parallel sign-ins can't each see room for themselves.
+  if (reviewer && (await reviewGuessesCommitted(deps.db, email, now)) > REVIEW_MAX_WRONG) {
+    reviewer = false;
+    code = randomCode();
+    await deps.db.prepare('UPDATE login_requests SET code_hash = ? WHERE id = ?').bind(await sha256(`${id}:${code}`), id).run();
   }
   // Only invited addresses get an email; the page is the same either way, so it reveals nothing.
   // The reviewers' account gets none: they were given its code.
@@ -165,13 +173,22 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   return page('Check your email', body, { script, headers });
 }
 
-/** Wrong codes typed for this address recently: every try on a sign-in that never succeeded (the last try on one that did was right). */
-async function reviewWrongGuesses(db: D1Database, email: string, now: number): Promise<number> {
+/**
+ * Wrong codes this address has typed recently, plus every try still open: a succeeded sign-in counts its tries but
+ * the last (that one was right), an open one all MAX_ATTEMPTS (it could still take them), a finished one what it took.
+ */
+async function reviewGuessesCommitted(db: D1Database, email: string, now: number): Promise<number> {
   const row = await db
-    .prepare('SELECT COALESCE(SUM(CASE WHEN verified_at IS NULL THEN attempts WHEN attempts > 0 THEN attempts - 1 ELSE 0 END), 0) AS wrong FROM login_requests WHERE email = ? AND created_at > ?')
-    .bind(email, now - REVIEW_WINDOW_MS)
-    .first<{ wrong: number }>();
-  return row?.wrong ?? 0;
+    .prepare(
+      `SELECT COALESCE(SUM(CASE
+         WHEN verified_at IS NOT NULL THEN MAX(attempts - 1, 0)
+         WHEN completed_at IS NULL AND expires_at > ?1 AND attempts < ?2 THEN ?2
+         ELSE attempts END), 0) AS guesses
+       FROM login_requests WHERE email = ?3 AND created_at > ?4`,
+    )
+    .bind(now, MAX_ATTEMPTS, email, now - REVIEW_WINDOW_MS)
+    .first<{ guesses: number }>();
+  return row?.guesses ?? 0;
 }
 
 async function loadLogin(db: D1Database, id: string): Promise<LoginRow | null> {

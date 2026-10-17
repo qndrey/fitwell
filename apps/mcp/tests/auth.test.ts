@@ -298,14 +298,24 @@ describe('directory reviewer sign-in (REVIEW_LOGIN)', () => {
 
   it('counts only wrong codes: a successful sign-in uses none of the allowance', async () => {
     await withReviewLogin(`${REVIEW}:${CODE}`);
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const { code } = await enterEmail(REVIEW);
       for (let j = 0; j < 4; j++) expect((await code('111111')).status).toBe(400);
       expect((await code(CODE)).status).toBe(302);
     }
-    // 16 wrong so far: the fixed code still works.
+    // 12 wrong so far, and a new sign-in could take 5 more: still within 20, so the fixed code works.
     expect((await (await enterEmail(REVIEW)).code(CODE)).status).toBe(302);
     expect(sent).toHaveLength(0);
+  });
+
+  it('counts sign-ins that are still open, so opening several at once gives no extra guesses', async () => {
+    await withReviewLogin(`${REVIEW}:${CODE}`);
+    const open = [];
+    for (let i = 0; i < 5; i++) open.push(await enterEmail(REVIEW));
+    // Four open sign-ins could take 20 wrong codes between them; the fifth gets a random, emailed code.
+    expect(sent.map((m) => m.to)).toEqual([REVIEW]);
+    if (codeIn(sent[0]!) !== CODE) expect((await open[4]!.code(CODE)).status).toBe(400);
+    expect((await open[0]!.code(CODE)).status).toBe(302);
   });
 
   it('does nothing for an address that is not invited', async () => {

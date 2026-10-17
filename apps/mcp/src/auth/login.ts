@@ -18,6 +18,12 @@ const TTL_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 5;
 const PER_EMAIL_PER_HOUR = 5;
 const PER_IP_PER_HOUR = 20;
+// The reviewers' code is fixed, so guesses add up across sign-ins: in REVIEW_WINDOW_MS at most this many wrong codes
+// can ever be typed at it (open sign-ins count as if all their tries were used), after which that address gets a
+// random, emailed code like anyone else until the count ages out or the stored requests are cleared.
+// 20 guesses at a 6-digit code is a 1 in 50,000 chance.
+const REVIEW_MAX_WRONG = 20;
+const REVIEW_WINDOW_MS = 30 * 86_400_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const BROWSER_COOKIE = '__Host-fitwell-signin';
 
@@ -36,7 +42,30 @@ export interface LoginDeps {
   publicUrl: string;
   /** Where people can ask for an invite; shown on the sign-in pages. */
   contact?: string;
+  /** The directory reviewers' demo account, which signs in with a fixed code instead of an email (see parseReviewLogin). */
+  review?: ReviewLogin;
   now?: () => number;
+}
+
+export interface ReviewLogin {
+  email: string;
+  code: string;
+}
+
+/**
+ * The secret REVIEW_LOGIN, "email:code" with a 6-digit code: Anthropic's directory reviewers can't receive our
+ * sign-in emails, so this one address signs in with a code they are given instead. It still has to be invited,
+ * tick the consent box and stay within the same expiry, attempt and rate limits; only the email is skipped.
+ * Wrong codes are also counted across sign-ins (REVIEW_MAX_WRONG). Anything malformed turns it off. Delete the
+ * secret when no review is running.
+ */
+export function parseReviewLogin(raw: string | undefined): ReviewLogin | undefined {
+  const value = (raw ?? '').trim();
+  const at = value.lastIndexOf(':');
+  if (at < 0) return undefined;
+  const email = normalizeEmail(value.slice(0, at));
+  const code = value.slice(at + 1).trim();
+  return EMAIL_RE.test(email) && /^\d{6}$/.test(code) ? { email, code } : undefined;
 }
 
 interface LoginRow {
@@ -103,7 +132,8 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
   const user = await findUserByEmail(deps.db, email);
   const id = crypto.randomUUID();
-  const code = randomCode();
+  let reviewer = deps.review?.email === email; // settled below, once this request is recorded
+  let code = reviewer ? deps.review!.code : randomCode();
   const token = randomToken();
   const browserSecret = randomToken();
   await deps.db
@@ -120,8 +150,16 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
     await deps.db.prepare('UPDATE login_requests SET completed_at = ? WHERE id = ?').bind(now, id).run(); // void it
     return problem('Too many sign-in attempts. Wait an hour and try again.', 429);
   }
+  // The fixed code only while the guesses it could still take fit the allowance; checked after recording this
+  // request (which counts as open), so parallel sign-ins can't each see room for themselves.
+  if (reviewer && (await reviewGuessesCommitted(deps.db, email, now)) > REVIEW_MAX_WRONG) {
+    reviewer = false;
+    code = randomCode();
+    await deps.db.prepare('UPDATE login_requests SET code_hash = ? WHERE id = ?').bind(await sha256(`${id}:${code}`), id).run();
+  }
   // Only invited addresses get an email; the page is the same either way, so it reveals nothing.
-  if (user) {
+  // The reviewers' account gets none: they were given its code.
+  if (user && !reviewer) {
     const link = `${deps.publicUrl}/authorize/link?l=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`;
     try {
       await deps.mailer.send(signInMail(email, code, link, 'Claude'));
@@ -133,6 +171,24 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
   // Lax: sent when the emailed link is opened in this same browser (a top-level navigation from the mail app).
   const headers = new Headers({ 'Set-Cookie': `${BROWSER_COOKIE}=${browserSecret}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${TTL_MS / 1000}` });
   return page('Check your email', body, { script, headers });
+}
+
+/**
+ * Wrong codes this address has typed recently, plus every try still open: a succeeded sign-in counts its tries but
+ * the last (that one was right), an open one all MAX_ATTEMPTS (it could still take them), a finished one what it took.
+ */
+async function reviewGuessesCommitted(db: D1Database, email: string, now: number): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COALESCE(SUM(CASE
+         WHEN verified_at IS NOT NULL THEN MAX(attempts - 1, 0)
+         WHEN completed_at IS NULL AND expires_at > ?1 AND attempts < ?2 THEN ?2
+         ELSE attempts END), 0) AS guesses
+       FROM login_requests WHERE email = ?3 AND created_at > ?4`,
+    )
+    .bind(now, MAX_ATTEMPTS, email, now - REVIEW_WINDOW_MS)
+    .first<{ guesses: number }>();
+  return row?.guesses ?? 0;
 }
 
 async function loadLogin(db: D1Database, id: string): Promise<LoginRow | null> {

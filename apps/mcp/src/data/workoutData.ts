@@ -1,4 +1,5 @@
 // A person's workouts and templates. Like UserData, every query is bound to the signed-in user's id.
+import type { SessionDetails } from '../workout/sessions';
 import type { CardioDetails, WorkoutExercise, WorkoutSet } from '@fitwell/core/schema';
 
 /** A set as the server stores it: the web shape plus the target the plan asked for. */
@@ -38,12 +39,14 @@ export interface CardioBlock {
 export interface Workout {
   id: string;
   day: string;
-  type: 'strength' | 'cardio';
+  type: 'strength' | 'cardio' | 'session';
   name: string | null;
   startedAt: number | null;
   finishedAt: number | null;
   exercises: StoredExercise[];
   cardio: CardioDetails | null;
+  /** A whole-body session (Pilates, HIIT, ...). */
+  session: SessionDetails | null;
   /** Cardio blocks of a strength workout. */
   cardioBlocks: CardioBlock[];
   templateId: string | null;
@@ -100,6 +103,7 @@ const toWorkout = (r: Row): Workout => ({
   finishedAt: (r.finished_at as number | null) ?? null,
   exercises: parse<StoredExercise[]>(r.exercises, []),
   cardio: parse<CardioDetails | null>(r.cardio, null),
+  session: parse<SessionDetails | null>(r.session, null),
   cardioBlocks: parse<CardioBlock[]>(r.cardio_blocks, []),
   templateId: (r.template_id as string | null) ?? null,
   createdAt: r.created_at as number,
@@ -119,8 +123,8 @@ export class WorkoutData {
     const now = this.now();
     const row: Workout = { ...w, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
     await this.db
-      .prepare('INSERT INTO workouts (id, user_id, day, type, name, started_at, finished_at, exercises, cardio, cardio_blocks, template_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(row.id, this.userId, row.day, row.type, row.name, row.startedAt, row.finishedAt, row.type === 'strength' ? JSON.stringify(row.exercises) : null, row.cardio ? JSON.stringify(row.cardio) : null, row.cardioBlocks.length ? JSON.stringify(row.cardioBlocks) : null, row.templateId, now, now)
+      .prepare('INSERT INTO workouts (id, user_id, day, type, name, started_at, finished_at, exercises, cardio, cardio_blocks, session, template_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(row.id, this.userId, row.day, row.type, row.name, row.startedAt, row.finishedAt, row.type === 'strength' ? JSON.stringify(row.exercises) : null, row.cardio ? JSON.stringify(row.cardio) : null, row.cardioBlocks.length ? JSON.stringify(row.cardioBlocks) : null, row.session ? JSON.stringify(row.session) : null, row.templateId, now, now)
       .run();
     return row;
   }

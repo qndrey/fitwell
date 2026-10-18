@@ -28,8 +28,8 @@ export interface NutritionProgress {
 }
 
 export interface TrainingProgress {
-  weeks: { week: Day; strength: number; cardio: number; cardioMin: number; sets: Record<string, number> }[];
-  sessions: { strength: number; cardio: number };
+  weeks: { week: Day; strength: number; cardio: number; cardioMin: number; session: number; sessionMin: number; sets: Record<string, number> }[];
+  sessions: { strength: number; cardio: number; session: number };
   averageStrengthMin: number | null;
   /** Working sets per primary muscle, averaged over the weeks in the period. */
   setsPerWeekByMuscle: { muscle: string; sets: number }[];

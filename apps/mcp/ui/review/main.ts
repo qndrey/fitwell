@@ -59,7 +59,7 @@ function draw() {
   const t = r.training;
   const w = r.weight;
   const hb = r.habits;
-  const sessions = t.strength + t.cardio;
+  const sessions = t.strength + t.cardio + t.session;
   const cards: HTMLElement[] = [];
 
   if (r.highlights.length) cards.push(card('Went well', h('ul', { className: 'notes' }, ...r.highlights.map((x) => h('li', {}, x)))));
@@ -88,7 +88,7 @@ function draw() {
       h(
         'div',
         { className: 'tiles' },
-        tile('Workouts', String(sessions), h('span', { className: 'delta' }, `${t.strength} strength · ${t.cardio} cardio${t.cardioMin ? ` (${t.cardioMin} min)` : ''}`), t.goalPerWeek ? h('span', { className: 'delta' }, `goal ${t.goalPerWeek} a week`) : null, delta(sessions, t.previousSessions, '')),
+        tile('Workouts', String(sessions), h('span', { className: 'delta' }, `${t.strength} strength · ${t.cardio} cardio${t.cardioMin ? ` (${t.cardioMin} min)` : ''}${t.session ? ` · ${t.session} session${t.session === 1 ? '' : 's'} (${t.sessionMin} min)` : ''}`), t.goalPerWeek ? h('span', { className: 'delta' }, `goal ${t.goalPerWeek} a week`) : null, delta(sessions, t.previousSessions, '')),
         tile('New records', String(t.records.length), ...t.records.slice(0, 3).map((x) => h('span', { className: 'delta' }, `${x.name} ${num(x.e1rmKg, 1)} kg`))),
       ),
     ),

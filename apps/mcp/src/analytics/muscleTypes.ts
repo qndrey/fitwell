@@ -29,6 +29,8 @@ export interface MuscleMap {
   to: Day;
   weeks: number;
   sessions: number;
+  /** Whole-body sessions (Pilates, HIIT, ...) that also gave credit. */
+  otherSessions?: number;
   range: { low: number; high: number };
   /** Every muscle group, in `MUSCLE_GROUPS` order. */
   muscles: MuscleLoad[];

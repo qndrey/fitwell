@@ -163,7 +163,7 @@ describe('what an import brings in', () => {
     const next = (await call(client, 'suggest_progression', { exercise_ids: ['ex:Barbell_Squat'] })).data.exercises as { lastTime: string; next: { action: string; weightKg: number } }[];
     expect(next[0]).toMatchObject({ lastTime: '3×5 @ 100 kg', next: { action: 'increase', weightKg: 102.5 } });
     const p = (await call(client, 'get_progress', { days: 30, to: '2026-10-13' })).data as { training: { sessions: { strength: number; cardio: number } }; records: { name: string; bestE1rmKg: number }[] };
-    expect(p.training.sessions).toEqual({ strength: 1, cardio: 1 });
+    expect(p.training.sessions).toEqual({ strength: 1, cardio: 1, session: 0 });
     expect(p.records[0]).toMatchObject({ name: 'Barbell Squat', bestE1rmKg: 116.7 });
   });
 

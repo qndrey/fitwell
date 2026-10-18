@@ -1,4 +1,5 @@
 // Progress numbers for Claude and for the dashboard, from a person's stored rows. Pure: no I/O.
+import { sessionMuscleCredit } from '../workout/sessions';
 import { PRESETS } from '@fitwell/core/data/measurements';
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import { distanceFromGoal } from '@fitwell/core/domain/body';
@@ -74,8 +75,9 @@ export function buildProgress(i: ProgressInput): Progress {
   // ---- training
   const strength = i.workouts.filter((w) => w.type === 'strength' && w.finishedAt !== null);
   const cardio = i.workouts.filter((w) => w.type === 'cardio');
+  const sessions = i.workouts.filter((w) => w.type === 'session' && w.session);
   const weekStarts = weeksIn(i.from, i.to);
-  const weeks = weekStarts.map((week) => ({ week, strength: 0, cardio: 0, cardioMin: 0, sets: {} as Record<string, number> }));
+  const weeks = weekStarts.map((week) => ({ week, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number> }));
   const weekOf = (d: Day) => weeks[Math.max(0, Math.floor((dayNumber(d) - dayNumber(weekStarts[0]!)) / 7))];
   for (const w of strength) {
     const wk = weekOf(w.day);
@@ -95,12 +97,19 @@ export function buildProgress(i: ProgressInput): Progress {
     wk.cardio++;
     wk.cardioMin += w.cardio?.durationMin ?? 0;
   }
+  for (const w of sessions) {
+    const wk = weekOf(w.day);
+    if (!wk) continue;
+    wk.session++;
+    wk.sessionMin += w.session!.durationMin;
+    for (const [m, credit] of Object.entries(sessionMuscleCredit(w.session!.category, w.session!.durationMin))) wk.sets[m] = (wk.sets[m] ?? 0) + credit;
+  }
   const muscleTotals = new Map<string, number>();
   for (const wk of weeks) for (const [m, s] of Object.entries(wk.sets)) muscleTotals.set(m, (muscleTotals.get(m) ?? 0) + s);
   const timed = strength.filter((w) => w.startedAt && w.finishedAt && w.finishedAt > w.startedAt).map((w) => (w.finishedAt! - w.startedAt!) / 60000);
   const training: TrainingProgress = {
     weeks,
-    sessions: { strength: strength.length, cardio: cardio.length },
+    sessions: { strength: strength.length, cardio: cardio.length, session: sessions.length },
     averageStrengthMin: timed.length ? r0(timed.reduce((a, b) => a + b, 0) / timed.length) : null,
     setsPerWeekByMuscle: [...muscleTotals].map(([muscle, sets]) => ({ muscle, sets: r1(sets / Math.max(1, weeks.length)) })).sort((a, b) => b.sets - a.sets),
     goalWorkoutsPerWeek: g?.workoutsPerWeek ?? null,
@@ -190,7 +199,7 @@ export function summarize(p: Progress) {
     period: { from: p.from, to: p.to, days: p.days },
     weight: { latestKg: w.latestKg, latestDay: w.latestDay, weighIns: w.daily.length, trendChangeKg: w.trendChangeKg, trendNote: w.trendChangeKg === null ? 'Needs at least 3 weigh-ins within a week to show a trend.' : 'Change of the 7-day average over the period.', goalKg: w.goalKg, fromGoalKg: w.fromGoalKg },
     nutrition: { daysLogged: n.daysLogged, averagePerLoggedDay: n.averagePerLoggedDay, goals: n.goals, adherence: n.adherence },
-    training: { sessions: t.sessions, perWeek: r1((t.sessions.strength + t.sessions.cardio) / Math.max(1, t.weeks.length)), goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
+    training: { sessions: t.sessions, perWeek: r1((t.sessions.strength + t.sessions.cardio + t.sessions.session) / Math.max(1, t.weeks.length)), goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
     records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
     measurements: m.types.map((t) => ({ key: t.key, label: t.label, unit: t.unit, firstDay: t.firstDay, first: t.first, latestDay: t.latestDay, latest: t.latest, change: t.change })),
     energy: { ...p.energy, method: 'Average intake on fully logged days minus the weight trend (least squares) × 7700 kcal/kg; each 0.1 kg a week is about 110 kcal a day. suggest_targets with expenditure_kcal gives macros for any rate.' },

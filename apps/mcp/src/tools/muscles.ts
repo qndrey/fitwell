@@ -19,7 +19,7 @@ export async function loadMuscleMap(deps: Pick<ProgressDeps, 'data' | 'workouts'
   const lib = await loadExercises();
   const muscles = new Map(lib.exercises.map((e) => [e.ref, { primary: e.primary, secondary: e.secondary }]));
   const from = addDays(end, -(weeks * 7 - 1));
-  const workouts = await deps.workouts.between(from, end, 'strength');
+  const workouts = await deps.workouts.between(from, end);
   return buildMuscleMap({ workouts, to: end, weeks, musclesOf: (ref) => muscles.get(ref) ?? { primary: [], secondary: [] } });
 }
 

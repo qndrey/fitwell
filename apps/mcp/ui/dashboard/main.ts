@@ -84,19 +84,19 @@ function nutritionChart(p: Progress): SVGElement | null {
 
 function trainingChart(p: Progress): SVGElement | null {
   const wk = p.training.weeks;
-  if (!wk.some((w) => w.strength + w.cardio > 0)) return null;
+  if (!wk.some((w) => w.strength + w.cardio + w.session > 0)) return null;
   const H = 110;
-  const top = Math.max(2, ...wk.map((w) => w.strength + w.cardio));
+  const top = Math.max(2, ...wk.map((w) => w.strength + w.cardio + w.session));
   const y = scale(0, top, H - M.b, M.t);
   const slot = (W - M.l - M.r) / wk.length;
   const bw = Math.max(2, Math.min(24, slot * 0.7));
-  const svg = s('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Workouts per week over ${wk.length} weeks: ${p.training.sessions.strength} strength and ${p.training.sessions.cardio} cardio sessions in total.` });
+  const svg = s('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Workouts per week over ${wk.length} weeks: ${p.training.sessions.strength} strength and ${p.training.sessions.cardio + p.training.sessions.session} cardio or class sessions in total.` });
   svg.append(s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
   for (const v of [Math.ceil(top)]) svg.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, String(v)));
   wk.forEach((w, i) => {
     const cx = M.l + slot * (i + 0.5);
     svg.append(s('rect', { class: 'bar', x: cx - bw / 2, y: y(w.strength), width: bw, height: Math.max(0, H - M.b - y(w.strength)), rx: 1.5 }));
-    svg.append(s('rect', { class: 'bar2', x: cx - bw / 2, y: y(w.strength + w.cardio), width: bw, height: Math.max(0, y(w.strength) - y(w.strength + w.cardio)), rx: 1.5 }));
+    svg.append(s('rect', { class: 'bar2', x: cx - bw / 2, y: y(w.strength + w.cardio + w.session), width: bw, height: Math.max(0, y(w.strength) - y(w.strength + w.cardio + w.session)), rx: 1.5 }));
   });
   if (p.training.goalWorkoutsPerWeek) svg.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(p.training.goalWorkoutsPerWeek), y2: y(p.training.goalWorkoutsPerWeek) }));
   axisLabels(svg, wk[0]!.week, p.to, H);
@@ -193,7 +193,7 @@ function nutritionCard(p: Progress) {
 function trainingCard(p: Progress) {
   const t = p.training;
   const chart = trainingChart(p);
-  const total = t.sessions.strength + t.sessions.cardio;
+  const total = t.sessions.strength + t.sessions.cardio + t.sessions.session;
   const maxSets = Math.max(1, ...t.setsPerWeekByMuscle.map((m) => m.sets));
   return h(
     'section',
@@ -203,7 +203,7 @@ function trainingCard(p: Progress) {
       ? empty('No workouts in this period.')
       : h('p', { className: 'headline' }, `${num(total / Math.max(1, t.weeks.length))} `, h('small', {}, `workouts a week${t.goalWorkoutsPerWeek ? ` (goal ${t.goalWorkoutsPerWeek})` : ''}${t.averageStrengthMin ? ` · strength sessions about ${t.averageStrengthMin} min` : ''}`)),
     chart,
-    chart && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), `strength ${t.sessions.strength}`), h('span', {}, h('i', { className: 'sw2' }), `cardio ${t.sessions.cardio}`)),
+    chart && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), `strength ${t.sessions.strength}`), h('span', {}, h('i', { className: 'sw2' }), `cardio & classes ${t.sessions.cardio + t.sessions.session}`)),
     t.setsPerWeekByMuscle.length > 0 && h('h2', { className: 'small muted' }, 'Working sets per week, by muscle'),
     t.setsPerWeekByMuscle.length > 0 &&
       h('div', { className: 'rows' }, ...t.setsPerWeekByMuscle.slice(0, 8).map((m) => h('div', { className: 'row' }, h('span', { className: 'name' }, m.muscle), h('span', { className: 'val' }, num(m.sets)), h('div', { className: 'meter', 'aria-hidden': 'true' }, h('span', { css: { width: `${Math.round((m.sets / maxSets) * 100)}%` } }))))),

@@ -85,7 +85,7 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 
 | # | Feature | Builds on | Effort | When |
 |---|---|---|---|---|
-| G1 | **Compatibility spike**: add the server to ChatGPT (Developer Mode) and walk a checklist: sign-in with the invite flow, `get_food_log` and `log_food` (are write tools allowed on the plan used), each view renders (`show_dashboard`, `show_weekly_review`, `show_grocery_list`, `show_exercise`, `show_muscle_map`, the player), the player's calls from inside the view (`log_set`, `swap_exercise`, app-only tools hidden from the model), `sendMessage` and `updateModelContext` from the view, theme and safe area, links, vibration. Record results per host in a table in `apps/mcp/README.md` | `dev-host` (only mimics Claude), the OAuth provider | S | Phase 8 |
+| G1 | **Compatibility spike**, done by the owner by hand before anything else in G: add the server to ChatGPT (Developer Mode) and walk a checklist: sign-in with the invite flow, `get_food_log` and `log_food` (are write tools allowed on the plan used), each view renders (`show_dashboard`, `show_weekly_review`, `show_grocery_list`, `show_exercise`, `show_muscle_map`, the player), the player's calls from inside the view (`log_set`, `swap_exercise`, app-only tools hidden from the model), `sendMessage` and `updateModelContext` from the view, theme and safe area, links, vibration. Record results per host in a table in `apps/mcp/README.md` | `dev-host` (only mimics Claude), the OAuth provider | S | Phase 8 |
 | G2 | **Fallbacks for hosts without the player**: a model-visible way to log a set during a workout in chat (today `log_set` is app-only), `start_workout` returning the plan as a readable checklist, and a short "how to run it without the player" line in the server instructions; no change for Claude | `tools/workout.ts`, `instructions/` | M | Phase 8, only if G1 shows gaps |
 | G3 | Host-aware tool descriptions and instructions: neutral wording ("the chat", not "Claude") where the model is addressed, checked against the same eval prompts on each host | `src/instructions`, tool descriptions | S | Phase 8 |
 | G4 | Listing: OpenAI's app directory requirements (submission, review account like `REVIEW.md`, privacy text, screenshots) and, if Google opens one, Gemini's; the scheduled morning brief stays Claude-only, documented | `directory/`, `REVIEW.md`, `/privacy` | M | Phase 10+ |
@@ -121,7 +121,7 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 - [ ] C1 ingest webhook with per-person token; Health Auto Export and Shortcut setup in the README; sources shown in `get_progress`.
 - [ ] C2 Strava.
 - [ ] D3 Today view; D4 restaurant estimates.
-- [ ] G1 ChatGPT compatibility spike with the results table in the README; G2 fallbacks if the player does not work there; G3 host-neutral wording.
+- [ ] G1 ChatGPT compatibility spike (by the owner) with the results table in the README; G2 fallbacks if the player does not work there; G3 host-neutral wording.
 - [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio; a ChatGPT user on a plan that allows it logs a meal and sees the dashboard, and the table says what works where.
 
 **Phase 9: coaching v2 and crew**
@@ -137,9 +137,9 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 - **Visibility defaults.** Proposal: nothing shared by default; weight and body never in feeds, only to an accountability buddy who was chosen explicitly.
 - **Challenges and weight.** Proposal: consistency metrics only, never weight or body fat.
 - **Wearable data retention.** Proposal: keep normalised values only; drop raw payloads after processing.
-- **Streak rules.** Proposal: weekly streaks for training (a week counts when the workout target is met; one rest or sick week per 12 weeks, or a freeze the person sets, keeps the streak), daily plus weekly-target streaks for logging ("logged" means at least one meal, not a full day, so partial days do not punish); milestones 1, 2, 3, 5, 7, 14, 21, 30, 52. Weight goals use the trend, count as reached after 7 days at or past the goal, and never feed a streak (no streak for losing weight).
-- **Share cards.** Proposal: drawn in the view only; name and numbers chosen per card; weight and body data off by default and never in the default caption; no logo or watermark requirement, a small "Fitwell for Claude" line the person can remove.
-- **ChatGPT scope.** Proposal: run the G1 spike on one plan that allows write tools before promising support; Claude remains the primary, documented host.
+- **Streak rules (agreed 2026-10-18).** Weekly streaks for training (a week counts when the workout target is met; one rest or sick week per 12 weeks, or a freeze the person sets, keeps the streak), daily plus weekly-target streaks for logging ("logged" means at least one meal, not a full day, so partial days do not punish); milestones 1, 2, 3, 5, 7, 14, 21, 30, 52. A weight goal is a milestone celebrated when it is reached (by the trend, after 7 days at or past the goal); it never feeds a streak.
+- **Share cards (agreed 2026-10-18).** Drawn in the view only; name and numbers chosen per card; weight and body data off by default and never in the default caption; a small "Fitwell" line the person can remove (just "Fitwell", not "Fitwell for Claude").
+- **ChatGPT scope (agreed 2026-10-18).** The owner tests in ChatGPT first (the G1 checklist, on a plan that allows write tools) before any support is promised; G2 to G4 depend on those results. Claude remains the primary, documented host.
 
 ## 5. Research notes
 - Lifters typically pair a log (Hevy, Strong) with a nutrition app (MacroFactor); Fitwell already joins the two, which is the gap reviewers mention most.

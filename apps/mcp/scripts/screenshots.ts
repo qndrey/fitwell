@@ -30,6 +30,10 @@ interface Shot {
   sample?: string;
   /** Screenshot only this element of the view (a CSS selector) instead of the whole view. */
   only?: string;
+  /** Cut the whole-view shot after the last top-level block that ends within this many CSS px, so the image ends on a block boundary. */
+  fitTo?: number;
+  /** Cut the whole-view shot at exactly this many CSS px (for a view that is one tall card). */
+  clip?: number;
   /** Steps run in the view before the shot. */
   steps?: (f: Frame, page: Page) => Promise<void>;
   /** Calorie goal to have while shooting. */
@@ -72,17 +76,17 @@ export const SHOTS: Shot[] = [
   { name: 'dashboard', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300 },
   { name: 'nutrition', view: 'dashboard', args: { days: 90 }, only: '[aria-label="Nutrition"]', kcalGoal: GOAL_2300 },
   { name: 'sleep', view: 'dashboard', args: { days: 90 }, only: '[aria-label="Sleep, steps and water"]', kcalGoal: GOAL_2300 },
-  { name: 'review', view: 'review', args: week, kcalGoal: GOAL_2300 },
+  { name: 'review', fitTo: 780, view: 'review', args: week, kcalGoal: GOAL_2300 },
   { name: 'energy', view: 'review', args: week, only: '[aria-label="Energy"]', kcalGoal: 1800 },
-  { name: 'shopping', view: 'shopping', args: { people: 2 } },
-  { name: 'muscles', view: 'muscles', args: { weeks: 4 } },
+  { name: 'shopping', fitTo: 780, view: 'shopping', args: { people: 2 } },
+  { name: 'muscles', clip: 535, view: 'muscles', args: { weeks: 4 } },
   { name: 'guide-legpress', view: 'exercise', args: { query: 'leg press' } },
-  { name: 'guide-squat', view: 'exercise', args: { query: 'barbell squat' } },
-  { name: 'hero-squat', view: 'workout', args: FULL, copyTo: ['player-set'] },
+  { name: 'guide-squat', clip: 500, view: 'exercise', args: { query: 'barbell squat' } },
+  { name: 'hero-squat', clip: 660, view: 'workout', args: { ...FULL, exercises: [squat({ weight_kg: undefined }), ...FULL.exercises.slice(1)] } },
   { name: 'player-rest', view: 'workout', args: FULL, steps: async (f, page) => (await click(f, 'Log set'), page.waitForTimeout(PAUSE), undefined) },
   { name: 'rest-next', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 1 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => (await click(f, 'Log set'), page.waitForTimeout(PAUSE), undefined) },
   { name: 'player-summary', view: 'workout', args: FULL, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/); await page.clock.fastForward(45 * 60_000); backdate(45); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
-  { name: 'warmup', view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await click(f, 'Log set'); await page.waitForTimeout(PAUSE); await click(f, 'Skip rest'); await page.waitForTimeout(PAUSE); } },
+  { name: 'warmup', fitTo: 600, view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await click(f, 'Log set'); await page.waitForTimeout(PAUSE); await click(f, 'Skip rest'); await page.waitForTimeout(PAUSE); } },
   { name: 'working', view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await work(f, page, /Set 1 of 2/i); } },
   { name: 'superset', view: 'workout', args: A2, steps: async (f, page) => { await work(f, page, /superset/i, 60); } },
   { name: 'timed', view: 'workout', args: { name: 'Core', exercises: [{ id: 'ex:Plank', sets: 1, seconds: 10, rest_sec: 90 }] }, steps: async (f, page) => { await click(f, /Start a \d+ s timer/, false); await page.waitForTimeout(1200); } },
@@ -91,7 +95,7 @@ export const SHOTS: Shot[] = [
   { name: 'guide-in-player', view: 'workout', args: FULL, steps: async (f, page) => { await f.getByText('How to do it', { exact: true }).click(); await page.waitForTimeout(3500); } },
   { name: 'cardio', view: 'workout', args: { name: 'Squat and run', exercises: [squat({ sets: 1 })], cardio: [{ activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /\bMinutes\b/, 6); } },
   { name: 'summary-cardio', view: 'workout', args: { ...FULL, cardio: [{ activity_id: 'act:row-machine', minutes: 5, when: 'before' }, { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/, 60); await page.clock.fastForward(52 * 60_000); backdate(52); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
-  { name: 'food', view: 'food', args: { day: '2026-10-13', copy_from: { day: '2026-10-12', slot: 'lunch' } }, kcalGoal: GOAL_2300 },
+  { name: 'food', view: 'food', args: { day: '2026-10-13', slot: 'lunch', items: [{ food_id: 'frida:59', grams: 80 }, { food_id: 'frida:413', grams: 120 }] }, kcalGoal: GOAL_2300 },
 ];
 
 async function shoot(page: Page, shot: Shot, theme: Theme) {
@@ -110,6 +114,18 @@ async function shoot(page: Page, shot: Shot, theme: Theme) {
   await page.waitForTimeout(1200); // 3D bodies and charts settle
   if (shot.steps) await shot.steps(frame, page);
   await page.waitForTimeout(600);
+  if ((shot.fitTo || shot.clip) && !shot.only) {
+    const cut = shot.clip ?? (await frame.evaluate(
+      `((limit) => { let cut = 0; for (const el of document.querySelectorAll('#app > *')) { const b = el.getBoundingClientRect().bottom + window.scrollY; if (b <= limit && b > cut) cut = b; } return cut; })(${shot.fitTo ?? 0})`,
+    )) as number;
+    const box = (await iframe.boundingBox())!;
+    const height = Math.round(shot.clip ? cut : cut > 0 ? cut + 12 : shot.fitTo!);
+    const clipped = join(OUT, `${shot.name}-${theme}.png`);
+    await page.screenshot({ path: clipped, clip: { x: box.x, y: box.y, width: box.width, height }, animations: 'disabled' });
+    console.log('wrote', clipped, `(cut at ${height} px)`);
+    for (const other of shot.copyTo ?? []) copyFileSync(clipped, join(OUT, `${other}-${theme}.png`));
+    return;
+  }
   const target = shot.only ? frame.locator(shot.only) : iframe;
   if (shot.only) await target.scrollIntoViewIfNeeded();
   const path = join(OUT, `${shot.name}-${theme}.png`);

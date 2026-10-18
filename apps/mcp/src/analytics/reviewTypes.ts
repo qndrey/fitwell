@@ -1,5 +1,6 @@
 // The shape of a weekly review. Pure types, shared with the review view (which can't see server code).
 import type { Day } from '@fitwell/core/domain/dates';
+import type { Extras } from '@fitwell/core/domain/nutrition';
 import type { EnergyProgress } from './types';
 
 export interface WeekReview {
@@ -11,9 +12,9 @@ export interface WeekReview {
   daysCounted: number;
   nutrition: {
     daysLogged: number;
-    average: { kcal: number; protein: number; carbs: number; fat: number } | null;
+    average: { kcal: number; protein: number; carbs: number; fat: number; extras?: Extras } | null;
     previousAverage: { kcal: number; protein: number } | null;
-    goals: { kcal: number | null; proteinG: number | null };
+    goals: { kcal: number | null; proteinG: number | null; fiberG: number | null; satFatG: number | null; addedSugarG: number | null };
     kcalWithin10Pct: number | null;
     proteinReached: number | null;
   };

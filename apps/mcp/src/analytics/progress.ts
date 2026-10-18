@@ -2,6 +2,7 @@
 import { PRESETS } from '@fitwell/core/data/measurements';
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import { distanceFromGoal } from '@fitwell/core/domain/body';
+import { averageExtras, EXTRA_KEYS, type Extras } from '@fitwell/core/domain/nutrition';
 import { estimateExpenditure, goalDirection, projectGoalDate, targetFromExpenditure } from '@fitwell/core/domain/energy';
 import { movingAverage, trendChange, weeksIn } from '@fitwell/core/domain/stats';
 import { estimatedOneRepMax } from '@fitwell/core/domain/workouts';
@@ -28,6 +29,11 @@ export interface ProgressInput {
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
+const round1Extras = (e: Extras): Extras => Object.fromEntries(EXTRA_KEYS.filter((k) => e[k] !== undefined).map((k) => [k, r1(e[k]!)]));
+const avgExtras = (days: DayTotal[]) => {
+  const a = averageExtras(days.map((d) => d.extras));
+  return a ? { extras: round1Extras(a) } : {};
+};
 const r0 = (n: number) => Math.round(n);
 
 export function buildProgress(i: ProgressInput): Progress {
@@ -54,10 +60,10 @@ export function buildProgress(i: ProgressInput): Progress {
   const g = i.goals;
   const avgOf = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => (n.length ? n.reduce((s, d) => s + d[k], 0) / n.length : 0);
   const nutrition: NutritionProgress = {
-    daily: n.map((d) => ({ day: d.day, kcal: r0(d.kcal), protein: r1(d.protein), carbs: r1(d.carbs), fat: r1(d.fat) })),
+    daily: n.map((d) => ({ day: d.day, kcal: r0(d.kcal), protein: r1(d.protein), carbs: r1(d.carbs), fat: r1(d.fat), ...(d.extras ? { extras: round1Extras(d.extras) } : {}) })),
     daysLogged: n.length,
-    averagePerLoggedDay: n.length ? { kcal: r0(avgOf('kcal')), protein: r1(avgOf('protein')), carbs: r1(avgOf('carbs')), fat: r1(avgOf('fat')) } : null,
-    goals: { kcal: g?.kcal ?? null, proteinG: g?.proteinG ?? null, carbsG: g?.carbsG ?? null, fatG: g?.fatG ?? null },
+    averagePerLoggedDay: n.length ? { kcal: r0(avgOf('kcal')), protein: r1(avgOf('protein')), carbs: r1(avgOf('carbs')), fat: r1(avgOf('fat')), ...avgExtras(n) } : null,
+    goals: { kcal: g?.kcal ?? null, proteinG: g?.proteinG ?? null, carbsG: g?.carbsG ?? null, fatG: g?.fatG ?? null, fiberG: g?.fiberG ?? null, satFatG: g?.satFatG ?? null, addedSugarG: g?.addedSugarG ?? null },
     adherence: {
       kcalWithin10Pct: g?.kcal ? n.filter((d) => Math.abs(d.kcal - g.kcal!) <= g.kcal! * 0.1).length : null,
       proteinReached: g?.proteinG ? n.filter((d) => d.protein >= g.proteinG! * 0.9).length : null,

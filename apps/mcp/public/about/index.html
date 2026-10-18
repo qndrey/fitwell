@@ -6,14 +6,16 @@
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Track food, training and weight by talking to Claude: food logging, meal plans, a workout player, a muscle map and your measured calorie burn.">
 <title>Fitwell for Claude</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 <script src="main.js" defer></script>
 </head>
 <body>
 <div class="wrap">
+<div class="bar"><button type="button" id="theme" class="theme-btn" aria-label="Colour theme: auto">Theme: auto</button></div>
 <header class="top">
   <div class="stack">
-    <p class="label">Fitwell for Claude</p>
+    <p class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#c2603f"/><path d="M15 49 C 14 30, 27 16, 50 14 C 50 36, 37 49, 15 49 Z" fill="#faf9f5" transform="translate(-0.5 0.5)"/><path d="M17 47 L 26 38 L 29 42 L 34 31 L 37 35 L 44 21" fill="none" stroke="#c2603f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" transform="translate(-0.5 0.5)"/></svg><span class="label">Fitwell for Claude</span></p>
     <h1>Track food, training and weight by talking to Claude</h1>
     <p class="lede">Tell Claude what you ate, ask it to plan your week, start a workout from the chat and open a dashboard when you want to see how you are doing.</p>
     <ul class="chips" aria-label="Key facts">
@@ -21,10 +23,10 @@
       <li>Health data stored in the EU</li>
       <li><a href="#join">Invite-only: ask for one</a></li>
     </ul>
-    <p class="small muted">Updated 16 October 2026: <a href="#burn">your measured calorie burn</a>, <a href="#muscles">a muscle map</a>, <a href="#sets">warm-ups, supersets, plates and swaps</a> in the workout player, and <a href="#food">quicker logging</a>.</p>
+    <p class="small muted">Updated 18 October 2026: <a href="#food">fibre, sugars, fat types and salt on every food report</a>, <a href="#burn">your measured calorie burn</a>, <a href="#muscles">a muscle map</a>, <a href="#sets">warm-ups, supersets, plates and swaps</a> in the workout player, and <a href="#food">quicker logging</a>.</p>
   </div>
   <div class="pair">
-    <figure><div class="phone"><img src="img/hero-squat.png" alt="The workout player showing Barbell Squat, set 1 of 2, with last time 2 by 5 at 85 kilograms and a suggestion to add 2.5 kilograms, so 87.5"></div></figure>
+    <figure><div class="phone"><img class="lt" src="img/hero-squat-light.png" alt="The workout player showing Barbell Squat, set 1 of 2, with last time 2 by 5 at 85 kilograms and a suggestion to add 2.5 kilograms, so 87.5"><img class="dk" src="img/hero-squat-dark.png" alt="" aria-hidden="true"></div></figure>
   </div>
 </header>
 
@@ -40,7 +42,7 @@
     </div>
     <div class="chat" role="group" aria-label="Checking the calorie goal">
       <div class="bubble you">Is my calorie goal still right?</div>
-      <div class="bubble claude">Your logs and weigh-ins over 4 weeks show you burn about 2,940 kcal a day. To lose 0.5 kg a week that means about 2,390 kcal. Shall I update the goal?</div>
+      <div class="bubble claude">Your logs and weigh-ins over 4 weeks show you burn about 2,810 kcal a day. To lose 0.5 kg a week that means about 2,260 kcal. Shall I update the goal?</div>
     </div>
     <div class="chat" role="group" aria-label="Starting a workout">
       <div class="bubble you">Start Workout A. The squat rack is taken.</div>
@@ -49,19 +51,23 @@
   </div>
 </section>
 
-<section class="feature" aria-labelledby="food">
+<section class="feature wide" aria-labelledby="food">
   <div class="copy">
     <h2 id="food">Food and macros without the typing</h2>
-    <p>Describe a meal in your own words. Claude turns amounts into grams, finds each food in a database and saves calories, protein, carbs and fat.</p>
+    <p>Describe a meal in your own words. Claude turns amounts into grams, finds each food in a database and saves calories, protein, carbs, fat and the rest of the label.</p>
     <ul>
       <li>1,381 everyday foods from Frida, the Danish national food composition database, plus packaged products by barcode through Open Food Facts.</li>
       <li>The numbers come from the food's own data. When nothing matches, Claude says so and any estimate is marked as one.</li>
       <li>"Same breakfast as yesterday" or "copy Monday's lunch" repeats a meal in one step. A meal you eat often can be saved once and logged by name.</li>
       <li>Snap a nutrition label and Claude saves the product. Fitwell checks the numbers add up, and catches the classic mistake of reading kJ as kcal.</li>
-      <li>What is left of your calorie and macro goals for the day.</li>
+      <li>Fibre, sugars, added sugar, saturated and trans fat and salt come with every food that has them, and show up in the day's summary, the weekly review and the dashboard.</li>
+      <li>What is left of your calorie and macro goals for the day, and how you stand against a fibre target and limits for saturated fat and added sugar.</li>
     </ul>
   </div>
-  <figure><div class="phone"><img loading="lazy" src="img/nutrition.png" alt="Nutrition card: a bar chart of daily calories against a goal line, a note that calories were within 10 percent of the goal on 53 of 81 logged days, and that the protein goal was reached on 75"></div><figcaption>Calories per day against your goal, over 90 days.</figcaption></figure>
+  <div class="pair">
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Meal logged summary, scrollable"><img class="lt" loading="lazy" src="img/food-light.png" alt="The summary Claude shows after logging a lunch: calories today as a ring at 74 percent of 2,300, protein, carbs and fat against their goals, then saturated fat, trans fat, sugar, added sugar, fiber and salt, and the foods logged"><img class="dk" loading="lazy" src="img/food-dark.png" alt="" aria-hidden="true"></div><figcaption>What you see after logging a meal.</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/nutrition-light.png" alt="Nutrition card: a bar chart of daily calories against a goal line, a note that calories were within 10 percent of the goal on 53 of 81 logged days, and that the protein goal was reached on 76"><img class="dk" loading="lazy" src="img/nutrition-dark.png" alt="" aria-hidden="true"></div><figcaption>Calories per day against your goal, over 90 days.</figcaption></figure>
+  </div>
 </section>
 
 <section class="feature flip" aria-labelledby="burn">
@@ -74,7 +80,7 @@
       <li>The weekly review brings it up when your goal is off by 100 kcal or more. Claude asks before changing anything.</li>
     </ul>
   </div>
-  <figure><div class="phone"><img loading="lazy" src="img/energy.png" alt="Energy card in the weekly review: burn a day 2,940 kcal with high confidence from 24 days and 23 weigh-ins, weight trend minus 0.67 kg a week, 2,390 kcal a day to lose 0.5 kg a week against a goal of 1,800, and the goal weight around 23 November"></div><figcaption>The Energy card in the weekly review.</figcaption></figure>
+  <figure><div class="phone"><img class="lt" loading="lazy" src="img/energy-light.png" alt="Energy card in the weekly review: burn a day 2,810 kcal with high confidence from 28 days and 25 weigh-ins, weight trend minus 0.54 kg a week, 2,260 kcal a day to lose 0.5 kg a week against a goal of 1,800, and the goal weight around 8 December"><img class="dk" loading="lazy" src="img/energy-dark.png" alt="" aria-hidden="true"></div><figcaption>The Energy card in the weekly review.</figcaption></figure>
 </section>
 
 <section class="feature wide" aria-labelledby="plan">
@@ -114,8 +120,7 @@
     </ul>
   </div>
   <div class="pair">
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Shopping checklist, scrollable"><img loading="lazy" src="img/shopping-light.png" alt="The shopping checklist for the week: a progress bar saying 9 left of 12 items, then Produce, Meat, Fish, Dairy and Pantry sections with amounts, and three items ticked off"></div><figcaption>Ticks are saved</figcaption></figure>
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Shopping checklist, dark theme, scrollable"><img loading="lazy" src="img/shopping-dark.png" alt="The same shopping checklist in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Shopping checklist, scrollable"><img class="lt" loading="lazy" src="img/shopping-light.png" alt="The shopping checklist for the week: a progress bar saying 9 left of 12 items, then Produce, Meat, Fish, Dairy and Pantry sections with amounts, and three items ticked off"><img class="dk" loading="lazy" src="img/shopping-dark.png" alt="" aria-hidden="true"></div><figcaption>Ticks are saved</figcaption></figure>
   </div>
 </section>
 
@@ -124,10 +129,13 @@
     <h2 id="train">Training you can start from the chat</h2>
     <p>Claude plans the session, then opens a workout player right in the conversation. Log each set with big buttons, watch the rest timer and finish with a summary that goes back to Claude.</p>
   </div>
-  <div class="pair">
-    <figure><div class="phone"><img loading="lazy" src="img/player-set.png" alt="The workout player on a set of barbell squats with the reps and weight steppers and a Log set button"></div><figcaption>Last time and the suggested weight are on the first screen.</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/player-rest.png" alt="The workout player showing a rest timer with plus 15 seconds and Skip rest buttons"></div><figcaption>A rest timer between sets.</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/player-summary.png" alt="The finished workout summary: 45 minutes, 1,355 kilograms lifted, and a new best estimated one-rep max for the squat"></div><figcaption>The summary flags a new personal best.</figcaption></figure>
+  <div class="carousel" role="group" aria-roledescription="carousel" aria-label="Screenshots">
+    <div class="track">
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/player-set-light.png" alt="The workout player on a set of barbell squats with the reps and weight steppers and a Log set button"><img class="dk" loading="lazy" src="img/player-set-dark.png" alt="" aria-hidden="true"></div><figcaption>Last time and the suggested weight are on the first screen.</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/player-rest-light.png" alt="The workout player showing a rest timer with plus 15 seconds and Skip rest buttons"><img class="dk" loading="lazy" src="img/player-rest-dark.png" alt="" aria-hidden="true"></div><figcaption>A rest timer between sets.</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/player-summary-light.png" alt="The finished workout summary: 45 minutes, 1,355 kilograms lifted, and a new best estimated one-rep max for the squat"><img class="dk" loading="lazy" src="img/player-summary-dark.png" alt="" aria-hidden="true"></div><figcaption>The summary flags a new personal best.</figcaption></figure>
+    </div>
+    <div class="car-nav"><button type="button" class="car-prev" aria-label="Previous screenshots">‹</button><button type="button" class="car-next" aria-label="Next screenshots">›</button></div>
   </div>
   <div class="copy">
     <ul>
@@ -151,12 +159,15 @@
       <li><strong>Swap an exercise</strong> when the machine is busy: similar exercises for the same muscles, within your equipment. Sets, reps and your note stay, and the weight comes from your history with the new exercise.</li>
     </ul>
   </div>
-  <div class="pair">
-    <figure><div class="phone"><img loading="lazy" src="img/warmup.png" alt="A warm-up set of barbell squats: warm-up 2 of 4, 5 reps at 50 kg, each side 15 kg on a 20 kg bar"></div><figcaption>A warm-up set with its plates</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/working.png" alt="The first working set of barbell squats at 102.5 kg: each side 25 plus 15 plus 1.25 on a 20 kg bar"></div><figcaption>Plates for the working weight</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/superset.png" alt="Barbell curl marked as superset 1 of 2, set 1 of 2, 10 reps at 30 kg"></div><figcaption>A superset</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/timed.png" alt="A plank set with a seconds counter at 10 and a countdown showing 9 seconds with a Stop the timer button"></div><figcaption>A timed plank</figcaption></figure>
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Swap exercise list, scrollable"><img loading="lazy" src="img/swap.png" alt="Swap exercise opened under the barbell squat, listing dumbbell lunges, front barbell squat, bodyweight squat, dumbbell squat and more, each with its equipment"></div><figcaption>Swap when the rack is taken</figcaption></figure>
+  <div class="carousel" role="group" aria-roledescription="carousel" aria-label="Screenshots">
+    <div class="track">
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/warmup-light.png" alt="A warm-up set of barbell squats: warm-up 2 of 4, 5 reps at 50 kg, each side 15 kg on a 20 kg bar"><img class="dk" loading="lazy" src="img/warmup-dark.png" alt="" aria-hidden="true"></div><figcaption>A warm-up set with its plates</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/working-light.png" alt="The first working set of barbell squats at 102.5 kg: each side 25 plus 15 plus 1.25 on a 20 kg bar"><img class="dk" loading="lazy" src="img/working-dark.png" alt="" aria-hidden="true"></div><figcaption>Plates for the working weight</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/superset-light.png" alt="Barbell curl marked as superset 1 of 2, set 1 of 2, 10 reps at 30 kg"><img class="dk" loading="lazy" src="img/superset-dark.png" alt="" aria-hidden="true"></div><figcaption>A superset</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/timed-light.png" alt="A plank set with a seconds counter at 10 and a countdown showing 9 seconds with a Stop the timer button"><img class="dk" loading="lazy" src="img/timed-dark.png" alt="" aria-hidden="true"></div><figcaption>A timed plank</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Swap exercise list, scrollable"><img class="lt" loading="lazy" src="img/swap-light.png" alt="Swap exercise opened under the barbell squat, listing dumbbell lunges, front barbell squat, bodyweight squat, dumbbell squat and more, each with its equipment"><img class="dk" loading="lazy" src="img/swap-dark.png" alt="" aria-hidden="true"></div><figcaption>Swap when the rack is taken</figcaption></figure>
+    </div>
+    <div class="car-nav"><button type="button" class="car-prev" aria-label="Previous screenshots">‹</button><button type="button" class="car-next" aria-label="Next screenshots">›</button></div>
   </div>
 </section>
 
@@ -170,11 +181,14 @@
       <li>When the last exercise is done, the player goes straight to "Finish and send to Claude".</li>
     </ul>
   </div>
-  <div class="pair">
-    <figure><div class="phone"><img loading="lazy" src="img/rest-next.png" alt="The rest screen with a timer and a card saying Next exercise: Pullups, set 1 of 1, 8 reps bodyweight, with last time"></div><figcaption>Rest: what is next</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/note.png" alt="An exercise with an open note field containing seat 4"></div><figcaption>A note on an exercise</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/cardio.png" alt="A cardio finisher step: running, planned 10 minutes and 1.5 kilometres, with minutes and distance steppers and a Done button"></div><figcaption>A cardio finisher</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/summary-cardio.png" alt="The finished workout summary listing the lifts with their notes, the rowing warm-up and the run with estimated calories"></div><figcaption>The summary includes cardio and notes</figcaption></figure>
+  <div class="carousel" role="group" aria-roledescription="carousel" aria-label="Screenshots">
+    <div class="track">
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/rest-next-light.png" alt="The rest screen with a timer and a card saying Next exercise: Pullups, set 1 of 1, 8 reps bodyweight, with last time"><img class="dk" loading="lazy" src="img/rest-next-dark.png" alt="" aria-hidden="true"></div><figcaption>Rest: what is next</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/note-light.png" alt="An exercise with an open note field containing seat 4"><img class="dk" loading="lazy" src="img/note-dark.png" alt="" aria-hidden="true"></div><figcaption>A note on an exercise</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/cardio-light.png" alt="A cardio finisher step: running, planned 10 minutes and 1.5 kilometres, with minutes and distance steppers and a Done button"><img class="dk" loading="lazy" src="img/cardio-dark.png" alt="" aria-hidden="true"></div><figcaption>A cardio finisher</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/summary-cardio-light.png" alt="The finished workout summary listing the lifts with their notes, the rowing warm-up and the run with estimated calories"><img class="dk" loading="lazy" src="img/summary-cardio-dark.png" alt="" aria-hidden="true"></div><figcaption>The summary includes cardio and notes</figcaption></figure>
+    </div>
+    <div class="car-nav"><button type="button" class="car-prev" aria-label="Previous screenshots">‹</button><button type="button" class="car-next" aria-label="Next screenshots">›</button></div>
   </div>
 </section>
 
@@ -189,10 +203,13 @@
       <li>A button that searches for a demo video of the exercise. There are no photos yet, because the free exercise images have no clear license.</li>
     </ul>
   </div>
-  <div class="pair">
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Leg press guide, scrollable"><img loading="lazy" src="img/guide-legpress.png" alt="The leg press guide: a 3D male body at rest with the quadriceps tinted, then the steps, and setup, form and mistakes for the leg press machine"></div><figcaption>A machine guide: drag the body to turn it</figcaption></figure>
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Barbell squat guide, dark theme, scrollable"><img loading="lazy" src="img/guide-squat-dark.png" alt="The barbell squat guide in the dark theme: the 3D body at the bottom of a back squat with the bar on its back and the thighs and glutes tinted"></div><figcaption>An animated lift, dark theme</figcaption></figure>
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="The guide inside the workout player, scrollable"><img loading="lazy" src="img/guide-in-player.png" alt="The workout player with How to do it open under the barbell squat, showing the animated 3D body above the steps"></div><figcaption>Inside the workout player</figcaption></figure>
+  <div class="carousel" role="group" aria-roledescription="carousel" aria-label="Screenshots">
+    <div class="track">
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Leg press guide, scrollable"><img class="lt" loading="lazy" src="img/guide-legpress-light.png" alt="The leg press guide: a 3D male body at rest with the quadriceps tinted, then the steps, and setup, form and mistakes for the leg press machine"><img class="dk" loading="lazy" src="img/guide-legpress-dark.png" alt="" aria-hidden="true"></div><figcaption>A machine guide: drag the body to turn it</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Barbell squat guide, scrollable"><img class="lt" loading="lazy" src="img/guide-squat-light.png" alt="The barbell squat guide in the dark theme: the 3D body at the bottom of a back squat with the bar on its back and the thighs and glutes tinted"><img class="dk" loading="lazy" src="img/guide-squat-dark.png" alt="" aria-hidden="true"></div><figcaption>An animated lift, dark theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="The guide inside the workout player, scrollable"><img class="lt" loading="lazy" src="img/guide-in-player-light.png" alt="The workout player with How to do it open under the barbell squat, showing the animated 3D body above the steps"><img class="dk" loading="lazy" src="img/guide-in-player-dark.png" alt="" aria-hidden="true"></div><figcaption>Inside the workout player</figcaption></figure>
+    </div>
+    <div class="car-nav"><button type="button" class="car-prev" aria-label="Previous screenshots">‹</button><button type="button" class="car-next" aria-label="Next screenshots">›</button></div>
   </div>
 </section>
 
@@ -201,14 +218,13 @@
     <h2 id="muscles">Which muscles you actually train</h2>
     <p>Ask "which muscles did I train this month?" and the 3D body comes back coloured by how much work each muscle group got: hard sets per week against the usual 10 to 20 for muscle growth.</p>
     <ul>
-      <li>Grey for not trained, blue for under the range, green for in it, orange for over it. Switch between 1, 4 and 12 weeks and turn the body to see the back.</li>
+      <li>Grey for not trained, blue for under the range, green for in it, red for over it. Switch between 1, 4 and 12 weeks and turn the body to see the back.</li>
       <li>Every muscle is listed with its sets per week, the exercises that gave them and when you last trained it, so colour is never the only clue.</li>
       <li>A set counts fully for the muscles an exercise mainly works and half for the ones that help. The range is a rough guide for the big muscle groups.</li>
     </ul>
   </div>
   <div class="pair">
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Muscle map, light theme, scrollable"><img loading="lazy" src="img/muscles-light.png" alt="The muscle map for 4 weeks: a 3D body with most muscle groups coloured blue for under the range, a legend, and every muscle listed with its sets per week, lats 7.8 at the top"></div><figcaption>Light theme</figcaption></figure>
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Muscle map, dark theme, scrollable"><img loading="lazy" src="img/muscles-dark.png" alt="The same muscle map in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Muscle map, scrollable"><img class="lt" loading="lazy" src="img/muscles-light.png" alt="The muscle map for 4 weeks: a 3D body with most muscle groups coloured blue for under the range, a legend, and every muscle listed with its sets per week, lats 7.5 at the top"><img class="dk" loading="lazy" src="img/muscles-dark.png" alt="" aria-hidden="true"></div></figure>
   </div>
 </section>
 
@@ -224,9 +240,8 @@
     </ul>
   </div>
   <div class="pair">
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Dashboard, light theme, scrollable"><img loading="lazy" src="img/dashboard-light.png" alt="The progress dashboard in the light theme: weight, nutrition, training, strength and measurements cards"></div><figcaption>Light theme</figcaption></figure>
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Dashboard, dark theme, scrollable"><img loading="lazy" src="img/dashboard-dark.png" alt="The same dashboard in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/sleep.png" alt="Sleep card: average 7 hours over the logged nights, a bar per night with a dashed 8 hour line, and Sleep, Steps and Water tabs"></div><figcaption>Sleep, steps and water</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Dashboard, scrollable"><img class="lt" loading="lazy" src="img/dashboard-light.png" alt="The progress dashboard: weight, nutrition, training, strength and measurements cards"><img class="dk" loading="lazy" src="img/dashboard-dark.png" alt="" aria-hidden="true"></div></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/sleep-light.png" alt="Sleep card: average 7 hours over the logged nights, a bar per night with a dashed 8 hour line, and Sleep, Steps and Water tabs"><img class="dk" loading="lazy" src="img/sleep-dark.png" alt="" aria-hidden="true"></div><figcaption>Sleep, steps and water</figcaption></figure>
   </div>
 </section>
 
@@ -241,8 +256,7 @@
     </ul>
   </div>
   <div class="pair">
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Weekly review, light theme, scrollable"><img loading="lazy" src="img/review-light.png" alt="The weekly review for 5 to 11 October: what went well, then food, training, body and sleep tiles each compared with the week before, and one thing to consider about sleep"></div><figcaption>Light theme</figcaption></figure>
-    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Weekly review, dark theme, scrollable"><img loading="lazy" src="img/review-dark.png" alt="The same weekly review in the dark theme"></div><figcaption>Dark theme</figcaption></figure>
+    <figure><div class="phone scroll" tabindex="0" role="region" aria-label="Weekly review, scrollable"><img class="lt" loading="lazy" src="img/review-light.png" alt="The weekly review for 5 to 11 October: what went well, then food, training, body and sleep tiles each compared with the week before, and one thing to consider about sleep"><img class="dk" loading="lazy" src="img/review-dark.png" alt="" aria-hidden="true"></div></figure>
   </div>
 </section>
 
@@ -270,10 +284,13 @@
       <li>Coming from the private Fitwell app? Import its backup file through a one-time page. Entries you already have are never changed or duplicated.</li>
     </ul>
   </div>
-  <div class="pair">
-    <figure><div class="phone"><img loading="lazy" src="img/signin.png" alt="The sign-in page: enter your email, tick the consent box, and ask for a sign-in code"></div><figcaption>Sign in</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/code.png" alt="The page asking for the 6-digit code from the email"></div><figcaption>Type the code</figcaption></figure>
-    <figure><div class="phone"><img loading="lazy" src="img/import.png" alt="The import page after importing a Fitwell backup: 640 food entries, 38 workouts, 96 weigh-ins and 1 goal added"></div><figcaption>Importing a backup</figcaption></figure>
+  <div class="carousel" role="group" aria-roledescription="carousel" aria-label="Screenshots">
+    <div class="track">
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/signin-light.png" alt="The sign-in page: enter your email, tick the consent box, and ask for a sign-in code"><img class="dk" loading="lazy" src="img/signin-dark.png" alt="" aria-hidden="true"></div><figcaption>Sign in</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/code-light.png" alt="The page asking for the 6-digit code from the email"><img class="dk" loading="lazy" src="img/code-dark.png" alt="" aria-hidden="true"></div><figcaption>Type the code</figcaption></figure>
+    <figure><div class="phone"><img class="lt" loading="lazy" src="img/import-light.png" alt="The import page after importing a Fitwell backup: 640 food entries, 38 workouts, 96 weigh-ins and 1 goal added"><img class="dk" loading="lazy" src="img/import-dark.png" alt="" aria-hidden="true"></div><figcaption>Importing a backup</figcaption></figure>
+    </div>
+    <div class="car-nav"><button type="button" class="car-prev" aria-label="Previous screenshots">‹</button><button type="button" class="car-next" aria-label="Next screenshots">›</button></div>
   </div>
 </section>
 

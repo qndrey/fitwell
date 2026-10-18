@@ -1,5 +1,6 @@
 // Checks a week's plan against the person's goals and food rules, so Claude can fix problems before presenting it.
 // Pure.
+import { sumExtras, type Extras } from '@fitwell/core/domain/nutrition';
 import { checkAllergens } from '../safety/allergens';
 import type { Ingredient } from './grocery';
 
@@ -22,6 +23,8 @@ export interface PlannedItem {
   protein: number;
   carbs: number;
   fat: number;
+  /** Fibre, sugars... of the item as eaten, when known. */
+  extras?: Extras;
   ingredients: Ingredient[];
   /** When it was logged to the food log from the plan, if it was. */
   loggedAt?: number;
@@ -36,6 +39,9 @@ export interface DayCheck {
   day: string;
   items: number;
   totals: { kcal: number; protein: number; carbs: number; fat: number };
+  /** Fibre, sugars... over the planned items that know them; `extrasIncomplete` lists those some item lacks. */
+  extras?: Extras;
+  extrasIncomplete?: (keyof Extras)[];
   /** Totals minus goal, only where a goal is set. */
   vsGoal: { kcal?: number; protein?: number };
   status: { kcal?: 'ok' | 'low' | 'high'; protein?: 'ok' | 'short' };
@@ -112,6 +118,10 @@ export function checkPlan(weekDays: string[], items: PlannedItem[], goals: Goals
     }
     const totals = list.reduce((t, i) => ({ kcal: t.kcal + i.kcal, protein: t.protein + i.protein, carbs: t.carbs + i.carbs, fat: t.fat + i.fat }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
     const check: DayCheck = { day, items: list.length, totals: { kcal: r0(totals.kcal), protein: r0(totals.protein), carbs: r0(totals.carbs), fat: r0(totals.fat) }, vsGoal: {}, status: {} };
+    const more = sumExtras(list.map((i) => i.extras));
+    const rx = Object.fromEntries(Object.entries(more.totals).map(([k, v]) => [k, Math.round(v * 10) / 10]));
+    if (Object.keys(rx).length) check.extras = rx;
+    if (more.incomplete.length) check.extrasIncomplete = more.incomplete;
     if (goals?.kcal) {
       check.vsGoal.kcal = r0(totals.kcal - goals.kcal);
       check.status.kcal = Math.abs(totals.kcal - goals.kcal) <= goals.kcal * 0.1 ? 'ok' : totals.kcal < goals.kcal ? 'low' : 'high';

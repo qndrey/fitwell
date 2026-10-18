@@ -91,7 +91,7 @@ export async function lastImport(db: D1Database, userId: string): Promise<{ fini
   return r ? { finishedAt: r.finished_at, lines: describeReport(JSON.parse(r.report) as Report) } : null;
 }
 
-function importPageBody(): string {
+export function importPageBody(): string {
   return `
 <h1>Import a Fitwell backup</h1>
 <div class="card">

@@ -1,4 +1,4 @@
-import { scale } from '@fitwell/core/domain/nutrition';
+import { scale, scaleExtras } from '@fitwell/core/domain/nutrition';
 import * as z from 'zod';
 import type { RecipeItem } from '../data/planData';
 import { resolveFood, type FoodDeps, type FoodHit } from '../tools/foods';
@@ -34,7 +34,7 @@ export async function resolveIngredient(spec: IngredientSpec, foods: FoodMemo): 
   if (spec.food_id) {
     const hit = await foods.get(spec.food_id);
     if (!hit) return `Unknown food id ${spec.food_id}. Search again with search_foods.`;
-    return { foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), ...allergenFields(hit), grams: spec.grams, ...scale(hit.per100g, spec.grams) };
+    return { foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), ...allergenFields(hit), grams: spec.grams, ...scale(hit.per100g, spec.grams), ...(hit.extras ? { extras: scaleExtras(hit.extras, spec.grams) } : {}) };
   }
   return { name: spec.name!, grams: spec.grams, ...scale(spec.estimate_per100g!, spec.grams) };
 }

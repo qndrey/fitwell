@@ -7,10 +7,12 @@
   --text: var(--color-text-primary, #1f1d1a);
   --muted: var(--color-text-secondary, #6b655d);
   --border: var(--color-border-secondary, #ddd6cc);
-  --accent: var(--color-background-inverse, #2f5d50);
-  --on-accent: var(--color-text-inverse, #ffffff);
-  --ok: var(--color-text-success, #2f7a4f);
+  --accent: var(--color-background-inverse, #1f1d1a);
+  --on-accent: var(--color-text-inverse, #faf8f5);
+  --ok: var(--color-text-success, var(--text));
   --danger: var(--color-text-danger, #b3261e);
+  --btn: #5a5650;
+  --on-btn: #faf8f5;
   --radius: var(--border-radius-lg, 14px);
   --font: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
 }
@@ -21,8 +23,10 @@
     --text: var(--color-text-primary, #f2efe9);
     --muted: var(--color-text-secondary, #b2aba1);
     --border: var(--color-border-secondary, #3a3733);
-    --accent: var(--color-background-inverse, #8fc7b4);
-    --on-accent: var(--color-text-inverse, #10201b);
+    --accent: var(--color-background-inverse, #f2efe9);
+    --btn: #cfc9bf;
+    --on-btn: #1b1a18;
+    --on-accent: var(--color-text-inverse, #1b1a18);
   }
 }
 
@@ -48,7 +52,7 @@ header strong { font-size: 1rem; }
 button { font: inherit; color: inherit; min-height: 44px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg); cursor: pointer; touch-action: manipulation; }
 button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .stepper button { border: 0; border-radius: 0; font-size: 1.4rem; min-height: 52px; background: transparent; }
-.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; font-size: 1.1rem; min-height: 56px; }
+.primary { background: var(--btn); color: var(--on-btn); border-color: var(--btn); font-weight: 600; font-size: 1.1rem; min-height: 56px; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 .rest { text-align: center; }

@@ -1,8 +1,8 @@
 import { addDays, isDay, weekStart as mondayOf } from '@fitwell/core/domain/dates';
-import { roundForDisplay, scale, sum } from '@fitwell/core/domain/nutrition';
+import { roundForDisplay, scale, scaleExtras, sum, sumExtras } from '@fitwell/core/domain/nutrition';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { perServing, type PlanData, type Recipe } from '../data/planData';
+import { perServing, recipeExtras, type PlanData, type Recipe } from '../data/planData';
 import { todayIn } from '../data/time';
 import type { NewFoodEntry } from '../data/userData';
 import { checkPlan, SLOT_NAMES, type PlannedItem, type SlotName } from '../planning/check';
@@ -132,7 +132,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
         if (i.food_id && i.grams) {
           const hit = await foods.get(i.food_id);
           if (!hit) return toolError(`Nothing was saved. Unknown food id ${i.food_id}. Search again with search_foods.`);
-          planned.push({ day: i.day, slot: i.slot, kind: 'food', name: hit.name, foodId: hit.id, grams: i.grams, ...scale(hit.per100g, i.grams), ingredients: [{ foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), ...allergenFields(hit), grams: i.grams }] });
+          planned.push({ day: i.day, slot: i.slot, kind: 'food', name: hit.name, foodId: hit.id, grams: i.grams, ...scale(hit.per100g, i.grams), ...(hit.extras ? { extras: scaleExtras(hit.extras, i.grams) } : {}), ingredients: [{ foodId: hit.id, name: hit.name, ...(hit.group ? { group: hit.group } : {}), ...allergenFields(hit), grams: i.grams }] });
         } else if (i.recipe_id || i.recipe_name) {
           const key = i.recipe_id ?? `name:${i.recipe_name!.toLowerCase()}`;
           if (!recipes.has(key)) {
@@ -144,7 +144,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
           const f = i.servings / r.servings;
           const ingredients: Ingredient[] = r.items.map((x) => ({ ...(x.foodId ? { foodId: x.foodId } : {}), name: x.name, ...(x.group ? { group: x.group } : {}), ...allergenFields(x), grams: x.grams * f }));
           const total = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => r.items.reduce((n, x) => n + x[k], 0) * f;
-          planned.push({ day: i.day, slot: i.slot, kind: 'recipe', name: r.name, recipeId: r.id, servings: i.servings, grams: ingredients.reduce((n, x) => n + x.grams, 0), kcal: total('kcal'), protein: total('protein'), carbs: total('carbs'), fat: total('fat'), ingredients });
+          planned.push({ day: i.day, slot: i.slot, kind: 'recipe', name: r.name, recipeId: r.id, servings: i.servings, grams: ingredients.reduce((n, x) => n + x.grams, 0), kcal: total('kcal'), protein: total('protein'), carbs: total('carbs'), fat: total('fat'), ...(recipeExtras(r.items, f) ? { extras: recipeExtras(r.items, f) } : {}), ingredients });
         } else {
           planned.push({ day: i.day, slot: i.slot, kind: 'estimate', name: i.name!, grams: i.grams!, ...scale(i.estimate_per100g!, i.grams!), ingredients: [{ name: i.name!, grams: i.grams! }] });
         }
@@ -224,15 +224,18 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
         protein: i.protein,
         carbs: i.carbs,
         fat: i.fat,
+        ...(i.extras ? { extras: i.extras } : {}),
         estimated: i.kind === 'estimate',
       }));
       const added = await data.addFoodEntries(entries);
       const now = Date.now();
       for (const i of picked) i.loggedAt = now;
       await plans.savePlan(week, plan.items);
-      const total = sum(await data.foodEntries(d));
+      const dayEntries = await data.foodEntries(d);
+      const total = sum(dayEntries);
+      const dayExtras = sumExtras(dayEntries.map((e) => e.extras)).totals;
       const goals = await data.goals();
-      return json({ logged: added.map((e) => ({ id: e.id, slot: e.slot, food: e.foodName, grams: r0(e.grams), kcal: r0(e.kcal) })), dayTotals: roundForDisplay(total), ...(goals?.kcal ? { kcalRemaining: r0(goals.kcal - total.kcal) } : {}) });
+      return json({ logged: added.map((e) => ({ id: e.id, slot: e.slot, food: e.foodName, grams: r0(e.grams), kcal: r0(e.kcal) })), dayTotals: { ...roundForDisplay(total), ...(Object.keys(dayExtras).length ? { extras: Object.fromEntries(Object.entries(dayExtras).map(([k, v]) => [k, Math.round(v * 10) / 10])) } : {}) }, ...(goals?.kcal ? { kcalRemaining: r0(goals.kcal - total.kcal) } : {}) });
     },
   );
 

@@ -166,6 +166,8 @@ function weightCard(p: Progress) {
   );
 }
 
+const EXTRA_LABELS = [['fiber', 'fiber'], ['sugar', 'sugar'], ['addedSugar', 'added sugar'], ['satFat', 'sat. fat'], ['transFat', 'trans fat'], ['salt', 'salt']] as const;
+
 function nutritionCard(p: Progress) {
   const n = p.nutrition;
   const chart = nutritionChart(p);
@@ -178,6 +180,8 @@ function nutritionCard(p: Progress) {
       ? empty('No food logged in this period.')
       : h('p', { className: 'headline' }, `${num(n.averagePerLoggedDay.kcal, 0)} kcal `, h('small', {}, `average on ${n.daysLogged} logged ${n.daysLogged === 1 ? 'day' : 'days'}`)),
     n.averagePerLoggedDay && h('p', { className: 'muted small' }, `Protein ${num(n.averagePerLoggedDay.protein, 0)} g · carbs ${num(n.averagePerLoggedDay.carbs, 0)} g · fat ${num(n.averagePerLoggedDay.fat, 0)} g per day`),
+    n.averagePerLoggedDay?.extras && h('p', { className: 'muted small' }, EXTRA_LABELS.filter(([k]) => n.averagePerLoggedDay!.extras![k] !== undefined).map(([k, label]) => `${label[0]!.toUpperCase()}${label.slice(1)} ${num(n.averagePerLoggedDay!.extras![k]!, 1)} g`).join(' · '), ' per day'),
+    n.averagePerLoggedDay?.extras && (n.goals.fiberG !== null || n.goals.satFatG !== null || n.goals.addedSugarG !== null) && h('p', { className: 'muted small' }, [n.goals.fiberG !== null && `fiber target ${num(n.goals.fiberG, 0)} g`, n.goals.satFatG !== null && `sat. fat limit ${num(n.goals.satFatG, 0)} g`, n.goals.addedSugarG !== null && `added sugar limit ${num(n.goals.addedSugarG, 0)} g`].filter(Boolean).join(' · ')),
     chart,
     chart && n.goals.kcal !== null && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), 'calories per day'), h('span', {}, h('i', { className: 'goalsw' }), `goal ${num(n.goals.kcal, 0)} kcal`)),
     a.kcalWithin10Pct !== null && h('p', { className: 'small' }, `Calories within 10 % of your goal on ${a.kcalWithin10Pct} of ${a.ofDays} logged days.`),

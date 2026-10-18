@@ -17,6 +17,50 @@ beforeEach(async () => {
 type Entry = { id: string; food: string; grams: number; kcal: number; protein: number; estimated?: boolean; foodId?: string; slot: string; day: string };
 
 describe('food log', () => {
+  it('opens the food summary view and returns the goals it draws against', async () => {
+    const tool = (await client.listTools()).tools.find((t) => t.name === 'log_food')!;
+    expect((tool._meta as { ui?: { resourceUri?: string } }).ui?.resourceUri).toBe('ui://fitwell/food.html');
+    const res = await client.readResource({ uri: 'ui://fitwell/food.html' });
+    expect((res.contents[0] as { text?: string }).text).toMatch(/^<!doctype html>/i);
+    const { data } = await call(client, 'log_food', { day: '2026-10-13', items: [{ food_id: 'frida:413', grams: 100 }] });
+    expect(data).toHaveProperty('goals');
+    expect(data).toHaveProperty('totals');
+  });
+
+  it('carries fibre, sugars and saturated fat from the food to the entry and the day totals', async () => {
+    const { data } = await call(client, 'log_food', { day: '2026-10-14', items: [{ food_id: 'frida:59', grams: 200 }] }); // oats: 9.9 g fibre, 1.2 g saturated fat per 100 g
+    expect((data.logged as { extras: Record<string, number> }[])[0]!.extras).toMatchObject({ fiber: 19.8, satFat: 2.4 });
+    expect(data.extras).toMatchObject({ fiber: 19.8 });
+    const id = (data.logged as { id: string }[])[0]!.id;
+    const edited = await call(client, 'edit_food_entry', { id, grams: 100 });
+    expect((edited.data.updated as { extras: Record<string, number> }).extras.fiber).toBe(9.9);
+    // an estimate has no extras: the total is then marked as a minimum
+    const mixed = await call(client, 'log_food', { day: '2026-10-14', items: [{ name: 'Mystery bar', grams: 50, estimate_per100g: { kcal: 400, protein: 10, carbs: 50, fat: 15 } }] });
+    expect(mixed.data.extrasIncomplete).toContain('fiber');
+  });
+
+  it('adds the extras to multi-day reports, progress and recipes', async () => {
+    await call(client, 'log_food', { day: '2026-10-16', items: [{ food_id: 'frida:59', grams: 100 }] });
+    await call(client, 'log_food', { day: '2026-10-17', items: [{ food_id: 'frida:59', grams: 300 }] });
+    const log = await call(client, 'get_food_log', { day: '2026-10-17', days: 2 });
+    expect((log.data.days as { extras: { fiber: number } }[]).map((d) => d.extras.fiber)).toEqual([9.9, 29.7]);
+    expect((log.data.averagePerLoggedDay as { extras: { fiber: number } }).extras.fiber).toBe(19.8);
+    const progress = await call(client, 'get_progress', { days: 30, to: '2026-10-17' });
+    expect(JSON.stringify(progress.data.nutrition)).toContain('"fiber"');
+    const recipe = await call(client, 'save_recipe', { name: 'Porridge', servings: 2, ingredients: [{ food_id: 'frida:59', grams: 100 }] });
+    expect(recipe.text).toContain('"fiber":5,');
+  });
+
+  it('saves extras on a custom food and the goals for them', async () => {
+    const saved = await call(client, 'save_custom_food', { name: 'Protein bar', per_serving: { grams: 50, kcal: 200, protein: 20, carbs: 18, fat: 7 }, extras: { fiber: 5, sugar: 2 } });
+    const food = saved.data.food as { id: string; extras: Record<string, number> };
+    expect(food.extras).toEqual({ fiber: 10, sugar: 4 });
+    const { data } = await call(client, 'log_food', { day: '2026-10-15', items: [{ food_id: food.id, grams: 50 }] });
+    expect(data.extras).toEqual({ fiber: 5, sugar: 2 });
+    const goals = await call(client, 'set_goals', { fiber_g: 30, sat_fat_g: 20, added_sugar_g: 25 });
+    expect(goals.data.goals).toMatchObject({ fiberG: 30, satFatG: 20, addedSugarG: 25 });
+  });
+
   it('logs Frida foods with macros from the database and returns the day totals', async () => {
     const { data, isError } = await call(client, 'log_food', {
       day: '2026-10-13',

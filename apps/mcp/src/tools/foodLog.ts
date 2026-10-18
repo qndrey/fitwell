@@ -1,20 +1,25 @@
 import { addDays, isDay } from '@fitwell/core/domain/dates';
-import { labelProblems, roundForDisplay, scale, sum, toPer100g, type Nutrients } from '@fitwell/core/domain/nutrition';
+import { averageExtras, EXTRA_KEYS, labelProblems, roundForDisplay, scale, scaleExtras, sum, sumExtras, toPer100g, type Extras, type Nutrients } from '@fitwell/core/domain/nutrition';
 import { SLOTS, type Slot } from '@fitwell/core/schema';
+import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { perServing, type PlanData } from '../data/planData';
+import { perServing, recipeExtras, type PlanData } from '../data/planData';
 import { slotAt, todayIn } from '../data/time';
 import type { FoodEntry, Goals, NewFoodEntry } from '../data/userData';
 import { checkAllergens } from '../safety/allergens';
+import foodHtml from '../ui/generated/food';
+import { FOOD_VIEW_URI } from '../workout/plan';
 import { resolveFood, type FoodDeps } from './foods';
 import { json, toolError } from './result';
 
 const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
 const slot = z.enum(SLOTS as [Slot, ...Slot[]]);
+const extras = z.object({ fiber: z.number().min(0).max(100).optional(), sugar: z.number().min(0).max(100).optional(), addedSugar: z.number().min(0).max(100).optional(), satFat: z.number().min(0).max(100).optional(), transFat: z.number().min(0).max(100).optional(), salt: z.number().min(0).max(100).optional() });
 const per100g = z.object({ kcal: z.number().min(0).max(900), protein: z.number().min(0).max(100), carbs: z.number().min(0).max(100), fat: z.number().min(0).max(100) });
 
 const round = (n: Nutrients) => roundForDisplay(n);
+const roundExtras = (e: Extras): Extras => Object.fromEntries(EXTRA_KEYS.filter((k) => e[k] !== undefined).map((k) => [k, Math.round(e[k]! * 10) / 10]));
 const view = (e: FoodEntry) => ({
   id: e.id,
   day: e.day,
@@ -24,6 +29,7 @@ const view = (e: FoodEntry) => ({
   ...(e.foodRef ? { foodId: e.foodRef } : {}),
   grams: Math.round(e.grams * 10) / 10,
   ...round(e),
+  ...(e.extras ? { extras: roundExtras(e.extras) } : {}),
   ...(e.estimated ? { estimated: true } : {}),
 });
 
@@ -37,6 +43,11 @@ function remaining(total: Nutrients, goals: Goals | null) {
   if (goals.fatG != null) left.fat = Math.round(goals.fatG - total.fat);
   return Object.keys(left).length ? left : undefined;
 }
+
+const extrasFor = (per100g: Extras | undefined, grams: number) => {
+  const e = scaleExtras(per100g, grams);
+  return e ? { extras: e } : {};
+};
 
 /** Allergy matches for one food: its name against the person's words, and a packaged product's allergen tags. */
 function allergyNotes(name: string, terms: string[], food: { allergens?: string[]; traces?: string[] }): string[] {
@@ -62,10 +73,17 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
     const entries = await data.foodEntries(d);
     const total = sum(entries);
     const goals = await data.goals();
-    return { day: d, entries: entries.map(view), totals: round(total), remaining: remaining(total, goals) };
+    const more = sumExtras(entries.map((e) => e.extras));
+    // extras: fibre, sugars, saturated fat... summed over the entries that know them; extrasIncomplete lists the ones some entry lacks (the total is then a minimum).
+    return { day: d, entries: entries.map(view), totals: round(total), extras: roundExtras(more.totals), ...(more.incomplete.length ? { extrasIncomplete: more.incomplete } : {}), remaining: remaining(total, goals), goals };
   }
 
-  server.registerTool(
+  registerAppResource(server, 'Food log summary', FOOD_VIEW_URI, { description: 'What was just logged and the day so far against calorie and macro goals.' }, async () => ({
+    contents: [{ uri: FOOD_VIEW_URI, mimeType: RESOURCE_MIME_TYPE, text: foodHtml }],
+  }));
+
+  registerAppTool(
+    server,
     'log_food',
     {
       title: 'Log food',
@@ -100,6 +118,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
           .optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      _meta: { ui: { resourceUri: FOOD_VIEW_URI } },
     },
     async (args) => {
       if (!args.items && !args.copy_from) return toolError('Give items, copy_from, or both.');
@@ -116,7 +135,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
         if (!source.length) return toolError(`Nothing was logged: there is nothing logged on ${from.day}${from.slot ? ` for ${from.slot}` : ''} to copy.`);
         for (const e of source) {
           // Copies keep the stored snapshot (name and nutrition as logged then); the allergy check runs again in case allergies changed since.
-          rows.push({ day: d, slot: args.slot ?? e.slot, foodRef: e.foodRef, foodName: e.foodName, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, estimated: e.estimated });
+          rows.push({ day: d, slot: args.slot ?? e.slot, foodRef: e.foodRef, foodName: e.foodName, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, ...(e.extras ? { extras: e.extras } : {}), estimated: e.estimated });
           allergyWarnings.push(...allergyNotes(e.foodName, allergyTerms, {}));
         }
       }
@@ -131,7 +150,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
           const servings = item.servings ?? 1;
           const per = perServing(recipe);
           const grams = (recipe.items.reduce((n, i) => n + i.grams, 0) / recipe.servings) * servings;
-          rows.push({ day: d, slot: s, foodRef: `recipe:${recipe.id}`, foodName: servings === 1 ? recipe.name : `${recipe.name} (${servings} servings)`, brand: null, grams, kcal: per.kcal * servings, protein: per.protein * servings, carbs: per.carbs * servings, fat: per.fat * servings, estimated: recipe.items.some((i) => !i.foodId) });
+          rows.push({ day: d, slot: s, foodRef: `recipe:${recipe.id}`, foodName: servings === 1 ? recipe.name : `${recipe.name} (${servings} servings)`, brand: null, grams, kcal: per.kcal * servings, protein: per.protein * servings, carbs: per.carbs * servings, fat: per.fat * servings, ...extrasFor(recipeExtras(recipe.items, servings / recipe.servings), 100), estimated: recipe.items.some((i) => !i.foodId) });
           for (const i of recipe.items) allergyWarnings.push(...allergyNotes(i.name, allergyTerms, i));
         } else if (item.food_id) {
           const food = await resolveFood(item.food_id, deps);
@@ -139,7 +158,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
             missing.push(item.food_id);
             continue;
           }
-          rows.push({ day: d, slot: s, foodRef: food.id, foodName: food.name, brand: food.brand ?? null, grams: item.grams!, ...scale(food.per100g, item.grams!), estimated: item.amount_estimated === true });
+          rows.push({ day: d, slot: s, foodRef: food.id, foodName: food.name, brand: food.brand ?? null, grams: item.grams!, ...scale(food.per100g, item.grams!), ...extrasFor(food.extras, item.grams!), estimated: item.amount_estimated === true });
           allergyWarnings.push(...allergyNotes(food.name, allergyTerms, food));
         } else {
           rows.push({ day: d, slot: s, foodRef: null, foodName: item.name!, brand: null, grams: item.grams!, ...scale(item.estimate_per100g!, item.grams!), estimated: true });
@@ -168,7 +187,8 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
       const from = addDays(to, -(args.days - 1));
       const totals = await data.dayTotals(from, to);
       const avg = totals.length ? round(Object.fromEntries((['kcal', 'protein', 'carbs', 'fat'] as const).map((k) => [k, totals.reduce((n, t) => n + t[k], 0) / totals.length])) as unknown as Nutrients) : null;
-      return json({ from, to, daysLogged: totals.length, days: totals.map((t) => ({ day: t.day, entries: t.entries, ...round(t) })), averagePerLoggedDay: avg, goals: await data.goals() });
+      const avgMore = averageExtras(totals.map((t) => t.extras));
+      return json({ from, to, daysLogged: totals.length, days: totals.map((t) => ({ day: t.day, entries: t.entries, ...round(t), ...(t.extras ? { extras: roundExtras(t.extras) } : {}), ...(t.extrasIncomplete ? { extrasIncomplete: t.extrasIncomplete } : {}) })), averagePerLoggedDay: avg && { ...avg, ...(avgMore ? { extras: roundExtras(avgMore) } : {}) }, goals: await data.goals() });
     },
   );
 
@@ -202,19 +222,21 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
           .object({ grams: z.number().positive().max(2000), kcal: z.number().min(0).max(5000), protein: z.number().min(0).max(500), carbs: z.number().min(0).max(500), fat: z.number().min(0).max(500) })
           .optional()
           .describe('Instead of per100g: the values for one serving of that many grams'),
+        extras: extras.optional().describe('Fibre, sugars, saturated fat, trans fat and salt in grams, on the same basis as the macros (per100g or per_serving). Leave out what the label does not say.'),
         portions: z.array(z.object({ label: z.string().min(1).max(40), grams: z.number().positive().max(5000) })).max(10).default([]),
         values_checked: z.boolean().default(false).describe('The label really says this although the energy does not match the macros'),
       }),
     },
-    async ({ name, brand, per100g: given, per_serving, portions, values_checked }) => {
+    async ({ name, brand, per100g: given, per_serving, extras: givenExtras, portions, values_checked }) => {
       if ((given === undefined) === (per_serving === undefined)) return toolError('Give the values either per100g or per_serving, not both.');
       const values = given ?? roundForDisplay(toPer100g(per_serving!, per_serving!.grams));
       const problems = labelProblems(values);
       if (problems.impossible.length) return toolError(`Nothing was saved. ${problems.impossible.join(' ')} Read the label again.`);
       if (problems.mismatch.length && !values_checked) return toolError(`Nothing was saved. ${problems.mismatch.join(' ')} Read the label again; if it really says this (alcohol, sweeteners), save again with values_checked: true.`);
       const withServing = per_serving && !portions.some((p) => p.grams === per_serving.grams) ? [...portions, { label: 'serving', grams: per_serving.grams }] : portions;
-      const food = await data.addCustomFood({ name, brand: brand ?? null, per100g: values, portions: withServing });
-      return json({ food: { id: `custom:${food.id}`, name: food.name, ...(food.brand ? { brand: food.brand } : {}), per100g: food.per100g, portions: food.portions } });
+      const extrasPer100 = givenExtras ? scaleExtras(givenExtras, per_serving ? 10000 / per_serving.grams : 100) : undefined;
+      const food = await data.addCustomFood({ name, brand: brand ?? null, per100g: values, ...(extrasPer100 ? { extras: roundExtras(extrasPer100) } : {}), portions: withServing });
+      return json({ food: { id: `custom:${food.id}`, name: food.name, ...(food.brand ? { brand: food.brand } : {}), per100g: food.per100g, ...(food.extras ? { extras: food.extras } : {}), portions: food.portions } });
     },
   );
 }

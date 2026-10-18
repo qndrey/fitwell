@@ -1,6 +1,6 @@
 import { loadBundledFoods } from '@fitwell/core/data/bundledFoods';
 import type { FoodItem } from '@fitwell/core/domain/foods';
-import type { Nutrients, Portion } from '@fitwell/core/domain/nutrition';
+import type { Extras, Nutrients, Portion } from '@fitwell/core/domain/nutrition';
 import { looksLikeBarcode, normalizeBarcode } from '@fitwell/core/ean';
 import { OffError, type OffClient } from '@fitwell/core/off/client';
 import type { Candidate } from '@fitwell/core/schema';
@@ -20,6 +20,8 @@ export interface FoodHit {
   group?: string;
   source: 'frida' | 'openfoodfacts' | 'custom';
   per100g: Nutrients;
+  /** Fibre, sugars, saturated fat and salt per 100 g, where the source has them. */
+  extras?: Extras;
   portions: Portion[];
   /** Packaged products: allergens and traces from Open Food Facts (absent = not known). */
   allergens?: string[];
@@ -36,10 +38,10 @@ const fridaIndex = () => (index ??= loadBundledFoods().then((d) => prepare(d.foo
 let byId: Promise<Map<string, FoodItem>> | null = null;
 const fridaById = () => (byId ??= loadBundledFoods().then((d) => new Map(d.foods.map((f) => [f.ref.id, f]))));
 
-const fromFrida = (f: FoodItem): FoodHit => ({ id: f.ref.id, name: f.name, group: f.group, source: 'frida', per100g: f.per100g, portions: f.portions });
-const fromOff = (c: Candidate): FoodHit => ({ id: `off:${c.sourceId}`, name: c.name, brand: c.brand, source: 'openfoodfacts', per100g: c.per100g, portions: c.portions, ...(c.allergens ? { allergens: c.allergens } : {}), ...(c.traces ? { traces: c.traces } : {}) });
+const fromFrida = (f: FoodItem): FoodHit => ({ id: f.ref.id, name: f.name, group: f.group, source: 'frida', per100g: f.per100g, ...(f.extras ? { extras: f.extras } : {}), portions: f.portions });
+const fromOff = (c: Candidate): FoodHit => ({ id: `off:${c.sourceId}`, name: c.name, brand: c.brand, source: 'openfoodfacts', per100g: c.per100g, ...(c.extras ? { extras: c.extras } : {}), portions: c.portions, ...(c.allergens ? { allergens: c.allergens } : {}), ...(c.traces ? { traces: c.traces } : {}) });
 
-const fromCustom = (c: CustomFood): FoodHit => ({ id: `custom:${c.id}`, name: c.name, brand: c.brand ?? undefined, source: 'custom', per100g: c.per100g, portions: c.portions });
+const fromCustom = (c: CustomFood): FoodHit => ({ id: `custom:${c.id}`, name: c.name, brand: c.brand ?? undefined, source: 'custom', per100g: c.per100g, ...(c.extras ? { extras: c.extras } : {}), portions: c.portions });
 
 /**
  * Frida names foods "Item, descriptor" ("Egg, chicken, whole, raw"). The text search favours short names, so "egg" would

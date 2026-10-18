@@ -1,4 +1,5 @@
 // A person's recipes and weekly meal plans. Like UserData, every query is bound to the signed-in user's id.
+import { sumExtras, type Extras } from '@fitwell/core/domain/nutrition';
 import type { PlannedItem } from '../planning/check';
 import type { Ingredient } from '../planning/grocery';
 
@@ -8,6 +9,8 @@ export interface RecipeItem extends Ingredient {
   protein: number;
   carbs: number;
   fat: number;
+  /** Fibre, sugars... for this amount, when the food source has them. */
+  extras?: Extras;
 }
 
 export interface Recipe {
@@ -47,6 +50,13 @@ const toPlan = (r: Row): Plan => ({ id: r.id as string, weekStart: r.week_start 
 export function perServing(r: Pick<Recipe, 'items' | 'servings'>) {
   const sum = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => r.items.reduce((n, i) => n + i[k], 0) / r.servings;
   return { kcal: sum('kcal'), protein: sum('protein'), carbs: sum('carbs'), fat: sum('fat') };
+}
+
+/** Extras of a whole recipe (all servings), scaled by `factor`; undefined when no ingredient knows any. */
+export function recipeExtras(items: Pick<RecipeItem, 'extras'>[], factor = 1): Extras | undefined {
+  const { totals } = sumExtras(items.map((i) => i.extras));
+  const out = Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, v * factor]));
+  return Object.keys(out).length ? (out as Extras) : undefined;
 }
 
 export class PlanData {

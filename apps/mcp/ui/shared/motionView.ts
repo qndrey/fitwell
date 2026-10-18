@@ -64,8 +64,8 @@ const FRAMING: Record<string, { x: number; y: number; d: number }> = {
 const EL_MIN = -0.35;
 const EL_MAX = 1.1;
 
-const LIGHT: Palette = { tint: 0xe4572e, body: 0xd9b8a0, load: 0x2f5d50, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
-const DARK: Palette = { tint: 0xff7a4d, body: 0xbf9a83, load: 0x8fc7b4, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
+const LIGHT: Palette = { tint: 0xe4572e, body: 0xd9b8a0, load: 0x55514b, steel: 0xaeb2b6, furniture: 0x9a9184, floor: 0xe2dbd0 };
+const DARK: Palette = { tint: 0xff7a4d, body: 0xbf9a83, load: 0xb8b2a8, steel: 0x9a9ea3, furniture: 0x6e675e, floor: 0x34312d };
 
 function cssColor(name: string): Color | null {
   try {
@@ -82,11 +82,11 @@ export function isDarkTheme(): boolean {
   return bg ? bg.getHSL({ h: 0, s: 0, l: 0 }).l < 0.45 : window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
 }
 
-/** Colours follow the theme: warm neutrals for the figure, the accent colour for the load. */
+/** Colours follow the theme: warm neutrals for the figure, the text colour for the load (never a brand colour). */
 function readPalette(): Palette {
   const base = isDarkTheme() ? DARK : LIGHT;
-  const accent = cssColor('--accent');
-  return accent ? { ...base, load: accent.getHex() } : base;
+  const ink = cssColor('--text');
+  return ink ? { ...base, load: ink.getHex() } : base;
 }
 
 export function createMotionPlayer(): MotionPlayer | null {

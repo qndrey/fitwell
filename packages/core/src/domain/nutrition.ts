@@ -5,6 +5,50 @@ export interface Nutrients {
   fat: number;
 }
 
+/**
+ * Nutrients beyond the four main ones, in grams (salt too). Each is optional: a missing key means the source does not
+ * say, which is not the same as zero.
+ */
+export interface Extras {
+  fiber?: number;
+  sugar?: number;
+  addedSugar?: number;
+  satFat?: number;
+  transFat?: number;
+  salt?: number;
+}
+export const EXTRA_KEYS = ['fiber', 'sugar', 'addedSugar', 'satFat', 'transFat', 'salt'] as const satisfies readonly (keyof Extras)[];
+
+/** Extras for `grams` of a food given per-100 g values; keys that are unknown stay unknown. */
+export function scaleExtras(per100g: Extras | undefined, grams: number): Extras | undefined {
+  if (!per100g) return undefined;
+  const out: Extras = {};
+  for (const k of EXTRA_KEYS) if (per100g[k] !== undefined) out[k] = (per100g[k] * grams) / 100;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Totals of the extras that at least one entry knows, and the keys some entry does not know (so a total may be too low). */
+export function sumExtras(list: (Extras | undefined)[]): { totals: Extras; incomplete: (keyof Extras)[] } {
+  const totals: Extras = {};
+  const incomplete: (keyof Extras)[] = [];
+  for (const k of EXTRA_KEYS) {
+    const known = list.filter((e) => e?.[k] !== undefined);
+    if (known.length) totals[k] = known.reduce((n, e) => n + e![k]!, 0);
+    if (known.length && known.length < list.length) incomplete.push(k);
+  }
+  return { totals, incomplete };
+}
+
+/** Average of each extra over the days that know it (days without a value are left out, not counted as zero). */
+export function averageExtras(days: (Extras | undefined)[]): Extras | undefined {
+  const out: Extras = {};
+  for (const k of EXTRA_KEYS) {
+    const known = days.filter((e) => e?.[k] !== undefined);
+    if (known.length) out[k] = known.reduce((n, e) => n + e![k]!, 0) / known.length;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 export interface Portion {
   label: string;
   grams: number;

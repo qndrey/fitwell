@@ -1,5 +1,5 @@
 import type { FoodItem } from './domain/foods';
-import type { Nutrients, Portion, Quantity } from './domain/nutrition';
+import type { Extras, Nutrients, Portion, Quantity } from './domain/nutrition';
 
 /** Fields every user-owned record carries (sync-ready; see TECH_SPEC §3.1). */
 export interface Base {
@@ -66,6 +66,8 @@ export interface Candidate {
   name: string;
   brand?: string;
   per100g: Nutrients;
+  /** Fibre, sugars, saturated fat and salt per 100 g, when Open Food Facts has them. */
+  extras?: Extras;
   portions: Portion[];
   /** Allergens Open Food Facts lists for the product, without the language prefix (e.g. "milk", "gluten"). Absent = unknown. */
   allergens?: string[];

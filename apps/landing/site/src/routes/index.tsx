@@ -642,7 +642,8 @@ function Index() {
 
         {/* Support */}
         {supportLinks.length > 0 && (
-          <Section id="support" className="max-w-3xl">
+          <section id="support" className="scroll-mt-4 border-t">
+            <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 md:py-20">
             <Heart className="size-10 text-amber" aria-hidden />
             <h2 className="mt-6 text-3xl sm:text-4xl">Support Fitwell</h2>
             <p className="mt-6 max-w-2xl leading-relaxed text-muted-foreground">
@@ -669,7 +670,8 @@ function Index() {
               Each link opens the provider's own page. Payments are handled by them: Fitwell never sees your payment details,
               and supporting does not change what Fitwell stores about you.
             </p>
-          </Section>
+            </div>
+          </section>
         )}
 
         {/* Join */}

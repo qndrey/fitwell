@@ -5,3 +5,10 @@ dist
 .DS_Store
 .dev.vars
 .wrangler
+
+# Local-only agentic contracts flow (commands, agents, skill and its example contracts); not committed
+.agents/
+.claude/agents/
+.claude/commands/
+.claude/skills/
+apps/mcp/contracts/

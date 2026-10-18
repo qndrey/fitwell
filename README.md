@@ -1,17 +1,11 @@
-<p align="center">
-  <img src="docs/images/logo.png" alt="Fitwell" width="96" height="96">
-</p>
+<img align="left" src="docs/images/logo.png" alt="Fitwell" width="56" height="56">
 
-<h1 align="center">Fitwell for Claude</h1>
+# Fitwell for Claude
 
-<p align="center">
-  Track food, training and weight by talking to Claude.<br>
-  A calm fitness and meal tracker that lives inside Claude, as a remote <a href="https://modelcontextprotocol.io">MCP</a> server.
-</p>
+Track food, training and weight by talking to Claude. A calm fitness and meal tracker that lives inside Claude, as a remote [MCP](https://modelcontextprotocol.io) server.<br>
+[fitwell.fyi](https://fitwell.fyi) · invite-only · health data stored in the EU
 
-<p align="center">
-  <a href="https://fitwell.fyi">fitwell.fyi</a> · invite-only · health data stored in the EU
-</p>
+<br clear="left">
 
 <table>
 <tr><td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-squat-dark.png"><img src="docs/images/hero-squat-light.png" alt="The workout player on a barbell squat set with reps and weight steppers" width="230"></picture><br><sub>Workout player</sub></td><td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/food-dark.png"><img src="docs/images/food-light.png" alt="The summary card after logging a meal: calorie ring, macros, fiber, sugar, fats and salt" width="230"></picture><br><sub>Food summary</sub></td><td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-dark.png"><img src="docs/images/dashboard-light.png" alt="The progress dashboard: weight trend and nutrition against goals" width="230"></picture><br><sub>Progress dashboard</sub></td></tr>

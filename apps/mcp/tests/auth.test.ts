@@ -351,3 +351,16 @@ describe('directory reviewer sign-in (REVIEW_LOGIN)', () => {
     }
   });
 });
+
+describe('icon', () => {
+  it.each([
+    ['/favicon.ico', 'image/x-icon', [0, 0, 1, 0]], // ICO header: reserved 0, type 1
+    ['/icon-512.png', 'image/png', [0x89, 0x50, 0x4e, 0x47]],
+    ['/apple-touch-icon.png', 'image/png', [0x89, 0x50, 0x4e, 0x47]],
+  ])('serves %s', async (path, type, magic) => {
+    const res = await worker.fetch(new Request(ORIGIN + path), env, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe(type);
+    expect([...new Uint8Array(await res.arrayBuffer()).slice(0, 4)]).toEqual(magic);
+  });
+});

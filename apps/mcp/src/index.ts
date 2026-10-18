@@ -3,6 +3,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
 import { cloudflareMailer } from './auth/mailer';
 import { page, privacyBody } from './auth/pages';
+import { ICONS } from './icons';
 import { handleImport } from './import/routes';
 import { cachedOff } from './data/offCache';
 import { deleteUser, findUser, inviteUser, recordLogin, type User } from './data/users';
@@ -59,6 +60,8 @@ const site = {
     }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
+    const icon = ICONS[url.pathname];
+    if (icon) return new Response(Uint8Array.from(atob(icon.base64), (c) => c.charCodeAt(0)), { headers: { 'content-type': icon.type, 'cache-control': 'public, max-age=86400' } });
     // The page about Fitwell for Claude, with how to add the connector, is the landing page (apps/landing). It used to be
     // /about/ here, so old links to it go there too.
     if (url.pathname === '/' || url.pathname === '/about' || url.pathname.startsWith('/about/')) return Response.redirect(LANDING_URL, 301);

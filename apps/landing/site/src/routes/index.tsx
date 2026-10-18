@@ -279,8 +279,11 @@ function Index() {
         Skip to content
       </a>
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <span className="text-lg font-bold tracking-tight">
-          Fitwell <span className="font-medium text-muted-foreground">for Claude</span>
+        <span className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+          <img src="/icon-512.png" alt="" width={32} height={32} className="size-8 rounded-[22%]" />
+          <span>
+            Fitwell <span className="font-medium text-muted-foreground">for Claude</span>
+          </span>
         </span>
         <a href="#join" className="rounded-full border px-4 py-1.5 text-sm font-semibold hover:bg-card">
           Ask for an invite

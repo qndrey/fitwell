@@ -225,6 +225,53 @@ const faqs = [
   },
 ];
 
+const troubles = [
+  {
+    q: "I didn't get a sign-in email",
+    a: "Only invited addresses get one; if you haven't been invited yet, ask at fitwell.fyi@pm.me. When you're invited, Cloudflare (which sends Fitwell's sign-in emails) sends you one email to confirm your address: confirm it first, or the codes can't reach you. The code comes from login@fitwell.fyi, so check your spam folder too. It lasts 10 minutes; after that, start signing in again from Claude.",
+  },
+  {
+    q: "The code doesn't work",
+    a: "Use the code from the newest email. A code lasts 10 minutes and allows 5 tries. After that, close the sign-in window and start again from Claude for a new code.",
+  },
+  {
+    q: "The link in the email says to type the code instead",
+    a: "The link only works in the browser where you started signing in, so that nobody else can use a sign-in you didn't start. Type the 6-digit code into the Fitwell sign-in window instead.",
+  },
+  {
+    q: "It says there were too many sign-in attempts",
+    a: "Each address can ask for 5 codes an hour. Wait an hour, then sign in again from Claude.",
+  },
+  {
+    q: "Fitwell doesn't show up in the Claude app on my phone",
+    a: "Add the connector in Claude on the web or desktop first (Settings, then Connectors). It then appears in the Claude app on your phone when you're signed in to the same Claude account.",
+  },
+  {
+    q: "Claude asks me to sign in to Fitwell again",
+    a: "A sign-in stays valid while you use Fitwell and ends after 60 days without use. Sign in again from Settings, then Connectors; your data is kept.",
+  },
+  {
+    q: "A food isn't found",
+    a: "Generic foods use the English names from the Danish database, so try a plain name (\"rye bread\", \"skyr\"). For packaged food, give Claude the barcode or ask it to search Open Food Facts, which is sometimes slow. If nothing fits, Claude logs an estimate and says so.",
+  },
+];
+
+function Questions({ items }: { items: { q: string; a: string }[] }) {
+  return (
+    <div className="mt-10 divide-y border-y">
+      {items.map((f) => (
+        <details key={f.q} className="group py-5">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">
+            {f.q}
+            <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <p className="mt-3 leading-relaxed text-muted-foreground">{f.a}</p>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function Index() {
   return (
     <div className="min-h-screen">
@@ -409,17 +456,20 @@ function Index() {
         {/* FAQ */}
         <Section className="max-w-3xl">
           <h2 className="text-3xl sm:text-4xl">Good to know</h2>
-          <div className="mt-10 divide-y border-y">
-            {faqs.map((f) => (
-              <details key={f.q} className="group py-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">
-                  {f.q}
-                  <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
-                </summary>
-                <p className="mt-3 leading-relaxed text-muted-foreground">{f.a}</p>
-              </details>
-            ))}
-          </div>
+          <Questions items={faqs} />
+        </Section>
+
+        {/* Troubleshooting */}
+        <Section id="troubleshooting" className="max-w-3xl pt-0 md:pt-0">
+          <h2 className="text-3xl sm:text-4xl">Troubleshooting</h2>
+          <Questions items={troubles} />
+          <p className="mt-8 text-muted-foreground">
+            Still stuck? Email{" "}
+            <a href={`mailto:${EMAIL}`} className="font-semibold text-primary underline underline-offset-4">
+              {EMAIL}
+            </a>{" "}
+            with what you see, and we'll help.
+          </p>
         </Section>
       </main>
 

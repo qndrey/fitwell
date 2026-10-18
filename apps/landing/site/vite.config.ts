@@ -10,7 +10,7 @@ import type { Plugin } from "vite";
 // FITWELL_STATIC=1 (npm run build:static) builds the page as plain files for the fitwell-landing
 // Cloudflare site: the one route is prerendered, and images come from the PNGs next to each
 // *.png.asset.json instead of Lovable's asset host (/__l5e/...), which only exists on Lovable.
-const staticBuild = process.env.FITWELL_STATIC === "1";
+const staticBuild = process.env["FITWELL_STATIC"] === "1";
 
 const ASSET_PREFIX = "\0fitwell-asset:";
 

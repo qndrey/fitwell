@@ -5,7 +5,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
     if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v as EventListener);
-    else if (k.startsWith('aria-') || k === 'role') el.setAttribute(k, String(v));
+    else if (k.startsWith('aria-') || k.startsWith('data-') || k === 'role') el.setAttribute(k, String(v));
     else (el as unknown as Record<string, unknown>)[k] = v;
   }
   for (const c of children) if (c !== null && c !== false && c !== undefined) el.append(c);

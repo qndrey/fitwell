@@ -44,14 +44,14 @@ interface Shot {
 
 const click = (f: Frame, name: string | RegExp, exact = true) => f.getByRole('button', { name, exact }).first().click();
 const bodyText = (f: Frame) => f.locator('body').innerText();
-const PAUSE = 450;
+const PAUSE = 750; // longer than the player's tap guard after a state change (600 ms)
 /** The workout's duration is computed on the server from its stored start: make the workout in progress start that many minutes ago. */
 const backdate = (minutes: number) => sqlite(`update workouts set started_at = started_at - ${minutes * 60_000} where created_at >= ${startedAt} and finished_at is null;`);
 /** Logs sets, skips rests and finishes cardio blocks until `done` matches the page text (at most `max` clicks). */
 async function work(f: Frame, page: Page, done: RegExp, max = 40) {
   for (let i = 0; i < max && !done.test(await bodyText(f)); i++) {
-    for (const name of ['Skip rest', 'Log set', 'Done']) {
-      const b = f.getByRole('button', { name, exact: true }).first();
+    for (const name of [/^Skip rest$/, /^Start (set|warm-up)/, /^Log set/, /^Log cardio$/]) {
+      const b = f.getByRole('button', { name }).first();
       if (await b.isVisible().catch(() => false)) {
         await b.click();
         break;
@@ -83,16 +83,16 @@ export const SHOTS: Shot[] = [
   { name: 'guide-legpress', view: 'exercise', args: { query: 'leg press' } },
   { name: 'guide-squat', clip: 500, view: 'exercise', args: { query: 'barbell squat' } },
   { name: 'hero-squat', clip: 660, view: 'workout', args: { ...FULL, exercises: [squat({ weight_kg: undefined }), ...FULL.exercises.slice(1)] } },
-  { name: 'player-rest', view: 'workout', args: FULL, steps: async (f, page) => (await click(f, 'Log set'), page.waitForTimeout(PAUSE), undefined) },
-  { name: 'rest-next', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 1 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => (await click(f, 'Log set'), page.waitForTimeout(PAUSE), undefined) },
+  { name: 'player-rest', view: 'workout', args: FULL, steps: async (f, page) => (await click(f, /^Log set/, false), page.waitForTimeout(PAUSE), undefined) },
+  { name: 'rest-next', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 1 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => (await click(f, /^Log set/, false), page.waitForTimeout(PAUSE), undefined) },
   { name: 'player-summary', view: 'workout', args: FULL, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/); await page.clock.fastForward(45 * 60_000); backdate(45); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
-  { name: 'warmup', fitTo: 600, view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await click(f, 'Log set'); await page.waitForTimeout(PAUSE); await click(f, 'Skip rest'); await page.waitForTimeout(PAUSE); } },
+  { name: 'warmup', fitTo: 600, view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); await click(f, 'Skip rest'); await page.waitForTimeout(PAUSE); } },
   { name: 'working', view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await work(f, page, /Set 1 of 2/i); } },
   { name: 'superset', view: 'workout', args: A2, steps: async (f, page) => { await work(f, page, /superset/i, 60); } },
   { name: 'timed', view: 'workout', args: { name: 'Core', exercises: [{ id: 'ex:Plank', sets: 1, seconds: 10, rest_sec: 90 }] }, steps: async (f, page) => { await click(f, /Start a \d+ s timer/, false); await page.waitForTimeout(1200); } },
-  { name: 'swap', view: 'workout', args: FULL, steps: async (f, page) => { await f.getByText('Swap exercise', { exact: true }).click(); await page.waitForTimeout(1500); } },
-  { name: 'note', view: 'workout', args: FULL, steps: async (f, page) => { await click(f, 'Add a note'); await f.locator('textarea').fill('seat 4'); await page.waitForTimeout(300); } },
-  { name: 'guide-in-player', view: 'workout', args: FULL, steps: async (f, page) => { await f.getByText('How to do it', { exact: true }).click(); await page.waitForTimeout(3500); } },
+  { name: 'swap', view: 'workout', args: FULL, steps: async (f, page) => { await click(f, 'Swap'); await page.waitForTimeout(1500); } },
+  { name: 'note', view: 'workout', args: FULL, steps: async (f, page) => { await click(f, 'Note'); await f.locator('textarea').fill('seat 4'); await click(f, 'Save note'); await page.waitForTimeout(300); } },
+  { name: 'guide-in-player', view: 'workout', args: FULL, steps: async (f, page) => { await click(f, 'How to do it'); await page.waitForTimeout(3500); } },
   { name: 'cardio', view: 'workout', args: { name: 'Squat and run', exercises: [squat({ sets: 1 })], cardio: [{ activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /\bMinutes\b/, 6); } },
   { name: 'summary-cardio', view: 'workout', args: { ...FULL, cardio: [{ activity_id: 'act:row-machine', minutes: 5, when: 'before' }, { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/, 60); await page.clock.fastForward(52 * 60_000); backdate(52); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
   { name: 'food', view: 'food', args: { day: '2026-10-13', slot: 'lunch', items: [{ food_id: 'frida:59', grams: 80 }, { food_id: 'frida:413', grams: 120 }] }, kcalGoal: GOAL_2300 },

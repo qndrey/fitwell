@@ -2,6 +2,7 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { platesFor, STANDARD_GYM } from '@fitwell/core/domain/plates';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
+import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
 
@@ -15,6 +16,8 @@ interface FinishSummary {
 /** One step of the workout: a warm-up, an exercise or a finisher, in the order they are done. */
 type Item = { kind: 'ex'; ex: PlannedExercise } | { kind: 'cardio'; c: PlannedCardio };
 
+type Kind = 'reps' | 'weight' | 'seconds' | 'minutes' | 'km';
+
 const state = {
   plan: null as WorkoutPlan | null,
   current: 0,
@@ -25,47 +28,61 @@ const state = {
   holdUntil: 0,
   minutes: 0,
   km: 0,
-  /** The exercise whose note is being edited; the textarea exists only then (see notesEditor). */
+  /** The stepper whose value is being typed, if any. */
+  editing: '' as Kind | '',
+  /** The exercise whose note is being edited; the textarea exists only then (see notesPanel). */
   noteEditing: '',
+  noteSaved: '',
   guideOpen: false,
   guides: new Map<string, ExerciseGuide>(),
   guideFailed: false,
   /** Swapping the current exercise: substitutes per exercise uid (fetched when the panel opens). */
   swapOpen: false,
+  swapAll: false,
   swaps: new Map<string, { id: string; name: string; equipment: string }[]>(),
   swapNote: '',
+  swapFailed: false,
+  /** The exercise this slot had before a swap, until the first set is logged (undo). */
+  swappedFrom: null as { id: string; name: string } | null,
   restUntil: 0,
+  restTotal: 0,
+  /** The rest ran out by itself: wait for a tap instead of switching screens under a finger. */
+  restOver: false,
+  /** Moved straight on inside a superset round (no rest). */
+  straightOn: false,
+  /** The last set logged or skipped, so a mistake can be corrected. */
+  lastLogged: null as { exUid: string; setId: string; text: string; skipped: boolean } | null,
+  /** Primary actions are ignored for a moment after the screen changes (a double tap must not log twice). */
+  lockUntil: 0,
+  confirmFinish: false,
   finished: null as FinishSummary | null,
   finishing: false,
-  serverOk: null as boolean | null,
+  sendFailed: false,
   note: '',
 };
 
+/** Changes that did not reach the server yet, by what they change; retried until they do. */
+const pending = new Map<string, () => Promise<boolean>>();
+/** The ones among them whose last try failed: only these are shown to the person (a save in flight is not news). */
+const failed = new Set<string>();
+let flushing = false;
+let lastFlushAt = 0;
+
 const root = document.getElementById('app')!;
+const statusEl = document.getElementById('status');
 /** Created the first time "How to do it" opens (a WebGL context is not free on a phone); null when the device has none. */
 let motion: MotionPlayer | null | undefined;
 let motionFor = '';
-const app = new App({ name: 'Fitwell workout', version: '0.2.0' }, {}, { autoResize: true });
-
-// ---------- tiny DOM helper (textContent only: names come from data, never parsed as HTML) ----------
-type Child = Node | string | null | false | undefined;
-function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & Record<string, unknown> = {}, ...children: Child[]) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v as EventListener);
-    else if (k.startsWith('aria-') || k === 'role') el.setAttribute(k, String(v));
-    else (el as unknown as Record<string, unknown>)[k] = v;
-  }
-  for (const c of children) if (c !== null && c !== false && c !== undefined) el.append(c);
-  return el;
-}
+const app = new App({ name: 'Fitwell workout', version: '0.3.0' }, {}, { autoResize: true });
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 const kg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-/** One tap on the weight stepper: small enough for dumbbells and micro plates. */
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+const r1 = (n: number) => Math.round(n * 10) / 10;
+/** One tap on the weight stepper: small enough for dumbbells and micro plates. Typing a value works for anything else. */
 const WEIGHT_STEP = 0.5;
 const closed = (s: PlannedSet) => s.done || !!s.skipped;
 const nextSet = (e: PlannedExercise) => e.sets.find((s) => !closed(s));
@@ -75,6 +92,52 @@ const items = (): Item[] => {
   return [...plan.cardio.filter((c) => c.when === 'before').map((c): Item => ({ kind: 'cardio', c })), ...plan.exercises.map((ex): Item => ({ kind: 'ex', ex })), ...plan.cardio.filter((c) => c.when === 'after').map((c): Item => ({ kind: 'cardio', c }))];
 };
 const itemOpen = (it: Item) => (it.kind === 'ex' ? !!nextSet(it.ex) : !cardioClosed(it.c));
+
+const lock = () => {
+  state.lockUntil = Date.now() + 600;
+};
+const locked = () => Date.now() < state.lockUntil;
+
+/** Tells a screen reader what just happened, once (the view itself is not a live region). */
+function announce(text: string) {
+  if (!statusEl) return;
+  statusEl.textContent = '';
+  window.setTimeout(() => {
+    statusEl.textContent = text;
+  }, 50);
+}
+
+// ---------- saving: every change is kept locally at once and retried until the server has it ----------
+function enqueue(key: string, run: () => Promise<boolean>) {
+  pending.set(key, run);
+  void flush();
+}
+
+async function flush() {
+  if (flushing) return;
+  flushing = true;
+  lastFlushAt = Date.now();
+  try {
+    for (const [key, run] of [...pending]) {
+      let ok = false;
+      try {
+        ok = await run();
+      } catch {
+        ok = false;
+      }
+      if (ok && pending.get(key) === run) {
+        pending.delete(key);
+        failed.delete(key);
+      } else if (!ok) failed.add(key);
+    }
+  } finally {
+    flushing = false;
+  }
+  if (failed.size > 0) announce(`${failed.size === 1 ? 'A change is' : `${failed.size} changes are`} not saved yet.`);
+  render();
+}
+
+const call = async (name: string, args: Record<string, unknown>) => !(await app.callServerTool({ name, arguments: args })).isError;
 
 // ---------- workout logic ----------
 /** The tool result may be a replay (chat reopened): fetch the stored state first, falling back to the result. */
@@ -96,6 +159,7 @@ function load(plan: WorkoutPlan) {
   state.plan = plan;
   state.finished = null;
   state.restUntil = 0;
+  state.restOver = false;
   // Resuming: start at the first step that still has something open.
   const open = items().findIndex(itemOpen);
   if (open === -1 || plan.finished) {
@@ -108,12 +172,18 @@ function load(plan: WorkoutPlan) {
 /** Prefill the steppers: the previous done set of this exercise if there is one (carry over), else the plan. */
 function select(i: number) {
   const it = items()[i]!;
+  if (i !== state.current) state.swappedFrom = null;
   state.current = i;
+  state.editing = '';
   state.noteEditing = '';
+  state.noteSaved = '';
   state.guideOpen = false;
-  state.guideFailed = false;
   state.swapOpen = false;
+  state.swapAll = false;
   state.swapNote = '';
+  state.swapFailed = false;
+  state.confirmFinish = false;
+  state.restOver = false;
   motion?.stop();
   motionFor = '';
   if (it.kind === 'ex') {
@@ -148,13 +218,32 @@ function supersetSteps(ex: PlannedExercise): number[] {
   return all.flatMap((x, i) => (x.kind === 'ex' && x.ex.supersetId === ex.supersetId ? [i] : []));
 }
 
+/** "5 × 87.5 kg", "40 s", "8 reps": the values of a set as the person sees them. */
+function setValues(ex: PlannedExercise, set: { reps?: number; weightKg?: number; seconds?: number }): string {
+  if (ex.timed) return `${set.seconds ?? 0} s`;
+  if (ex.bodyweight) return `${set.reps ?? 0} reps`;
+  return `${set.reps ?? 0} × ${kg(set.weightKg ?? 0)} kg`;
+}
+
+function setName(ex: PlannedExercise, set: PlannedSet): string {
+  const warm = ex.sets.filter((x) => x.warmup);
+  const working = ex.sets.filter((x) => !x.warmup);
+  return set.warmup ? `warm-up ${warm.indexOf(set) + 1}` : `set ${working.indexOf(set) + 1} of ${working.length}`;
+}
+
 function logSet(skip = false) {
+  if (locked()) return;
+  lock();
   const it = items()[state.current]!;
   if (it.kind !== 'ex') return;
   const ex = it.ex;
   const set = nextSet(ex);
   if (!set) return;
   state.holdUntil = 0;
+  state.swappedFrom = null;
+  state.straightOn = false;
+  state.confirmFinish = false;
+  state.restOver = false;
   if (skip) set.skipped = true;
   else {
     set.done = true;
@@ -163,9 +252,18 @@ function logSet(skip = false) {
     if (!ex.bodyweight) set.weightKg = state.weight;
     // A warm-up needs only a short breather.
     const rest = set.warmup ? Math.min(ex.restSec, 60) : ex.restSec;
-    if (rest > 0) state.restUntil = Date.now() + rest * 1000;
+    if (rest > 0) {
+      state.restUntil = Date.now() + rest * 1000;
+      state.restTotal = rest * 1000;
+    }
   }
-  void sync(set, ex, skip);
+  state.lastLogged = { exUid: ex.uid, setId: set.id, text: skip ? `${ex.name} · ${setName(ex, set)} skipped` : `${ex.name} · ${setName(ex, set)} · ${setValues(ex, set)}`, skipped: skip };
+  announce(skip ? `Skipped ${setName(ex, set)}.` : `Logged ${setValues(ex, set)}.${state.restUntil > Date.now() ? ` Rest ${mmss(state.restUntil - Date.now())}.` : ''}`);
+  enqueue(`set:${set.id}:${ex.uid}`, () => {
+    const args = { workoutId: state.plan!.workoutId, setId: set.id, reps: skip ? 0 : (set.reps ?? 0), skip, ...(ex.bodyweight || skip ? {} : { weightKg: set.weightKg }), ...(ex.timed && !skip ? { seconds: set.seconds ?? 0 } : {}) };
+    return call('log_set', args);
+  });
+  void shareProgress();
   if (ex.supersetId) {
     // A superset goes round by round: straight on to the next exercise of the round, rest after the last one.
     const steps = supersetSteps(ex);
@@ -173,7 +271,10 @@ function logSet(skip = false) {
     const later = open.find((i) => i > state.current);
     if (later !== undefined) {
       state.restUntil = 0;
-      return select(later);
+      select(later);
+      state.straightOn = true;
+      render();
+      return;
     }
     if (open.length) return select(open[0]!); // a new round, after the rest
   }
@@ -193,7 +294,34 @@ function logSet(skip = false) {
   } else select(next);
 }
 
+/** Opens the last logged or skipped set again, with its values in the steppers, to correct it. */
+function editLast() {
+  const last = state.lastLogged;
+  const plan = state.plan;
+  if (!last || !plan || locked()) return;
+  const index = plan.exercises.findIndex((e) => e.uid === last.exUid);
+  const ex = plan.exercises[index];
+  const set = ex?.sets.find((s) => s.id === last.setId);
+  if (!ex || !set) return;
+  set.done = false;
+  delete set.skipped;
+  state.restUntil = 0;
+  state.restOver = false;
+  state.lastLogged = null;
+  const step = items().findIndex((x) => x.kind === 'ex' && x.ex === ex);
+  select(step);
+  state.reps = set.reps || set.targetReps;
+  state.weight = set.weightKg ?? state.weight;
+  state.seconds = set.seconds ?? set.targetSec ?? state.seconds;
+  enqueue(`set:${set.id}:${ex.uid}`, () => call('log_set', { workoutId: plan.workoutId, setId: set.id, reps: 0, reopen: true }));
+  announce(`${ex.name} ${setName(ex, set)} is open again.`);
+  lock();
+  render();
+}
+
 function logCardio(skip = false) {
+  if (locked()) return;
+  lock();
   const it = items()[state.current]!;
   if (it.kind !== 'cardio') return;
   const c = it.c;
@@ -204,44 +332,26 @@ function logCardio(skip = false) {
     if (state.km > 0) c.distanceKm = state.km;
     delete c.skipped;
   }
-  void syncCardio(c, skip);
+  state.lastLogged = null;
+  enqueue(`cardio:${c.id}`, () => call('log_cardio_block', { workoutId: state.plan!.workoutId, blockId: c.id, skip, ...(skip ? {} : { minutes: c.minutes ?? c.plannedMin, ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}) }) }));
+  void shareProgress();
   const next = nextOpen(state.current + 1);
   if (next === -1) render();
   else select(next);
 }
 
-async function syncCardio(c: PlannedCardio, skip: boolean) {
-  try {
-    const res = await app.callServerTool({ name: 'log_cardio_block', arguments: { workoutId: state.plan!.workoutId, blockId: c.id, skip, ...(skip ? {} : { minutes: c.minutes ?? c.plannedMin, ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}) }) } });
-    state.serverOk = !res.isError;
-  } catch {
-    state.serverOk = false;
-  }
-  render();
-  void app.updateModelContext({ content: [{ type: 'text', text: `Workout in progress. ${progressText()}` }] }).catch(() => undefined);
-}
-
 /** Saved when the person leaves the note field; the text is kept locally at once so a redraw never loses it. */
-async function saveNote(ex: PlannedExercise) {
-  try {
-    const res = await app.callServerTool({ name: 'set_exercise_note', arguments: { workoutId: state.plan!.workoutId, exerciseId: ex.uid, notes: ex.notes ?? '' } });
-    state.serverOk = !res.isError;
-  } catch {
-    state.serverOk = false;
-  }
-  render();
+function saveNote(ex: PlannedExercise) {
+  enqueue(`note:${ex.uid}`, () => call('set_exercise_note', { workoutId: state.plan!.workoutId, exerciseId: ex.uid, notes: ex.notes ?? '' }));
 }
 
-async function sync(set: PlannedSet, ex: PlannedExercise, skip: boolean) {
+/** Lets Claude know where the workout stands, so "how am I doing?" works mid-workout. */
+async function shareProgress() {
   try {
-    const args = { workoutId: state.plan!.workoutId, setId: set.id, reps: skip ? 0 : (set.reps ?? 0), skip, ...(ex.bodyweight || skip ? {} : { weightKg: set.weightKg }), ...(ex.timed && !skip ? { seconds: set.seconds ?? 0 } : {}) };
-    const res = await app.callServerTool({ name: 'log_set', arguments: args });
-    state.serverOk = !res.isError;
+    await app.updateModelContext({ content: [{ type: 'text', text: `Workout in progress. ${progressText()}` }] });
   } catch {
-    state.serverOk = false;
+    /* the host may not support it */
   }
-  render();
-  void app.updateModelContext({ content: [{ type: 'text', text: `Workout in progress. ${progressText()}` }] }).catch(() => undefined);
 }
 
 function progressText(): string {
@@ -258,51 +368,149 @@ function progressText(): string {
 }
 
 async function finish() {
-  if (state.finishing) return;
+  if (state.finishing || (state.plan && !state.plan.finished && locked())) return;
+  lock();
   motion?.stop();
   state.finishing = true;
+  state.confirmFinish = false;
   state.restUntil = 0;
+  state.restOver = false;
   render();
+  if (pending.size > 0) await flush(); // what is still unsaved gets one more try before the workout is closed
   let summary: FinishSummary | null = null;
   try {
     const res = await app.callServerTool({ name: 'finish_workout', arguments: { workoutId: state.plan!.workoutId } });
     if (!res.isError) summary = res.structuredContent as unknown as FinishSummary;
-    state.serverOk = !res.isError;
   } catch {
-    state.serverOk = false;
+    /* the summary below is built from what is on screen */
   }
   state.finished = summary ?? { minutes: Math.round((Date.now() - state.plan!.startedAt) / 60000), volumeKg: 0, exercises: [] };
   state.finishing = false;
   render();
   if (state.plan!.finished) return; // reopened a finished workout: nothing new to tell Claude
   state.plan!.finished = true;
+  void sendSummary(summary);
+}
+
+async function sendSummary(summary: FinishSummary | null) {
   const prs = summary?.exercises.filter((e) => e.personalRecord).map((e) => `${e.name}: ${e.personalRecord}`) ?? [];
+  const unsaved = failed.size > 0 ? ` ${failed.size} change${failed.size === 1 ? ' was' : 's were'} not saved to Fitwell.` : '';
   const text = summary
-    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}${e.notes ? ` (note: ${e.notes})` : ''}`).join('; ')}.${summary.cardio?.length ? ` Cardio: ${summary.cardio.map((c) => `${c.minutes} min ${c.activity}${c.distanceKm ? ` ${kg(c.distanceKm)} km` : ''}`).join('; ')}.` : ''}${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}`
-    : `I finished my workout. ${progressText()}`;
+    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}${e.notes ? ` (note: ${e.notes})` : ''}`).join('; ')}.${summary.cardio?.length ? ` Cardio: ${summary.cardio.map((c) => `${c.minutes} min ${c.activity}${c.distanceKm ? ` ${kg(c.distanceKm)} km` : ''}`).join('; ')}.` : ''}${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}${unsaved}`
+    : `I finished my workout. ${progressText()}${unsaved}`;
   try {
     const res = await app.sendMessage({ role: 'user', content: [{ type: 'text', text }] });
-    state.note = res.isError ? 'Could not send the summary to Claude; it is shown above.' : 'Summary sent to Claude.';
+    state.sendFailed = !!res.isError;
   } catch {
-    state.note = 'Could not send the summary to Claude; it is shown above.';
+    state.sendFailed = true;
   }
+  state.note = state.sendFailed ? 'Could not send the summary to Claude.' : 'Sent to Claude. It will reply below; ask it to fix anything that is wrong.';
   render();
 }
 
 // ---------- view ----------
-function stepper(label: string, value: string, dec: () => void, inc: () => void) {
-  return h(
-    'div',
-    { className: 'stepper' },
-    h('span', { className: 'muted small' }, label),
-    h(
-      'div',
-      { className: 'row' },
-      h('button', { type: 'button', 'aria-label': `Less ${label.toLowerCase()}`, onclick: dec }, '−'),
-      h('output', { 'aria-label': label }, value),
-      h('button', { type: 'button', 'aria-label': `More ${label.toLowerCase()}`, onclick: inc }, '+'),
-    ),
-  );
+const STEPPERS: Record<Kind, { label: string; text: () => string; change: (dir: 1 | -1) => void; set: (n: number) => void; raw: () => string; decimal: boolean }> = {
+  reps: { label: 'Reps', text: () => String(state.reps), change: (d) => void (state.reps = clamp(state.reps + d, 0, 100)), set: (n) => void (state.reps = clamp(Math.round(n), 0, 100)), raw: () => String(state.reps), decimal: false },
+  weight: { label: 'Weight kg', text: () => kg(state.weight), change: (d) => void (state.weight = clamp(r1(state.weight + d * WEIGHT_STEP), 0, 500)), set: (n) => void (state.weight = clamp(r1(n), 0, 500)), raw: () => kg(state.weight), decimal: true },
+  seconds: { label: 'Seconds', text: () => String(state.seconds), change: (d) => void (state.seconds = clamp(state.seconds + d * 5, 0, 3600)), set: (n) => void (state.seconds = clamp(Math.round(n), 0, 3600)), raw: () => String(state.seconds), decimal: false },
+  minutes: { label: 'Minutes', text: () => String(state.minutes), change: (d) => void (state.minutes = clamp(state.minutes + d, 1, 240)), set: (n) => void (state.minutes = clamp(Math.round(n), 1, 240)), raw: () => String(state.minutes), decimal: false },
+  km: { label: 'Distance km', text: () => (state.km > 0 ? kg(state.km) : '–'), change: (d) => void (state.km = clamp(r1(state.km + d * 0.5), 0, 500)), set: (n) => void (state.km = clamp(r1(n), 0, 500)), raw: () => (state.km > 0 ? kg(state.km) : ''), decimal: true },
+};
+
+/** A press changes the value at once; holding repeats it. The output text is updated in place while held, so the button under the finger stays. */
+function pressable(btn: HTMLButtonElement, kind: Kind, dir: 1 | -1, out: HTMLElement) {
+  let delay: number | undefined;
+  let repeat: number | undefined;
+  let changed = false;
+  const step = () => {
+    STEPPERS[kind].change(dir);
+    changed = true;
+    out.textContent = STEPPERS[kind].text();
+  };
+  const stop = () => {
+    window.clearTimeout(delay);
+    window.clearInterval(repeat);
+    window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
+    if (changed) {
+      changed = false;
+      render();
+    }
+  };
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    step();
+    delay = window.setTimeout(() => {
+      repeat = window.setInterval(step, 90);
+    }, 450);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+  });
+  // A keyboard press arrives as a click without a pointer; touch and mouse clicks are already handled above.
+  btn.addEventListener('click', (e) => {
+    if (e.detail !== 0) return;
+    step();
+    changed = false;
+    render();
+  });
+}
+
+/** Typing replaces tapping: the value becomes a field until it is left. */
+function commitValue(kind: Kind, raw: string) {
+  const n = Number.parseFloat(raw.replace(',', '.'));
+  if (Number.isFinite(n) && n >= 0) STEPPERS[kind].set(n);
+  state.editing = '';
+  render();
+}
+
+function stepper(kind: Kind) {
+  const spec = STEPPERS[kind];
+  const out = h('output', { 'data-key': `${kind}-value` }, spec.text());
+  const dec = h('button', { type: 'button', 'aria-label': `Decrease ${spec.label.toLowerCase()}`, 'data-key': `${kind}-dec` }, '−');
+  const inc = h('button', { type: 'button', 'aria-label': `Increase ${spec.label.toLowerCase()}`, 'data-key': `${kind}-inc` }, '+');
+  pressable(dec, kind, -1, out);
+  pressable(inc, kind, 1, out);
+  let value: HTMLElement;
+  if (state.editing === kind) {
+    const field = h('input', {
+      type: 'text',
+      inputMode: spec.decimal ? 'decimal' : 'numeric',
+      value: spec.raw(),
+      'aria-label': spec.label,
+      className: 'value-field',
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') {
+          state.editing = '';
+          render();
+        }
+      },
+      onblur: (e: FocusEvent) => {
+        if (state.editing === kind) commitValue(kind, (e.target as HTMLInputElement).value);
+      },
+    });
+    value = field;
+  } else {
+    value = h(
+      'button',
+      {
+        type: 'button',
+        className: 'value',
+        'aria-label': `${spec.label}: ${spec.text()}. Tap to type a value.`,
+        'data-key': `${kind}-edit`,
+        onclick: () => {
+          state.editing = kind;
+          render();
+          // Still inside the tap, so iOS opens the keyboard.
+          const field = root.querySelector<HTMLInputElement>('.value-field');
+          field?.focus();
+          field?.select();
+        },
+      },
+      out,
+    );
+  }
+  return h('div', { className: 'stepper', role: 'group', 'aria-label': spec.label }, h('span', { className: 'muted small' }, spec.label), h('div', { className: 'row' }, dec, value, inc));
 }
 
 /** "Each side: 20 + 5 + 1.25" for a barbell, from the person's bar and plates. */
@@ -316,34 +524,40 @@ function plateText(ex: PlannedExercise, weight: number): string | null {
   return l.shortKg > 0 ? `${side} (${kg(l.totalKg)} kg; your plates can't make ${kg(weight)})` : `${side} · bar ${kg(gym.barKg)} kg`;
 }
 
-/** Where an exercise sits in its superset: "Superset · 1 of 2". */
+/** "Superset with Triceps Pushdown · round 1 of 2": where an exercise sits in its superset. */
 function supersetLabel(ex: PlannedExercise): string | null {
   if (!ex.supersetId) return null;
-  const steps = supersetSteps(ex);
-  const at = steps.findIndex((i) => { const x = items()[i]!; return x.kind === 'ex' && x.ex === ex; });
-  return `Superset · ${at + 1} of ${steps.length}`;
+  const others = supersetSteps(ex)
+    .map((i) => items()[i]!)
+    .flatMap((x) => (x.kind === 'ex' && x.ex !== ex ? [x.ex.name] : []));
+  const working = ex.sets.filter((x) => !x.warmup);
+  const set = nextSet(ex);
+  const round = set && !set.warmup ? working.indexOf(set) + 1 : 1;
+  return `Superset with ${others.join(' and ')} · round ${round} of ${working.length}`;
 }
 
-/**
- * The note for one exercise: shown as text with an edit button, and a textarea only while it is being edited.
- * A textarea left in the page kept iOS's "Undo typing" prompt coming back when the chat was opened again.
- * The text is kept in the plan at once; the server gets it when the field is left.
- */
-function notesEditor(ex: PlannedExercise) {
-  if (state.noteEditing !== ex.uid) {
-    const edit = () => {
-      state.noteEditing = ex.uid;
-      render();
-      // Still inside the tap, so iOS opens the keyboard.
-      root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus();
-    };
-    return h(
-      'div',
-      { className: 'notes' },
-      ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`),
-      h('button', { type: 'button', className: 'link', onclick: edit }, ex.notes ? 'Edit note' : 'Add a note'),
-    );
+/** "Last time (9 Oct): 5, 5, 4 × 82.5 kg": the server's summary, with a plain date and one notation. */
+function formatLastTime(raw: string): string {
+  const m = /^(.*?)\s*\((\d{4})-(\d{2})-(\d{2})\)$/.exec(raw);
+  if (!m) return raw;
+  const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(m[2]), Number(m[3]) - 1, Number(m[4]))));
+  const text = (m[1] ?? '').replace(/ kg$/, '');
+  const sets = [...text.matchAll(/(\d+) @ (BW|[\d.]+)/g)];
+  // Only reformat what is exactly "n @ weight, n @ weight"; anything else (timed sets, odd text) is shown as it came.
+  if (sets.length > 0 && sets.map((x) => x[0]).join(', ') === text) {
+    const same = sets.every((x) => x[2] === sets[0]![2]);
+    const unit = (w: string) => (w === 'BW' ? 'bodyweight' : `${w} kg`);
+    return same ? `Last time (${when}): ${sets.map((x) => x[1]).join(', ')} ${sets[0]![2] === 'BW' ? 'reps, bodyweight' : `× ${sets[0]![2]} kg`}` : `Last time (${when}): ${sets.map((x) => `${x[1]} × ${unit(x[2]!)}`).join(', ')}`;
   }
+  return `Last time (${when}): ${m[1]}`;
+}
+
+const EQUIPMENT: Record<string, string> = { 'body only': 'bodyweight', other: 'other' };
+const equipmentName = (e: string) => EQUIPMENT[e.toLowerCase()] ?? e;
+
+/** The note for one exercise: shown as a line, edited in a panel under the action row. The textarea exists only while editing. */
+function notesPanel(ex: PlannedExercise) {
+  if (state.noteEditing !== ex.uid) return null;
   const before = ex.notes ?? '';
   const area = h('textarea', {
     rows: 2,
@@ -355,13 +569,28 @@ function notesEditor(ex: PlannedExercise) {
       ex.notes = (e.target as HTMLTextAreaElement).value;
     },
     // No redraw here: a tap on another button blurs the field first, and redrawing now would swallow that tap.
-    // The next redraw (the save below, or any other) shows the note as text again.
     onblur: () => {
-      state.noteEditing = '';
-      if ((ex.notes ?? '') !== before) void saveNote(ex);
+      if ((ex.notes ?? '') !== before) saveNote(ex);
     },
   });
-  return h('div', { className: 'notes' }, area);
+  return h(
+    'div',
+    { className: 'panel notes' },
+    area,
+    h(
+      'button',
+      {
+        type: 'button',
+        onclick: () => {
+          state.noteEditing = '';
+          state.noteSaved = ex.uid;
+          saveNote(ex);
+          render();
+        },
+      },
+      'Save note',
+    ),
+  );
 }
 
 /** Asks the host to open a link; false when it cannot (the guide then shows the search words to copy). */
@@ -401,24 +630,28 @@ function animation(g: ExerciseGuide): HTMLElement | null {
 
 /** "How to do it": animation, muscles, steps and machine setup, fetched the first time it is opened. */
 function guidePanel(ex: PlannedExercise) {
+  if (!state.guideOpen) return null;
   const g = state.guides.get(ex.id);
   return h(
-    'details',
-    {
-      className: 'guidebox',
-      open: state.guideOpen,
-      ontoggle: (e: Event) => {
-        state.guideOpen = (e.target as HTMLDetailsElement).open;
-        if (state.guideOpen && !state.guides.has(ex.id)) void loadGuide(ex.id);
-        if (!state.guideOpen) {
-          motion?.stop();
-          motionFor = '';
-        }
-      },
-    },
-    h('summary', {}, 'How to do it'),
-    g ? renderGuide(g, openLink, animation(g)) : h('p', { className: 'muted small' }, state.guideFailed ? 'Could not load the guide. Close and open it to try again.' : 'Loading…'),
+    'div',
+    { className: 'panel guidebox' },
+    g
+      ? renderGuide(g, openLink, animation(g))
+      : state.guideFailed
+        ? h('p', { className: 'muted small' }, 'Could not load the guide. ', h('button', { type: 'button', className: 'link', onclick: () => ((state.guideFailed = false), void loadGuide(ex.id), render()) }, 'Try again'))
+        : h('p', { className: 'muted small' }, 'Loading…'),
+    h('button', { type: 'button', className: 'link', onclick: () => toggleGuide(ex) }, 'Close the guide'),
   );
+}
+
+function toggleGuide(ex: PlannedExercise) {
+  state.guideOpen = !state.guideOpen;
+  if (state.guideOpen && !state.guides.has(ex.id)) void loadGuide(ex.id);
+  if (!state.guideOpen) {
+    motion?.stop();
+    motionFor = '';
+  }
+  render();
 }
 
 async function loadSwaps(ex: PlannedExercise) {
@@ -428,56 +661,59 @@ async function loadSwaps(ex: PlannedExercise) {
     if (res.isError || !list) throw new Error('no data');
     state.swaps.set(ex.uid, list);
     state.swapNote = list.length ? '' : 'No similar exercise fits your equipment.';
+    state.swapFailed = false;
   } catch {
-    state.swapNote = 'Could not load alternatives. Close and open this to try again.';
+    state.swapNote = 'Could not load alternatives.';
+    state.swapFailed = true;
   }
   render();
 }
 
 async function swap(ex: PlannedExercise, to: { id: string; name: string }) {
   state.swapNote = `Swapping to ${to.name}…`;
+  state.swapFailed = false;
   render();
   try {
     const res = await app.callServerTool({ name: 'swap_exercise', arguments: { workoutId: state.plan!.workoutId, exerciseId: ex.uid, newId: to.id } });
     const plan = (res.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
     if (res.isError || !plan) throw new Error('refused');
     plan.cardio ??= [];
+    const undoing = state.swappedFrom?.id === to.id;
+    const from = { id: ex.id, name: ex.name };
     state.plan = plan;
     state.swaps.delete(ex.uid);
     motion?.stop();
     motionFor = '';
     select(state.current); // prefill the steppers from the new exercise
+    state.swappedFrom = undoing ? null : from;
+    announce(`Swapped to ${to.name}.`);
+    render();
   } catch {
-    state.swapNote = 'Could not swap the exercise. Try again.';
+    state.swapNote = 'Could not swap the exercise.';
+    state.swapFailed = true;
     render();
   }
 }
 
 /** "Swap exercise": similar exercises for the same muscles, offered until the first set of this exercise is logged. */
 function swapPanel(ex: PlannedExercise) {
-  if (ex.sets.some(closed)) return null;
+  if (!state.swapOpen) return null;
   const list = state.swaps.get(ex.uid);
+  const shown = list && !state.swapAll ? list.slice(0, 4) : list;
   return h(
-    'details',
-    {
-      className: 'swapbox',
-      open: state.swapOpen,
-      ontoggle: (e: Event) => {
-        state.swapOpen = (e.target as HTMLDetailsElement).open;
-        if (state.swapOpen && !list) void loadSwaps(ex);
-      },
-    },
-    h('summary', {}, 'Swap exercise'),
-    list
-      ? h('div', { className: 'swaps' }, ...list.map((x) => h('button', { type: 'button', onclick: () => void swap(ex, x) }, h('span', {}, x.name), h('span', { className: 'muted small' }, x.equipment))))
+    'div',
+    { className: 'panel swapbox' },
+    shown
+      ? h('div', { className: 'swaps' }, ...shown.map((x) => h('button', { type: 'button', onclick: () => void swap(ex, x) }, h('span', {}, x.name), h('span', { className: 'muted small' }, equipmentName(x.equipment)))))
       : !state.swapNote && h('p', { className: 'muted small' }, 'Loading…'),
-    state.swapNote && h('p', { className: 'muted small' }, state.swapNote),
+    list && !state.swapAll && list.length > 4 && h('button', { type: 'button', className: 'link', onclick: () => ((state.swapAll = true), render()) }, `Show ${list.length - 4} more`),
+    state.swapNote && h('p', { className: 'muted small' }, state.swapNote, ' ', state.swapFailed && h('button', { type: 'button', className: 'link', onclick: () => (list ? void swap(ex, list[0]!) : void loadSwaps(ex)) }, 'Try again')),
   );
 }
 
 /** What comes after the set that was just logged, shown while resting: reps and weight, last time, notes. */
 function upNext(it: Item | undefined): Child {
-  if (!it || !itemOpen(it)) return h('p', { className: 'next' }, h('strong', {}, 'That was the last set.'), ' Next: finish the workout.');
+  if (!it || !itemOpen(it)) return h('p', { className: 'next' }, h('strong', {}, 'Last set done.'), " Finish when you're ready.");
   if (it.kind === 'cardio') {
     return h('div', { className: 'next' }, h('p', { className: 'muted small' }, it.c.when === 'before' ? 'Next: warm-up' : 'Next: finisher'), h('p', { className: 'nexttitle' }, it.c.name), h('p', {}, `${state.minutes} min${state.km > 0 ? ` · ${kg(state.km)} km` : ''}`));
   }
@@ -491,7 +727,7 @@ function upNext(it: Item | undefined): Child {
     h('p', { className: 'muted small' }, started ? 'Next set' : 'Next exercise'),
     h('p', { className: 'nexttitle' }, ex.name),
     h('p', {}, `Set ${n} of ${ex.sets.length} · `, h('strong', {}, ex.bodyweight ? `${state.reps} reps, bodyweight` : `${state.reps} × ${kg(state.weight)} kg`)),
-    !started && ex.lastTime && h('p', { className: 'muted small' }, `Last time: ${ex.lastTime}`),
+    !started && ex.lastTime && h('p', { className: 'muted small' }, formatLastTime(ex.lastTime)),
     !started && ex.note && h('p', { className: 'muted small' }, ex.note),
     ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`),
     !started && !ex.notes && ex.lastNotes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
@@ -503,96 +739,210 @@ function listLabel(it: Item) {
   return it.ex.name;
 }
 
+/** The "just logged" line with the way back: shown while resting and on the next set. */
+function lastLoggedLine(): Child {
+  const last = state.lastLogged;
+  if (!last) return null;
+  return h('p', { className: 'justlogged' }, h('span', {}, last.skipped ? 'Skipped: ' : 'Logged: ', last.text.replace(/ skipped$/, '')), h('button', { type: 'button', className: 'link', 'data-key': 'edit-last', onclick: editLast }, last.skipped ? 'Undo skip' : 'Edit'));
+}
+
+/** The one line that appears only when something needs the person: changes that are not saved yet. */
+function saveStatus(): Child {
+  if (failed.size === 0) return null;
+  return h('p', { className: 'status-line', role: 'status' }, `${failed.size === 1 ? '1 change is' : `${failed.size} changes are`} not saved yet. `, h('button', { type: 'button', className: 'link', 'data-key': 'retry', onclick: () => void flush() }, 'Try again'));
+}
+
+function setDots(step: Item): { text: string; aria: string; node: Node } {
+  if (step.kind === 'cardio') {
+    const glyph = step.c.done ? '●' : step.c.skipped ? '–' : '○';
+    return { text: glyph, aria: step.c.done ? 'done' : step.c.skipped ? 'skipped' : 'not done', node: h('span', { className: step.c.done || step.c.skipped ? 'dots done' : 'dots', 'aria-hidden': 'true' }, glyph) };
+  }
+  const glyph = (x: PlannedSet) => (x.done ? '●' : x.skipped ? '–' : '○');
+  const warm = step.ex.sets.filter((x) => x.warmup);
+  const working = step.ex.sets.filter((x) => !x.warmup);
+  const doneWorking = working.filter((x) => x.done).length;
+  const skipped = working.filter((x) => x.skipped).length;
+  const aria = `${doneWorking} of ${working.length} sets done${skipped ? `, ${skipped} skipped` : ''}${warm.length ? `, ${warm.filter((x) => x.done).length} of ${warm.length} warm-ups` : ''}`;
+  return {
+    text: '',
+    aria,
+    node: h('span', { className: itemOpen(step) ? 'dots' : 'dots done', 'aria-hidden': 'true' }, warm.length > 0 && h('span', { className: 'wdots' }, warm.map(glyph).join('')), working.map(glyph).join('')),
+  };
+}
+
 function render() {
   const plan = state.plan;
   if (!plan) return;
-  // Typing a note: a redraw would drop the cursor, so wait until the field is left.
-  if (document.activeElement?.tagName === 'TEXTAREA') return;
+  // Typing a note or a value: a redraw would drop the cursor, so wait until the field is left.
+  const typing = document.activeElement?.tagName;
+  if (typing === 'TEXTAREA' || (typing === 'INPUT' && state.editing)) return;
+  const focusKey = document.activeElement?.getAttribute('data-key');
   const all = items();
   const it = all[state.current]!;
-  const total = plan.exercises.reduce((n, e) => n + e.sets.length, 0);
-  const logged = plan.exercises.reduce((n, e) => n + e.sets.filter(closed).length, 0);
+  const working = plan.exercises.flatMap((e) => e.sets.filter((s) => !s.warmup));
+  const total = working.length;
+  const logged = working.filter(closed).length;
   const allDone = nextOpen(0) === -1;
   const resting = state.restUntil > Date.now();
-  const ctx = app.getHostContext();
+  const busy = resting || state.restOver;
 
   const body: Child[] = [
-    h('header', {}, h('strong', {}, plan.name), h('span', { className: 'muted clock' }, `${logged}/${total} sets · `, h('span', { id: 'elapsed' }, mmss(Date.now() - plan.startedAt)))),
+    h(
+      'header',
+      {},
+      h('strong', {}, plan.name),
+      state.finished
+        ? h('span', { className: 'muted clock' }, `${state.finished.minutes} min`)
+        : h('span', { className: 'muted clock' }, `Step ${Math.min(state.current + 1, all.length)} of ${all.length} · ${logged}/${total} sets · `, h('span', { id: 'elapsed' }, mmss(Date.now() - plan.startedAt))),
+    ),
+    saveStatus(),
   ];
 
   if (state.finished) {
     const f = state.finished;
+    const doneWorking = working.filter((s) => s.done).length;
+    const bests = f.exercises.filter((e) => e.personalRecord);
+    const skipped = plan.exercises.flatMap((e) => e.sets.flatMap((s) => (s.skipped && !s.warmup ? [`${e.name} set ${e.sets.filter((x) => !x.warmup).indexOf(s) + 1}`] : [])));
+    const notDone = plan.exercises.flatMap((e) => e.sets.flatMap((s) => (!closed(s) && !s.warmup ? [`${e.name} set ${e.sets.filter((x) => !x.warmup).indexOf(s) + 1}`] : [])));
     body.push(
       h(
         'section',
-        { className: 'card' },
+        { className: 'card summary' },
         h('h1', {}, 'Workout finished'),
-        h('p', { className: 'muted' }, `${f.minutes} min${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
-        ...f.exercises.map((e) => h('p', {}, h('strong', {}, e.name), ` ${e.done}`, e.personalRecord && h('span', { className: 'done' }, ` · ${e.personalRecord}`), e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`))),
+        h('p', { className: 'muted' }, `${f.minutes} min · ${doneWorking} working ${doneWorking === 1 ? 'set' : 'sets'}${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
+        bests.length > 0 && h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`))),
+        ...f.exercises.map((e) => h('p', {}, h('strong', {}, e.name), ` ${e.done}`, e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`))),
+        skipped.length > 0 && h('p', {}, h('strong', {}, 'Skipped'), ` ${skipped.join(', ')}`),
+        notDone.length > 0 && h('p', {}, h('strong', {}, 'Not done'), ` ${notDone.join(', ')}`),
         ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · about ${c.kcal} kcal` : ''}`)),
-        state.note && h('p', { className: 'muted small' }, state.note),
+        state.note && h('p', { className: 'muted small' }, state.note, ' ', state.sendFailed && h('button', { type: 'button', className: 'link', onclick: () => ((state.sendFailed = false), state.note = '', void sendSummary(state.finished), render()) }, 'Send again')),
       ),
     );
-  } else if (state.finishing) {
+    root.replaceChildren(...body.filter((c): c is Node | string => c !== null && c !== false && c !== undefined));
+    return;
+  }
+
+  if (state.finishing) {
     body.push(h('section', { className: 'card' }, h('p', { className: 'muted' }, 'Saving…')));
   } else if (resting) {
     body.push(
       h(
         'section',
         { className: 'card rest', 'aria-label': 'Rest' },
+        lastLoggedLine(),
         h('p', { className: 'muted' }, 'Rest'),
         h('p', { className: 'time', role: 'timer', id: 'rest' }, mmss(state.restUntil - Date.now())),
+        h('div', { className: 'bar', 'aria-hidden': 'true' }, h('span', { id: 'restbar' })),
         upNext(allDone ? undefined : it),
         h(
           'div',
-          { className: 'actions' },
-          h('button', { type: 'button', onclick: () => ((state.restUntil += 15_000), render()) }, '+15 s'),
-          h('button', { type: 'button', className: 'primary', onclick: () => ((state.restUntil = 0), render()) }, 'Skip rest'),
+          { className: 'actions three' },
+          h('button', { type: 'button', 'data-key': 'rest-less', onclick: () => ((state.restUntil = Math.max(Date.now() + 1000, state.restUntil - 15_000)), (state.restTotal = Math.max(1000, state.restTotal - 15_000)), render()) }, '−15 s'),
+          h('button', { type: 'button', 'data-key': 'rest-more', onclick: () => ((state.restUntil += 15_000), (state.restTotal += 15_000), render()) }, '+15 s'),
+          h('button', { type: 'button', className: 'primary', 'data-key': 'rest-skip', onclick: () => (locked() ? undefined : (lock(), (state.restUntil = 0), render())) }, 'Skip rest'),
         ),
+      ),
+    );
+  } else if (state.restOver && !allDone) {
+    const set = it.kind === 'ex' ? nextSet(it.ex) : undefined;
+    body.push(
+      h(
+        'section',
+        { className: 'card rest', 'aria-label': 'Rest over' },
+        lastLoggedLine(),
+        h('p', { className: 'muted' }, 'Rest over'),
+        h('p', { className: 'time' }, '0:00'),
+        upNext(it),
+        h('div', { className: 'actions' }, h('button', { type: 'button', className: 'primary wide', 'data-key': 'start-set', onclick: () => (locked() ? undefined : ((state.restOver = false), lock(), render())) }, it.kind === 'ex' && set ? `Start ${setName(it.ex, set)}` : 'Start')),
       ),
     );
   } else if (it.kind === 'ex' && nextSet(it.ex)) {
     const ex = it.ex;
     const set = nextSet(ex)!;
     const warm = ex.sets.filter((x) => x.warmup);
-    const working = ex.sets.filter((x) => !x.warmup);
-    const which = set.warmup ? `Warm-up ${warm.indexOf(set) + 1} of ${warm.length}` : `Set ${working.indexOf(set) + 1} of ${working.length}`;
+    const which = set.warmup ? `Warm-up ${warm.indexOf(set) + 1} of ${warm.length}` : `Set ${ex.sets.filter((x) => !x.warmup).indexOf(set) + 1} of ${ex.sets.filter((x) => !x.warmup).length}`;
     const target = ex.timed ? `target ${set.targetSec ?? 0} s` : `target ${set.targetReps} reps`;
     const plates = plateText(ex, state.weight);
     const holding = state.holdUntil > Date.now();
+    const started = ex.sets.some(closed);
+    const canSwap = !started;
     body.push(
       h(
         'section',
-        { className: set.warmup ? 'card warmup' : 'card', 'aria-label': set.warmup ? 'Warm-up set' : 'Current set' },
-        h('p', { className: 'muted small' }, `Exercise ${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length} · ${ex.equipment}`, supersetLabel(ex) && ` · ${supersetLabel(ex)}`),
+        { className: set.warmup ? 'card set warmup' : 'card set', 'aria-label': set.warmup ? 'Warm-up set' : 'Current set' },
+        h('p', { className: 'muted small' }, `Exercise ${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length} · ${equipmentName(ex.equipment)}`),
         h('h1', {}, ex.name),
-        h('p', {}, set.warmup && h('span', { className: 'pill' }, 'Warm-up'), set.warmup && ' ', `${which} · ${target}`),
-        ex.lastTime && h('p', { className: 'muted small' }, `Last time: ${ex.lastTime}`),
-        ex.note && h('p', { className: 'muted small' }, ex.note),
+        ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex), state.straightOn && ' · straight on, no rest'),
+        h('p', { className: 'setline' }, set.warmup && h('span', { className: 'pill' }, 'Warm-up'), set.warmup && ' ', `${which} · ${target}`),
+        lastLoggedLine(),
+        ex.lastTime && h('p', { className: 'muted small' }, formatLastTime(ex.lastTime)),
+        ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`, state.noteSaved === ex.uid && h('span', { className: 'muted' }, ' · saved')),
         ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
-        h(
-          'div',
-          { className: 'steppers' },
-          ex.timed
-            ? stepper('Seconds', String(state.seconds), () => ((state.seconds = Math.max(0, state.seconds - 5)), render()), () => ((state.seconds += 5), render()))
-            : stepper('Reps', String(state.reps), () => ((state.reps = Math.max(0, state.reps - 1)), render()), () => ((state.reps += 1), render())),
-          ex.bodyweight
-            ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', {}, 'Bodyweight'))
-            : stepper('Weight kg', kg(state.weight), () => ((state.weight = Math.max(0, Math.round((state.weight - WEIGHT_STEP) * 10) / 10)), render()), () => ((state.weight = Math.round((state.weight + WEIGHT_STEP) * 10) / 10), render())),
-        ),
+        state.swappedFrom && !started && h('p', { className: 'small' }, `Swapped from ${state.swappedFrom.name} · `, h('button', { type: 'button', className: 'link', onclick: () => void swap(ex, state.swappedFrom!) }, 'Undo')),
+        h('div', { className: 'steppers' }, ex.timed ? stepper('seconds') : stepper('reps'), ex.bodyweight ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', { className: 'bodyweight' }, 'Bodyweight')) : stepper('weight')),
         plates && h('p', { className: 'muted small plates' }, plates),
+        ex.note && h('p', { className: 'muted small' }, ex.note),
         ex.timed &&
           h(
             'div',
             { className: 'hold' },
             holding && h('p', { className: 'time', role: 'timer', id: 'hold' }, mmss(state.holdUntil - Date.now())),
-            h('button', { type: 'button', onclick: () => ((state.holdUntil = holding ? 0 : Date.now() + state.seconds * 1000), render()) }, holding ? 'Stop the timer' : `Start a ${state.seconds} s timer`),
+            h(
+              'button',
+              {
+                type: 'button',
+                onclick: () => {
+                  if (holding) state.seconds = clamp(state.seconds - Math.ceil((state.holdUntil - Date.now()) / 1000), 0, 3600); // stopped early: log what was held
+                  state.holdUntil = holding ? 0 : Date.now() + state.seconds * 1000;
+                  render();
+                },
+              },
+              holding ? 'Stop the timer' : `Start a ${state.seconds} s timer`,
+            ),
           ),
+        h('button', { type: 'button', className: 'primary', 'data-key': 'log', onclick: () => logSet() }, ex.timed || ex.bodyweight ? `Log set · ${setValues(ex, { reps: state.reps, seconds: state.seconds, weightKg: state.weight })}` : `Log set · ${setValues(ex, { reps: state.reps, weightKg: state.weight })}`),
+        h(
+          'div',
+          { className: 'more' },
+          h('button', { type: 'button', className: 'link', 'data-key': 'skip', onclick: () => logSet(true) }, 'Skip set'),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'link',
+              'aria-expanded': String(state.noteEditing === ex.uid),
+              'data-key': 'note',
+              onclick: () => {
+                state.noteEditing = state.noteEditing === ex.uid ? '' : ex.uid;
+                state.noteSaved = '';
+                render();
+                // Still inside the tap, so iOS opens the keyboard.
+                root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus();
+              },
+            },
+            ex.notes ? 'Edit note' : 'Note',
+          ),
+          canSwap &&
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'link',
+                'aria-expanded': String(state.swapOpen),
+                'data-key': 'swap',
+                onclick: () => {
+                  state.swapOpen = !state.swapOpen;
+                  if (state.swapOpen && !state.swaps.has(ex.uid)) void loadSwaps(ex);
+                  render();
+                },
+              },
+              'Swap',
+            ),
+          h('button', { type: 'button', className: 'link', 'aria-expanded': String(state.guideOpen), 'data-key': 'guide', onclick: () => toggleGuide(ex) }, 'How to do it'),
+        ),
+        notesPanel(ex),
+        canSwap && swapPanel(ex),
         guidePanel(ex),
-        swapPanel(ex),
-        notesEditor(ex),
-        h('button', { type: 'button', className: 'primary', onclick: () => logSet() }, 'Log set'),
-        h('button', { type: 'button', onclick: () => logSet(true) }, 'Skip set'),
       ),
     );
   } else if (it.kind === 'cardio' && !cardioClosed(it.c)) {
@@ -604,14 +954,9 @@ function render() {
         h('p', { className: 'muted small' }, c.when === 'before' ? 'Warm-up' : 'Finisher'),
         h('h1', {}, c.name),
         h('p', {}, `Planned ${c.plannedMin} min${c.plannedKm ? ` · ${kg(c.plannedKm)} km` : ''}`),
-        h(
-          'div',
-          { className: 'steppers' },
-          stepper('Minutes', String(state.minutes), () => ((state.minutes = Math.max(1, state.minutes - 1)), render()), () => ((state.minutes += 1), render())),
-          stepper('Distance km', state.km > 0 ? kg(state.km) : '–', () => ((state.km = Math.max(0, Math.round((state.km - 0.5) * 10) / 10)), render()), () => ((state.km = Math.round((state.km + 0.5) * 10) / 10), render())),
-        ),
-        h('button', { type: 'button', className: 'primary', onclick: () => logCardio() }, 'Done'),
-        h('button', { type: 'button', onclick: () => logCardio(true) }, 'Skip'),
+        h('div', { className: 'steppers' }, stepper('minutes'), stepper('km')),
+        h('button', { type: 'button', className: 'primary', 'data-key': 'log', onclick: () => logCardio() }, 'Log cardio'),
+        h('div', { className: 'more' }, h('button', { type: 'button', className: 'link', 'data-key': 'skip', onclick: () => logCardio(true) }, 'Skip this')),
       ),
     );
   } else if (it.kind === 'ex') {
@@ -623,7 +968,9 @@ function render() {
         { className: 'card', 'aria-label': 'Finished exercise' },
         h('h1', {}, ex.name),
         h('p', { className: 'muted' }, ex.sets.filter((x) => !x.warmup).map((x) => (x.done ? (ex.timed ? `${x.seconds ?? 0} s` : ex.bodyweight ? `${x.reps}` : `${x.reps}×${kg(x.weightKg ?? 0)} kg`) : 'skipped')).join(' · ')),
-        notesEditor(ex),
+        ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`),
+        h('div', { className: 'more' }, h('button', { type: 'button', className: 'link', onclick: () => ((state.noteEditing = state.noteEditing === ex.uid ? '' : ex.uid), render(), root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus()) }, ex.notes ? 'Edit note' : 'Note')),
+        notesPanel(ex),
         !allDone && h('button', { type: 'button', className: 'primary', onclick: () => select(nextOpen(state.current + 1)) }, 'Continue the workout'),
       ),
     );
@@ -637,28 +984,42 @@ function render() {
       'ol',
       { className: 'list', 'aria-label': 'Workout steps' },
       ...all.map((step, i) => {
-        const open = itemOpen(step);
-        const dots = step.kind === 'ex' ? step.ex.sets.map((x) => (x.done ? '●' : x.skipped ? '–' : '○')).join('') : step.c.done ? '●' : step.c.skipped ? '–' : '○';
+        const dots = setDots(step);
+        const label = listLabel(step);
+        const inSuperset = step.kind === 'ex' && !!step.ex.supersetId;
         return h(
           'li',
-          {},
+          { className: inSuperset ? 'ss' : '' },
           h(
             'button',
-            { type: 'button', 'aria-current': i === state.current ? 'step' : 'false', disabled: !!state.finished || state.finishing || resting, onclick: () => select(i) },
-            h('span', {}, listLabel(step)),
-            h('span', { className: open ? 'dots' : 'dots done' }, dots),
+            { type: 'button', 'aria-current': i === state.current ? 'step' : 'false', 'aria-label': `${inSuperset ? 'Superset: ' : ''}${label}, ${dots.aria || (dots.text === '●' ? 'done' : dots.text === '–' ? 'skipped' : 'not done')}`, disabled: !!state.finished || state.finishing, onclick: () => select(i) },
+            h('span', { className: 'name' }, label),
+            dots.node,
           ),
         );
       }),
     ),
   );
-  if (!state.finished && !state.finishing) body.push(h('button', { type: 'button', className: allDone ? 'primary' : '', onclick: () => void finish() }, allDone ? 'Finish and send to Claude' : 'Finish early'));
-
-  // Diagnostics: which client, and whether set logging reaches the server.
-  const server = state.serverOk === null ? 'server: no set logged yet' : state.serverOk ? 'saved to Fitwell ✓' : 'could not reach Fitwell ✗';
-  body.push(h('footer', {}, `${ctx?.platform ?? 'unknown platform'} · ${ctx?.displayMode ?? 'inline'} · ${server}`));
+  if (!state.finishing && !busy) {
+    if (allDone) body.push(h('button', { type: 'button', className: 'primary', 'data-key': 'finish', onclick: () => void finish() }, 'Finish and send to Claude'));
+    else if (state.confirmFinish) {
+      const left = working.filter((s) => !closed(s)).length;
+      body.push(
+        h(
+          'div',
+          { className: 'card confirm', role: 'group', 'aria-label': 'End the workout?' },
+          h('p', {}, h('strong', {}, 'End the workout now?'), ` ${left} ${left === 1 ? 'set is' : 'sets are'} not done.`),
+          h('div', { className: 'actions' }, h('button', { type: 'button', 'data-key': 'keep', onclick: () => ((state.confirmFinish = false), render()) }, 'Keep training'), h('button', { type: 'button', className: 'primary', onclick: () => void finish() }, 'End and send to Claude')),
+        ),
+      );
+    } else body.push(h('button', { type: 'button', className: 'finish-early', 'data-key': 'finish-early', onclick: () => ((state.confirmFinish = true), render()) }, 'Finish early'));
+    body.push(h('p', { className: 'muted small center-text' }, 'Ask Claude to change the plan.'));
+  }
 
   root.replaceChildren(...body.filter((c): c is Node | string => c !== null && c !== false && c !== undefined));
+  // The view was replaced: put the focus back on the same control, so a keyboard or switch user keeps their place.
+  if (focusKey) root.querySelector<HTMLElement>(`[data-key="${focusKey}"]`)?.focus({ preventScroll: true });
+  updateClocks();
 }
 
 // ---------- host wiring (handlers before connect, so one-shot notifications are not missed) ----------
@@ -680,11 +1041,28 @@ app.onhostcontextchanged = (ctx) => {
   render();
 };
 
-// Once a second: update only the clock texts, so buttons are never replaced under a finger.
+/** The running clocks and the rest bar: only text and a width change, so buttons are never replaced under a finger. */
+function updateClocks() {
+  if (!state.plan) return;
+  const hold = document.getElementById('hold');
+  if (hold) hold.textContent = mmss(state.holdUntil - Date.now());
+  const elapsed = document.getElementById('elapsed');
+  if (elapsed) elapsed.textContent = mmss(Date.now() - state.plan.startedAt);
+  const rest = document.getElementById('rest');
+  if (rest) rest.textContent = mmss(state.restUntil - Date.now());
+  const bar = document.getElementById('restbar');
+  if (bar && state.restTotal > 0) bar.style.width = `${clamp(((state.restUntil - Date.now()) / state.restTotal) * 100, 0, 100)}%`;
+}
+
+// Once a second: update the clocks, and notice a rest or a hold that ran out.
 setInterval(() => {
   if (!state.plan || state.finished) return;
+  if (failed.size > 0 && Date.now() - lastFlushAt > 15_000) void flush();
   if (state.restUntil && state.restUntil <= Date.now()) {
     state.restUntil = 0;
+    state.restOver = nextOpen(0) !== -1;
+    lock();
+    announce('Rest over.');
     try {
       navigator.vibrate?.(200);
     } catch {
@@ -695,6 +1073,7 @@ setInterval(() => {
   }
   if (state.holdUntil && state.holdUntil <= Date.now()) {
     state.holdUntil = 0;
+    announce('Time.');
     try {
       navigator.vibrate?.([200, 100, 200]);
     } catch {
@@ -703,12 +1082,7 @@ setInterval(() => {
     render();
     return;
   }
-  const hold = document.getElementById('hold');
-  if (hold) hold.textContent = mmss(state.holdUntil - Date.now());
-  const elapsed = document.getElementById('elapsed');
-  if (elapsed) elapsed.textContent = mmss(Date.now() - state.plan.startedAt);
-  const rest = document.getElementById('rest');
-  if (rest) rest.textContent = mmss(state.restUntil - Date.now());
+  updateClocks();
 }, 1000);
 
 await app.connect();

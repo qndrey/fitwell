@@ -383,7 +383,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     'log_set',
     {
       title: 'Log a set',
-      description: 'Called by the workout player when a set is done or skipped. Saves it to the workout.',
+      description: 'Called by the workout player when a set is done or skipped (or reopened with reopen, to correct a mistake). Saves it to the workout.',
       inputSchema: z.object({
         workoutId: z.uuid(),
         setId: z.string().max(20),
@@ -391,11 +391,12 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         weightKg: z.number().min(0).max(500).optional(),
         seconds: z.number().int().min(0).max(3600).optional().describe('For a timed set'),
         skip: z.boolean().default(false),
+        reopen: z.boolean().default(false).describe('Undo: the set is open again, as if it had not been logged or skipped'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
-    async ({ workoutId, setId, reps, weightKg, seconds, skip }) => {
+    async ({ workoutId, setId, reps, weightKg, seconds, skip, reopen }) => {
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       let found = false;
@@ -404,6 +405,11 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         sets: e.sets.map((s) => {
           if (s.id !== setId) return s;
           found = true;
+          if (reopen) {
+            const open: StoredSet = { ...s, done: false };
+            delete open.skipped;
+            return open;
+          }
           if (skip) return { ...s, done: false, skipped: true };
           const bodyweight = e.load === 'bodyweight';
           const next: StoredSet = { ...s, reps, weightKg: bodyweight ? s.weightKg : (weightKg ?? s.weightKg), ...(seconds !== undefined ? { durationSec: seconds } : {}), done: true };

@@ -1,6 +1,6 @@
 # Fitwell for Claude: long-term roadmap
 
-What comes after the phases in [PLAN.md](PLAN.md). Drafted 2026-10-15 from a brainstorm with research on comparable tools. Four themes: smarter coaching, friends, wearables, faster logging, plus the foundations they need and nudges that work without a phone app.
+What comes after the phases in [PLAN.md](PLAN.md). Drafted 2026-10-15 from a brainstorm with research on comparable tools. Six themes: smarter coaching, friends, wearables, faster logging, nudges that work without a phone app, streaks with shareable celebrations, and support for ChatGPT, plus the foundations they need.
 
 ## 1. Ground rules (from PLAN.md, unchanged)
 
@@ -9,7 +9,8 @@ What comes after the phases in [PLAN.md](PLAN.md). Drafted 2026-10-15 from a bra
 | The server never calls an LLM | "Smart" features are deterministic, tested functions in `@fitwell/core`; Claude explains them and asks before saving. |
 | Free plan, stateless Worker, D1 (EU) | No Durable Objects. Cron Triggers for anything scheduled. Every new table indexed by `(user_id, …)`; watch D1 daily limits. |
 | Health data is GDPR Art. 9 | Nothing is shared between people by default. Every share is explicit, per category, revocable, recorded, and covered by `export_my_data` and `delete_my_account`. |
-| Claude chat is the only surface | The server cannot push into a chat. Proactive features use email (`send_email`, invitees are verified addresses) or a Claude scheduled task calling the connector. |
+| Claude chat is the main surface | The server cannot push into a chat. Proactive features use email (`send_email`, invitees are verified addresses) or a Claude scheduled task calling the connector. ChatGPT is a second host on the roadmap (theme G); Claude stays the one the views and tool descriptions are tuned for. |
+| Images people share are made in the view | A share card is drawn in the person's own view and saved or copied by them. The server never renders, stores or posts it, and nothing is shared unless they press the button. |
 
 Out of scope: a native mobile app, public sign-up, billing, server-side LLM calls.
 
@@ -67,6 +68,29 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 | E1 | Email digests by cron: Sunday review summary, "nothing logged since Tuesday", challenge results; each opt-in in `update_profile`, with an unsubscribe link | `send_email`, `analytics/review.ts` | M | Phase 7 |
 | E2 | Morning brief: README recipe for a Claude scheduled task that opens the dashboard or Today view every morning | none (docs only) | S | Phase 6 |
 
+### F. Streaks and celebrations
+A streak counts weeks (or days for logging) in which a target was met, so a rest day or a busy week does not break it unfairly. Targets come from the profile: workouts per week, a logging target and a goal weight. Everything is computed from the logs by pure functions in `@fitwell/core` (no new source of truth); only milestones already celebrated are stored, so each is celebrated once.
+
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| F1 | **Streak engine** in `packages/core/src/domain/streaks.ts`: (a) training streak: consecutive weeks with at least the weekly workout target (3, 5, 7 … workouts a week; one planned rest week or "freeze" allowed, see §4); (b) logging streak: consecutive days with at least one meal logged, and weeks where the logging target was met (for example 5 of 7 days); (c) goal progress and reached: weight goal (loss or gain, by trend weight, not one weigh-in), plus workouts-per-week and protein-day targets. Milestones at 1, 2, 3, 5, 7, 14, 21, 30, 52 weeks; tested against hand-built calendars (gaps, missing days, time zones, week start) | `aggregateDays`, `movingAverage`, goals (`set_goals`), `analytics/review.ts`, `weekStart` in core | M | Phase 7 |
+| F2 | `get_streaks` (text: current and best streaks, next milestone, how far to go) and an `achievements` table `(user_id, kind, threshold, achieved_at, celebrated_at)`; `show_weekly_review` and `get_progress` mention the streak; export and delete cover the table | F1, `daily_metrics`, review tools | S | Phase 7 |
+| F3 | **Celebration view** (MCP Apps): opens when a milestone is reached ("7 weeks of training 3 times a week", "goal weight reached", "30 days of logging"), with a calm confetti-free animation (respects reduced motion), the number, what it took (workouts, logged days, sets) and what is next. Claude opens it after `finish_workout`, after a logging call or in the weekly review, and only once per milestone | F2, `finish_workout` summary, the shared view helpers in `ui/shared` | M | Phase 7 |
+| F4 | **Share card**: from the celebration view, "Make a card" draws a picture on a canvas in the view, in the formats social apps use (4:5 feed 1080×1350, 9:16 story 1080×1920, 1:1 square), in light or dark, with the person's name (optional, off by default), the milestone and a few numbers they choose. Saved or copied by the person (a download or the host's file or clipboard support; where the host sandbox blocks both, the view shows the image to long-press and Claude says so). Claude can suggest a caption in the reply. Weight is never on a card unless the person turns it on for that card, and the preview shows exactly what leaves the app (the same rule as Friends: body data off by default) | F3, canvas drawing in the view (no server rendering, no image storage), host capabilities check | M | Phase 7 |
+| F5 | Streaks in the crew feed and challenges: consistency only, never weight | F1, B3, B4 | S | Phase 9 |
+| F6 | Streak nudges by email: "your 7-week streak is safe, one workout to go this week", opt-in with the digests | F1, E1 | S | Phase 10+ |
+
+### G. More hosts: ChatGPT
+Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic registration or Client ID Metadata Documents, MCP Apps views, a text result for every view tool), so ChatGPT should connect without a rewrite. What is unproven is how it treats the parts the views depend on, above all the workout player. Research on 2026-10-18 (secondary sources, not tested): custom connectors work through Developer Mode; individual plans may be limited to read tools, so write tools (logging) might need Business, Enterprise or Edu; the MCP Apps announcement lists ChatGPT among supporting clients; Gemini lists no MCP Apps support yet and takes custom servers only on personal US accounts (consumer) or through an admin (Enterprise).
+
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| G1 | **Compatibility spike**: add the server to ChatGPT (Developer Mode) and walk a checklist: sign-in with the invite flow, `get_food_log` and `log_food` (are write tools allowed on the plan used), each view renders (`show_dashboard`, `show_weekly_review`, `show_grocery_list`, `show_exercise`, `show_muscle_map`, the player), the player's calls from inside the view (`log_set`, `swap_exercise`, app-only tools hidden from the model), `sendMessage` and `updateModelContext` from the view, theme and safe area, links, vibration. Record results per host in a table in `apps/mcp/README.md` | `dev-host` (only mimics Claude), the OAuth provider | S | Phase 8 |
+| G2 | **Fallbacks for hosts without the player**: a model-visible way to log a set during a workout in chat (today `log_set` is app-only), `start_workout` returning the plan as a readable checklist, and a short "how to run it without the player" line in the server instructions; no change for Claude | `tools/workout.ts`, `instructions/` | M | Phase 8, only if G1 shows gaps |
+| G3 | Host-aware tool descriptions and instructions: neutral wording ("the chat", not "Claude") where the model is addressed, checked against the same eval prompts on each host | `src/instructions`, tool descriptions | S | Phase 8 |
+| G4 | Listing: OpenAI's app directory requirements (submission, review account like `REVIEW.md`, privacy text, screenshots) and, if Google opens one, Gemini's; the scheduled morning brief stays Claude-only, documented | `directory/`, `REVIEW.md`, `/privacy` | M | Phase 10+ |
+| G5 | Gemini: revisit when it supports MCP Apps; until then text answers only (the tools already work without views) | G1 results | S | Later |
+
 ## 3. Phases and exit criteria
 
 **Phase 6: foundations and quick wins**
@@ -83,37 +107,45 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 - [x] E2: morning brief section in `apps/mcp/README.md` (a Claude scheduled task; text tools only, since a scheduled run shows no views).
 - [ ] Exit: after a week of real logging, "how am I doing this week?" gives an expenditure estimate and a suggested target; "same breakfast as yesterday" logs in one call; "which muscles did I train this month?" shows the heatmap with the numbers in the reply.
 
-**Phase 7: friends v1**
+**Phase 7: friends v1 and streaks**
 - [ ] Decisions in §4 agreed.
+- [ ] F1 streak engine in core with calendar tests; F2 `get_streaks` and the `achievements` table (export and delete cover it).
+- [ ] F3 celebration view; F4 share card (4:5, 9:16, 1:1; light and dark; weight off by default; the preview matches what is saved).
 - [ ] `connections` and `shares` tables, the `friends` tool, consent records; export and delete cover them; isolation tests extended (no share means no access).
 - [ ] B1 send a template, recipe or plan; B2 household plan and ticks.
 - [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts`, tested with `wrangler dev --test-scheduled`.
 - [ ] E1 email digests (first cron job).
-- [ ] Exit: two invitees connect, one sends a push day, the other runs it; a couple plans a week and ticks one grocery list.
+- [ ] Exit: two invitees connect, one sends a push day, the other runs it; a couple plans a week and ticks one grocery list; reaching a seven-week training target opens the celebration once, and the person saves a story-sized card without any weight on it.
 
-**Phase 8: data in**
+**Phase 8: data in and ChatGPT**
 - [ ] C1 ingest webhook with per-person token; Health Auto Export and Shortcut setup in the README; sources shown in `get_progress`.
 - [ ] C2 Strava.
 - [ ] D3 Today view; D4 restaurant estimates.
-- [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio.
+- [ ] G1 ChatGPT compatibility spike with the results table in the README; G2 fallbacks if the player does not work there; G3 host-neutral wording.
+- [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio; a ChatGPT user on a plan that allows it logs a meal and sees the dashboard, and the table says what works where.
 
 **Phase 9: coaching v2 and crew**
 - [ ] A4 programs with deloads; A5 RPE/RIR; A6 volume ranges; A10 strength and recovery modes; A7 micronutrients.
-- [ ] B3 crew feed; B4 challenges.
+- [ ] B3 crew feed; B4 challenges; F5 streaks in both (consistency only).
 - [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
 
 **Phase 10 and later**
-- [ ] A8 readiness, A9; C3 direct device APIs; B5, B6; D5.
+- [ ] A8 readiness, A9; C3 direct device APIs; B5, B6; D5; F6 streak nudges; G4 ChatGPT directory listing; G5 Gemini when it supports MCP Apps.
 - [ ] Progress photos (needs R2 storage and its own privacy decision).
 
 ## 4. Decisions to make before phase 7
 - **Visibility defaults.** Proposal: nothing shared by default; weight and body never in feeds, only to an accountability buddy who was chosen explicitly.
 - **Challenges and weight.** Proposal: consistency metrics only, never weight or body fat.
 - **Wearable data retention.** Proposal: keep normalised values only; drop raw payloads after processing.
+- **Streak rules.** Proposal: weekly streaks for training (a week counts when the workout target is met; one rest or sick week per 12 weeks, or a freeze the person sets, keeps the streak), daily plus weekly-target streaks for logging ("logged" means at least one meal, not a full day, so partial days do not punish); milestones 1, 2, 3, 5, 7, 14, 21, 30, 52. Weight goals use the trend, count as reached after 7 days at or past the goal, and never feed a streak (no streak for losing weight).
+- **Share cards.** Proposal: drawn in the view only; name and numbers chosen per card; weight and body data off by default and never in the default caption; no logo or watermark requirement, a small "Fitwell for Claude" line the person can remove.
+- **ChatGPT scope.** Proposal: run the G1 spike on one plan that allows write tools before promising support; Claude remains the primary, documented host.
 
 ## 5. Research notes
 - Lifters typically pair a log (Hevy, Strong) with a nutrition app (MacroFactor); Fitwell already joins the two, which is the gap reviewers mention most.
 - MacroFactor's core is the expenditure estimate from logged intake and weight with weekly target changes; the window length trades stability against responsiveness ([V3 algorithm](https://macrofactor.com/expenditure-v3/)).
 - Autoregulation (RPE-based load changes) showed a modest strength advantage over fixed loading in a meta-analysis summarised in a 2026 comparison; programs with built-in deloads are standard in Boostcamp, Alpha Progression and others.
+- Streaks: weekly targets and rest allowances keep motivation without rewarding overtraining; streak loss can discourage, so the engine forgives one gap and celebrates milestones once (no repeats).
+- Hosts: ChatGPT custom connectors need Developer Mode and may restrict write tools by plan ([guide](https://coworker.ai/blog/chatgpt-mcp)); the MCP Apps announcement lists ChatGPT, Claude, Goose and VS Code Insiders ([blog](https://blog.modelcontextprotocol.io/posts/2026-01-26-mcp-apps/)); Gemini custom apps are limited to personal US accounts ([help](https://support.google.com/gemini/answer/17209137?hl=en&co=GENIE.Platform%3DDesktop)).
 - Social features: friend groups seeing each other's activity and time-boxed challenges recur as retention levers; challenge windows that are too tight put busy people off ([study](https://www.theseus.fi/handle/10024/887910)). Rest-day-friendly streaks avoid rewarding overtraining.
 - Health data: Apple Health has no web API (exports or a companion app, e.g. Health Auto Export's REST automation); Oura, Whoop, Withings, Polar and Strava have personal OAuth APIs; Garmin's needs business approval.

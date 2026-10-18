@@ -383,7 +383,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     'log_set',
     {
       title: 'Log a set',
-      description: 'Called by the workout player when a set is done or skipped. Saves it to the workout.',
+      description: 'Called by the workout player when a set is done or skipped (or reopened with reopen, to correct a mistake). Saves it to the workout.',
       inputSchema: z.object({
         workoutId: z.uuid(),
         setId: z.string().max(20),
@@ -391,11 +391,12 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         weightKg: z.number().min(0).max(500).optional(),
         seconds: z.number().int().min(0).max(3600).optional().describe('For a timed set'),
         skip: z.boolean().default(false),
+        reopen: z.boolean().default(false).describe('Undo: the set is open again, as if it had not been logged or skipped'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
-    async ({ workoutId, setId, reps, weightKg, seconds, skip }) => {
+    async ({ workoutId, setId, reps, weightKg, seconds, skip, reopen }) => {
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       let found = false;
@@ -404,6 +405,11 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         sets: e.sets.map((s) => {
           if (s.id !== setId) return s;
           found = true;
+          if (reopen) {
+            const open: StoredSet = { ...s, done: false };
+            delete open.skipped;
+            return open;
+          }
           if (skip) return { ...s, done: false, skipped: true };
           const bodyweight = e.load === 'bodyweight';
           const next: StoredSet = { ...s, reps, weightKg: bodyweight ? s.weightKg : (weightKg ?? s.weightKg), ...(seconds !== undefined ? { durationSec: seconds } : {}), done: true };
@@ -553,6 +559,47 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const finishedAt = w.finishedAt ?? Date.now();
       if (!w.finishedAt) await workouts.saveExercises(workoutId, w.exercises, finishedAt);
       return json(await finishSummary({ ...w, finishedAt }));
+    },
+  );
+
+  server.registerTool(
+    'edit_workout_set',
+    {
+      title: 'Fix a logged set',
+      description:
+        'Correct one set of a stored strength workout, e.g. "the second squat set was 6 reps, not 5". Find the workout id with get_workout_history; its exercise lines list the sets in order ("5 @ 82.5, 5 @ 82.5"). ' +
+        'exercise is a library id ("ex:Barbell_Squat") or part of the exercise name as it appears in the workout; set is the position among its working sets, 1 for the first (warmup: true counts warm-up sets instead). ' +
+        'Give the reps, weight_kg (not for bodyweight exercises) and/or seconds (timed sets) that should change. A set that was skipped or never logged becomes done with the values given. Works on finished workouts too; ask before changing history.',
+      inputSchema: z.object({
+        workout_id: z.uuid(),
+        exercise: z.string().min(1).max(80),
+        set: z.number().int().min(1).max(20),
+        warmup: z.boolean().default(false),
+        reps: z.number().int().min(0).max(100).optional(),
+        weight_kg: z.number().min(0).max(500).optional(),
+        seconds: z.number().int().min(0).max(3600).optional(),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+    },
+    async ({ workout_id, exercise, set, warmup, reps, weight_kg, seconds }) => {
+      if (reps === undefined && weight_kg === undefined && seconds === undefined) return toolError('Give at least one of reps, weight_kg or seconds to change.');
+      const w = await workouts.get(workout_id);
+      if (!w || w.type !== 'strength') return toolError('No such strength workout. Find the id with get_workout_history.');
+      const wanted = exercise.trim().toLowerCase();
+      const matches = w.exercises.filter((e) => e.exerciseRef === exercise || e.exerciseName.toLowerCase() === wanted);
+      const found = matches.length ? matches : w.exercises.filter((e) => e.exerciseName.toLowerCase().includes(wanted));
+      if (found.length === 0) return toolError(`No exercise like "${exercise}" in this workout. It has: ${w.exercises.map((e) => e.exerciseName).join(', ')}.`);
+      if (found.length > 1) return toolError(`"${exercise}" matches ${found.map((e) => e.exerciseName).join(', ')}. Use the library id.`);
+      const target = found[0]!;
+      const sets = target.sets.filter((s) => (s.type === 'warmup') === warmup);
+      const chosen = sets[set - 1];
+      if (!chosen) return toolError(`${target.exerciseName} has ${sets.length} ${warmup ? 'warm-up' : 'working'} set${sets.length === 1 ? '' : 's'}; there is no set ${set}.`);
+      if (weight_kg !== undefined && target.load === 'bodyweight') return toolError(`${target.exerciseName} is a bodyweight exercise; leave out weight_kg.`);
+      const next: StoredSet = { ...chosen, done: true, ...(reps !== undefined ? { reps } : {}), ...(weight_kg !== undefined ? { weightKg: weight_kg } : {}), ...(seconds !== undefined ? { durationSec: seconds } : {}) };
+      delete next.skipped;
+      const exercises = w.exercises.map((e) => (e === target ? { ...e, sets: e.sets.map((s) => (s === chosen ? next : s)) } : e));
+      await workouts.saveExercises(workout_id, exercises);
+      return json({ fixed: { workoutId: workout_id, day: w.day, exercise: target.exerciseName, set: `${warmup ? 'warm-up ' : ''}${set}`, now: summarizeExercise(exercises[w.exercises.indexOf(target)]!) } });
     },
   );
 

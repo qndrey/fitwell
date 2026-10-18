@@ -242,5 +242,125 @@ describe('email sign-in', () => {
     const text = await res.text();
     expect(text).toContain('EU');
     expect(text).toContain('privacy@fitwell.test');
+    expect(text).toContain('How long');
+    expect(text).toContain('Sign-in records are deleted after 30 days');
+  });
+
+  it('deletes sign-in requests older than 30 days whenever a code is asked for', async () => {
+    const day = 86_400_000;
+    const add = (id: string, age: number) =>
+      env.DB.prepare('INSERT INTO login_requests (id, email, user_id, code_hash, link_hash, browser_hash, ip, created_at, expires_at) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)')
+        .bind(id, 'someone@example.com', 'x', 'x', 'x', '198.51.100.1', Date.now() - age, Date.now() - age + 600_000)
+        .run();
+    await add('old', 31 * day);
+    await add('recent', 29 * day);
+    const clientId = await registerClient();
+    const { b, html } = await startSignIn(clientId);
+    await b('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email: 'ana@example.com', consent: 'yes' }));
+    const ids = (await env.DB.prepare("SELECT id FROM login_requests WHERE email = 'someone@example.com'").all<{ id: string }>()).results.map((r) => r.id);
+    expect(ids).toEqual(['recent']);
+  });
+});
+
+describe('directory reviewer sign-in (REVIEW_LOGIN)', () => {
+  const REVIEW = 'review@fitwell.fyi';
+  const CODE = '246810';
+  async function withReviewLogin(secret: string, extra: Partial<Env> = {}) {
+    ({ env, sent } = createTestEnv({ REVIEW_LOGIN: secret, ...extra } as Partial<Env>));
+    await inviteUser(env.DB, 'ana@example.com');
+    await inviteUser(env.DB, REVIEW);
+  }
+  async function enterEmail(email: string) {
+    const clientId = await registerClient();
+    const { b, verifier, html } = await startSignIn(clientId);
+    const page = await (await b('/authorize', form({ step: 'email', handle: hidden(html, 'handle'), email, consent: 'yes' }))).text();
+    const code = (c: string) => b('/authorize', form({ step: 'code', handle: hidden(page, 'handle'), login: hidden(page, 'login'), code: c }));
+    return { clientId, verifier, page, code };
+  }
+
+  it('signs the review address in with the fixed code and sends no email', async () => {
+    await withReviewLogin(` Review@Fitwell.fyi:${CODE} `);
+    const { clientId, verifier, page, code } = await enterEmail(REVIEW);
+    expect(page).toContain('Check your email');
+    expect(sent).toHaveLength(0);
+    const done = await code(CODE);
+    expect(done.status).toBe(302);
+    const tokens = await exchange(clientId, done.headers.get('Location')!, verifier);
+    const res = await (await mcpAs(tokens.access_token)).callTool({ name: 'get_profile', arguments: {} });
+    expect((res.structuredContent as { email: string }).email).toBe(REVIEW);
+  });
+
+  it('keeps the attempt limit and leaves everyone else on emailed codes', async () => {
+    await withReviewLogin(`${REVIEW}:${CODE}`);
+    const review = await enterEmail(REVIEW);
+    expect((await review.code('111111')).status).toBe(400);
+    expect((await review.code(CODE)).status).toBe(302);
+
+    const ana = await enterEmail('ana@example.com');
+    expect(sent.map((m) => m.to)).toEqual(['ana@example.com']);
+    if (codeIn(sent[0]!) !== CODE) expect((await ana.code(CODE)).status).toBe(400);
+    expect((await ana.code(codeIn(sent[0]!))).status).toBe(302);
+  });
+
+  it('stops taking the fixed code after 20 wrong guesses across sign-ins', async () => {
+    await withReviewLogin(`${REVIEW}:${CODE}`);
+    for (let i = 0; i < 4; i++) {
+      const { code } = await enterEmail(REVIEW);
+      for (let j = 0; j < 5; j++) expect((await code('111111')).status).toBe(400);
+    }
+    const { code } = await enterEmail(REVIEW);
+    expect(sent.map((m) => m.to)).toEqual([REVIEW]); // a random, emailed code from now on
+    if (codeIn(sent[0]!) !== CODE) expect((await code(CODE)).status).toBe(400);
+  });
+
+  it('counts only wrong codes: a successful sign-in uses none of the allowance', async () => {
+    await withReviewLogin(`${REVIEW}:${CODE}`);
+    for (let i = 0; i < 3; i++) {
+      const { code } = await enterEmail(REVIEW);
+      for (let j = 0; j < 4; j++) expect((await code('111111')).status).toBe(400);
+      expect((await code(CODE)).status).toBe(302);
+    }
+    // 12 wrong so far, and a new sign-in could take 5 more: still within 20, so the fixed code works.
+    expect((await (await enterEmail(REVIEW)).code(CODE)).status).toBe(302);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('counts sign-ins that are still open, so opening several at once gives no extra guesses', async () => {
+    await withReviewLogin(`${REVIEW}:${CODE}`);
+    const open = [];
+    for (let i = 0; i < 5; i++) open.push(await enterEmail(REVIEW));
+    // Four open sign-ins could take 20 wrong codes between them; the fifth gets a random, emailed code.
+    expect(sent.map((m) => m.to)).toEqual([REVIEW]);
+    if (codeIn(sent[0]!) !== CODE) expect((await open[4]!.code(CODE)).status).toBe(400);
+    expect((await open[0]!.code(CODE)).status).toBe(302);
+  });
+
+  it('does nothing for an address that is not invited', async () => {
+    ({ env, sent } = createTestEnv({ REVIEW_LOGIN: `${REVIEW}:${CODE}` } as Partial<Env>));
+    const { code } = await enterEmail(REVIEW);
+    expect(sent).toHaveLength(0);
+    expect((await code(CODE)).status).toBe(400);
+  });
+
+  it('is off when the secret is malformed or names an admin', async () => {
+    for (const [secret, extra] of [[`${REVIEW}:12345`, {}], [REVIEW, {}], [`${REVIEW}:${CODE}`, { ADMIN_EMAILS: `owner@example.com, ${REVIEW}` }]] as const) {
+      await withReviewLogin(secret, extra as Partial<Env>);
+      const { code } = await enterEmail(REVIEW);
+      expect(sent.map((m) => m.to)).toEqual([REVIEW]); // back to an emailed random code
+      if (codeIn(sent[0]!) !== CODE) expect((await code(CODE)).status).toBe(400);
+    }
+  });
+});
+
+describe('icon', () => {
+  it.each([
+    ['/favicon.ico', 'image/x-icon', [0, 0, 1, 0]], // ICO header: reserved 0, type 1
+    ['/icon-512.png', 'image/png', [0x89, 0x50, 0x4e, 0x47]],
+    ['/apple-touch-icon.png', 'image/png', [0x89, 0x50, 0x4e, 0x47]],
+  ])('serves %s', async (path, type, magic) => {
+    const res = await worker.fetch(new Request(ORIGIN + path), env, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe(type);
+    expect([...new Uint8Array(await res.arrayBuffer()).slice(0, 4)]).toEqual(magic);
   });
 });

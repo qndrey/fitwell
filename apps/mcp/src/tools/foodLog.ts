@@ -198,7 +198,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
       title: 'Edit a logged food',
       description: 'Change the grams (nutrition is rescaled), meal slot or day of an entry from get_food_log or log_food.',
       inputSchema: z.object({ id: z.uuid(), grams: z.number().positive().max(5000).optional(), slot: slot.optional(), day: day.optional() }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async ({ id, ...patch }) => {
       const e = await data.updateFoodEntry(id, patch);
@@ -226,6 +226,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
         portions: z.array(z.object({ label: z.string().min(1).max(40), grams: z.number().positive().max(5000) })).max(10).default([]),
         values_checked: z.boolean().default(false).describe('The label really says this although the energy does not match the macros'),
       }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     async ({ name, brand, per100g: given, per_serving, extras: givenExtras, portions, values_checked }) => {
       if ((given === undefined) === (per_serving === undefined)) return toolError('Give the values either per100g or per_serving, not both.');

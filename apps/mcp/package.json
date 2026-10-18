@@ -11,6 +11,8 @@
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply fitwell --local",
     "invite": "tsx scripts/invite.ts",
+    "preseed:review": "npm run build:ui",
+    "seed:review": "esbuild scripts/seed-review.ts --bundle --platform=node --format=esm --target=node22 --loader:.md=text --loader:.gz=binary --log-level=warning --outfile=.wrangler/seed/seed-review.mjs && node .wrangler/seed/seed-review.mjs",
     "smoke": "tsx scripts/smoke.ts",
     "types": "wrangler types",
     "pretypecheck": "npm run build:ui",

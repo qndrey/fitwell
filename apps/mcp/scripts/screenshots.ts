@@ -1,4 +1,4 @@
-// Regenerates the screenshots of the About page (public/about/img) from the views, the way Claude embeds them.
+// Regenerates the screenshots of the About page (apps/landing/site/src/assets) from the views, the way Claude embeds them.
 // Needs the demo person's data in the local database, `npm run dev` (wrangler, :8787) and `npm run dev:host` (:8788) running.
 // Run: npx tsx scripts/screenshots.ts [name ...]     (no names = all shots, each in light and dark; names as listed in SHOTS and PAGES)
 import { chromium, type Frame, type Page } from 'playwright';
@@ -11,7 +11,7 @@ import { copyFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const HOST = process.env.HOST_URL ?? 'http://127.0.0.1:8788';
-const OUT = process.env.SHOTS_OUT ?? 'public/about/img';
+const OUT = process.env.SHOTS_OUT ?? '../landing/site/src/assets';
 const WIDTH = 398; // CSS px of the view; images are 2x
 const startedAt = Date.now();
 const DB_DIR = '.wrangler/state/v3/d1/miniflare-D1DatabaseObject';

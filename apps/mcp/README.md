@@ -14,10 +14,10 @@ A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals,
 | Meals | `get_planning_context`, `save_recipe`, `import_recipe` (from a web page), `get_recipes`, `suggest_meals` (what can I cook), `save_meal_plan` (checked against goals, allergies, dislikes), `get_meal_plan`, `show_grocery_list` (tick-off checklist), `log_planned_meal` |
 | Anything | `delete_item` (food entry, workout, template, recipe, meal plan, weigh-in, measurements, daily metrics) |
 | Owner only | `manage_invites` (list, add, remove unused invitations), for emails in `ADMIN_EMAILS` |
-| Import | `import_fitwell_backup` (one-time upload link for a backup from the private Fitwell app; `check_result` reports the outcome) |
+| Import | `import_fitwell_backup` (one-time upload link for a backup file from the retired Fitwell web app; `check_result` reports the outcome) |
 | Account | `export_my_data`, `delete_my_account` (erases everything, signs out everywhere) |
 
-**About page:** `https://mcp.fitwell.fyi/about/` (and `/` redirects there) explains Fitwell for Claude with screenshots and how to join. It is static files in `public/about/`, served by the Worker's static assets before the Worker runs; `public/_headers` gives it a strict CSP (nothing inline, nothing third-party). The same page is published as a claude.ai artifact, with everything inlined. The screenshots in `public/about/img` are generated from the views with `npx tsx scripts/screenshots.ts` (needs `npm run dev`, `npm run dev:host` and the demo person's local data; `scripts/backfill-extras.ts` fills fibre, sugars and fats into entries logged before they were stored).
+**Landing page:** `https://fitwell.fyi` explains Fitwell for Claude with screenshots and how to join (see [apps/landing](../landing/README.md)). `/` here, and the old `/about/` page, redirect there. The screenshots it shows come from the views: regenerate them with `npx tsx scripts/screenshots.ts` (needs `npm run dev`, `npm run dev:host` and the demo person's local data; it writes `<name>-light.png` and `<name>-dark.png` into `apps/landing/site/src/assets`). `scripts/backfill-extras.ts` fills fibre, sugars and fats into entries logged before they were stored.
 
 **Morning brief (optional):** Claude can look at Fitwell every morning on its own with a scheduled task (Claude desktop or Cowork, paid plans; connectors are attached to the task). Create a daily task with a prompt like:
 
@@ -41,7 +41,7 @@ npm run db:migrate -w @fitwell/mcp
 Then start the server (the real Workers runtime, with local D1, KV and email):
 
 ```bash
-npm run dev:mcp
+npm run dev
 ```
 
 On `http://127.0.0.1:8787/mcp`, requests *without* a token run as a local dev person (`dev@localhost`), so tools are easy to try:
@@ -67,6 +67,7 @@ npm run dev:host -w @fitwell/mcp
 | `npm run check -w @fitwell/mcp` | typecheck + lint + tests (a real MCP client against the Worker's fetch handler, Open Food Facts stubbed) |
 | `npm run build:ui -w @fitwell/mcp` | Bundle each view in `ui/<name>` into one HTML string (`src/ui/generated`, git-ignored); runs automatically before dev, deploy, typecheck and tests |
 | `npm run invite -w @fitwell/mcp -- <email> [--remote]` | Add someone to the invite list (local or deployed database). On the free plan they must also be a verified destination address in Email Routing |
+| `npm run seed:review -w @fitwell/mcp -- [--apply local\|remote]` | Fill the directory reviewers' demo account (`review@fitwell.fyi`) with 12 weeks of history; it signs in with the `REVIEW_LOGIN` secret. See [REVIEW.md](REVIEW.md) |
 | `npm run types -w @fitwell/mcp` | Regenerate `worker-configuration.d.ts` after changing `wrangler.jsonc` |
 
 Data sources: Frida 5.5, DTU National Food Institute (CC BY 4.0); Open Food Facts (ODbL); free-exercise-db (The Unlicense). Tool results carry the attribution.

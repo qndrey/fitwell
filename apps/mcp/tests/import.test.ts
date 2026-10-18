@@ -1,12 +1,11 @@
-// Importing a backup file from the web app: the one-time link, the chunked upload the page performs, and what lands.
+// Importing a backup file from the (retired) web app: the one-time link, the chunked upload the page performs, and what lands.
 import type { Client } from '@modelcontextprotocol/client';
-import * as v from 'valibot';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { backupSchema } from '../../web/src/backup/schema';
 import worker from '../src/index';
 import type { User } from '../src/data/users';
 import { createTestEnv, ctx } from './support/env';
 import { call, connectAs, signedInUser } from './support/mcp';
+import { backupSchema } from './support/webBackup';
 
 const T = 1_760_000_000_000;
 const base = (id: string, extra: Record<string, unknown> = {}) => ({ id, createdAt: T, updatedAt: T, rev: 1, ...extra });
@@ -59,7 +58,7 @@ function makeBackup() {
 }
 
 it('the fixture is a valid backup of the web app (so the importer is tested against the real format)', () => {
-  expect(() => v.parse(backupSchema, makeBackup())).not.toThrow();
+  expect(() => backupSchema.parse(makeBackup())).not.toThrow();
 });
 
 let env: Env;

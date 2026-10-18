@@ -50,7 +50,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeDeps) {
         steps: z.array(z.string().min(1).max(500)).max(40).optional().describe('The method, one step per entry'),
         source_url: z.url().max(500).optional().describe('The web page the recipe came from'),
       }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async ({ name, servings, ingredients, notes, steps, source_url }) => {
       const foods = new FoodMemo(deps);

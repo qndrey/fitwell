@@ -15,7 +15,7 @@ export function registerInviteTools(server: McpServer, deps: { db: D1Database; o
         'For the owner of this Fitwell server only. list: everyone on the invite list with whether they have signed in. add: invite an email address. remove: take back an invitation that has not been used yet (someone who already signed in deletes their own data with delete_my_account). ' +
         'After add, remind the owner that on the free Cloudflare plan the address must also be a verified destination in Email Routing, or the sign-in email will not arrive, and that the person signs in by adding the connector in Claude.',
       inputSchema: z.object({ action: z.enum(['list', 'add', 'remove']), email: z.string().max(254).optional() }),
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async ({ action, email }) => {
       if (action === 'list') {

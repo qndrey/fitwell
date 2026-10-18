@@ -309,6 +309,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         cardio: z.array(cardioItem).max(4).optional().describe('With a template: replaces the template\'s cardio'),
         save_as_template: z.string().min(1).max(60).optional(),
       }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI } },
     },
     async (args) => {
@@ -391,6 +392,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         seconds: z.number().int().min(0).max(3600).optional().describe('For a timed set'),
         skip: z.boolean().default(false),
       }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
     async ({ workoutId, setId, reps, weightKg, seconds, skip }) => {
@@ -428,6 +430,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         distanceKm: z.number().min(0).max(500).optional(),
         skip: z.boolean().default(false),
       }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
     async ({ workoutId, blockId, minutes, distanceKm, skip }) => {
@@ -458,6 +461,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       title: 'Save an exercise note',
       description: 'Called by the workout player when the person writes a note for an exercise. An empty note removes it.',
       inputSchema: z.object({ workoutId: z.uuid(), exerciseId: z.string().max(20), notes: z.string().max(300) }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
     async ({ workoutId, exerciseId, notes }) => {
@@ -506,6 +510,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       title: 'Swap an exercise in a workout',
       description: 'Called by the workout player: replaces an exercise that has no logged sets with another (same sets, reps and rest; weight from its own history).',
       inputSchema: z.object({ workoutId: z.uuid(), exerciseId: z.string().max(20), newId: exerciseId }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
     async ({ workoutId, exerciseId, newId }) => {
@@ -539,6 +544,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       title: 'Finish a workout',
       description: 'Marks a workout finished and returns its summary: sets per exercise, volume, time, and personal records (best estimated 1RM, Epley). The player calls it; call it yourself if the person says they are done in chat.',
       inputSchema: z.object({ workoutId: z.uuid() }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI } },
     },
     async ({ workoutId }) => {
@@ -567,6 +573,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
           .max(15),
         cardio: z.array(cardioItem).max(4).optional(),
       }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     async ({ day: d, name, minutes, exercises: given, cardio: givenCardio }) => {
       const badActivity = unknownActivity(givenCardio);
@@ -654,6 +661,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       title: 'Save a workout template',
       description: 'Save a named workout plan ("Push day") to start later with start_workout, with a note per exercise and optional cardio blocks (warm-up or finisher). Saving under an existing name replaces it. Leave weights out to use progression each time.',
       inputSchema: z.object({ name: z.string().min(1).max(60), exercises: z.array(planItem).min(1).max(15), cardio: z.array(cardioItem).max(4).optional() }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async ({ name, exercises, cardio }) => {
       const badActivity = unknownActivity(cardio) ?? missingReps(exercises);
@@ -687,6 +695,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         kcal: z.number().min(0).max(10000).optional().describe('Only if the person has a measured number'),
         day: day.optional(),
       }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     async ({ activity_id, duration_min, distance_km, kcal, day: d }) => {
       const a = ACTIVITIES.find((x) => x.id === activity_id)!;

@@ -116,7 +116,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
         'Values come from the foods\' own data. Use foods in the form they are bought and weighed (rice, pasta and meat raw), so the grocery list is right. Saving a week again replaces its plan. The reply checks every day against the calorie and protein goals and every item against allergies and dislikes, ' +
         'with plain-language problems: fix them and save again BEFORE presenting the plan, and never present a plan with an ALLERGY warning.',
       inputSchema: z.object({ week_start: day.optional(), items: z.array(planItem).min(1).max(120) }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async ({ week_start, items }) => {
       const week = await resolveWeek(week_start);
@@ -206,6 +206,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
         'Adds the planned meal(s) of a day to the food log (all meals of the day, or one slot), with the planned amounts. Use it when the person says they ate as planned; change grams afterwards with edit_food_entry if they differed. ' +
         'Meals already logged from the plan are skipped unless again is true. Returns the day\'s totals.',
       inputSchema: z.object({ day, slot: slot.optional(), again: z.boolean().default(false) }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     async ({ day: d, slot: s, again }) => {
       const week = mondayOf(d);

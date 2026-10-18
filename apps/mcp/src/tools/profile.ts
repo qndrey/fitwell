@@ -50,7 +50,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
           })
           .optional(),
       }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async (a) => {
       const profile = await data.updateProfile({
@@ -115,7 +115,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         sat_fat_g: z.number().min(0).max(100).nullable().optional().describe('Daily limit for saturated fat'),
         added_sugar_g: z.number().min(0).max(200).nullable().optional().describe('Daily limit for added sugar'),
       }),
-      annotations: { idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
     async (a) => {
       const patch: Partial<Goals> = {

@@ -1,8 +1,9 @@
 import { OAuthProvider, type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
 import { createMcpHandler } from '@modelcontextprotocol/server';
-import { handleAuthorize, SCOPE } from './auth/login';
+import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
 import { cloudflareMailer } from './auth/mailer';
 import { page, privacyBody } from './auth/pages';
+import { ICONS } from './icons';
 import { handleImport } from './import/routes';
 import { cachedOff } from './data/offCache';
 import { deleteUser, findUser, inviteUser, recordLogin, type User } from './data/users';
@@ -14,7 +15,16 @@ interface Props {
   userId: string;
   email: string;
 }
-type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers };
+// REVIEW_LOGIN is an optional secret (wrangler secret put REVIEW_LOGIN), so it is not in the generated Env.
+type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string };
+
+const adminEmails = (env: Env) => (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+/** The reviewers' fixed-code sign-in, never for an admin address (manage_invites must stay behind a real email). */
+function reviewLogin(env: EnvWithOAuth) {
+  const review = parseReviewLogin(env.REVIEW_LOGIN);
+  return review && !adminEmails(env).includes(review.email) ? review : undefined;
+}
 
 const DEV_EMAIL = 'dev@localhost';
 const DAY = 86_400;
@@ -28,7 +38,7 @@ async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'ema
         db: env.DB,
         publicUrl: env.PUBLIC_URL,
         user,
-        isAdmin: (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean).includes(user.email.toLowerCase()),
+        isAdmin: adminEmails(env).includes(user.email.toLowerCase()),
         deleteAccount: async () => {
           // Sign out everywhere first, then erase the data.
           if (oauth) for (const g of (await oauth.listUserGrants(user.id)).items) await oauth.revokeGrant(g.id, user.id);
@@ -40,16 +50,21 @@ async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'ema
   return handler.fetch(request);
 }
 
+const LANDING_URL = 'https://fitwell.fyi/';
+
 const site = {
   async fetch(request: Request, env: EnvWithOAuth): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
-      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL, contact: env.CONTACT_EMAIL });
+      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL, contact: env.CONTACT_EMAIL, review: reviewLogin(env) });
     }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
-    // The page about Fitwell for Claude (static assets in public/about) explains how to add the connector.
-    if (url.pathname === '/') return Response.redirect(`${url.origin}/about/`, 302);
+    const icon = ICONS[url.pathname];
+    if (icon) return new Response(Uint8Array.from(atob(icon.base64), (c) => c.charCodeAt(0)), { headers: { 'content-type': icon.type, 'cache-control': 'public, max-age=86400' } });
+    // The page about Fitwell for Claude, with how to add the connector, is the landing page (apps/landing). It used to be
+    // /about/ here, so old links to it go there too.
+    if (url.pathname === '/' || url.pathname === '/about' || url.pathname.startsWith('/about/')) return Response.redirect(LANDING_URL, 301);
     return new Response('Not found', { status: 404 });
   },
 };

@@ -374,6 +374,10 @@ const faqs = [
     a: "Generic foods come from the Danish national food database (Frida), with English names. Packaged products come from Open Food Facts.",
   },
   {
+    q: "What does it cost?",
+    a: "Fitwell is free while it is invite-only.",
+  },
+  {
     q: "Which devices does it work on?",
     a: "It is early days. Fitwell is tested on Claude desktop, web and iPhone. Android has not been tested yet.",
   },

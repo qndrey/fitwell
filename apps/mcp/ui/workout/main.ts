@@ -26,6 +26,10 @@ const state = {
   /** Timed sets: the seconds to log, and the running countdown (0 when stopped). */
   seconds: 0,
   holdUntil: 0,
+  /** Timed sets: a short countdown before the hold starts, so the person can get into position. */
+  readyUntil: 0,
+  /** How far one tap on the weight stepper moves, by equipment. */
+  weightStep: 0.5,
   minutes: 0,
   km: 0,
   /** The stepper whose value is being typed, if any. */
@@ -97,6 +101,57 @@ const lock = () => {
   state.lockUntil = Date.now() + 600;
 };
 const locked = () => Date.now() < state.lockUntil;
+
+/**
+ * One tap on the weight stepper: what the equipment can actually do (a barbell moves in pairs of the smallest plate, a dumbbell rack
+ * in 2 kg, a stack in 2.5 kg). Typing a value, or holding the button, reaches anything else.
+ */
+function weightStepFor(ex: PlannedExercise): number {
+  if (ex.bodyweight) return WEIGHT_STEP;
+  const equipment = ex.equipment.toLowerCase();
+  if (equipment === 'barbell' || equipment === 'e-z curl bar') {
+    const plates = (state.plan?.gym ?? STANDARD_GYM).platesKg;
+    return plates.length ? Math.min(...plates) * 2 : 2.5;
+  }
+  if (equipment === 'dumbbell' || equipment === 'kettlebells') return 2;
+  if (equipment === 'machine' || equipment === 'cable') return 2.5;
+  return WEIGHT_STEP;
+}
+
+function startHold() {
+  state.holdUntil = Date.now() + state.seconds * 1000;
+}
+
+// A short beep when a rest or a hold ends. A browser only allows sound after the person has touched the page, so the audio context is
+// created on the first tap or key press; until then the screen change and the status announcement are the only cues.
+let audio: AudioContext | null = null;
+function wakeAudio() {
+  try {
+    audio ??= new AudioContext();
+    void audio.resume();
+  } catch {
+    audio = null;
+  }
+}
+window.addEventListener('pointerdown', wakeAudio, { capture: true });
+window.addEventListener('keydown', wakeAudio, { capture: true });
+
+function beep(times = 1) {
+  if (!audio || audio.state !== 'running') return;
+  const start = audio.currentTime;
+  for (let i = 0; i < times; i++) {
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+    const at = start + i * 0.28;
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(0.25, at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
+    osc.connect(gain).connect(audio.destination);
+    osc.start(at);
+    osc.stop(at + 0.22);
+  }
+}
 
 /** Tells a screen reader what just happened, once (the view itself is not a live region). */
 function announce(text: string) {
@@ -195,6 +250,8 @@ function select(i: number) {
     state.weight = prev?.weightKg ?? target.weightKg ?? 0;
     state.seconds = prev?.seconds ?? target.targetSec ?? 30;
     state.holdUntil = 0;
+    state.readyUntil = 0;
+    state.weightStep = weightStepFor(ex);
   } else {
     state.minutes = it.c.minutes ?? it.c.plannedMin;
     state.km = it.c.distanceKm ?? it.c.plannedKm ?? 0;
@@ -240,6 +297,7 @@ function logSet(skip = false) {
   const set = nextSet(ex);
   if (!set) return;
   state.holdUntil = 0;
+  state.readyUntil = 0;
   state.swappedFrom = null;
   state.straightOn = false;
   state.confirmFinish = false;
@@ -411,7 +469,7 @@ async function sendSummary(summary: FinishSummary | null) {
 // ---------- view ----------
 const STEPPERS: Record<Kind, { label: string; text: () => string; change: (dir: 1 | -1) => void; set: (n: number) => void; raw: () => string; decimal: boolean }> = {
   reps: { label: 'Reps', text: () => String(state.reps), change: (d) => void (state.reps = clamp(state.reps + d, 0, 100)), set: (n) => void (state.reps = clamp(Math.round(n), 0, 100)), raw: () => String(state.reps), decimal: false },
-  weight: { label: 'Weight kg', text: () => kg(state.weight), change: (d) => void (state.weight = clamp(r1(state.weight + d * WEIGHT_STEP), 0, 500)), set: (n) => void (state.weight = clamp(r1(n), 0, 500)), raw: () => kg(state.weight), decimal: true },
+  weight: { label: 'Weight kg', text: () => kg(state.weight), change: (d) => void (state.weight = clamp(r1(state.weight + d * state.weightStep), 0, 500)), set: (n) => void (state.weight = clamp(r1(n), 0, 500)), raw: () => kg(state.weight), decimal: true },
   seconds: { label: 'Seconds', text: () => String(state.seconds), change: (d) => void (state.seconds = clamp(state.seconds + d * 5, 0, 3600)), set: (n) => void (state.seconds = clamp(Math.round(n), 0, 3600)), raw: () => String(state.seconds), decimal: false },
   minutes: { label: 'Minutes', text: () => String(state.minutes), change: (d) => void (state.minutes = clamp(state.minutes + d, 1, 240)), set: (n) => void (state.minutes = clamp(Math.round(n), 1, 240)), raw: () => String(state.minutes), decimal: false },
   km: { label: 'Distance km', text: () => (state.km > 0 ? kg(state.km) : '–'), change: (d) => void (state.km = clamp(r1(state.km + d * 0.5), 0, 500)), set: (n) => void (state.km = clamp(r1(n), 0, 500)), raw: () => (state.km > 0 ? kg(state.km) : ''), decimal: true },
@@ -466,8 +524,9 @@ function commitValue(kind: Kind, raw: string) {
 function stepper(kind: Kind) {
   const spec = STEPPERS[kind];
   const out = h('output', { 'data-key': `${kind}-value` }, spec.text());
-  const dec = h('button', { type: 'button', 'aria-label': `Decrease ${spec.label.toLowerCase()}`, 'data-key': `${kind}-dec` }, '−');
-  const inc = h('button', { type: 'button', 'aria-label': `Increase ${spec.label.toLowerCase()}`, 'data-key': `${kind}-inc` }, '+');
+  const by = kind === 'weight' ? ` by ${kg(state.weightStep)} kg` : '';
+  const dec = h('button', { type: 'button', 'aria-label': `Decrease ${spec.label.toLowerCase()}${by}`, 'data-key': `${kind}-dec` }, '−');
+  const inc = h('button', { type: 'button', 'aria-label': `Increase ${spec.label.toLowerCase()}${by}`, 'data-key': `${kind}-inc` }, '+');
   pressable(dec, kind, -1, out);
   pressable(inc, kind, 1, out);
   let value: HTMLElement;
@@ -864,6 +923,7 @@ function render() {
     const target = ex.timed ? `target ${set.targetSec ?? 0} s` : `target ${set.targetReps} reps`;
     const plates = plateText(ex, state.weight);
     const holding = state.holdUntil > Date.now();
+    const ready = state.readyUntil > Date.now();
     const started = ex.sets.some(closed);
     const canSwap = !started;
     body.push(
@@ -880,25 +940,36 @@ function render() {
         ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
         state.swappedFrom && !started && h('p', { className: 'small' }, `Swapped from ${state.swappedFrom.name} · `, h('button', { type: 'button', className: 'link', onclick: () => void swap(ex, state.swappedFrom!) }, 'Undo')),
         h('div', { className: 'steppers' }, ex.timed ? stepper('seconds') : stepper('reps'), ex.bodyweight ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', { className: 'bodyweight' }, 'Bodyweight')) : stepper('weight')),
+        !started && !ex.bodyweight && !ex.timed && state.weightStep !== WEIGHT_STEP && h('p', { className: 'muted small' }, `Weight moves in ${kg(state.weightStep)} kg steps. Tap the number to type another value.`),
         plates && h('p', { className: 'muted small plates' }, plates),
         ex.note && h('p', { className: 'muted small' }, ex.note),
         ex.timed &&
           h(
             'div',
             { className: 'hold' },
+            ready && h('p', { className: 'time', role: 'timer', id: 'ready' }, `Get ready ${Math.max(1, Math.ceil((state.readyUntil - Date.now()) / 1000))}`),
             holding && h('p', { className: 'time', role: 'timer', id: 'hold' }, mmss(state.holdUntil - Date.now())),
-            h(
-              'button',
-              {
-                type: 'button',
-                onclick: () => {
-                  if (holding) state.seconds = clamp(state.seconds - Math.ceil((state.holdUntil - Date.now()) / 1000), 0, 3600); // stopped early: log what was held
-                  state.holdUntil = holding ? 0 : Date.now() + state.seconds * 1000;
-                  render();
-                },
-              },
-              holding ? 'Stop the timer' : `Start a ${state.seconds} s timer`,
-            ),
+            ready
+              ? h(
+                  'div',
+                  { className: 'actions' },
+                  h('button', { type: 'button', onclick: () => ((state.readyUntil = 0), startHold(), render()) }, 'Start now'),
+                  h('button', { type: 'button', onclick: () => ((state.readyUntil = 0), render()) }, 'Cancel'),
+                )
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    onclick: () => {
+                      if (holding) {
+                        state.seconds = clamp(state.seconds - Math.ceil((state.holdUntil - Date.now()) / 1000), 0, 3600); // stopped early: log what was held
+                        state.holdUntil = 0;
+                      } else state.readyUntil = Date.now() + 5000;
+                      render();
+                    },
+                  },
+                  holding ? 'Stop the timer' : `Start a ${state.seconds} s timer (5 s to get ready)`,
+                ),
           ),
         h('button', { type: 'button', className: 'primary', 'data-key': 'log', onclick: () => logSet() }, ex.timed || ex.bodyweight ? `Log set · ${setValues(ex, { reps: state.reps, seconds: state.seconds, weightKg: state.weight })}` : `Log set · ${setValues(ex, { reps: state.reps, weightKg: state.weight })}`),
         h(
@@ -1044,6 +1115,8 @@ app.onhostcontextchanged = (ctx) => {
 /** The running clocks and the rest bar: only text and a width change, so buttons are never replaced under a finger. */
 function updateClocks() {
   if (!state.plan) return;
+  const ready = document.getElementById('ready');
+  if (ready) ready.textContent = `Get ready ${Math.max(1, Math.ceil((state.readyUntil - Date.now()) / 1000))}`;
   const hold = document.getElementById('hold');
   if (hold) hold.textContent = mmss(state.holdUntil - Date.now());
   const elapsed = document.getElementById('elapsed');
@@ -1063,6 +1136,7 @@ setInterval(() => {
     state.restOver = nextOpen(0) !== -1;
     lock();
     announce('Rest over.');
+    beep(2);
     try {
       navigator.vibrate?.(200);
     } catch {
@@ -1071,9 +1145,18 @@ setInterval(() => {
     render();
     return;
   }
+  if (state.readyUntil && state.readyUntil <= Date.now()) {
+    state.readyUntil = 0;
+    startHold();
+    announce('Go.');
+    beep(1);
+    render();
+    return;
+  }
   if (state.holdUntil && state.holdUntil <= Date.now()) {
     state.holdUntil = 0;
     announce('Time.');
+    beep(3);
     try {
       navigator.vibrate?.([200, 100, 200]);
     } catch {

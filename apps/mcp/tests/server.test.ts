@@ -194,4 +194,20 @@ describe('fitwell MCP server', () => {
     await call(client, 'log_set', { workoutId, setId: 's1.1', reps: 5, weightKg: 80 });
     expect((await sets())[0]).toMatchObject({ done: true, reps: 5 });
   });
+
+  it('edit_workout_set fixes one set of a stored workout from the chat, and refuses what does not fit', async () => {
+    const client = await connect();
+    const { data } = await call(client, 'start_workout', { exercises: [{ id: 'ex:Barbell_Squat', sets: 2, reps: 5, weight_kg: 80, warmup: false }, { id: 'ex:Pullups', sets: 1, reps: 8, warmup: false }] });
+    const workoutId = (data.workout as { workoutId: string }).workoutId;
+    await call(client, 'log_set', { workoutId, setId: 's1.1', reps: 5, weightKg: 80 });
+    await call(client, 'log_set', { workoutId, setId: 's1.2', reps: 5, weightKg: 80 });
+    const fixed = await call(client, 'edit_workout_set', { workout_id: workoutId, exercise: 'squat', set: 2, reps: 6, weight_kg: 82.5 });
+    expect(JSON.stringify(fixed.data.fixed)).toContain('82.5');
+    const history = (await call(client, 'get_workout_history', { days: 7 })).data.workouts as { id: string; exercises: { name: string; done: string }[] }[];
+    expect(history.find((x) => x.id === workoutId)!.exercises[0]!.done).toContain('6 @ 82.5');
+    expect((await call(client, 'edit_workout_set', { workout_id: workoutId, exercise: 'Barbell Squat', set: 3, reps: 5 })).isError).toBe(true); // no third set
+    expect((await call(client, 'edit_workout_set', { workout_id: workoutId, exercise: 'pullups', set: 1, weight_kg: 10 })).isError).toBe(true); // bodyweight
+    expect((await call(client, 'edit_workout_set', { workout_id: workoutId, exercise: 'bench', set: 1, reps: 5 })).isError).toBe(true); // not in the workout
+    expect((await call(client, 'edit_workout_set', { workout_id: workoutId, exercise: 'squat', set: 1 })).isError).toBe(true); // nothing to change
+  });
 });

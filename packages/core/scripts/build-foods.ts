@@ -33,6 +33,8 @@ const C = {
   carbs: [col('Available carbohydrate, labelling'), col('Available carbohydrates')],
   fat: [col('Fat')],
 } as const;
+// Optional extras in this order: fibre, sugars, added sugar, saturated fat, trans fat, salt (g per 100 g). null = the dataset has no value.
+const X = [col('Dietary fibre'), col('Sum sugars'), col('Added Sugar'), col('Sum saturated fatty acids'), col('Sum trans fatty acids'), col('Salt labelling')];
 
 const num = (v: Cell | undefined): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const pick = (row: Cell[], cols: readonly number[]): number | null => {
@@ -56,7 +58,7 @@ for (const r of foodSheet.slice(1)) {
 }
 
 const groups: string[] = [];
-const foods: [number, string, number, number, number, number, number][] = [];
+const foods: [number, string, number, number, number, number, number, (number | null)[]][] = [];
 const dropped: string[] = [];
 for (const row of table.slice(4)) {
   const id = num(row[2]);
@@ -73,7 +75,11 @@ for (const row of table.slice(4)) {
   }
   let g = groups.indexOf(m.group);
   if (g < 0) g = groups.push(m.group) - 1;
-  foods.push([id, m.name, Math.round(kcal), r1(p), r1(c), r1(f), g]);
+  const extras = X.map((c) => {
+    const v = num(row[c]);
+    return v === null || v < 0 ? null : r1(v);
+  });
+  foods.push([id, m.name, Math.round(kcal), r1(p), r1(c), r1(f), g, extras]);
 }
 foods.sort((a, b) => a[0] - b[0]);
 
@@ -90,7 +96,7 @@ const out = {
     note: 'Per 100 g. Energy, protein and carbohydrate use the label-style (declaration) values where available.',
   },
   groups,
-  // [id, name, kcal, protein g, carbs g, fat g, groupIndex] per 100 g
+  // [id, name, kcal, protein g, carbs g, fat g, groupIndex, [fibre, sugars, added sugar, saturated fat, trans fat, salt]] per 100 g
   foods,
 };
 writeFileSync(OUTPUT, JSON.stringify(out) + '\n');

@@ -2,7 +2,7 @@
 // which comes from the verified OAuth token, never from a tool argument.
 import type { ActivityLevel, Sex } from '@fitwell/core/domain/energy';
 import { STANDARD_GYM, type Gym } from '@fitwell/core/domain/plates';
-import type { Nutrients, Portion } from '@fitwell/core/domain/nutrition';
+import { EXTRA_KEYS, scaleExtras, type Extras, type Nutrients, type Portion } from '@fitwell/core/domain/nutrition';
 import type { Slot } from '@fitwell/core/schema';
 
 export interface Diet {
@@ -32,6 +32,11 @@ export interface Goals {
   fatG: number | null;
   workoutsPerWeek: number | null;
   goalWeightKg: number | null;
+  /** A daily minimum. */
+  fiberG: number | null;
+  /** Daily maximums. */
+  satFatG: number | null;
+  addedSugarG: number | null;
 }
 
 export interface FoodEntry extends Nutrients {
@@ -42,6 +47,8 @@ export interface FoodEntry extends Nutrients {
   foodName: string;
   brand: string | null;
   grams: number;
+  /** Fibre, sugars, saturated fat, salt for this amount, when the food source has them. */
+  extras?: Extras;
   estimated: boolean;
   createdAt: number;
   updatedAt: number;
@@ -53,12 +60,17 @@ export interface CustomFood {
   name: string;
   brand: string | null;
   per100g: Nutrients;
+  extras?: Extras;
   portions: Portion[];
 }
 
 export interface DayTotal extends Nutrients {
   day: string;
   entries: number;
+  /** Fibre, sugars... summed over the entries that know them. */
+  extras?: Extras;
+  /** Extras some entry of the day lacks, so the day's number is a minimum. */
+  extrasIncomplete?: (keyof Extras)[];
 }
 
 const DEFAULT_PROFILE: Profile = {
@@ -84,6 +96,10 @@ const json = <T>(v: unknown, fallback: T): T => {
     return fallback;
   }
 };
+const extrasOf = (v: unknown): { extras?: Extras } => {
+  const e = json<Extras | null>(v, null);
+  return e && Object.keys(e).length ? { extras: e } : {};
+};
 const toEntry = (r: Row): FoodEntry => ({
   id: r.id as string,
   day: r.day as string,
@@ -96,6 +112,7 @@ const toEntry = (r: Row): FoodEntry => ({
   protein: r.protein as number,
   carbs: r.carbs as number,
   fat: r.fat as number,
+  ...extrasOf(r.extras),
   estimated: r.estimated === 1,
   createdAt: r.created_at as number,
   updatedAt: r.updated_at as number,
@@ -105,6 +122,7 @@ const toCustom = (r: Row): CustomFood => ({
   name: r.name as string,
   brand: (r.brand as string | null) ?? null,
   per100g: { kcal: r.kcal as number, protein: r.protein as number, carbs: r.carbs as number, fat: r.fat as number },
+  ...extrasOf(r.extras),
   portions: json<Portion[]>(r.portions, []),
 });
 
@@ -159,20 +177,24 @@ export class UserData {
       fatG: (r.fat_g as number | null) ?? null,
       workoutsPerWeek: (r.workouts_per_week as number | null) ?? null,
       goalWeightKg: (r.goal_weight_kg as number | null) ?? null,
+      fiberG: (r.fiber_g as number | null) ?? null,
+      satFatG: (r.sat_fat_g as number | null) ?? null,
+      addedSugarG: (r.added_sugar_g as number | null) ?? null,
     };
   }
 
   async setGoals(patch: Partial<Goals>): Promise<Goals> {
-    const empty: Goals = { kcal: null, proteinG: null, carbsG: null, fatG: null, workoutsPerWeek: null, goalWeightKg: null };
+    const empty: Goals = { kcal: null, proteinG: null, carbsG: null, fatG: null, workoutsPerWeek: null, goalWeightKg: null, fiberG: null, satFatG: null, addedSugarG: null };
     const g = { ...empty, ...(await this.goals()), ...patch };
     await this.db
       .prepare(
-        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, fiber_g, sat_fat_g, added_sugar_g, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (user_id) DO UPDATE SET kcal = excluded.kcal, protein_g = excluded.protein_g, carbs_g = excluded.carbs_g,
-           fat_g = excluded.fat_g, workouts_per_week = excluded.workouts_per_week, goal_weight_kg = excluded.goal_weight_kg, updated_at = excluded.updated_at`,
+           fat_g = excluded.fat_g, workouts_per_week = excluded.workouts_per_week, goal_weight_kg = excluded.goal_weight_kg,
+           fiber_g = excluded.fiber_g, sat_fat_g = excluded.sat_fat_g, added_sugar_g = excluded.added_sugar_g, updated_at = excluded.updated_at`,
       )
-      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, this.now())
+      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, g.fiberG, g.satFatG, g.addedSugarG, this.now())
       .run();
     return g;
   }
@@ -185,10 +207,10 @@ export class UserData {
       rows.map((e) =>
         this.db
           .prepare(
-            `INSERT INTO food_entries (id, user_id, day, slot, food_ref, food_name, brand, grams, kcal, protein, carbs, fat, estimated, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO food_entries (id, user_id, day, slot, food_ref, food_name, brand, grams, kcal, protein, carbs, fat, estimated, extras, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .bind(e.id, this.userId, e.day, e.slot, e.foodRef, e.foodName, e.brand, e.grams, e.kcal, e.protein, e.carbs, e.fat, e.estimated ? 1 : 0, now, now),
+          .bind(e.id, this.userId, e.day, e.slot, e.foodRef, e.foodName, e.brand, e.grams, e.kcal, e.protein, e.carbs, e.fat, e.estimated ? 1 : 0, e.extras ? JSON.stringify(e.extras) : null, now, now),
       ),
     );
     return rows;
@@ -212,6 +234,7 @@ export class UserData {
     const e = await this.foodEntry(id);
     if (!e) return null;
     const k = patch.grams !== undefined ? patch.grams / e.grams : 1;
+    const extras = e.extras ? scaleExtras(e.extras, k * 100) : undefined;
     const next: FoodEntry = {
       ...e,
       day: patch.day ?? e.day,
@@ -221,11 +244,12 @@ export class UserData {
       protein: e.protein * k,
       carbs: e.carbs * k,
       fat: e.fat * k,
+      ...(extras ? { extras } : {}),
       updatedAt: this.now(),
     };
     await this.db
-      .prepare('UPDATE food_entries SET day = ?, slot = ?, grams = ?, kcal = ?, protein = ?, carbs = ?, fat = ?, updated_at = ? WHERE user_id = ? AND id = ?')
-      .bind(next.day, next.slot, next.grams, next.kcal, next.protein, next.carbs, next.fat, next.updatedAt, this.userId, id)
+      .prepare('UPDATE food_entries SET day = ?, slot = ?, grams = ?, kcal = ?, protein = ?, carbs = ?, fat = ?, extras = ?, updated_at = ? WHERE user_id = ? AND id = ?')
+      .bind(next.day, next.slot, next.grams, next.kcal, next.protein, next.carbs, next.fat, next.extras ? JSON.stringify(next.extras) : null, next.updatedAt, this.userId, id)
       .run();
     return next;
   }
@@ -237,14 +261,24 @@ export class UserData {
 
   /** Totals per day for an inclusive range (days with no entries are left out). */
   async dayTotals(from: string, to: string): Promise<DayTotal[]> {
+    const more = EXTRA_KEYS.map((k) => `SUM(json_extract(extras, '$.${k}')) AS x_${k}, COUNT(json_extract(extras, '$.${k}')) AS n_${k}`).join(', ');
     const { results } = await this.db
       .prepare(
-        `SELECT day, COUNT(*) AS entries, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat
+        `SELECT day, COUNT(*) AS entries, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat, ${more}
          FROM food_entries WHERE user_id = ? AND day BETWEEN ? AND ? GROUP BY day ORDER BY day`,
       )
       .bind(this.userId, from, to)
-      .all<DayTotal>();
-    return results;
+      .all<Row>();
+    return results.map((r) => {
+      const extras: Extras = {};
+      const incomplete: (keyof Extras)[] = [];
+      for (const k of EXTRA_KEYS) {
+        const n = r[`n_${k}`] as number;
+        if (n > 0) extras[k] = r[`x_${k}`] as number;
+        if (n > 0 && n < (r.entries as number)) incomplete.push(k);
+      }
+      return { day: r.day as string, entries: r.entries as number, kcal: r.kcal as number, protein: r.protein as number, carbs: r.carbs as number, fat: r.fat as number, ...(Object.keys(extras).length ? { extras } : {}), ...(incomplete.length ? { extrasIncomplete: incomplete } : {}) };
+    });
   }
 
   /** The foods eaten most often in a period, with typical amounts: realistic starting points for planning meals. */
@@ -265,8 +299,8 @@ export class UserData {
     const id = crypto.randomUUID();
     const now = this.now();
     await this.db
-      .prepare('INSERT INTO custom_foods (id, user_id, name, brand, kcal, protein, carbs, fat, portions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, this.userId, food.name, food.brand, food.per100g.kcal, food.per100g.protein, food.per100g.carbs, food.per100g.fat, JSON.stringify(food.portions), now, now)
+      .prepare('INSERT INTO custom_foods (id, user_id, name, brand, kcal, protein, carbs, fat, portions, extras, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, this.userId, food.name, food.brand, food.per100g.kcal, food.per100g.protein, food.per100g.carbs, food.per100g.fat, JSON.stringify(food.portions), food.extras ? JSON.stringify(food.extras) : null, now, now)
       .run();
     return { ...food, id };
   }

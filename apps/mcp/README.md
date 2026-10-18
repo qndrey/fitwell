@@ -17,7 +17,7 @@ A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals,
 | Import | `import_fitwell_backup` (one-time upload link for a backup file from the retired Fitwell web app; `check_result` reports the outcome) |
 | Account | `export_my_data`, `delete_my_account` (erases everything, signs out everywhere) |
 
-**Landing page:** `https://fitwell.fyi` explains Fitwell for Claude with screenshots and how to join (see [apps/landing](../landing/README.md)). `/` here, and the old `/about/` page, redirect there.
+**Landing page:** `https://fitwell.fyi` explains Fitwell for Claude with screenshots and how to join (see [apps/landing](../landing/README.md)). `/` here, and the old `/about/` page, redirect there. The screenshots it shows come from the views: regenerate them with `npx tsx scripts/screenshots.ts` (needs `npm run dev`, `npm run dev:host` and the demo person's local data; it writes `<name>-light.png` and `<name>-dark.png` into `apps/landing/site/src/assets`). `scripts/backfill-extras.ts` fills fibre, sugars and fats into entries logged before they were stored.
 
 **Morning brief (optional):** Claude can look at Fitwell every morning on its own with a scheduled task (Claude desktop or Cowork, paid plans; connectors are attached to the task). Create a daily task with a prompt like:
 

@@ -11,7 +11,7 @@ body{margin:0;font:14px system-ui;background:#e9e6e1;color:#222;display:grid;gap
 [data-theme=dark] body{background:#111;color:#ddd}
 iframe{width:100%;max-width:430px;height:600px;border:1px solid #bbb;border-radius:16px;background:transparent}
 ol{max-width:430px;width:100%;font:12px ui-monospace,monospace;padding-left:16px;word-break:break-word}
-</style></head><body><p>Dev host · <a href="?theme=light">light</a> · <a href="?theme=dark">dark</a> · <a href="?view=dashboard">dashboard</a> · <a href="?">workout</a></p>
+</style></head><body><p>Dev host · <a href="?theme=light">light</a> · <a href="?theme=dark">dark</a> · <a href="?view=dashboard">dashboard</a> · <a href="?view=food">food</a> · <a href="?">workout</a></p>
 <iframe id="view" title="Workout player" sandbox="allow-scripts"></iframe><ol id="log"></ol>
 <script type="module">${js.replace(/<\/script/gi, '<\\/script')}</script></body></html>`;
 

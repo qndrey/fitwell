@@ -1,17 +1,23 @@
 import { roundForDisplay } from '@fitwell/core/domain/nutrition';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { perServing, type PlanData, type Recipe, type RecipeItem } from '../data/planData';
+import { perServing, recipeExtras, type PlanData, type Recipe, type RecipeItem } from '../data/planData';
 import { checkRecipeUrl, fetchPage, parseRecipePage } from '../recipes/parse';
 import { FoodMemo, ingredientSchema, resolveIngredient } from '../planning/resolve';
 import type { FoodDeps } from './foods';
 import { json, toolError } from './result';
 
+/** Per serving: macros, plus fibre, sugars... (a minimum when some ingredient has no value) where known. */
+const servingView = (r: Recipe) => {
+  const x = recipeExtras(r.items, 1 / r.servings);
+  return { ...roundForDisplay(perServing(r)), ...(x ? { extras: Object.fromEntries(Object.entries(x).map(([k, v]) => [k, Math.round(v * 10) / 10])) } : {}) };
+};
+
 const view = (r: Recipe) => ({
   id: r.id,
   name: r.name,
   servings: r.servings,
-  perServing: roundForDisplay(perServing(r)),
+  perServing: servingView(r),
   totalGrams: Math.round(r.items.reduce((n, i) => n + i.grams, 0)),
   ingredients: r.items.map((i) => ({ name: i.name, grams: Math.round(i.grams), ...(i.foodId ? { foodId: i.foodId } : { estimated: true }) })),
   ...(r.notes ? { notes: r.notes } : {}),
@@ -89,7 +95,7 @@ export function registerRecipeTools(server: McpServer, deps: RecipeDeps) {
       annotations: { readOnlyHint: true },
     },
     async ({ id, name }) => {
-      if (!id && !name) return json({ recipes: (await plans.recipes()).map((r) => ({ id: r.id, name: r.name, servings: r.servings, perServing: roundForDisplay(perServing(r)), ingredients: r.items.length })) });
+      if (!id && !name) return json({ recipes: (await plans.recipes()).map((r) => ({ id: r.id, name: r.name, servings: r.servings, perServing: servingView(r), ingredients: r.items.length })) });
       const r = id ? await plans.recipe(id) : await plans.recipeByName(name!);
       return r ? json({ recipe: view(r) }) : toolError('No such recipe. Call get_recipes without arguments to list them.');
     },

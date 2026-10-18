@@ -1,4 +1,5 @@
 import type { FoodItem } from '../domain/foods';
+import { EXTRA_KEYS, type Extras } from '../domain/nutrition';
 
 export interface DatasetInfo {
   id: string;
@@ -12,8 +13,17 @@ export interface DatasetInfo {
 interface Raw {
   dataset: DatasetInfo;
   groups: string[];
-  foods: [number, string, number, number, number, number, number][];
+  foods: [number, string, number, number, number, number, number, (number | null)[]?][];
 }
+
+const extrasOf = (x: (number | null)[]): Extras => {
+  const out: Extras = {};
+  EXTRA_KEYS.forEach((k, i) => {
+    const v = x[i];
+    if (v !== null && v !== undefined) out[k] = v;
+  });
+  return out;
+};
 
 let cache: Promise<{ info: DatasetInfo; foods: FoodItem[] }> | null = null;
 
@@ -21,11 +31,12 @@ let cache: Promise<{ info: DatasetInfo; foods: FoodItem[] }> | null = null;
 export function loadBundledFoods() {
   cache ??= import('./generated/foods.frida.json').then((m) => {
     const raw = m.default as unknown as Raw;
-    const foods: FoodItem[] = raw.foods.map(([id, name, kcal, protein, carbs, fat, g]) => ({
+    const foods: FoodItem[] = raw.foods.map(([id, name, kcal, protein, carbs, fat, g, x]) => ({
       ref: { kind: 'bundled', id: `${raw.dataset.id}:${id}` },
       name,
       group: raw.groups[g],
       per100g: { kcal, protein, carbs, fat },
+      ...(x ? { extras: extrasOf(x) } : {}),
       portions: [],
     }));
     return { info: raw.dataset, foods };

@@ -1,6 +1,7 @@
 // The shape of the progress numbers. Pure types, shared with the dashboard view (which can't see server code).
 import type { Day } from '@fitwell/core/domain/dates';
 import type { Confidence, WeightGoal } from '@fitwell/core/domain/energy';
+import type { Extras } from '@fitwell/core/domain/nutrition';
 
 export interface WeightProgress {
   daily: { day: Day; kg: number }[];
@@ -16,10 +17,12 @@ export interface WeightProgress {
 }
 
 export interface NutritionProgress {
-  daily: { day: Day; kcal: number; protein: number; carbs: number; fat: number }[];
+  /** `extras` (fibre, sugars, saturated fat, salt in g) only where a logged food had them. */
+  daily: { day: Day; kcal: number; protein: number; carbs: number; fat: number; extras?: Extras }[];
   daysLogged: number;
-  averagePerLoggedDay: { kcal: number; protein: number; carbs: number; fat: number } | null;
-  goals: { kcal: number | null; proteinG: number | null; carbsG: number | null; fatG: number | null };
+  /** Extras are averaged over the days that have them. */
+  averagePerLoggedDay: { kcal: number; protein: number; carbs: number; fat: number; extras?: Extras } | null;
+  goals: { kcal: number | null; proteinG: number | null; carbsG: number | null; fatG: number | null; fiberG: number | null; satFatG: number | null; addedSugarG: number | null };
   /** Calories within 10 % of the goal, protein at 90 % of the goal or more; only when that goal is set. */
   adherence: { kcalWithin10Pct: number | null; proteinReached: number | null; ofDays: number };
 }

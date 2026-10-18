@@ -3,8 +3,8 @@ import { h } from './dom';
 
 /** One colour per level, readable on the skin tone in either theme; never the only signal (the list has the numbers). */
 const HEAT: Record<'light' | 'dark', Record<MuscleLevel, number>> = {
-  light: { none: 0xa9a39b, below: 0x3f7fd0, in_range: 0x2e9a5a, high: 0xe0661f },
-  dark: { none: 0x77726b, below: 0x6aa8f0, in_range: 0x4cc47e, high: 0xff8a45 },
+  light: { none: 0xa9a39b, below: 0x3f7fd0, in_range: 0x2e9a5a, high: 0xd8402a },
+  dark: { none: 0x77726b, below: 0x6aa8f0, in_range: 0x4cc47e, high: 0xff6a52 },
 };
 const LABEL: Record<MuscleLevel, string> = { none: 'Not trained', below: 'Under the range', in_range: 'In range', high: 'Over the range' };
 const ORDER: MuscleLevel[] = ['below', 'none', 'in_range', 'high'];

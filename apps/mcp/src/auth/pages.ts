@@ -3,8 +3,8 @@ import type { ConsentDescription } from '@cloudflare/workers-oauth-provider';
 export const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 const STYLE = `
-:root{color-scheme:light dark;--bg:#faf8f5;--surface:#f1ede7;--text:#1f1d1a;--muted:#6b655d;--border:#ddd6cc;--accent:#2f5d50;--on-accent:#fff;--danger:#b3261e}
-@media (prefers-color-scheme:dark){:root{--bg:#1b1a18;--surface:#262421;--text:#f2efe9;--muted:#b2aba1;--border:#3a3733;--accent:#8fc7b4;--on-accent:#10201b;--danger:#f2b8b5}}
+:root{color-scheme:light dark;--bg:#faf8f5;--surface:#f1ede7;--text:#1f1d1a;--muted:#6b655d;--border:#ddd6cc;--accent:#4a4743;--on-accent:#fff;--btn:#5a5650;--on-btn:#faf8f5;--danger:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1a18;--surface:#262421;--text:#f2efe9;--muted:#b2aba1;--border:#3a3733;--accent:#d6d0c6;--on-accent:#1b1a18;--btn:#cfc9bf;--on-btn:#1b1a18;--danger:#f2b8b5}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif}
 main{max-width:440px;margin:0 auto;padding:32px 16px calc(32px + env(safe-area-inset-bottom));display:grid;gap:16px}
 h1{font-size:1.5rem;margin:0}p{margin:0}.muted{color:var(--muted)}.small{font-size:.875rem}.error{color:var(--danger)}
@@ -14,8 +14,9 @@ input.code{font-size:1.6rem;letter-spacing:.4em;text-align:center;font-variant-n
 .check{display:flex;gap:10px;align-items:flex-start}.check input{width:22px;height:22px;margin-top:2px;flex:none}
 button{font:inherit;min-height:48px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;padding:0 16px}
 button:disabled{opacity:.5;cursor:not-allowed}
-button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+button.primary{background:var(--btn);border-color:var(--btn);color:var(--on-btn);font-weight:600}
 .actions{display:grid;gap:8px}a{color:inherit}
+input[type=checkbox]{accent-color:var(--btn)}input:focus-visible,button:focus-visible{outline:3px solid var(--btn);outline-offset:2px}
 `;
 
 /** A page with a nonce-based CSP: no external resources, no framing, inline style/script only with the nonce. */

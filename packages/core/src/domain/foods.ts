@@ -1,4 +1,4 @@
-import type { Nutrients, Portion } from './nutrition';
+import type { Extras, Nutrients, Portion } from './nutrition';
 
 /** `bundled` ids look like "frida:123"; `custom` ids are record ids; `off` ids are barcodes (Gate 3). */
 export interface FoodRef {
@@ -14,6 +14,7 @@ export interface FoodItem {
   /** Secondary line, e.g. food group. */
   group?: string;
   per100g: Nutrients;
+  extras?: Extras;
   portions: Portion[];
 }
 

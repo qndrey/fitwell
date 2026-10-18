@@ -103,7 +103,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
     'set_goals',
     {
       title: 'Set goals',
-      description: 'Save daily calorie and macro targets, workouts per week and goal weight; only the ones given change. Use null to clear one.',
+      description: 'Save daily calorie and macro targets, a fibre target, limits for saturated fat and added sugar, workouts per week and goal weight; only the ones given change. Use null to clear one.',
       inputSchema: z.object({
         kcal: z.number().min(800).max(6000).nullable().optional(),
         protein_g: z.number().min(0).max(500).nullable().optional(),
@@ -111,6 +111,9 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         fat_g: z.number().min(0).max(400).nullable().optional(),
         workouts_per_week: z.number().int().min(0).max(14).nullable().optional(),
         goal_weight_kg: z.number().min(30).max(300).nullable().optional(),
+        fiber_g: z.number().min(0).max(150).nullable().optional().describe('Daily fibre target (a minimum)'),
+        sat_fat_g: z.number().min(0).max(100).nullable().optional().describe('Daily limit for saturated fat'),
+        added_sugar_g: z.number().min(0).max(200).nullable().optional().describe('Daily limit for added sugar'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
@@ -122,6 +125,9 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         ...(a.fat_g !== undefined && { fatG: a.fat_g }),
         ...(a.workouts_per_week !== undefined && { workoutsPerWeek: a.workouts_per_week }),
         ...(a.goal_weight_kg !== undefined && { goalWeightKg: a.goal_weight_kg }),
+        ...(a.fiber_g !== undefined && { fiberG: a.fiber_g }),
+        ...(a.sat_fat_g !== undefined && { satFatG: a.sat_fat_g }),
+        ...(a.added_sugar_g !== undefined && { addedSugarG: a.added_sugar_g }),
       };
       const goals = await data.setGoals(patch);
       // Deterministic sanity check: do the macros add up to the calorie target?

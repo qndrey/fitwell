@@ -42,6 +42,7 @@ await client.connect(new StreamableHTTPClientTransport(new URL('/mcp', location.
 // ?view=dashboard, review, shopping, exercise or muscles shows that view instead of the workout player.
 const VIEWS: Record<string, { tool: string; args: Record<string, unknown>; uri: string }> = {
   dashboard: { tool: 'show_dashboard', args: { days: 90 }, uri: 'ui://fitwell/dashboard.html' },
+  food: { tool: 'log_food', args: { items: [{ food_id: 'frida:59', grams: 80 }, { food_id: 'frida:413', grams: 120 }] }, uri: 'ui://fitwell/food.html' },
   review: { tool: 'show_weekly_review', args: {}, uri: 'ui://fitwell/review.html' },
   shopping: { tool: 'show_grocery_list', args: { people: 2 }, uri: 'ui://fitwell/shopping.html' },
   muscles: { tool: 'show_muscle_map', args: { weeks: Number(new URLSearchParams(location.search).get('weeks') ?? 4) }, uri: 'ui://fitwell/exercise.html' },
@@ -49,7 +50,9 @@ const VIEWS: Record<string, { tool: string; args: Record<string, unknown>; uri: 
   workout: { tool: 'start_workout', args: new URLSearchParams(location.search).get('sample') === 'a2' ? SAMPLE_A2 : SAMPLE, uri: 'ui://fitwell/workout.html' },
 };
 const which = VIEWS[new URLSearchParams(location.search).get('view') ?? 'workout'] ?? VIEWS.workout!;
-const result = await client.callTool({ name: which.tool, arguments: which.args });
+// ?args={"week_start":"2026-10-05"} replaces the tool arguments (used by scripts/screenshots.ts).
+const argsParam = new URLSearchParams(location.search).get('args');
+const result = await client.callTool({ name: which.tool, arguments: argsParam ? (JSON.parse(argsParam) as Record<string, unknown>) : which.args });
 log(which.tool, (result.content as { text?: string }[])[0]?.text?.slice(0, 160) ?? result);
 const resource = await client.readResource({ uri: which.uri });
 const html = (resource.contents[0] as { text: string }).text;

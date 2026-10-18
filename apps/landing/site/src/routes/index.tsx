@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Heart,
   Monitor,
   Moon,
   ShieldCheck,
@@ -41,6 +42,17 @@ const DESC =
 const OG_IMAGE = "https://fitwell.fyi/og.png";
 const OG_ALT = "Fitwell for Claude: track food, training and weight by talking to Claude";
 const PRIVACY_URL = "https://mcp.fitwell.fyi/privacy";
+
+/**
+ * Where people can chip in towards the running costs. Add each account's link as its `url`: a provider with no URL is not shown,
+ * and with none set the whole "Support Fitwell" section stays hidden, so there is never a dead link on the page.
+ */
+const SUPPORT: { name: string; kind: string; url: string }[] = [
+  { name: "Liberapay", kind: "Monthly", url: "" },
+  { name: "Ko-fi", kind: "One-off", url: "" },
+  { name: "GitHub Sponsors", kind: "Monthly or one-off", url: "" },
+];
+const supportLinks = SUPPORT.filter((s) => s.url !== "");
 const EMAIL = "fitwell.fyi@pm.me";
 const MCP_URL = "https://mcp.fitwell.fyi/mcp";
 
@@ -627,6 +639,38 @@ function Index() {
             .
           </p>
         </Section>
+
+        {/* Support */}
+        {supportLinks.length > 0 && (
+          <Section id="support" className="max-w-3xl">
+            <Heart className="size-10 text-amber" aria-hidden />
+            <h2 className="mt-6 text-3xl sm:text-4xl">Support Fitwell</h2>
+            <p className="mt-6 max-w-2xl leading-relaxed text-muted-foreground">
+              Fitwell is free while it is invite-only. If it is useful to you and you would like to help keep it running, you
+              can chip in towards the running costs: hosting and the database, sign-in emails and the domain. It is entirely
+              optional and changes nothing about what you can use.
+            </p>
+            <ul className="mt-8 grid gap-4 sm:grid-cols-3">
+              {supportLinks.map((l) => (
+                <li key={l.name}>
+                  <a
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-full flex-col rounded-xl border bg-background p-5 hover:bg-card"
+                  >
+                    <span className="font-bold">{l.name}</span>
+                    <span className="mt-1 text-sm text-muted-foreground">{l.kind}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+              Each link opens the provider's own page. Payments are handled by them: Fitwell never sees your payment details,
+              and supporting does not change what Fitwell stores about you.
+            </p>
+          </Section>
+        )}
 
         {/* Join */}
         <section id="join" className="scroll-mt-4 border-y bg-card/50">

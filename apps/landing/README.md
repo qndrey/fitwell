@@ -21,4 +21,6 @@ The page is edited in this repository: `site/` is the source (TanStack Start, Re
 
 ## Changing the page
 
+**Support section.** `SUPPORT` at the top of `site/src/routes/index.tsx` lists Liberapay, Ko-fi and GitHub Sponsors with an empty `url` each. A provider is shown once its `url` is set; while all are empty the "Support Fitwell" section is not rendered, so there is never a dead link. Set the URLs, then `deploy`.
+
 Edit `site/src/routes/index.tsx` (copy and layout), `site/src/styles.css` (colours and tokens) and the screenshots (see above). Run `dev:cf` to check it on the real Cloudflare runtime, then `deploy` to publish.

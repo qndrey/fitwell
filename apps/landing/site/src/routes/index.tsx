@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Roadmap } from "@/components/roadmap";
 
 // Every screenshot exists in a light and a dark version (<name>-light.png, <name>-dark.png), taken from the
 // real views by apps/mcp/scripts/screenshots.ts. The page theme picks one.
@@ -609,6 +610,15 @@ function Index() {
             </ul>
           </div>
         </section>
+
+        {/* Roadmap */}
+        <Section id="roadmap">
+          <h2 className="max-w-2xl text-3xl sm:text-4xl">Where Fitwell is going</h2>
+          <p className="mt-4 max-w-2xl leading-relaxed text-muted-foreground">
+            Pick a stage to see what is planned. Anything about friends is opt-in: nothing is shared with anyone unless you turn it on.
+          </p>
+          <Roadmap />
+        </Section>
 
         {/* Data */}
         <Section>

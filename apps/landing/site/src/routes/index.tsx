@@ -152,10 +152,11 @@ function CopyBox({ value, label }: { value: string; label: string }) {
   );
 }
 
-function Section({ id, children, className = "" }: { id?: string; children: ReactNode; className?: string }) {
+/** Every section starts at the same left edge; `narrow` keeps a reading column of text at that edge instead of centring it. */
+function Section({ id, children, className = "", narrow = false }: { id?: string; children: ReactNode; className?: string; narrow?: boolean }) {
   return (
     <section id={id} className={cn("mx-auto max-w-6xl scroll-mt-8 px-5 py-20 sm:px-8 md:py-28", className)}>
-      {children}
+      {narrow ? <div className="max-w-3xl">{children}</div> : children}
     </section>
   );
 }
@@ -294,7 +295,7 @@ function FeatureCarousel() {
 
   return (
     <div role="group" aria-roledescription="carousel" aria-label="What Fitwell does">
-      <div className="mt-8 flex items-center gap-3">
+      <div className="mt-10 flex items-center gap-3">
         <div role="tablist" aria-label="Features" className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {features.map((f, i) => (
             <button
@@ -566,9 +567,9 @@ function Index() {
 
         {/* Chats */}
         <section className="border-y bg-card/50">
-          <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 md:py-24">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
             <h2 className="text-3xl sm:text-4xl">You talk, it keeps the records.</h2>
-            <div className="mt-12 space-y-10">
+            <div className="mt-10 max-w-3xl space-y-10">
               {chats.map((c) => (
                 <div key={c.you} className="space-y-3">
                   <div className="flex justify-end">
@@ -586,7 +587,7 @@ function Index() {
                 </div>
               ))}
             </div>
-            <p className="mt-10 text-sm text-muted-foreground">
+            <p className="mt-10 max-w-3xl text-sm text-muted-foreground">
               The numbers come from a made-up demo person; Claude's wording will differ.
             </p>
           </div>
@@ -600,7 +601,7 @@ function Index() {
 
         {/* Little things */}
         <section className="border-y bg-card/50">
-          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
             <h2 className="text-3xl sm:text-4xl">And a few more</h2>
             <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {little.map(({ icon: Icon, title, text }) => (
@@ -628,9 +629,11 @@ function Index() {
         {/* Data */}
         <section className="border-y bg-card/50">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
-          <ShieldCheck className="size-10 text-primary" aria-hidden />
-          <h2 className="mt-6 text-3xl sm:text-4xl">Your data stays yours</h2>
-          <div className="mt-8 grid gap-8 sm:grid-cols-3">
+          <div className="flex items-center gap-4">
+            <ShieldCheck className="size-10 shrink-0 text-primary" aria-hidden />
+            <h2 className="text-3xl sm:text-4xl">Your data stays yours</h2>
+          </div>
+          <div className="mt-10 grid gap-8 sm:grid-cols-3">
             <div>
               <h3 className="font-bold">No password</h3>
               <p className="mt-2 text-muted-foreground">Sign in with a 6-digit code sent to your email.</p>
@@ -661,14 +664,16 @@ function Index() {
         {supportLinks.length > 0 && (
           <section id="support" className="scroll-mt-4">
             <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
-            <Heart className="size-10 text-amber" aria-hidden />
-            <h2 className="mt-6 text-3xl sm:text-4xl">Support Fitwell</h2>
+            <div className="flex items-center gap-4">
+              <Heart className="size-10 shrink-0 text-amber" aria-hidden />
+              <h2 className="text-3xl sm:text-4xl">Support Fitwell</h2>
+            </div>
             <p className="mt-6 max-w-2xl leading-relaxed text-muted-foreground">
               Fitwell is free while it is invite-only. If it is useful to you and you would like to help keep it running, you
               can chip in towards the running costs: hosting and the database, sign-in emails and the domain. It is entirely
               optional and changes nothing about what you can use.
             </p>
-            <ul className="mt-8 grid gap-4 sm:grid-cols-3">
+            <ul className="mt-10 grid gap-4 sm:grid-cols-3">
               {supportLinks.map((l) => (
                 <li key={l.name}>
                   <a
@@ -693,9 +698,9 @@ function Index() {
 
         {/* Join */}
         <section id="join" className="scroll-mt-4 border-y bg-card/50">
-          <div className="mx-auto max-w-3xl px-5 py-20 sm:px-8 md:py-28">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
             <h2 className="text-3xl sm:text-4xl">How to join</h2>
-            <ol className="mt-12 space-y-10">
+            <ol className="mt-10 max-w-3xl space-y-10">
               <Step n={1} title="Ask for an invite">
                 <p>Email us from the address you want to sign in with.</p>
                 <CopyBox value={EMAIL} label="email address" />
@@ -727,13 +732,13 @@ function Index() {
         </section>
 
         {/* FAQ */}
-        <Section className="max-w-3xl">
+        <Section narrow>
           <h2 className="text-3xl sm:text-4xl">Good to know</h2>
           <Questions items={faqs} />
         </Section>
 
         {/* Troubleshooting */}
-        <Section id="troubleshooting" className="max-w-3xl pt-0 md:pt-0">
+        <Section id="troubleshooting" narrow className="pt-0 md:pt-0">
           <h2 className="text-3xl sm:text-4xl">Troubleshooting</h2>
           <Questions items={troubles} />
           <p className="mt-8 text-muted-foreground">

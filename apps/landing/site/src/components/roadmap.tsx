@@ -29,13 +29,13 @@ function Card({ item, open, onToggle }: { item: RoadmapItem; open: boolean; onTo
   const themeLabel = THEMES.find((t) => t.id === item.theme)?.label ?? "";
   const panelId = `rm-${item.id}`;
   return (
-    <li className={cn("rounded-xl border bg-background transition-shadow", open && "shadow-phone")}>
+    <li className={cn("flex flex-col rounded-xl border bg-background transition-shadow", open && "shadow-phone")}>
       <button
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={onToggle}
-        className="flex w-full items-start gap-3 rounded-xl p-4 text-left sm:p-5"
+        className="flex w-full flex-1 items-start gap-3 rounded-xl p-4 text-left sm:p-5"
       >
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
@@ -195,7 +195,7 @@ export function Roadmap() {
         </div>
 
         {visible.length > 0 ? (
-          <ul className="mt-6 grid items-start gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-6 grid auto-rows-fr gap-4 md:grid-cols-2 lg:grid-cols-3">
             {visible.map((item) => (
               <Card key={item.id} item={item} open={openId === item.id} onToggle={() => setOpenId(openId === item.id ? null : item.id)} />
             ))}

@@ -1,7 +1,7 @@
 /* global process, console, document, Buffer -- a Node script; document is used inside the page (page.evaluate) */
-// Renders the Fitwell icon: a white bold "F" in Figtree on forest green. Writes PNGs at several sizes and a favicon.ico.
+// Renders the Fitwell icon: a white bold "F" in Figtree on terracotta. Writes PNGs at several sizes and a favicon.ico (no SVG: an SVG shown as an image cannot load the font).
 // Usage (from apps/mcp): node directory/icon.mjs <folder with playwright-core and @fontsource-variable/figtree installed> <out dir>
-// Then copy favicon.ico, icon-512.png, apple-touch-icon.png and icon.svg to apps/landing/site/public, and regenerate src/icons.ts.
+// Then copy favicon.ico, icon-512.png and apple-touch-icon.png to apps/landing/site/public, and regenerate src/icons.ts.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const [, , depsDir, outDir] = process.argv;
@@ -10,7 +10,7 @@ const font = readFileSync(`${depsDir}/node_modules/@fontsource-variable/figtree/
 
 // rounded: the favicon (browser tabs show it as is); square: the directory and app icons (platforms round it themselves).
 const svg = (rounded) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="${rounded ? 112 : 0}" fill="#2f5d50"/>
+  <rect width="512" height="512" rx="${rounded ? 112 : 0}" fill="#c2603f"/>
   <text x="256" y="256" dy="0.35em" text-anchor="middle" font-family="Figtree" font-weight="800" font-size="340" fill="#ffffff">F</text>
 </svg>`;
 
@@ -31,7 +31,6 @@ async function render(rounded, size) {
 const square512 = await render(false, 512);
 writeFileSync(`${outDir}/icon-512.png`, square512);
 writeFileSync(`${outDir}/apple-touch-icon.png`, await render(false, 180));
-writeFileSync(`${outDir}/icon.svg`, svg(true));
 
 // favicon.ico with PNG entries (supported by every current browser): 16, 32 and 48 px, rounded.
 const sizes = [16, 32, 48];
@@ -55,4 +54,4 @@ sizes.forEach((s, i) => {
 writeFileSync(`${outDir}/favicon.ico`, Buffer.concat([header, ...pngs]));
 writeFileSync(`${outDir}/favicon-48.png`, pngs[2]);
 await browser.close();
-console.log('written', ['icon-512.png', 'apple-touch-icon.png', 'icon.svg', 'favicon.ico'].join(', '));
+console.log('written', ['icon-512.png', 'apple-touch-icon.png', 'favicon.ico'].join(', '));

@@ -57,8 +57,9 @@
   --shadow-phone: 0 1px 2px rgb(31 29 26 / 0.06), 0 24px 48px -16px rgb(31 29 26 / 0.22);
 }
 
+/* Dark follows the system unless the visitor picked a theme with the toggle (data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --background: #1b1a18;
     --foreground: #f2efe9;
     --card: #262421;
@@ -80,6 +81,48 @@
     --shadow-phone: 0 1px 2px rgb(0 0 0 / 0.3), 0 24px 48px -16px rgb(0 0 0 / 0.6);
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --background: #1b1a18;
+  --foreground: #f2efe9;
+  --card: #262421;
+  --card-foreground: #f2efe9;
+  --popover: #262421;
+  --popover-foreground: #f2efe9;
+  --primary: #cfc9bf;
+  --primary-foreground: #1b1a18;
+  --secondary: #262421;
+  --secondary-foreground: #f2efe9;
+  --muted: #262421;
+  --muted-foreground: #b2aba1;
+  --accent: #cfc9bf;
+  --accent-foreground: #1b1a18;
+  --amber: #e8896a;
+  --border: #3a3733;
+  --input: #3a3733;
+  --ring: #cfc9bf;
+  --shadow-phone: 0 1px 2px rgb(0 0 0 / 0.3), 0 24px 48px -16px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+/* Screenshots come in a light and a dark version; the theme picks which one shows. */
+.shot-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shot-light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .shot-dark {
+    display: block;
+  }
+}
+:root[data-theme="dark"] .shot-light {
+  display: none;
+}
+:root[data-theme="dark"] .shot-dark {
+  display: block;
 }
 
 @utility shadow-phone {

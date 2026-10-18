@@ -12,7 +12,10 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Monitor,
+  Moon,
   ShieldCheck,
+  Sun,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -72,19 +75,17 @@ function Phone({ name, alt, priority = false, maxH }: { name: string; alt: strin
   return (
     <div className="w-full max-w-[380px] overflow-hidden rounded-[2rem] border bg-card p-2 shadow-phone">
       <div className={cn("relative overflow-hidden rounded-[1.5rem]", maxH)}>
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcSet={dark} />
-          <img
-            src={light}
-            alt={alt}
-            width={width}
-            height={height}
-            loading={priority ? "eager" : "lazy"}
-            decoding="async"
-            {...(priority ? { fetchPriority: "high" as const } : {})}
-            className="block h-auto w-full"
-          />
-        </picture>
+        <img
+          src={light}
+          alt={alt}
+          width={width}
+          height={height}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          {...(priority ? { fetchPriority: "high" as const } : {})}
+          className="shot-light block h-auto w-full"
+        />
+        <img src={dark} alt="" aria-hidden width={width} height={height} loading="lazy" decoding="async" className="shot-dark block h-auto w-full" />
         {maxH && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent" />}
       </div>
     </div>
@@ -433,6 +434,49 @@ function Questions({ items }: { items: { q: string; a: string | string[] }[] }) 
   );
 }
 
+type ThemeMode = "auto" | "light" | "dark";
+const THEME_ORDER: ThemeMode[] = ["auto", "light", "dark"];
+const THEME_LABEL: Record<ThemeMode, string> = { auto: "Match system", light: "Light", dark: "Dark" };
+
+function ThemeToggle() {
+  const [mode, setMode] = useState<ThemeMode>("auto");
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("fitwell-theme");
+      if (stored === "light" || stored === "dark") setMode(stored);
+    } catch {
+      /* storage blocked: stay on the system theme */
+    }
+  }, []);
+
+  const choose = (next: ThemeMode) => {
+    setMode(next);
+    if (next === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", next);
+    try {
+      if (next === "auto") window.localStorage.removeItem("fitwell-theme");
+      else window.localStorage.setItem("fitwell-theme", next);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(mode) + 1) % THEME_ORDER.length] ?? "auto";
+  return (
+    <button
+      type="button"
+      onClick={() => choose(next)}
+      aria-label={`Colour theme: ${THEME_LABEL[mode]}. Switch to ${THEME_LABEL[next]}.`}
+      title={`Theme: ${THEME_LABEL[mode]}`}
+      className="inline-flex size-9 items-center justify-center rounded-full border hover:bg-card"
+    >
+      <Icon className="size-4" aria-hidden />
+    </button>
+  );
+}
+
 function Index() {
   return (
     <div className="min-h-screen">
@@ -443,12 +487,15 @@ function Index() {
         <span className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
           <img src="/icon-512.png" alt="" width={32} height={32} className="size-8 rounded-[22%]" />
           <span>
-            Fitwell <span className="font-medium text-muted-foreground">for Claude</span>
+            Fitwell <span className="font-medium text-muted-foreground max-[419px]:sr-only">for Claude</span>
           </span>
         </span>
-        <a href="#join" className="rounded-full border px-4 py-1.5 text-sm font-semibold hover:bg-card">
-          Ask for an invite
-        </a>
+        <div className="flex items-center gap-2">
+          <a href="#join" className="whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-semibold hover:bg-card">
+            Ask for an invite
+          </a>
+          <ThemeToggle />
+        </div>
       </header>
 
       <main id="main">

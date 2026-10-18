@@ -6,14 +6,20 @@
  * Permission from the Compendium maintainers for a larger import is still to be requested (see TECH_SPEC).
  * Ids are stable: "act:<slug>". Never reuse an id for a different activity.
  */
+/** Whole-body sessions that are logged with log_session instead of log_cardio. */
+export const SESSION_CATEGORIES = ['pilates', 'yoga', 'hiit', 'crossfit', 'hyrox', 'functional'] as const;
+export type SessionCategory = (typeof SESSION_CATEGORIES)[number];
+
 export interface Activity {
   id: string;
   name: string;
   met: number;
   group: string;
+  /** Set for activities that are whole-body sessions rather than cardio. */
+  category?: SessionCategory;
 }
 
-const a = (slug: string, name: string, met: number, group: string): Activity => ({ id: `act:${slug}`, name, met, group });
+const a = (slug: string, name: string, met: number, group: string, category?: SessionCategory): Activity => ({ id: `act:${slug}`, name, met, group, ...(category ? { category } : {}) });
 
 export const ACTIVITIES: Activity[] = [
   a('walk-slow', 'Walking, slow (about 3 km/h)', 2.8, 'Walking'),
@@ -48,9 +54,11 @@ export const ACTIVITIES: Activity[] = [
   a('dance-ballroom-slow', 'Dancing, ballroom slow', 3.0, 'Classes'),
   a('dance-ballroom-fast', 'Dancing, ballroom fast', 5.5, 'Classes'),
   a('dance-general', 'Dancing, general', 7.8, 'Classes'),
-  a('yoga', 'Yoga, hatha', 2.5, 'Mind & body'),
-  a('yoga-power', 'Yoga, power', 4.0, 'Mind & body'),
-  a('pilates', 'Pilates', 3.0, 'Mind & body'),
+  a('yoga', 'Yoga, hatha', 2.5, 'Mind & body', 'yoga'),
+  a('yoga-power', 'Yoga, power', 4.0, 'Mind & body', 'yoga'),
+  a('pilates', 'Pilates (mat, general)', 3.0, 'Mind & body', 'pilates'),
+  a('pilates-reformer', 'Pilates, reformer or vigorous class', 4.0, 'Mind & body', 'pilates'),
+  a('barre', 'Barre class', 3.5, 'Mind & body', 'pilates'),
   a('tai-chi', 'Tai chi', 3.0, 'Mind & body'),
   a('stretching', 'Stretching, gentle', 2.3, 'Mind & body'),
   a('strength-light', 'Strength training, light to moderate effort', 3.5, 'Strength & circuits'),
@@ -58,6 +66,16 @@ export const ACTIVITIES: Activity[] = [
   a('circuit', 'Circuit training', 8.0, 'Strength & circuits'),
   a('calisthenics-light', 'Calisthenics, light to moderate', 3.8, 'Strength & circuits'),
   a('calisthenics-vigorous', 'Calisthenics, vigorous', 8.0, 'Strength & circuits'),
+  a('hiit', 'HIIT (high-intensity interval training)', 8.0, 'Functional & HIIT', 'hiit'),
+  a('tabata', 'Tabata or interval class', 8.0, 'Functional & HIIT', 'hiit'),
+  a('bootcamp', 'Boot camp', 8.0, 'Functional & HIIT', 'hiit'),
+  a('functional-training', 'Functional training, general', 6.0, 'Functional & HIIT', 'functional'),
+  a('crossfit', 'CrossFit (WOD with warm-up and skill work)', 8.0, 'Functional & HIIT', 'crossfit'),
+  a('hyrox-training', 'Hyrox training session', 8.5, 'Functional & HIIT', 'hyrox'),
+  a('hyrox-race', 'Hyrox race or full simulation', 10.5, 'Functional & HIIT', 'hyrox'),
+  a('kettlebell', 'Kettlebell workout', 9.0, 'Functional & HIIT', 'functional'),
+  a('spin-class', 'Indoor cycling class', 8.5, 'Classes'),
+  a('boxing-bag', 'Boxing or kickboxing, bag and pads', 7.8, 'Classes'),
   a('jump-rope', 'Jumping rope, moderate', 11.8, 'Strength & circuits'),
   a('basketball', 'Basketball, game', 8.0, 'Sports'),
   a('soccer-casual', 'Soccer, casual', 7.0, 'Sports'),

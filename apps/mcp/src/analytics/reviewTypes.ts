@@ -22,6 +22,9 @@ export interface WeekReview {
     strength: number;
     cardio: number;
     cardioMin: number;
+    /** Whole-body sessions: Pilates, HIIT, CrossFit, Hyrox, ... */
+    session: number;
+    sessionMin: number;
     previousSessions: number;
     goalPerWeek: number | null;
     /** Exercises whose best estimated 1RM this week beat everything before it (within the loaded history). */

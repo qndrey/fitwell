@@ -63,7 +63,9 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
       strength: w.training.sessions.strength,
       cardio: w.training.sessions.cardio,
       cardioMin: r0(w.training.weeks.reduce((n, x) => n + x.cardioMin, 0)),
-      previousSessions: pv.training.sessions.strength + pv.training.sessions.cardio,
+      session: w.training.sessions.session,
+      sessionMin: r0(w.training.weeks.reduce((n, x) => n + x.sessionMin, 0)),
+      previousSessions: pv.training.sessions.strength + pv.training.sessions.cardio + pv.training.sessions.session,
       goalPerWeek: w.training.goalWorkoutsPerWeek,
       records,
     },
@@ -89,7 +91,7 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
   };
 
   // ---- highlights: what went well, said plainly
-  const sessions = review.training.strength + review.training.cardio;
+  const sessions = review.training.strength + review.training.cardio + review.training.session;
   for (const r of records) review.highlights.push(`New estimated 1RM on ${r.name}: ${r.e1rmKg} kg (was ${r.previousKg} kg).`);
   if (review.training.goalPerWeek && sessions >= review.training.goalPerWeek && !inProgress) review.highlights.push(`Trained ${sessions} times, on or above the goal of ${review.training.goalPerWeek}.`);
   if (goals.proteinG && review.nutrition.proteinReached !== null && review.nutrition.daysLogged >= 3 && review.nutrition.proteinReached >= review.nutrition.daysLogged * 0.8) review.highlights.push(`Protein goal reached on ${review.nutrition.proteinReached} of ${review.nutrition.daysLogged} logged days.`);

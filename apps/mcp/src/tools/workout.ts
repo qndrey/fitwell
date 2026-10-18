@@ -1,4 +1,4 @@
-import { ACTIVITIES } from '@fitwell/core/data/activities';
+import { ACTIVITIES, SESSION_CATEGORIES } from '@fitwell/core/data/activities';
 import { loadExercises, substitutes, type Exercise } from '@fitwell/core/data/exercises';
 import { addDays, isDay } from '@fitwell/core/domain/dates';
 import { estimateKcal } from '@fitwell/core/domain/met';
@@ -12,6 +12,7 @@ import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
 import type { CardioBlock, StoredExercise, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
 import workoutHtml from '../ui/generated/workout';
+import { SESSION_PROFILES } from '../workout/sessions';
 import { WORKOUT_VIEW_URI, type PlannedCardio, type PlannedExercise, type WorkoutPlan } from '../workout/plan';
 import { json, toolError } from './result';
 
@@ -81,6 +82,10 @@ function summarizeWorkout(w: Workout) {
   if (w.type === 'cardio' && w.cardio) {
     const c = w.cardio;
     return { id: w.id, day: w.day, type: 'cardio' as const, activity: c.activityName, minutes: c.durationMin, ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}), ...(c.kcalOverride ?? c.kcalEstimated ? { kcal: c.kcalOverride ?? c.kcalEstimated } : {}) };
+  }
+  if (w.type === 'session' && w.session) {
+    const c = w.session;
+    return { id: w.id, day: w.day, type: 'session' as const, category: c.category, name: w.name, minutes: c.durationMin, ...(c.kcalOverride ?? c.kcalEstimated ? { kcal: c.kcalOverride ?? c.kcalEstimated } : {}), ...(c.notes ? { notes: c.notes } : {}) };
   }
   const minutes = w.startedAt && w.finishedAt ? Math.round((w.finishedAt - w.startedAt) / 60000) : undefined;
   return {
@@ -348,7 +353,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         })(),
       ) as StoredExercise[];
       const cardioBlocks = blocksFrom(cardioSpecs);
-      const w = await workouts.create({ day: todayIn(profile.timeZone), type: 'strength', name: name ?? 'Workout', startedAt: Date.now(), finishedAt: null, exercises, cardio: null, cardioBlocks, templateId });
+      const w = await workouts.create({ day: todayIn(profile.timeZone), type: 'strength', name: name ?? 'Workout', startedAt: Date.now(), finishedAt: null, exercises, cardio: null, session: null, cardioBlocks, templateId });
       const lines = exercises.map((e) => {
         const work = e.sets.filter((x) => x.type === 'working');
         const warm = e.sets.length - work.length;
@@ -651,7 +656,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       });
       const finishedAt = Date.now();
       const cardioBlocks = blocksFrom((givenCardio ?? []).map(templateCardioOf), true, profile.weightKg);
-      const w = await workouts.create({ day: d, type: 'strength', name: name ?? 'Workout', startedAt: minutes ? finishedAt - minutes * 60_000 : null, finishedAt, exercises, cardio: null, cardioBlocks, templateId: null });
+      const w = await workouts.create({ day: d, type: 'strength', name: name ?? 'Workout', startedAt: minutes ? finishedAt - minutes * 60_000 : null, finishedAt, exercises, cardio: null, session: null, cardioBlocks, templateId: null });
       return json(await finishSummary(w));
     },
   );
@@ -660,7 +665,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     'get_workout_history',
     {
       title: 'Workout history',
-      description: 'Past workouts (strength and cardio) over a period, newest first, or the sessions of one exercise with its best set and estimated 1RM.',
+      description: 'Past workouts (strength, whole-body sessions such as Pilates or HIIT, and cardio) over a period, newest first, or the sessions of one exercise with its best set and estimated 1RM.',
       inputSchema: z.object({ days: z.number().int().min(1).max(365).default(30), to: day.optional(), exercise_id: exerciseId.optional() }),
       annotations: { readOnlyHint: true },
     },
@@ -732,7 +737,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     {
       title: 'Log cardio',
       description:
-        'Record a cardio session or activity. activity_id is one of the listed Compendium activities (MET values); calories are estimated as MET × body weight × hours ' +
+        'Record a cardio session or activity (runs, rides, swims, walks, sports). Pilates, yoga, HIIT, CrossFit, Hyrox and functional classes are not cardio: use log_session for those. activity_id is one of the listed Compendium activities (MET values); calories are estimated as MET × body weight × hours ' +
         "from the profile weight, unless the person gives a number (e.g. from a watch) as kcal. day defaults to today. " +
         `activity_id is a descriptive id from the Compendium list, e.g. ${[...new Map(ACTIVITIES.map((a) => [a.group, a])).values()].slice(0, 6).map((a) => `${a.id} (${a.name})`).join(', ')}; pick the closest one.`,
       inputSchema: z.object({
@@ -746,6 +751,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     },
     async ({ activity_id, duration_min, distance_km, kcal, day: d }) => {
       const a = ACTIVITIES.find((x) => x.id === activity_id)!;
+      if (a.category) return toolError(`${a.name} is a whole-body session, not cardio. Log it with log_session (category ${a.category}, activity_id ${a.id}).`);
       const profile = await data.profile();
       const estimated = estimateKcal(a.met, profile.weightKg ?? undefined, duration_min);
       const w = await workouts.create({
@@ -764,12 +770,69 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
           ...(estimated !== undefined ? { kcalEstimated: estimated, weightKgUsed: profile.weightKg! } : {}),
           ...(kcal !== undefined ? { kcalOverride: kcal } : {}),
         },
+        session: null,
         cardioBlocks: [],
         templateId: null,
       });
       return json({
         logged: summarizeWorkout(w),
         ...(distance_km ? { pace: `${formatDuration(Math.round((duration_min * 60) / distance_km))} per km` } : {}),
+        ...(kcal === undefined && estimated === undefined ? { note: 'No body weight in the profile, so no calorie estimate. Save it with update_profile.' } : {}),
+      });
+    },
+  );
+
+  const sessionActivities = ACTIVITIES.filter((x) => x.category);
+  server.registerTool(
+    'log_session',
+    {
+      title: 'Log a whole-body session',
+      description:
+        'Record a class or mixed session that trains the whole body: Pilates, yoga, HIIT, CrossFit, Hyrox, functional training or boot camp. It is its own kind of workout in the history and review, ' +
+        'and it credits the muscle map (core and glutes for Pilates, legs, shoulders and core for Hyrox and CrossFit, and so on) in proportion to its length. ' +
+        'category is the closest of the list; activity_id picks the intensity (its MET value) and defaults to a typical one for the category ' +
+        `(${sessionActivities.map((x) => `${x.id} ${x.name}`).join('; ')}). Calories are MET × body weight × hours from the profile unless the person gives a measured number (kcal). ` +
+        'notes can hold what was done ("Fran, then a 5 km row"). Use start_workout for a session built from library exercises with sets and weights, and log_cardio for runs and rides. day defaults to today.',
+      inputSchema: z.object({
+        category: z.enum(SESSION_CATEGORIES),
+        duration_min: z.number().min(1).max(600),
+        name: z.string().min(1).max(80).optional().describe('e.g. "Reformer Pilates"; defaults to the category'),
+        activity_id: z.string().regex(/^act:/).optional().describe('Must belong to the same category'),
+        notes: z.string().max(500).optional(),
+        kcal: z.number().min(0).max(10000).optional().describe('Only if the person has a measured number'),
+        day: day.optional(),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async ({ category, duration_min, name, activity_id, notes, kcal, day: d }) => {
+      const profileDef = SESSION_PROFILES[category];
+      const a = ACTIVITIES.find((x) => x.id === (activity_id ?? profileDef.defaultActivity));
+      if (!a || a.category !== category) return toolError(`activity_id must be one of the ${profileDef.label} activities: ${sessionActivities.filter((x) => x.category === category).map((x) => x.id).join(', ')}.`);
+      const profile = await data.profile();
+      const estimated = estimateKcal(a.met, profile.weightKg ?? undefined, duration_min);
+      const w = await workouts.create({
+        day: d ?? todayIn(profile.timeZone),
+        type: 'session',
+        name: name ?? a.name,
+        startedAt: null,
+        finishedAt: Date.now(),
+        exercises: [],
+        cardio: null,
+        session: {
+          category,
+          activityRef: a.id,
+          activityName: a.name,
+          met: a.met,
+          durationMin: duration_min,
+          ...(estimated !== undefined ? { kcalEstimated: estimated, weightKgUsed: profile.weightKg! } : {}),
+          ...(kcal !== undefined ? { kcalOverride: kcal } : {}),
+          ...(notes ? { notes } : {}),
+        },
+        cardioBlocks: [],
+        templateId: null,
+      });
+      return json({
+        logged: summarizeWorkout(w),
         ...(kcal === undefined && estimated === undefined ? { note: 'No body weight in the profile, so no calorie estimate. Save it with update_profile.' } : {}),
       });
     },

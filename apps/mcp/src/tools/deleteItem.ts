@@ -25,7 +25,7 @@ export function registerDeleteTool(server: McpServer, deps: DeleteDeps) {
       title: 'Delete one thing',
       description:
         'Remove one stored item. kind says what, and which field identifies it: ' +
-        'food_entry (id from get_food_log), workout (id from get_workout_history; strength or cardio), workout_template (id), recipe (id from get_recipes; meal plans that use it keep their copy), ' +
+        'food_entry (id from get_food_log), workout (id from get_workout_history; strength, session or cardio), workout_template (id), recipe (id from get_recipes; meal plans that use it keep their copy), ' +
         'meal_plan (week_start, a Monday; food already logged from it stays), weigh_in (day), measurements (day, all of that day), daily_metrics (day: sleep, steps and water). ' +
         'Only after the person asked for it.',
       inputSchema: z.object({

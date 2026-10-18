@@ -152,6 +152,25 @@ describe('cardio and history', () => {
     expect(watch.data.logged).toMatchObject({ kcal: 333 });
   });
 
+  it('logs whole-body sessions as their own type, with calories, history and muscle credit', async () => {
+    await call(client, 'update_profile', { weight_kg: 70 });
+    const p = await call(client, 'log_session', { category: 'pilates', duration_min: 60, notes: 'reformer', day: '2026-10-12' });
+    expect(p.data.logged).toMatchObject({ type: 'session', category: 'pilates', minutes: 60, kcal: Math.round(3 * 70), notes: 'reformer' });
+    const h = await call(client, 'log_session', { category: 'hyrox', duration_min: 60, activity_id: 'act:hyrox-race', kcal: 900, day: '2026-10-13' });
+    expect(h.data.logged).toMatchObject({ category: 'hyrox', kcal: 900 });
+    const hist = (await call(client, 'get_workout_history', { days: 30, to: '2026-10-14' })).data.workouts as { type: string }[];
+    expect(hist.map((w) => w.type)).toEqual(['session', 'session']);
+    const map = (await call(client, 'get_muscle_map', { weeks: 1, to: '2026-10-14' })).data as { muscleMap?: { otherSessions: number; muscles: { muscle: string; setsPerWeek: number }[] } };
+    const mm = map.muscleMap ?? (map as unknown as { otherSessions: number; muscles: { muscle: string; setsPerWeek: number }[] });
+    expect(mm.otherSessions).toBe(2);
+    expect(mm.muscles.find((x) => x.muscle === 'abdominals')!.setsPerWeek).toBe(7);
+  });
+
+  it('keeps sessions and cardio apart: log_cardio refuses a session activity, log_session a cardio one', async () => {
+    expect((await call(client, 'log_cardio', { activity_id: 'act:pilates', duration_min: 45 })).text).toContain('log_session');
+    expect((await call(client, 'log_session', { category: 'pilates', duration_min: 45, activity_id: 'act:run-10' })).text).toContain('activity_id must be');
+  });
+
   it('lists workouts and the sessions of one exercise, and deletes a workout', async () => {
     const plan = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 80 }] });
     await doWorkout(plan, (_i, k) => (k === 0 ? 5 : 4));
@@ -208,7 +227,7 @@ describe('cardio blocks and notes', () => {
     expect(summary.cardio![0]!.kcal).toBeGreaterThan(50);
 
     const p = (await call(client, 'get_progress', { days: 30 })).data as { training: { sessions: { strength: number; cardio: number } } };
-    expect(p.training.sessions).toEqual({ strength: 1, cardio: 0 }); // one workout, not two
+    expect(p.training.sessions).toEqual({ strength: 1, cardio: 0, session: 0 }); // one workout, not two
     const dash = (await client.callTool({ name: 'show_dashboard', arguments: { days: 30 } })).structuredContent as { progress: { training: { weeks: { cardioMin: number }[] } } };
     expect(dash.progress.training.weeks.reduce((n, w) => n + w.cardioMin, 0)).toBe(12);
     const history = (await call(client, 'get_workout_history', { days: 7 })).data.workouts as { cardio?: unknown[] }[];

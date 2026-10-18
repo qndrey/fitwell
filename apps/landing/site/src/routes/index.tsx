@@ -49,7 +49,7 @@ const PRIVACY_URL = "https://mcp.fitwell.fyi/privacy";
  */
 const SUPPORT: { name: string; kind: string; url: string }[] = [
   { name: "Liberapay", kind: "Monthly", url: "https://liberapay.com/fitwell.fyi" },
-  { name: "Ko-fi", kind: "One-off", url: "" },
+  { name: "Ko-fi", kind: "One-off", url: "https://ko-fi.com/fitwellfyi" },
   { name: "GitHub Sponsors", kind: "Monthly or one-off", url: "" },
 ];
 const supportLinks = SUPPORT.filter((s) => s.url !== "");

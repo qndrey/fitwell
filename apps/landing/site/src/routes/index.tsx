@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Link2,
   Refrigerator,
@@ -10,24 +10,37 @@ import {
   Check,
   Mail,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Monitor,
+  Moon,
   ShieldCheck,
+  Sun,
 } from "lucide-react";
 
-import hero from "@/assets/hero-squat.png.asset.json";
-import nutrition from "@/assets/nutrition.png.asset.json";
-import energy from "@/assets/energy.png.asset.json";
-import warmup from "@/assets/warmup.png.asset.json";
-import summary from "@/assets/player-summary.png.asset.json";
-import swap from "@/assets/swap.png.asset.json";
-import guide from "@/assets/guide-squat-dark.png.asset.json";
-import muscles from "@/assets/muscles-light.png.asset.json";
-import shopping from "@/assets/shopping-light.png.asset.json";
-import review from "@/assets/review-light.png.asset.json";
+import { cn } from "@/lib/utils";
+
+// Every screenshot exists in a light and a dark version (<name>-light.png, <name>-dark.png), taken from the
+// real views by apps/mcp/scripts/screenshots.ts. The page theme picks one.
+const shotFiles = import.meta.glob<string>("../assets/*-{light,dark}.png", { eager: true, import: "default" });
+const SIZES: Record<string, [number, number]> = {
+  "hero-squat": [796, 1320],
+  food: [796, 1212],
+  energy: [732, 530],
+  warmup: [796, 1156],
+  swap: [796, 2524],
+  "guide-squat": [796, 1000],
+  muscles: [796, 1070],
+  shopping: [796, 1472],
+  review: [796, 1426],
+};
 
 const TITLE = "Fitwell for Claude";
 const DESC =
   "A fitness and nutrition coach inside Claude. Log food, plan meals, run workouts and see your progress by talking to Claude. Invite-only, data stored in the EU.";
-const OG_IMAGE = `https://fitwell.fyi${hero.url}`;
+const OG_IMAGE = "https://fitwell.fyi/og.png";
+const OG_ALT = "Fitwell for Claude: track food, training and weight by talking to Claude";
+const PRIVACY_URL = "https://mcp.fitwell.fyi/privacy";
 const EMAIL = "fitwell.fyi@pm.me";
 const MCP_URL = "https://mcp.fitwell.fyi/mcp";
 
@@ -41,21 +54,39 @@ export const Route = createFileRoute("/")({
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://fitwell.fyi/" },
       { property: "og:image", content: OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: OG_ALT },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: TITLE },
       { name: "twitter:description", content: DESC },
       { name: "twitter:image", content: OG_IMAGE },
+      { name: "twitter:image:alt", content: OG_ALT },
     ],
     links: [{ rel: "canonical", href: "https://fitwell.fyi/" }],
   }),
   component: Index,
 });
 
-function Phone({ src, alt, maxH = "max-h-[640px]" }: { src: string; alt: string; maxH?: string }) {
+function Phone({ name, alt, priority = false, maxH }: { name: string; alt: string; priority?: boolean; maxH?: string | undefined }) {
+  const light = shotFiles[`../assets/${name}-light.png`];
+  const dark = shotFiles[`../assets/${name}-dark.png`];
+  const [width, height] = SIZES[name] ?? [796, 1400];
   return (
-    <div className={`w-full max-w-[320px] overflow-hidden rounded-[2rem] border bg-card p-2 shadow-phone`}>
-      <div className={`overflow-hidden rounded-[1.5rem] ${maxH}`}>
-        <img src={src} alt={alt} loading="lazy" className="block h-auto w-full" />
+    <div className="w-full max-w-[380px] overflow-hidden rounded-[2rem] border bg-card p-2 shadow-phone">
+      <div className={cn("relative overflow-hidden rounded-[1.5rem]", maxH)}>
+        <img
+          src={light}
+          alt={alt}
+          width={width}
+          height={height}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          {...(priority ? { fetchPriority: "high" as const } : {})}
+          className="shot-light block h-auto w-full"
+        />
+        <img src={dark} alt="" aria-hidden width={width} height={height} loading="lazy" decoding="async" className="shot-dark block h-auto w-full" />
+        {maxH && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent" />}
       </div>
     </div>
   );
@@ -78,7 +109,7 @@ function CopyBox({ value, label }: { value: string; label: string }) {
   return (
     <div>
       <div className="flex items-center gap-2 rounded-lg border bg-background p-1.5 pl-3">
-        <code ref={codeRef} className="min-w-0 flex-1 truncate font-mono text-sm">
+        <code ref={codeRef} title={value} className="min-w-0 flex-1 truncate font-mono text-sm">
           {value}
         </code>
         <button
@@ -110,7 +141,7 @@ function CopyBox({ value, label }: { value: string; label: string }) {
 
 function Section({ id, children, className = "" }: { id?: string; children: ReactNode; className?: string }) {
   return (
-    <section id={id} className={`mx-auto max-w-6xl scroll-mt-8 px-5 py-20 sm:px-8 md:py-28 ${className}`}>
+    <section id={id} className={cn("mx-auto max-w-6xl scroll-mt-8 px-5 py-20 sm:px-8 md:py-28", className)}>
       {children}
     </section>
   );
@@ -125,78 +156,201 @@ const chats = [
   {
     you: "Is my calorie goal still right?",
     claude:
-      "Your logs and weigh-ins over 4 weeks show you burn about 2,940 kcal a day. To lose 0.5 kg a week that means about 2,390 kcal. Shall I update the goal?",
+      "Your logs and weigh-ins over 4 weeks show you burn about 2,810 kcal a day. To lose 0.5 kg a week that means about 2,260 kcal. Shall I update the goal?",
   },
   {
-    you: "Start Workout A. The squat rack is taken.",
+    you: "Start my full-body workout.",
     claude:
-      "Swapped the back squat for the leg press and kept your 3 sets of 8. Last time you hit every rep at 120 kg, so today is 122.5 kg.",
+      "Barbell squat first: 2 sets of 5. Last time you did 5, 5 and 4 at 82.5 kg and hit both planned sets, so today is 85 kg.",
   },
 ];
 
-type Feature = { title: string; bullets: string[]; images: { src: string; alt: string }[] };
+type Feature = { tab: string; title: string; bullets: string[]; shot: string; alt: string; maxH?: string };
 const features: Feature[] = [
   {
+    tab: "Food",
     title: "Food and macros without the typing",
     bullets: [
-      "Describe a meal and it is logged with calories, protein, carbs and fat, from 1,381 foods in the Danish national database plus packaged products via Open Food Facts.",
-      "Snap a nutrition label to add a product.",
-      "Log a meal from a photo, clearly marked as an estimate.",
+      "Describe a meal and it is logged with calories, protein, carbs, fat, fibre, sugars and salt, from 1,381 foods in the Danish national database plus packaged products via Open Food Facts.",
+      "Snap a nutrition label to add a product, or log a meal from a photo, clearly marked as an estimate.",
+      "A summary card shows the day so far against your goals.",
     ],
-    images: [{ src: nutrition.url, alt: "Nutrition card: daily calories over 90 days against a goal line, within 10 percent of the goal on 53 of 81 logged days and the protein goal reached on 75" }],
+    shot: "food",
+    alt: "The summary Claude shows after logging a lunch of oats and rye bread: calories today 549 of 2,300, protein, carbs and fat against their goals, then saturated fat, trans fat, sugar, added sugar, fiber and salt, and the two foods",
   },
   {
+    tab: "Your burn",
     title: "A calorie goal that learns your real burn",
     bullets: [
       "After a few weeks of logging and weigh-ins, Fitwell measures how much you actually burn.",
       "It suggests a goal from that number. Claude asks before changing anything.",
     ],
-    images: [{ src: energy.url, alt: "Energy card in the weekly review: burn about 2,940 kcal a day with high confidence from 24 days and 23 weigh-ins, weight trend minus 0.67 kg a week, and 2,390 kcal a day to lose 0.5 kg a week" }],
+    shot: "energy",
+    alt: "Energy card in the weekly review: burn a day 2,810 kcal with high confidence from 28 days and 25 weigh-ins, weight trend minus 0.54 kg a week, 2,260 kcal a day to lose 0.5 kg a week against a goal of 1,800, and the goal weight reached around 8 December",
   },
   {
+    tab: "Workouts",
     title: "Workouts you start from the chat",
     bullets: [
       "A workout player inside Claude with big buttons and a rest timer.",
-      "Weights suggested from your history: add 2.5 kg when every set hit its reps. Warm-up sets show plates per side; supersets work too.",
+      "Weights suggested from your history: add 2.5 kg when every planned set hit its reps. Warm-up sets show plates per side; supersets work too.",
       "A summary with new personal bests goes back to Claude.",
     ],
-    images: [
-      { src: warmup.url, alt: "A warm-up set of barbell squats: warm-up 2 of 4, 5 reps at 50 kg, 15 kg each side on a 20 kg bar" },
-      { src: summary.url, alt: "The finished workout summary: 45 minutes, 1,355 kg lifted and a new best estimated one-rep max for the squat" },
-    ],
+    shot: "warmup",
+    alt: "A warm-up set of barbell squats: warm-up 2 of 4, 5 reps at 50 kg, 15 kg each side on a 20 kg bar",
   },
   {
+    tab: "Swaps",
     title: "Swap when the machine is busy",
     bullets: ["Similar exercises for the same muscles, within the equipment you have."],
-    images: [{ src: swap.url, alt: "Swap exercise opened under the barbell squat, listing dumbbell lunges, front squat, bodyweight squat, dumbbell squat and more, each with its equipment" }],
+    shot: "swap",
+    alt: "Swap exercise opened under the barbell squat, listing dumbbell lunges, front barbell squat, bodyweight squat, dumbbell squat, barbell full squat and more, each with its equipment",
+    maxH: "max-h-[520px]",
   },
   {
+    tab: "3D guides",
     title: "How to do it, in 3D",
     bullets: [
       "An animated 3D body for the main lifts and many machine and cable exercises.",
       "The working muscles are tinted, with setup tips underneath.",
     ],
-    images: [{ src: guide.url, alt: "The barbell squat guide in the dark theme: a 3D body at the bottom of a back squat with the thighs and glutes tinted" }],
+    shot: "guide-squat",
+    alt: "The barbell squat guide: a 3D body at the bottom of a back squat with the quadriceps tinted, buttons to pause and highlight, and a legend naming the main and supporting muscles",
   },
   {
+    tab: "Muscles",
     title: "Which muscles you actually train",
     bullets: ["A 3D muscle map coloured by hard sets per week, compared with the usual 10 to 20."],
-    images: [{ src: muscles.url, alt: "The muscle map for 4 weeks: a 3D body coloured by weekly hard sets, a legend, and every muscle listed with its sets per week" }],
+    shot: "muscles",
+    alt: "The muscle map for 4 weeks: a 3D body coloured by weekly hard sets, buttons for 1, 4 and 12 weeks, and a legend: not trained, under 10, 10 to 20, over 20",
   },
   {
+    tab: "Meals",
     title: "A week of meals and the shopping list",
     bullets: [
       "A week planned around your goals, allergies and recipes, checked before you see it.",
       "A shopping checklist you tick off inside the chat.",
     ],
-    images: [{ src: shopping.url, alt: "The week's shopping checklist: 9 of 12 items left, grouped into Produce, Meat, Fish, Dairy and Pantry, with three items ticked off" }],
+    shot: "shopping",
+    alt: "The week's shopping checklist: 9 of 12 items left, grouped into sections such as Produce and Meat, with some items ticked off",
+    maxH: "max-h-[520px]",
   },
   {
+    tab: "Review",
     title: "A weekly review",
     bullets: ["This week next to last week, what went well and a few neutral suggestions."],
-    images: [{ src: review.url, alt: "The weekly review for 5 to 11 October: what went well, then food, training, body and sleep tiles compared with the week before" }],
+    shot: "review",
+    alt: "The weekly review for 5 to 11 October: what went well, then the food tiles compared with the week before, including calories, protein, fibre, sugar, saturated fat and salt a day",
+    maxH: "max-h-[520px]",
   },
 ];
+
+function FeatureCarousel() {
+  const track = useRef<HTMLDivElement>(null);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [active, setActive] = useState(0);
+  const last = features.length - 1;
+  const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const goTo = (index: number) => {
+    const el = track.current;
+    if (!el) return;
+    const next = Math.max(0, Math.min(last, index));
+    el.scrollTo({ left: next * el.clientWidth, behavior: reduced() ? "instant" : "smooth" });
+    setActive(next);
+  };
+
+  // A resize changes the slide width but not scrollLeft: keep the active slide aligned.
+  useEffect(() => {
+    const realign = () => {
+      const el = track.current;
+      if (el) el.scrollTo({ left: active * el.clientWidth, behavior: "instant" });
+    };
+    window.addEventListener("resize", realign);
+    return () => window.removeEventListener("resize", realign);
+  }, [active]);
+
+  useEffect(() => {
+    tabs.current[active]?.scrollIntoView({ block: "nearest", inline: "center", behavior: reduced() ? "instant" : "smooth" });
+  }, [active]);
+
+  return (
+    <div role="group" aria-roledescription="carousel" aria-label="What Fitwell does">
+      <div className="mt-8 flex items-center gap-3">
+        <div role="tablist" aria-label="Features" className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {features.map((f, i) => (
+            <button
+              key={f.tab}
+              ref={(el) => {
+                tabs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              aria-selected={i === active}
+              onClick={() => goTo(i)}
+              className={cn(
+                "shrink-0 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors",
+                i === active ? "border-primary bg-primary text-primary-foreground" : "hover:bg-card",
+              )}
+            >
+              {f.tab}
+            </button>
+          ))}
+        </div>
+        <div className="hidden shrink-0 gap-2 sm:flex">
+          <button type="button" aria-label="Previous feature" disabled={active === 0} onClick={() => goTo(active - 1)} className="inline-flex size-10 items-center justify-center rounded-full border hover:bg-card disabled:opacity-40 disabled:hover:bg-transparent">
+            <ChevronLeft className="size-5" aria-hidden />
+          </button>
+          <button type="button" aria-label="Next feature" disabled={active === last} onClick={() => goTo(active + 1)} className="inline-flex size-10 items-center justify-center rounded-full border hover:bg-card disabled:opacity-40 disabled:hover:bg-transparent">
+            <ChevronRight className="size-5" aria-hidden />
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={track}
+        tabIndex={0}
+        aria-label="Feature slides. Use the left and right arrow keys."
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (el.clientWidth > 0) setActive(Math.round(el.scrollLeft / el.clientWidth));
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            goTo(active + 1);
+          } else if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            goTo(active - 1);
+          }
+        }}
+        className="mt-8 flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {features.map((f, i) => (
+          <article key={f.tab} role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${features.length}: ${f.title}`} className="grid w-full shrink-0 snap-center items-center gap-8 md:grid-cols-2 md:gap-14">
+            <div>
+              <h3 className="text-2xl sm:text-3xl">{f.title}</h3>
+              <ul className="mt-6 space-y-3 text-muted-foreground">
+                {f.bullets.map((b) => (
+                  <li key={b} className="flex gap-3 leading-relaxed">
+                    <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex justify-center">
+              <Phone name={f.shot} alt={f.alt} maxH={f.maxH} />
+            </div>
+          </article>
+        ))}
+      </div>
+      <p className="sr-only" aria-live="polite">
+        {`Slide ${active + 1} of ${features.length}: ${features[active]?.title ?? ""}`}
+      </p>
+    </div>
+  );
+}
 
 const little = [
   { icon: Link2, title: "Recipes from a link", text: "Paste a link to a recipe and it is saved to your recipes." },
@@ -225,10 +379,14 @@ const faqs = [
   },
 ];
 
-const troubles = [
+const troubles: { q: string; a: string | string[] }[] = [
   {
     q: "I didn't get a sign-in email",
-    a: "Only invited addresses get one; if you haven't been invited yet, ask at fitwell.fyi@pm.me. When you're invited, Cloudflare (which sends Fitwell's sign-in emails) sends you one email to confirm your address: confirm it first, or the codes can't reach you. The code comes from login@fitwell.fyi, so check your spam folder too. It lasts 10 minutes; after that, start signing in again from Claude.",
+    a: [
+      "Only invited addresses get one. If you haven't been invited yet, ask at fitwell.fyi@pm.me.",
+      "When you're invited, Cloudflare (which sends Fitwell's sign-in emails) sends you one email to confirm your address. Confirm it first, or the codes can't reach you.",
+      "The code comes from login@fitwell.fyi, so check your spam folder too. It lasts 10 minutes; after that, start signing in again from Claude.",
+    ],
   },
   {
     q: "The code doesn't work",
@@ -256,7 +414,7 @@ const troubles = [
   },
 ];
 
-function Questions({ items }: { items: { q: string; a: string }[] }) {
+function Questions({ items }: { items: { q: string; a: string | string[] }[] }) {
   return (
     <div className="mt-10 divide-y border-y">
       {items.map((f) => (
@@ -265,10 +423,57 @@ function Questions({ items }: { items: { q: string; a: string }[] }) {
             {f.q}
             <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
           </summary>
-          <p className="mt-3 leading-relaxed text-muted-foreground">{f.a}</p>
+          <div className="mt-3 space-y-2 leading-relaxed text-muted-foreground">
+            {(Array.isArray(f.a) ? f.a : [f.a]).map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
         </details>
       ))}
     </div>
+  );
+}
+
+type ThemeMode = "auto" | "light" | "dark";
+const THEME_ORDER: ThemeMode[] = ["auto", "light", "dark"];
+const THEME_LABEL: Record<ThemeMode, string> = { auto: "Match system", light: "Light", dark: "Dark" };
+
+function ThemeToggle() {
+  const [mode, setMode] = useState<ThemeMode>("auto");
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("fitwell-theme");
+      if (stored === "light" || stored === "dark") setMode(stored);
+    } catch {
+      /* storage blocked: stay on the system theme */
+    }
+  }, []);
+
+  const choose = (next: ThemeMode) => {
+    setMode(next);
+    if (next === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", next);
+    try {
+      if (next === "auto") window.localStorage.removeItem("fitwell-theme");
+      else window.localStorage.setItem("fitwell-theme", next);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(mode) + 1) % THEME_ORDER.length] ?? "auto";
+  return (
+    <button
+      type="button"
+      onClick={() => choose(next)}
+      aria-label={`Colour theme: ${THEME_LABEL[mode]}. Switch to ${THEME_LABEL[next]}.`}
+      title={`Theme: ${THEME_LABEL[mode]}`}
+      className="inline-flex size-9 items-center justify-center rounded-full border hover:bg-card"
+    >
+      <Icon className="size-4" aria-hidden />
+    </button>
   );
 }
 
@@ -282,12 +487,15 @@ function Index() {
         <span className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
           <img src="/icon-512.png" alt="" width={32} height={32} className="size-8 rounded-[22%]" />
           <span>
-            Fitwell <span className="font-medium text-muted-foreground">for Claude</span>
+            Fitwell <span className="font-medium text-muted-foreground max-[419px]:sr-only">for Claude</span>
           </span>
         </span>
-        <a href="#join" className="rounded-full border px-4 py-1.5 text-sm font-semibold hover:bg-card">
-          Ask for an invite
-        </a>
+        <div className="flex items-center gap-2">
+          <a href="#join" className="whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-semibold hover:bg-card">
+            Ask for an invite
+          </a>
+          <ThemeToggle />
+        </div>
       </header>
 
       <main id="main">
@@ -298,19 +506,25 @@ function Index() {
               Track food, training and weight by talking to Claude
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Tell Claude what you ate, ask it to plan your week, start a workout from the chat and open a dashboard when
-              you want to see how you are doing.
+              Tell Claude what you ate or start a workout from the chat. Open a dashboard when you want to see how you are
+              doing.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-5">
               <a href="#join" className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90">
                 Ask for an invite
               </a>
               <a href="#features" className="font-semibold text-primary underline-offset-4 hover:underline">
-                See what it does ↓
+                See what it does <span aria-hidden>↓</span>
               </a>
             </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Already invited?{" "}
+              <a href="#connect" className="font-semibold text-foreground underline underline-offset-4">
+                Connect it to Claude
+              </a>
+            </p>
             <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              {["Claude on desktop, web and iPhone", "Health data stored in the EU", "Invite-only"].map((f) => (
+              {["Invite-only", "Your Fitwell records stored in the EU", "Claude on desktop, web and iPhone"].map((f) => (
                 <li key={f} className="flex items-center gap-2">
                   <span className="size-1.5 rounded-full bg-amber" aria-hidden />
                   {f}
@@ -319,7 +533,12 @@ function Index() {
             </ul>
           </div>
           <div className="flex justify-center md:justify-end">
-            <Phone src={hero.url} alt="The workout player showing Barbell Squat, set 1 of 2: last time 2 by 5 at 85 kg, so today 87.5 kg, with a Log set button" maxH="max-h-[600px]" />
+            <Phone
+              name="hero-squat"
+              priority
+              maxH="max-h-[560px]"
+              alt="The workout player on Barbell Squat, set 1 of 2: last time 5, 5 and 4 reps at 82.5 kg, so today 85 kg, with reps and weight steppers and a Log set button"
+            />
           </div>
         </section>
 
@@ -331,7 +550,7 @@ function Index() {
               {chats.map((c) => (
                 <div key={c.you} className="space-y-3">
                   <div className="flex justify-end">
-                    <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-primary-foreground">
+                    <p className="max-w-[85%] rounded-2xl rounded-br-md border bg-foreground/10 px-4 py-2.5">
                       <span className="sr-only">You: </span>
                       {c.you}
                     </p>
@@ -346,48 +565,29 @@ function Index() {
               ))}
             </div>
             <p className="mt-10 text-sm text-muted-foreground">
-              Numbers come from the demo person in the screenshots; Claude's wording will differ.
+              The numbers come from a made-up demo person; Claude's wording will differ.
             </p>
           </div>
         </section>
 
         {/* Features */}
-        <Section id="features">
+        <Section id="features" className="pb-16 md:pb-20">
           <h2 className="max-w-2xl text-3xl sm:text-4xl">What it does</h2>
-          <div className="mt-16 space-y-24 md:space-y-32">
-            {features.map((f, i) => (
-              <article key={f.title} className="grid items-center gap-10 md:grid-cols-2 md:gap-16">
-                <div className={i % 2 ? "md:order-2" : ""}>
-                  <h3 className="text-2xl sm:text-3xl">{f.title}</h3>
-                  <ul className="mt-6 space-y-3 text-muted-foreground">
-                    {f.bullets.map((b) => (
-                      <li key={b} className="flex gap-3 leading-relaxed">
-                        <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className={`flex justify-center gap-4 ${i % 2 ? "md:order-1" : ""}`}>
-                  {f.images.map((img) => (
-                    <Phone key={img.src} src={img.src} alt={img.alt} maxH={f.images.length > 1 ? "max-h-[420px]" : "max-h-[560px]"} />
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
+          <FeatureCarousel />
         </Section>
 
         {/* Little things */}
         <section className="border-y bg-card/50">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
-            <h2 className="text-3xl sm:text-4xl">Little things</h2>
+            <h2 className="text-3xl sm:text-4xl">And a few more</h2>
             <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {little.map(({ icon: Icon, title, text }) => (
-                <li key={title} className="rounded-xl border bg-background p-5">
-                  <Icon className="size-5 text-amber" aria-hidden />
-                  <h3 className="mt-4 font-bold">{title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{text}</p>
+                <li key={title} className="flex gap-4 rounded-xl border bg-background p-4 sm:block sm:p-5">
+                  <Icon className="mt-0.5 size-5 shrink-0 text-amber" aria-hidden />
+                  <div>
+                    <h3 className="font-bold sm:mt-4">{title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{text}</p>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -396,29 +596,32 @@ function Index() {
 
         {/* Data */}
         <Section>
-          <div className="grid gap-10 md:grid-cols-[auto_1fr] md:gap-16">
-            <ShieldCheck className="size-10 text-primary" aria-hidden />
+          <ShieldCheck className="size-10 text-primary" aria-hidden />
+          <h2 className="mt-6 text-3xl sm:text-4xl">Your data stays yours</h2>
+          <div className="mt-8 grid gap-8 sm:grid-cols-3">
             <div>
-              <h2 className="text-3xl sm:text-4xl">Your data stays yours</h2>
-              <div className="mt-8 grid gap-8 sm:grid-cols-3">
-                <div>
-                  <h3 className="font-bold">No password</h3>
-                  <p className="mt-2 text-muted-foreground">Sign in with a 6-digit code sent to your email.</p>
-                </div>
-                <div>
-                  <h3 className="font-bold">Stored in the EU</h3>
-                  <p className="mt-2 text-muted-foreground">
-                    Food, workouts and weigh-ins live in a database restricted to the EU. Never sold or shared, not used for
-                    ads or analytics.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-bold">Leave any time</h3>
-                  <p className="mt-2 text-muted-foreground">Export or delete everything by asking Claude.</p>
-                </div>
-              </div>
+              <h3 className="font-bold">No password</h3>
+              <p className="mt-2 text-muted-foreground">Sign in with a 6-digit code sent to your email.</p>
+            </div>
+            <div>
+              <h3 className="font-bold">Stored in the EU</h3>
+              <p className="mt-2 text-muted-foreground">
+                Food, workouts and weigh-ins live in a database restricted to the EU. Never sold or shared, not used for ads
+                or analytics.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-bold">Leave any time</h3>
+              <p className="mt-2 text-muted-foreground">Export or delete everything by asking Claude.</p>
             </div>
           </div>
+          <p className="mt-8 max-w-3xl leading-relaxed text-muted-foreground">
+            What you say in the chat is handled by Anthropic under your Claude account; Fitwell stores your records in the EU.{" "}
+            <a href={PRIVACY_URL} className="font-semibold text-foreground underline underline-offset-4">
+              Read the privacy notice
+            </a>
+            .
+          </p>
         </Section>
 
         {/* Join */}
@@ -430,13 +633,13 @@ function Index() {
                 <p>Email us from the address you want to sign in with.</p>
                 <CopyBox value={EMAIL} label="email address" />
                 <a
-                  href="mailto:fitwell.fyi@pm.me?subject=Fitwell%20invite"
+                  href="mailto:fitwell.fyi@pm.me?subject=Fitwell%20invite&body=Hi%2C%20please%20invite%20this%20address.%0A%0AI%20use%20Claude%20on%3A%20desktop%20%2F%20web%20%2F%20iPhone"
                   className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 font-semibold text-primary-foreground hover:opacity-90"
                 >
                   <Mail className="size-4" aria-hidden /> Open in your email app
                 </a>
               </Step>
-              <Step n={2} title="Add the connector in Claude">
+              <Step n={2} id="connect" title="Add the connector in Claude">
                 <p>
                   Go to <strong className="text-foreground">Settings</strong>, then <strong className="text-foreground">Connectors</strong>,
                   then <strong className="text-foreground">Add custom connector</strong>, and paste:
@@ -498,9 +701,9 @@ function Index() {
   );
 }
 
-function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+function Step({ n, id, title, children }: { n: number; id?: string; title: string; children: ReactNode }) {
   return (
-    <li className="grid grid-cols-[2.5rem_1fr] gap-4">
+    <li id={id} className="grid scroll-mt-8 grid-cols-[2.5rem_minmax(0,1fr)] gap-4">
       <span className="flex size-10 items-center justify-center rounded-full border-2 border-primary font-bold text-primary" aria-hidden>
         {n}
       </span>

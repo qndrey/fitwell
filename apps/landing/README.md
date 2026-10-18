@@ -15,6 +15,7 @@ The design lives in Lovable (project "Fitwell Coach", https://lovable.dev/projec
 `build:static` sets `FITWELL_STATIC=1`. Lovable's own builds don't set it, so they behave as before.
 
 - The one route is prerendered to `site/.output/public/index.html`, so no server code runs.
+- Screenshots: plain PNGs in `site/src/assets`, one light and one dark file per view (`<name>-light.png`, `<name>-dark.png`), taken from the real views by `apps/mcp/scripts/screenshots.ts`. `index.tsx` loads them with `import.meta.glob` and shows the one that matches the visitor's theme (`<picture>`); `SIZES` in `index.tsx` holds their pixel sizes, so update it when you re-shoot. The 1200×630 sharing card is `site/public/og.png`.
 - Images: Lovable refers to its own asset host (`src/assets/*.png.asset.json`, `/__l5e/...`). A small Vite plugin in `vite.config.ts` points each of those at the PNG beside it, which is copied into the build with a hashed name.
 - Headers: `scripts/static-headers.mjs` writes `_headers` with the same strict CSP as the rest of Fitwell. TanStack's few inline bootstrap scripts are allowed by their exact hashes, which are recomputed on every build.
 

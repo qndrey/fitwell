@@ -62,6 +62,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "theme-color", content: "#1b1a18", media: "(prefers-color-scheme: dark)" },
       { property: "og:site_name", content: "Fitwell for Claude" },
     ],
+    // Applies a theme the visitor chose earlier before the first paint (no flash); the page's CSP lists this script by hash.
+    scripts: [
+      {
+        children:
+          'try{var t=localStorage.getItem("fitwell-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}',
+      },
+    ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.ico", sizes: "48x48" },

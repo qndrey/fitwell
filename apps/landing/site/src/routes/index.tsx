@@ -284,7 +284,12 @@ function FeatureCarousel() {
   }, [active]);
 
   useEffect(() => {
-    tabs.current[active]?.scrollIntoView({ block: "nearest", inline: "center", behavior: reduced() ? "instant" : "smooth" });
+    // Centre the tab inside its own strip. scrollIntoView would also scroll the page, which jumped it down on load.
+    const tab = tabs.current[active];
+    const strip = tab?.parentElement;
+    if (!tab || !strip) return;
+    const left = strip.scrollLeft + tab.getBoundingClientRect().left - strip.getBoundingClientRect().left - (strip.clientWidth - tab.clientWidth) / 2;
+    strip.scrollTo({ left, behavior: reduced() ? "instant" : "smooth" });
   }, [active]);
 
   return (
@@ -621,7 +626,8 @@ function Index() {
         </Section>
 
         {/* Data */}
-        <Section>
+        <section className="border-y bg-card/50">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
           <ShieldCheck className="size-10 text-primary" aria-hidden />
           <h2 className="mt-6 text-3xl sm:text-4xl">Your data stays yours</h2>
           <div className="mt-8 grid gap-8 sm:grid-cols-3">
@@ -648,12 +654,13 @@ function Index() {
             </a>
             .
           </p>
-        </Section>
+          </div>
+        </section>
 
         {/* Support */}
         {supportLinks.length > 0 && (
-          <section id="support" className="scroll-mt-4 border-t">
-            <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 md:py-20">
+          <section id="support" className="scroll-mt-4">
+            <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
             <Heart className="size-10 text-amber" aria-hidden />
             <h2 className="mt-6 text-3xl sm:text-4xl">Support Fitwell</h2>
             <p className="mt-6 max-w-2xl leading-relaxed text-muted-foreground">

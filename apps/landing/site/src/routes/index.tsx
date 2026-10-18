@@ -48,8 +48,8 @@ const PRIVACY_URL = "https://mcp.fitwell.fyi/privacy";
  * and with none set the whole "Support Fitwell" section stays hidden, so there is never a dead link on the page.
  */
 const SUPPORT: { name: string; kind: string; url: string }[] = [
-  { name: "Liberapay", kind: "Monthly", url: "" },
-  { name: "Ko-fi", kind: "One-off", url: "" },
+  { name: "Liberapay", kind: "Monthly", url: "https://liberapay.com/fitwell.fyi" },
+  { name: "Ko-fi", kind: "One-off", url: "https://ko-fi.com/fitwellfyi" },
   { name: "GitHub Sponsors", kind: "Monthly or one-off", url: "" },
 ];
 const supportLinks = SUPPORT.filter((s) => s.url !== "");

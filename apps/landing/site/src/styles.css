@@ -157,3 +157,36 @@
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
 }
+
+/* Hero backdrop: a soft accent glow over a faint dot grid. */
+.hero-backdrop {
+  background:
+    radial-gradient(40rem 28rem at 85% 20%, color-mix(in oklab, var(--amber) 16%, transparent), transparent 70%),
+    radial-gradient(30rem 24rem at 5% 90%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 70%),
+    radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--foreground) 9%, transparent) 1px, transparent 0) 0 0 / 22px 22px;
+  mask-image: linear-gradient(to bottom, black 60%, transparent);
+}
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+.float-bubble { animation: float-y 7s ease-in-out infinite; }
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.typing-dot { animation: typing 1s ease-in-out infinite; }
+
+/* Scroll reveal: only hides content once JS has confirmed motion is fine. */
+.motion-ok [data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.3s, translate 0.3s;
+  transition-delay: var(--d, 0ms), var(--d, 0ms), 0ms, 0ms;
+}
+.motion-ok [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}

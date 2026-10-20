@@ -42,6 +42,8 @@ const skipBtn = (card: Locator) => btn(card, 'Skip set');
 const timerOf = (card: Locator) => card.getByRole('timer');
 const inc = (card: Locator, what: 'reps' | 'weight') => btn(card, new RegExp(`^Increase ${what}`, 'i'));
 const MINUS_15 = '−15 s';
+/** Stops the fake clock from running in real time, so only `runFor` moves it (a slow machine must not change what a test sees). */
+const freeze = (v: Opened) => v.page.clock.pauseAt(new Date(Date.now() + 20));
 
 async function onStep(p: WorkoutPlan, k: number, o: HostOptions = {}) {
   const v = await openView(p, o);
@@ -233,6 +235,7 @@ describe('Specs: Logging, skipping, stepper rule 2 (600 ms lock; AC17)', () => {
 describe('Specs: Logging, skipping, stepper rule 3 (AC4)', () => {
   const stepper = async () => {
     const o = await onStep(plan([squat3(), bench()]), 0, { clock: true });
+    await freeze(o.v);
     const button = inc(o.card, 'reps');
     const box = (await button.boundingBox())!;
     const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -405,6 +408,7 @@ describe('Specs: Edit and re-open (P5.5; AC3)', () => {
   it('Save changes leaves a running rest unchanged', async () => {
     const { v, card } = await onStep(midway(), 0, { clock: true });
     await logBtn(card).click();
+    await freeze(v);
     await v.page.clock.runFor(20_000);
     const before = await restSeconds(card);
     await rowOf(card, '1').click();
@@ -562,8 +566,9 @@ describe('Specs: Rest rules 2 and 3 (P5.7; AC2, AC20)', () => {
   });
 
   it('-15 s and +15 s change the remaining time by 15 s', async () => {
-    const { card } = await onStep(plan([squat3(), bench()]), 0, { clock: true });
+    const { v, card } = await onStep(plan([squat3(), bench()]), 0, { clock: true });
     await logBtn(card).click();
+    await freeze(v);
     const start = await restSeconds(card);
     await btn(card, MINUS_15).click();
     await expect.poll(() => restSeconds(card)).toBeLessThanOrEqual(start - 14);
@@ -576,6 +581,7 @@ describe('Specs: Rest rules 2 and 3 (P5.7; AC2, AC20)', () => {
     const e = ex('Squat', [set('1'), set('2')], { restSec: 10 });
     const { v, card } = await onStep(plan([e]), 0, { clock: true });
     await logBtn(card).click();
+    await freeze(v);
     await btn(card, MINUS_15).click();
     await expect.poll(() => restSeconds(card)).toBeLessThanOrEqual(1);
     expect(await restSeconds(card)).toBeGreaterThanOrEqual(0);

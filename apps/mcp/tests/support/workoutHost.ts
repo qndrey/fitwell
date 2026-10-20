@@ -80,6 +80,8 @@ export interface Opened {
   calls: { name: string; args: Record<string, unknown> }[];
   /** Texts the view sent to Claude with `sendMessage`. */
   messages: string[];
+  /** Texts the view shared with `updateModelContext`, in order. */
+  contexts: string[];
   sendResult(result: Record<string, unknown>): Promise<void>;
   /** Runs code inside the view's frame. */
   inView<T>(fn: () => T): Promise<T>;
@@ -90,6 +92,8 @@ export interface HostOptions {
   reducedMotion?: boolean;
   touch?: boolean;
   finish?: 'error';
+  /** Makes `sendMessage` return an error while it returns true (read at call time). */
+  messageFails?: () => boolean;
   /** Answers a tool call the view makes (get_substitutes, swap_exercise, get_exercise_guide, ...); undefined falls through to the defaults. Read at call time, so tests can change what it returns. */
   tools?: (name: string, args: Record<string, unknown>) => Record<string, unknown> | undefined;
   /** Installs Playwright's fake clock (it keeps running in real time until `page.clock.runFor` / `fastForward` jumps it). */
@@ -146,6 +150,7 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
   const page = await context.newPage();
   const calls: Opened['calls'] = [];
   const messages: string[] = [];
+  const contexts: string[] = [];
   const stored = p === 'error' ? undefined : p;
   const summary = (w: WorkoutPlan) => ({
     content: [{ type: 'text', text: 'Finished.' }],
@@ -178,6 +183,11 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
     if (msg.method === 'ui/message') {
       const content = (msg.params?.content ?? []) as { text?: string }[];
       messages.push(content.map((c) => c.text ?? '').join(''));
+      return { jsonrpc: '2.0', id: msg.id, result: o.messageFails?.() ? { isError: true } : {} };
+    }
+    if (msg.method === 'ui/update-model-context') {
+      const content = (msg.params?.content ?? []) as { text?: string }[];
+      contexts.push(content.map((c) => c.text ?? '').join(''));
       return { jsonrpc: '2.0', id: msg.id, result: {} };
     }
     if (msg.id !== undefined) return { jsonrpc: '2.0', id: msg.id, result: {} };
@@ -207,6 +217,7 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
     frame: page.frameLocator('#v'),
     calls,
     messages,
+    contexts,
     sendResult: async (result) => {
       await page.evaluate((r) => (globalThis as unknown as Dom).window.__send({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: r }), result);
     },

@@ -83,6 +83,10 @@ const state = {
   finishing: false,
   sendFailed: false,
   note: '',
+  /** The summary could not be loaded from the server: what is shown comes from the stored plan. */
+  summaryNote: '',
+  /** A finished workout was reopened and its summary refetch failed (Try again). */
+  summaryFailed: false,
 };
 
 /** Changes that did not reach the server yet, by what they change; retried until they do. */
@@ -179,7 +183,7 @@ async function flush() {
   } finally {
     flushing = false;
   }
-  if (failed.size > 0) announce(`${failed.size === 1 ? 'A change is' : `${failed.size} changes are`} not saved yet.`);
+  if (failed.size > 0) announce(`${failed.size === 1 ? '1 change' : `${failed.size} changes`} not saved.`);
   render();
 }
 
@@ -207,6 +211,10 @@ function load(plan: WorkoutPlan) {
   plan.cardio ??= []; // a workout saved before cardio blocks existed
   state.plan = plan;
   state.finished = null;
+  state.summaryNote = '';
+  state.summaryFailed = false;
+  state.sendFailed = false;
+  state.note = '';
   state.swappedFrom.clear();
   state.rest = null;
   state.restChange = false;
@@ -524,18 +532,28 @@ async function finish() {
     });
     if (!res.isError) summary = res.structuredContent as unknown as FinishSummary;
   } catch {
-    /* the summary below is built from what is on screen */
+    /* the summary below is built from the stored plan */
   }
-  state.finished = summary ?? {
-    minutes: Math.round((Date.now() - state.plan!.startedAt) / 60000),
-    volumeKg: 0,
-    exercises: [],
-  };
+  const reopened = !!state.plan!.finished;
+  state.summaryFailed = !summary && reopened;
+  state.summaryNote = summary ? '' : reopened ? 'Could not load the full summary. Try again' : 'Could not load the full summary.';
+  state.finished = summary ?? summaryFromPlan();
   state.finishing = false;
   render();
-  if (state.plan!.finished) return; // reopened a finished workout: nothing new to tell Claude
+  if (reopened) return; // reopened a finished workout: nothing new to tell Claude
   state.plan!.finished = true;
   void sendSummary(summary);
+}
+
+/** What the plan itself knows, when the server's summary is not available: time, volume and the sets that were logged. */
+function summaryFromPlan(): FinishSummary {
+  const plan = state.plan!;
+  const lines = plan.exercises.flatMap((ex) => {
+    const done = ex.sets.filter((x) => x.done && !x.warmup);
+    return done.length ? [{ name: ex.name, done: done.map((x) => setValues(ex, x)).join(', ') }] : [];
+  });
+  const volumeKg = plan.exercises.reduce((n, ex) => (ex.bodyweight || ex.timed ? n : n + ex.sets.filter((x) => x.done && !x.warmup).reduce((m, x) => m + (x.reps ?? 0) * (x.weightKg ?? 0), 0)), 0);
+  return { minutes: Math.round((Date.now() - plan.startedAt) / 60000), volumeKg: Math.round(volumeKg), exercises: lines };
 }
 
 async function sendSummary(summary: FinishSummary | null) {
@@ -553,7 +571,7 @@ async function sendSummary(summary: FinishSummary | null) {
   } catch {
     state.sendFailed = true;
   }
-  state.note = state.sendFailed ? 'Could not send the summary to Claude.' : 'Sent to Claude. It will reply below; ask it to fix anything that is wrong.';
+  state.note = state.sendFailed ? 'Could not send to Claude.' : 'Sent to Claude. It will reply below.';
   render();
 }
 
@@ -1311,7 +1329,7 @@ function updateHeader() {
         failed.size === 0
           ? []
           : [
-              `${failed.size === 1 ? '1 change is' : `${failed.size} changes are`} not saved yet. `,
+              `${failed.size === 1 ? '1 change' : `${failed.size} changes`} not saved. `,
               h(
                 'button',
                 {
@@ -1452,11 +1470,19 @@ function summaryBody(): Child[] {
       { className: 'card summary' },
       h('h1', { tabIndex: -1 }, 'Workout finished'),
       h('p', { className: 'muted' }, `${f.minutes} min · ${doneWorking} working ${doneWorking === 1 ? 'set' : 'sets'}${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
-      bests.length > 0 && h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`))),
+      bests.length > 0 ? h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`))) : !state.summaryNote && h('p', { className: 'muted' }, 'No new bests this time.'),
       ...f.exercises.map((e) => h('p', {}, h('strong', {}, e.name), ` ${e.done}`, e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`))),
       skipped.length > 0 && h('p', {}, h('strong', {}, 'Skipped'), ` ${skipped.join(', ')}`),
       notDone.length > 0 && h('p', {}, h('strong', {}, 'Not done'), ` ${notDone.join(', ')}`),
       ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · about ${c.kcal} kcal` : ''}`)),
+      state.summaryNote &&
+        h(
+          'p',
+          { className: 'muted small', role: 'status' },
+          state.summaryNote,
+          ' ',
+          state.summaryFailed && h('button', { type: 'button', className: 'link', 'data-key': 'retry-summary', onclick: () => void finish() }, 'Try again'),
+        ),
       state.note &&
         h(
           'p',
@@ -1474,6 +1500,7 @@ function summaryBody(): Child[] {
               'Send again',
             ),
         ),
+      state.sendFailed && h('p', { className: 'muted small' }, failed.size === 0 ? 'Your workout is saved.' : `${failed.size} change${failed.size === 1 ? ' was' : 's were'} not saved to Fitwell.`),
     ),
   ];
 }
@@ -1481,7 +1508,7 @@ function summaryBody(): Child[] {
 function finishBody(): Child[] {
   const plan = state.plan!;
   if (state.finished) return summaryBody();
-  if (state.finishing) return [h('div', { className: 'card' }, h('h1', { tabIndex: -1 }, 'Finish'), h('p', { className: 'muted' }, 'Saving…'))];
+  if (state.finishing) return [h('div', { className: 'card' }, h('h1', { tabIndex: -1 }, 'End of workout'), h('p', { className: 'muted' }, 'Saving…'))];
   const steps = stepsOf(plan);
   const fs = finishState(steps);
   const counts = workingCounts(steps);
@@ -1490,7 +1517,7 @@ function finishBody(): Child[] {
     h(
       'div',
       { className: 'card finish' },
-      h('h1', { tabIndex: -1 }, 'Finish'),
+      h('h1', { tabIndex: -1 }, 'End of workout'),
       h('p', { className: 'muted' }, h('span', { 'data-clock': 'elapsed' }, mmss(Date.now() - plan.startedAt)), ` elapsed · ${counts.closed} of ${counts.total} working sets`),
       fs.notDone.length > 0 && h('p', {}, h('strong', {}, 'Not done'), ` ${fs.notDone.join(', ')}`),
       fs.skipped.length > 0 && h('p', {}, h('strong', {}, 'Skipped'), ` ${fs.skipped.join(', ')}`),

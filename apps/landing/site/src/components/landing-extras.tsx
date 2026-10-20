@@ -66,9 +66,7 @@ export function SiteHeader({ children }: { children: ReactNode }) {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
         <a href="#top" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
           <img src="/icon-512.png" alt="" width={32} height={32} className="size-8 rounded-[22%]" />
-          <span>
-            Fitwell <span className="font-medium text-muted-foreground max-[419px]:sr-only">for Claude</span>
-          </span>
+          <span>Fitwell</span>
         </a>
         <nav aria-label="Sections" className="hidden md:block">
           <ul className="flex items-center gap-1 rounded-full border bg-card/60 p-1">

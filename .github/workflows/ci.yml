@@ -30,3 +30,28 @@ jobs:
       # The workout player tests drive the built view in a real Chromium (tests/support/workoutHost.ts).
       - run: node node_modules/playwright/cli.js install --with-deps chromium
       - run: npm test
+
+  # Publishes to Cloudflare after Check passes on main. D1 migrations are NOT applied here: run
+  # `npm --prefix apps/mcp run db:migrate -- --remote` by hand first when a change adds one.
+  deploy:
+    name: Deploy
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Add required reviewers to this environment in the repo settings for a manual approval step.
+    environment: production
+    concurrency: { group: deploy-production, cancel-in-progress: false }
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      # MCP server at mcp.fitwell.fyi (wrangler's build step runs build:ui).
+      - run: npm --prefix apps/mcp run deploy
+      # Landing page at fitwell.fyi: its own npm project (not a workspace).
+      - run: npm --prefix apps/landing/site ci
+      - run: npm --prefix apps/landing/site run deploy

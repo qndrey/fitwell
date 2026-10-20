@@ -71,7 +71,8 @@ export const kg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1)
 
 export const setClosed = (s: PlannedSet) => s.done || !!s.skipped;
 export const cardioClosed = (c: PlannedCardio) => c.done || !!c.skipped;
-export const nextSet = (e: PlannedExercise) => e.sets.find((s) => !setClosed(s));
+/** The first open set; warm-ups come before working sets whatever the order the plan lists them in. */
+export const nextSet = (e: PlannedExercise) => e.sets.find((s) => !setClosed(s) && s.warmup) ?? e.sets.find((s) => !setClosed(s));
 
 /** Plan order: cardio "before" blocks, exercises, cardio "after" blocks. */
 export function stepsOf(plan: WorkoutPlan): Step[] {

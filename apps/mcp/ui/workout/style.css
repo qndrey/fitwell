@@ -147,3 +147,30 @@ ol.list li { position: relative; }
 ol.list button.ovrow { min-height: 44px; }
 .rowtext { display: grid; gap: 2px; min-width: 0; }
 ol.list button.ovrow .name { white-space: normal; overflow-wrap: anywhere; }
+
+ol.sets { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.srow { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 4px; min-width: 0; }
+.srow .mark { flex: none; width: 1.2em; text-align: center; }
+.srow .sname { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.srow .svalues { flex: none; font-variant-numeric: tabular-nums; }
+.srow.skipped { color: var(--muted); }
+.srow.logged { padding: 0; }
+.srow .rowbtn { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 8px; text-align: left; border: 0; background: transparent; }
+.srow.logged:has(.rowbtn[aria-expanded='true']) { background: var(--bg); border-radius: var(--radius-sm); }
+li.editor { display: grid; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+li.zonerow { display: block; }
+.zone { container-type: inline-size; display: grid; align-content: start; gap: 12px; min-height: calc(var(--track-h) / 2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; background: var(--bg); }
+.zone.rest { text-align: center; }
+.zone.rest .next { justify-items: center; }
+@container (max-width: 340px) {
+  .zone .steppers { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .zone .stepper { grid-template-columns: 5.5rem minmax(0, 1fr); align-items: center; gap: 8px; }
+  .zone .stepper button, .zone .stepper .value, .zone .stepper .value-field { min-height: 44px; }
+  .zone .stepper output, .zone .stepper .value-field { font-size: max(1.25rem, 16px); }
+}
+@container (max-width: 250px) { .zone .stepper { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
+.restbar { position: sticky; bottom: 0; height: 44px; flex: none; background: var(--surface); }
+.restbar .bar { position: absolute; inset: 0 0 auto 0; height: 3px; border-radius: 0; }
+.restbtns { display: flex; align-items: center; gap: 8px; height: 44px; }
+.restbtns .restclock { flex: 1 1 auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.restbtns button { flex: none; min-height: 44px; padding: 0 12px; }

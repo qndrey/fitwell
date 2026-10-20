@@ -1,7 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
-import { platesFor, STANDARD_GYM } from '@fitwell/core/domain/plates';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
+import { drainQueue, formatLastTime, kg, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, weightStepFor as weightStepForGym } from './cards';
 import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -83,11 +83,8 @@ const mmss = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
-const kg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const r1 = (n: number) => Math.round(n * 10) / 10;
-/** One tap on the weight stepper: small enough for dumbbells and micro plates. Typing a value works for anything else. */
-const WEIGHT_STEP = 0.5;
 const closed = (s: PlannedSet) => s.done || !!s.skipped;
 const nextSet = (e: PlannedExercise) => e.sets.find((s) => !closed(s));
 const cardioClosed = (c: PlannedCardio) => c.done || !!c.skipped;
@@ -97,26 +94,13 @@ const items = (): Item[] => {
 };
 const itemOpen = (it: Item) => (it.kind === 'ex' ? !!nextSet(it.ex) : !cardioClosed(it.c));
 
+const weightStepFor = (ex: PlannedExercise) => weightStepForGym(ex, state.plan?.gym);
+const plateText = (ex: PlannedExercise, weight: number) => plateTextFor(ex, weight, state.plan?.gym);
+
 const lock = () => {
   state.lockUntil = Date.now() + 600;
 };
 const locked = () => Date.now() < state.lockUntil;
-
-/**
- * One tap on the weight stepper: what the equipment can actually do (a barbell moves in pairs of the smallest plate, a dumbbell rack
- * in 2 kg, a stack in 2.5 kg). Typing a value, or holding the button, reaches anything else.
- */
-function weightStepFor(ex: PlannedExercise): number {
-  if (ex.bodyweight) return WEIGHT_STEP;
-  const equipment = ex.equipment.toLowerCase();
-  if (equipment === 'barbell' || equipment === 'e-z curl bar') {
-    const plates = (state.plan?.gym ?? STANDARD_GYM).platesKg;
-    return plates.length ? Math.min(...plates) * 2 : 2.5;
-  }
-  if (equipment === 'dumbbell' || equipment === 'kettlebells') return 2;
-  if (equipment === 'machine' || equipment === 'cable') return 2.5;
-  return WEIGHT_STEP;
-}
 
 function startHold() {
   state.holdUntil = Date.now() + state.seconds * 1000;
@@ -172,23 +156,8 @@ async function flush() {
   if (flushing) return;
   flushing = true;
   lastFlushAt = Date.now();
-  const tried = new Set<() => Promise<boolean>>();
   try {
-    // Changes queued while this runs are picked up too, not left until the next tap.
-    for (let next = [...pending].find(([, run]) => !tried.has(run)); next; next = [...pending].find(([, run]) => !tried.has(run))) {
-      const [key, run] = next;
-      tried.add(run);
-      let ok = false;
-      try {
-        ok = await run();
-      } catch {
-        ok = false;
-      }
-      if (ok && pending.get(key) === run) {
-        pending.delete(key);
-        failed.delete(key);
-      } else if (!ok) failed.add(key);
-    }
+    await drainQueue(pending, failed);
   } finally {
     flushing = false;
   }
@@ -277,19 +246,6 @@ function supersetSteps(ex: PlannedExercise): number[] {
   const all = items();
   if (!ex.supersetId) return [all.findIndex((x) => x.kind === 'ex' && x.ex === ex)];
   return all.flatMap((x, i) => (x.kind === 'ex' && x.ex.supersetId === ex.supersetId ? [i] : []));
-}
-
-/** "5 × 87.5 kg", "40 s", "8 reps": the values of a set as the person sees them. */
-function setValues(ex: PlannedExercise, set: { reps?: number; weightKg?: number; seconds?: number }): string {
-  if (ex.timed) return `${set.seconds ?? 0} s`;
-  if (ex.bodyweight) return `${set.reps ?? 0} reps`;
-  return `${set.reps ?? 0} × ${kg(set.weightKg ?? 0)} kg`;
-}
-
-function setName(ex: PlannedExercise, set: PlannedSet): string {
-  const warm = ex.sets.filter((x) => x.warmup);
-  const working = ex.sets.filter((x) => !x.warmup);
-  return set.warmup ? `warm-up ${warm.indexOf(set) + 1}` : `set ${working.indexOf(set) + 1} of ${working.length}`;
 }
 
 function logSet(skip = false) {
@@ -615,17 +571,6 @@ function stepper(kind: Kind) {
   return h('div', { className: 'stepper', role: 'group', 'aria-label': spec.label }, h('span', { className: 'muted small' }, spec.label), h('div', { className: 'row' }, dec, value, inc));
 }
 
-/** "Each side: 20 + 5 + 1.25" for a barbell, from the person's bar and plates. */
-function plateText(ex: PlannedExercise, weight: number): string | null {
-  if (ex.equipment !== 'barbell' || ex.bodyweight) return null;
-  const gym = state.plan?.gym ?? STANDARD_GYM;
-  const l = platesFor(weight, gym);
-  if (!l) return `Lighter than the ${kg(gym.barKg)} kg bar`;
-  const plate = (n: number) => String(Math.round(n * 100) / 100); // 1.25, not 1.3
-  const side = l.perSide.length ? `Each side: ${l.perSide.map(plate).join(' + ')}` : 'Empty bar';
-  return l.shortKg > 0 ? `${side} (${kg(l.totalKg)} kg; your plates can't make ${kg(weight)})` : `${side} · bar ${kg(gym.barKg)} kg`;
-}
-
 /** "Superset with Triceps Pushdown · round 1 of 2": where an exercise sits in its superset. */
 function supersetLabel(ex: PlannedExercise): string | null {
   if (!ex.supersetId) return null;
@@ -636,22 +581,6 @@ function supersetLabel(ex: PlannedExercise): string | null {
   const set = nextSet(ex);
   const round = set && !set.warmup ? working.indexOf(set) + 1 : 1;
   return `Superset with ${others.join(' and ')} · round ${round} of ${working.length}`;
-}
-
-/** "Last time (9 Oct): 5, 5, 4 × 82.5 kg": the server's summary, with a plain date and one notation. */
-function formatLastTime(raw: string): string {
-  const m = /^(.*?)\s*\((\d{4})-(\d{2})-(\d{2})\)$/.exec(raw);
-  if (!m) return raw;
-  const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(m[2]), Number(m[3]) - 1, Number(m[4]))));
-  const text = (m[1] ?? '').replace(/ kg$/, '');
-  const sets = [...text.matchAll(/(\d+) @ (BW|[\d.]+)/g)];
-  // Only reformat what is exactly "n @ weight, n @ weight"; anything else (timed sets, odd text) is shown as it came.
-  if (sets.length > 0 && sets.map((x) => x[0]).join(', ') === text) {
-    const same = sets.every((x) => x[2] === sets[0]![2]);
-    const unit = (w: string) => (w === 'BW' ? 'bodyweight' : `${w} kg`);
-    return same ? `Last time (${when}): ${sets.map((x) => x[1]).join(', ')} ${sets[0]![2] === 'BW' ? 'reps, bodyweight' : `× ${sets[0]![2]} kg`}` : `Last time (${when}): ${sets.map((x) => `${x[1]} × ${unit(x[2]!)}`).join(', ')}`;
-  }
-  return `Last time (${when}): ${m[1]}`;
 }
 
 const EQUIPMENT: Record<string, string> = { 'body only': 'bodyweight', other: 'other' };

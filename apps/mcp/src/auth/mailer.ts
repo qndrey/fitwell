@@ -23,7 +23,7 @@ export function cloudflareMailer(env: Pick<Env, 'EMAIL' | 'MAIL_FROM'>): Mailer 
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-/** The sign-in email: the code in the subject (handy on phones) and the body, plus a link for the same device. */
+/** The sign-in email: the code in the body, plus a link for the same device. */
 export function signInMail(to: string, code: string, link: string, clientName: string): Mail {
   const text = [
     `Your Fitwell sign-in code is ${code}`,
@@ -41,5 +41,5 @@ export function signInMail(to: string, code: string, link: string, clientName: s
 <p><a href="${escape(link)}" style="display:inline-block;background:#5a5650;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none">Sign in to Fitwell</a></p>
 <p style="color:#6b655d;font-size:14px">The code and link work once and expire in 10 minutes. <strong>Never give this code to anyone.</strong> If you didn't try to sign in, ignore this email; nothing happens without the code.</p>
 </body></html>`;
-  return { to, subject: `Fitwell sign-in code: ${code}`, text, html };
+  return { to, subject: "Your Fitwell sign-in code", text, html };
 }

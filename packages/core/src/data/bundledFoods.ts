@@ -1,4 +1,5 @@
 import type { FoodItem } from '../domain/foods';
+import { friendlyFoodName } from '../domain/foodNames';
 import { EXTRA_KEYS, type Extras } from '../domain/nutrition';
 
 export interface DatasetInfo {
@@ -33,7 +34,7 @@ export function loadBundledFoods() {
     const raw = m.default as unknown as Raw;
     const foods: FoodItem[] = raw.foods.map(([id, name, kcal, protein, carbs, fat, g, x]) => ({
       ref: { kind: 'bundled', id: `${raw.dataset.id}:${id}` },
-      name,
+      name: friendlyFoodName(name),
       group: raw.groups[g],
       per100g: { kcal, protein, carbs, fat },
       ...(x ? { extras: extrasOf(x) } : {}),

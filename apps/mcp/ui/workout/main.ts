@@ -172,8 +172,12 @@ async function flush() {
   if (flushing) return;
   flushing = true;
   lastFlushAt = Date.now();
+  const tried = new Set<() => Promise<boolean>>();
   try {
-    for (const [key, run] of [...pending]) {
+    // Changes queued while this runs are picked up too, not left until the next tap.
+    for (let next = [...pending].find(([, run]) => !tried.has(run)); next; next = [...pending].find(([, run]) => !tried.has(run))) {
+      const [key, run] = next;
+      tried.add(run);
       let ok = false;
       try {
         ok = await run();
@@ -475,34 +479,73 @@ const STEPPERS: Record<Kind, { label: string; text: () => string; change: (dir: 
   km: { label: 'Distance km', text: () => (state.km > 0 ? kg(state.km) : '–'), change: (d) => void (state.km = clamp(r1(state.km + d * 0.5), 0, 500)), set: (n) => void (state.km = clamp(r1(n), 0, 500)), raw: () => (state.km > 0 ? kg(state.km) : ''), decimal: true },
 };
 
-/** A press changes the value at once; holding repeats it. The output text is updated in place while held, so the button under the finger stays. */
+/**
+ * A tap changes the value once, when the finger lifts; holding repeats it. Nothing changes when the finger goes down, so a swipe or a
+ * scroll that starts on a button never changes a value, and a repeat that lost its "finger up" (a host page that took over the
+ * gesture) stops by itself: on a move, on the page being hidden, or after a few seconds. The output text is updated in place while
+ * held, so the button under the finger stays.
+ */
 function pressable(btn: HTMLButtonElement, kind: Kind, dir: 1 | -1, out: HTMLElement) {
+  const MAX_HOLD_MS = 4000;
+  const MOVE_PX = 10;
   let delay: number | undefined;
   let repeat: number | undefined;
+  let repeating = false;
   let changed = false;
+  let startX = 0;
+  let startY = 0;
   const step = () => {
+    // A typed value that was not committed yet (this press blurred the field) counts first, so the step starts from it.
+    if (state.editing) {
+      const field = root.querySelector<HTMLInputElement>('.value-field');
+      if (field) {
+        const n = Number.parseFloat(field.value.replace(',', '.'));
+        if (Number.isFinite(n) && n >= 0) STEPPERS[state.editing].set(n);
+      }
+      state.editing = '';
+    }
     STEPPERS[kind].change(dir);
     changed = true;
     out.textContent = STEPPERS[kind].text();
   };
-  const stop = () => {
+  const release = () => {
     window.clearTimeout(delay);
     window.clearInterval(repeat);
-    window.removeEventListener('pointerup', stop);
-    window.removeEventListener('pointercancel', stop);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', cancel);
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('blur', cancel);
+    document.removeEventListener('visibilitychange', cancel);
+    repeating = false;
     if (changed) {
       changed = false;
       render();
     }
   };
+  const up = () => {
+    if (!repeating) step();
+    release();
+  };
+  const cancel = () => release();
+  const move = (e: PointerEvent) => {
+    if (Math.hypot(e.clientX - startX, e.clientY - startY) > MOVE_PX && !repeating) release();
+  };
   btn.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    step();
+    release();
+    startX = e.clientX;
+    startY = e.clientY;
     delay = window.setTimeout(() => {
-      repeat = window.setInterval(step, 90);
+      repeating = true;
+      step();
+      const until = Date.now() + MAX_HOLD_MS;
+      repeat = window.setInterval(() => (Date.now() > until ? release() : step()), 90);
     }, 450);
-    window.addEventListener('pointerup', stop);
-    window.addEventListener('pointercancel', stop);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', cancel);
   });
   // A keyboard press arrives as a click without a pointer; touch and mouse clicks are already handled above.
   btn.addEventListener('click', (e) => {
@@ -778,14 +821,13 @@ function upNext(it: Item | undefined): Child {
   }
   const ex = it.ex;
   const set = nextSet(ex)!;
-  const n = ex.sets.indexOf(set) + 1;
   const started = ex.sets.some(closed);
   return h(
     'div',
     { className: 'next' },
     h('p', { className: 'muted small' }, started ? 'Next set' : 'Next exercise'),
     h('p', { className: 'nexttitle' }, ex.name),
-    h('p', {}, `Set ${n} of ${ex.sets.length} · `, h('strong', {}, ex.bodyweight ? `${state.reps} reps, bodyweight` : `${state.reps} × ${kg(state.weight)} kg`)),
+    h('p', {}, `${setName(ex, set).replace(/^./, (c) => c.toUpperCase())} · `, h('strong', {}, ex.bodyweight ? `${state.reps} reps, bodyweight` : `${state.reps} × ${kg(state.weight)} kg`)),
     !started && ex.lastTime && h('p', { className: 'muted small' }, formatLastTime(ex.lastTime)),
     !started && ex.note && h('p', { className: 'muted small' }, ex.note),
     ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`),

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Link2,
   Refrigerator,
@@ -17,11 +17,15 @@ import {
   Moon,
   ShieldCheck,
   Sun,
+  KeyRound,
+  MapPin,
+  CircleHelp,
+  Wrench,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Roadmap } from "@/components/roadmap";
-import { BackToTop, ChatDemo, SiteHeader, Tilt, useReveal } from "@/components/landing-extras";
+import { BackToTop, ChatDemo, HeroCanvas, SiteHeader, Tilt, useReveal } from "@/components/landing-extras";
 
 // Every screenshot exists in a light and a dark version (<name>-light.png, <name>-dark.png), taken from the
 // real views by apps/mcp/scripts/screenshots.ts. The page theme picks one.
@@ -42,7 +46,7 @@ const TITLE = "Fitwell for Claude";
 const DESC =
   "A fitness and nutrition coach inside Claude. Log food, plan meals, run workouts and see your progress by talking to your assistant. Invite-only, data stored in the EU.";
 const OG_IMAGE = "https://fitwell.fyi/og.png";
-const OG_ALT = "Fitwell for Claude: track food, training and weight by talking to your assistant";
+const OG_ALT = "Fitwell for Claude: train smarter and get stronger by talking to your assistant";
 const PRIVACY_URL = "https://mcp.fitwell.fyi/privacy";
 
 /**
@@ -102,6 +106,75 @@ function Phone({ name, alt, priority = false, maxH }: { name: string; alt: strin
         <img src={dark} alt="" aria-hidden width={width} height={height} loading="lazy" decoding="async" className="shot-dark block h-auto w-full" />
         {maxH && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent" />}
       </div>
+    </div>
+  );
+}
+
+const HERO_SLIDES: { name: string; label: string; alt: string }[] = [
+  {
+    name: "hero-squat",
+    label: "Workout",
+    alt: "The workout player on Barbell Squat, set 1 of 2: last time 5, 5 and 4 reps at 82.5 kg, so today 85 kg, with reps and weight steppers and a Log set button",
+  },
+];
+
+function HeroRotator() {
+  const slides = [...HERO_SLIDES, ...features.map((f) => ({ name: f.shot, label: f.tab, alt: f.alt }))];
+  const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [hover, setHover] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPaused(true);
+  }, []);
+  useEffect(() => {
+    if (paused || hover) return;
+    const t = window.setInterval(() => setI((n) => (n + 1) % slides.length), 3800);
+    return () => window.clearInterval(t);
+  }, [paused, hover, slides.length]);
+  return (
+    <div
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="Fitwell screens"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onFocus={() => setHover(true)}
+      onBlur={() => setHover(false)}
+    >
+      <div className="grid">
+        {slides.map((s, n) => (
+          <div
+            key={s.name}
+            aria-hidden={n !== i}
+            className={cn("col-start-1 row-start-1 transition-all duration-700 ease-out", n === i ? "opacity-100" : "pointer-events-none scale-[0.97] opacity-0")}
+          >
+            <Phone name={s.name} alt={s.alt} priority={n === 0} maxH="max-h-[560px]" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => setPaused((p) => !p)}
+          aria-label={paused ? "Play screen rotation" : "Pause screen rotation"}
+          className="inline-flex size-8 items-center justify-center rounded-full border bg-background/80 text-xs hover:bg-card"
+        >
+          <span aria-hidden>{paused ? "▶" : "❚❚"}</span>
+        </button>
+        <div className="flex gap-1.5">
+          {slides.map((s, n) => (
+            <button
+              key={s.name}
+              type="button"
+              onClick={() => setI(n)}
+              aria-label={`Show ${s.label}`}
+              aria-current={n === i ? "true" : undefined}
+              className={cn("h-2 rounded-full transition-all", n === i ? "w-6 bg-amber" : "w-2 bg-border hover:bg-muted-foreground")}
+            />
+          ))}
+        </div>
+      </div>
+      <p className="sr-only" aria-live="polite">{paused ? `Showing ${slides[i]?.label}` : ""}</p>
     </div>
   );
 }
@@ -438,16 +511,21 @@ const troubles: { q: string; a: string | string[] }[] = [
   },
 ];
 
+// Staggered reveal for the "And a few more" cards. Classes, not a style attribute: the CSP blocks inline styles.
+const REVEAL_DELAYS = ["[--d:0ms]", "[--d:70ms]", "[--d:140ms]", "[--d:210ms]", "[--d:280ms]"];
+
 function Questions({ items }: { items: { q: string; a: string | string[] }[] }) {
   return (
-    <div className="mt-10 divide-y border-y">
+    <div className="mt-8 space-y-3">
       {items.map((f) => (
-        <details key={f.q} className="group py-5">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">
+        <details key={f.q} className="group rounded-2xl border bg-card/40 px-5 transition-colors open:bg-card">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-semibold [&::-webkit-details-marker]:hidden">
             {f.q}
-            <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-background" aria-hidden>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            </span>
           </summary>
-          <div className="mt-3 space-y-2 leading-relaxed text-muted-foreground">
+          <div className="space-y-2 pb-5 leading-relaxed text-muted-foreground">
             {(Array.isArray(f.a) ? f.a : [f.a]).map((line) => (
               <p key={line}>{line}</p>
             ))}
@@ -519,10 +597,11 @@ function Index() {
         {/* Hero */}
         <div className="relative overflow-hidden">
           <div aria-hidden className="hero-backdrop pointer-events-none absolute inset-0" />
+          <HeroCanvas />
           <section className="relative mx-auto grid max-w-6xl items-center gap-14 px-5 pb-20 pt-12 sm:px-8 md:grid-cols-[1.2fr_1fr] md:pb-28 md:pt-20">
             <div data-reveal>
               <h1 className="text-[2.6rem] leading-[1.02] sm:text-6xl lg:text-7xl">
-                Track food, training and weight by <span className="text-amber">talking to your assistant</span>
+                Train smarter and get stronger by <span className="text-amber">talking to your assistant</span>
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
                 Tell Claude what you ate or start a workout from the chat. Open a dashboard when you want to see how you are
@@ -554,16 +633,8 @@ function Index() {
             </div>
             <div className="relative flex justify-center md:justify-end" data-reveal>
               <Tilt className="w-full max-w-[380px]">
-                <Phone
-                  name="hero-squat"
-                  priority
-                  maxH="max-h-[560px]"
-                  alt="The workout player on Barbell Squat, set 1 of 2: last time 5, 5 and 4 reps at 82.5 kg, so today 85 kg, with reps and weight steppers and a Log set button"
-                />
+                <HeroRotator />
               </Tilt>
-              <p aria-hidden className="float-bubble absolute bottom-full left-0 mb-4 hidden rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-phone md:block">
-                Start my full-body workout.
-              </p>
             </div>
           </section>
         </div>
@@ -598,8 +669,7 @@ function Index() {
                 <li
                   key={title}
                   data-reveal
-                  style={{ "--d": `${i * 70}ms` } as CSSProperties}
-                  className="group flex gap-4 rounded-2xl border bg-background p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-phone sm:block sm:p-5"
+                  className={cn(REVEAL_DELAYS[i], "group flex gap-4 rounded-2xl border bg-background p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-phone sm:block sm:p-5")}
                 >
                   <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber/10 transition-colors group-hover:bg-amber/20">
                     <Icon className="size-5 text-amber" aria-hidden />
@@ -626,34 +696,33 @@ function Index() {
         {/* Data */}
         <section className="border-y bg-card/50">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
-          <div className="flex items-center gap-4">
-            <ShieldCheck className="size-10 shrink-0 text-primary" aria-hidden />
-            <h2 className="text-3xl sm:text-4xl">Your data stays yours</h2>
-          </div>
-          <div className="mt-10 grid gap-8 sm:grid-cols-3">
-            <div>
-              <h3 className="font-bold">No password</h3>
-              <p className="mt-2 text-muted-foreground">Sign in with a 6-digit code sent to your email.</p>
+            <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-sm font-semibold">
+                  <ShieldCheck className="size-4 text-amber" aria-hidden /> Privacy
+                </span>
+                <h2 className="mt-4 text-3xl sm:text-5xl">Your data stays yours</h2>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold">Stored in the EU</h3>
-              <p className="mt-2 text-muted-foreground">
-                Food, workouts and weigh-ins live in a database restricted to the EU. Never sold or shared, not used for ads
-                or analytics.
-              </p>
+            <div className="mt-12 grid gap-4 sm:grid-cols-3">
+              <DataCard icon={<KeyRound className="size-5" />} title="No password">
+                Sign in with a 6-digit code sent to your email.
+              </DataCard>
+              <DataCard icon={<MapPin className="size-5" />} title="Stored in the EU">
+                Food, workouts and weigh-ins live in a database restricted to the EU. Never sold or shared, not used for ads or
+                analytics.
+              </DataCard>
+              <DataCard icon={<Download className="size-5" />} title="Leave any time">
+                Export or delete everything by asking Claude.
+              </DataCard>
             </div>
-            <div>
-              <h3 className="font-bold">Leave any time</h3>
-              <p className="mt-2 text-muted-foreground">Export or delete everything by asking Claude.</p>
-            </div>
-          </div>
-          <p className="mt-8 max-w-3xl leading-relaxed text-muted-foreground">
-            What you say in the chat is handled by Anthropic under your Claude account; Fitwell stores your records in the EU.{" "}
-            <a href={PRIVACY_URL} className="font-semibold text-foreground underline underline-offset-4">
-              Read the privacy notice
-            </a>
-            .
-          </p>
+            <p className="mt-8 max-w-3xl rounded-2xl border-l-4 border-amber bg-background px-5 py-4 leading-relaxed text-muted-foreground">
+              What you say in the chat is handled by Anthropic under your Claude account; Fitwell stores your records in the EU.{" "}
+              <a href={PRIVACY_URL} className="font-semibold text-foreground underline underline-offset-4">
+                Read the privacy notice
+              </a>
+              .
+            </p>
           </div>
         </section>
 
@@ -695,9 +764,15 @@ function Index() {
 
         {/* Join */}
         <section id="join" className="scroll-mt-4 border-y bg-card/50">
-          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
-            <h2 className="text-3xl sm:text-4xl">How to join</h2>
-            <ol className="mt-10 max-w-3xl space-y-10">
+          <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 sm:px-8 md:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+            <div className="lg:sticky lg:top-28 lg:self-start">
+              <p className="text-sm font-semibold uppercase tracking-wide text-amber">Four steps, a few minutes</p>
+              <h2 className="mt-3 text-3xl sm:text-5xl">How to join</h2>
+              <p className="mt-5 max-w-sm leading-relaxed text-muted-foreground">
+                Ask for an invite, add the connector in Claude, sign in with a code and say hello.
+              </p>
+            </div>
+            <ol className="space-y-8">
               <Step n={1} title="Ask for an invite">
                 <p>Email us from the address you want to sign in with.</p>
                 <CopyBox value={EMAIL} label="email address" />
@@ -719,7 +794,7 @@ function Index() {
               <Step n={3} title="Sign in">
                 <p>Claude opens the sign-in page. Enter your email, tick the consent box and type the 6-digit code.</p>
               </Step>
-              <Step n={4} title="Start talking">
+              <Step n={4} title="Start talking" last>
                 <p>
                   A good first message is <span className="font-semibold text-foreground">"Set up my Fitwell profile"</span>.
                 </p>
@@ -728,24 +803,37 @@ function Index() {
           </div>
         </section>
 
-        {/* FAQ */}
-        <Section narrow>
-          <h2 className="text-3xl sm:text-4xl">Good to know</h2>
-          <Questions items={faqs} />
-        </Section>
-
-        {/* Troubleshooting */}
-        <Section id="troubleshooting" narrow className="pt-0 md:pt-0">
-          <h2 className="text-3xl sm:text-4xl">Troubleshooting</h2>
-          <Questions items={troubles} />
-          <p className="mt-8 text-muted-foreground">
-            Still stuck? Email{" "}
-            <a href={`mailto:${EMAIL}`} className="font-semibold text-primary underline underline-offset-4">
-              {EMAIL}
-            </a>{" "}
-            with what you see, and we'll help.
-          </p>
-        </Section>
+        {/* FAQ + Troubleshooting */}
+        <section className="mx-auto grid max-w-6xl gap-14 px-5 py-20 sm:px-8 md:py-28 lg:grid-cols-2 lg:gap-10">
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-card text-amber" aria-hidden>
+                <CircleHelp className="size-5" />
+              </span>
+              <h2 className="text-3xl sm:text-4xl">Good to know</h2>
+            </div>
+            <Questions items={faqs} />
+          </div>
+          <div id="troubleshooting" className="scroll-mt-24">
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-card text-amber" aria-hidden>
+                <Wrench className="size-5" />
+              </span>
+              <h2 className="text-3xl sm:text-4xl">Troubleshooting</h2>
+            </div>
+            <Questions items={troubles} />
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-dashed p-5 text-muted-foreground">
+              <Mail className="mt-0.5 size-5 shrink-0 text-amber" aria-hidden />
+              <p>
+                Still stuck? Email{" "}
+                <a href={`mailto:${EMAIL}`} className="font-semibold text-foreground underline underline-offset-4">
+                  {EMAIL}
+                </a>{" "}
+                with what you see, and we'll help.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t">
@@ -771,13 +859,17 @@ function Index() {
   );
 }
 
-function Step({ n, id, title, children }: { n: number; id?: string; title: string; children: ReactNode }) {
+function Step({ n, id, title, children, last = false }: { n: number; id?: string; title: string; children: ReactNode; last?: boolean }) {
   return (
-    <li id={id} className="grid scroll-mt-8 grid-cols-[2.5rem_minmax(0,1fr)] gap-4">
-      <span className="flex size-10 items-center justify-center rounded-full border-2 border-primary font-bold text-primary" aria-hidden>
+    <li id={id} className="relative grid scroll-mt-24 grid-cols-[3rem_minmax(0,1fr)] gap-5">
+      {!last && <span aria-hidden className="absolute left-6 top-14 bottom-[-2rem] w-px -translate-x-1/2 bg-border" />}
+      <span
+        className="relative z-10 flex size-12 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground shadow-phone"
+        aria-hidden
+      >
         {n}
       </span>
-      <div>
+      <div className="min-w-0 rounded-2xl border bg-background p-5 sm:p-6">
         <h3 className="text-xl">
           <span className="sr-only">Step {n}: </span>
           {title}
@@ -785,5 +877,17 @@ function Step({ n, id, title, children }: { n: number; id?: string; title: strin
         <div className="mt-2 leading-relaxed text-muted-foreground">{children}</div>
       </div>
     </li>
+  );
+}
+
+function DataCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-2xl border bg-background p-6 transition-transform duration-300 hover:-translate-y-1">
+      <span className="flex size-11 items-center justify-center rounded-xl bg-card text-amber" aria-hidden>
+        {icon}
+      </span>
+      <h3 className="mt-5 text-lg font-bold">{title}</h3>
+      <p className="mt-2 leading-relaxed text-muted-foreground">{children}</p>
+    </div>
   );
 }

@@ -699,6 +699,20 @@ describe('Swipe effect while the track is dragged', () => {
     expect((await tilt(v, 2)).opacity).toBe('');
   });
 
+  it('a track left between two cards comes back to the middle of the nearest one, and the tilt never moves the snapping box', async () => {
+    const { v } = await onStep(plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')])]), 0);
+    await dragTo(v, 1.3);
+    const slideIsPlain = await cardsOf(v).nth(1).evaluate((el) => {
+      const slide = (el as unknown as { parentElement: { style: { transform: string }; className: string } }).parentElement;
+      return slide.className === 'slide' && slide.style.transform === '';
+    });
+    expect(slideIsPlain).toBe(true);
+    await expect
+      .poll(() => trackOf(v).evaluate((el) => { const t = el as unknown as { scrollLeft: number; clientWidth: number }; return Math.round(Math.abs(t.scrollLeft - t.clientWidth)); }), { timeout: 5000 })
+      .toBeLessThanOrEqual(2);
+    expect(await counterText(v)).toBe('2 / 4');
+  });
+
   it('with reduced motion the cards are not transformed while dragging', async () => {
     const { v } = await onStep(plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')])]), 0, { reducedMotion: true });
     await dragTo(v, 1.4);

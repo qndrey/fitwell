@@ -95,7 +95,8 @@ header.head { display: grid; gap: var(--s1); }
 /* track and cards: a card is only the scroll area, there is no box around the content */
 .track { display: flex; height: var(--track-h); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; min-width: 0; }
 .track::-webkit-scrollbar { display: none; }
-.pcard { flex: 0 0 100%; min-width: 0; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; overflow-y: auto; overscroll-behavior-y: auto; }
+.slide { flex: 0 0 100%; min-width: 0; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
+.pcard { min-width: 0; height: 100%; overflow-y: auto; overscroll-behavior-y: auto; }
 .pcard :focus-visible { outline-offset: -2px; }
 .pcard h1:focus { outline: none; }
 .pcard h1:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

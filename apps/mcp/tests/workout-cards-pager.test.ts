@@ -236,8 +236,9 @@ describe('Specs: Pager and header rule 1 (track, snap, fixed height) and rule 5 
     const css = await trackOf(narrow).evaluate((el) => {
       const gcs = (globalThis as unknown as Dom).getComputedStyle;
       const s = gcs(el);
-      const c = gcs(el.querySelector('[aria-roledescription="card"]')!);
-      return { snap: s.scrollSnapType, ox: s.overflowX, over: s.overscrollBehaviorX, height: s.height, cardSnap: c.scrollSnapAlign, stop: c.scrollSnapStop, oy: c.overflowY, minW: c.minWidth, basis: c.flexBasis, grow: c.flexGrow, shrink: c.flexShrink };
+      const c = gcs(el.querySelector('.slide')!); // the slide snaps and sizes; the card inside it scrolls
+      const card = gcs(el.querySelector('[aria-roledescription="card"]')!);
+      return { snap: s.scrollSnapType, ox: s.overflowX, over: s.overscrollBehaviorX, height: s.height, cardSnap: c.scrollSnapAlign, stop: c.scrollSnapStop, oy: card.overflowY, minW: c.minWidth, basis: c.flexBasis, grow: c.flexGrow, shrink: c.flexShrink };
     });
     expect(css.snap).toContain('x mandatory');
     expect(css.ox).toBe('auto');

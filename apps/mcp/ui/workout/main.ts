@@ -1166,7 +1166,8 @@ function buildShell() {
         pointerDown = true;
       },
     },
-    ...cards,
+    // The slide is what snaps; the card inside it is what tilts while dragged, so the snap position never moves with the effect.
+    ...cards.map((card) => h('div', { className: 'slide' }, card)),
   );
   ui = { header, clock, save, strip, counter, chip, track, cards };
   root.replaceChildren(header, track);
@@ -1218,6 +1219,9 @@ function swipeEffect() {
 function settle() {
   if (!ui) return;
   const pos = trackPos();
+  // A hard fling can come to rest between two snap points: bring the card to the middle.
+  const w = ui.track.clientWidth;
+  if (w > 0 && Math.abs(ui.track.scrollLeft - pos * w) > 2 && !pointerDown) ui.track.scrollTo({ left: pos * w, behavior: scrollBehavior() });
   if (pos !== state.pos) {
     if (pos !== autoPos && state.intent) state.intent.cancelled = true;
     enterCard(pos);
@@ -1269,7 +1273,7 @@ function goTo(pos: number, opts: { focus?: boolean; auto?: boolean } = {}) {
     settle();
     return;
   }
-  ui.cards[target]!.scrollIntoView({
+  ui.cards[target]!.parentElement!.scrollIntoView({
     inline: 'center',
     block: 'nearest',
     behavior: scrollBehavior(),

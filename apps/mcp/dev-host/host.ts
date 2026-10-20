@@ -108,7 +108,7 @@ const FINISHER = {
 const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
   cards: {
     plan: {
-      name: "Cards",
+      name: "Full body A",
       exercises: [
         SQUAT,
         PULLUPS,
@@ -119,7 +119,7 @@ const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
   },
   resumed: {
     plan: {
-      name: "Cards",
+      name: "Full body A",
       exercises: [SQUAT, PULLUPS, { ...BENCH, sets: 1 }],
       cardio: [FINISHER],
     },
@@ -127,7 +127,7 @@ const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
   },
   superset: {
     plan: {
-      name: "Superset",
+      name: "Arms",
       exercises: [
         {
           id: "ex:Barbell_Curl",
@@ -151,13 +151,13 @@ const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
   },
   timed: {
     plan: {
-      name: "Timed",
+      name: "Core",
       exercises: [{ id: "ex:Plank", sets: 2, seconds: 10, rest_sec: 3 }],
     },
   },
   "cardio-heavy": {
     plan: {
-      name: "Cardio heavy",
+      name: "Cardio day",
       exercises: [{ ...PULLUPS, sets: 1, reps: 5 }],
       cardio: [
         { activity_id: "act:row-machine", minutes: 5, when: "before" },
@@ -168,7 +168,7 @@ const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
   },
   many: {
     plan: {
-      name: "Many steps",
+      name: "Big session",
       exercises: [
         SQUAT,
         PULLUPS,
@@ -213,7 +213,7 @@ const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
   },
   closed: {
     plan: {
-      name: "All closed",
+      name: "Push day",
       exercises: [SQUAT, PULLUPS],
       cardio: [FINISHER],
     },
@@ -221,7 +221,7 @@ const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
   },
   finished: {
     plan: {
-      name: "Finished",
+      name: "Pull day",
       exercises: [{ ...BENCH, weight_kg: 140 }, PULLUPS],
       cardio: [FINISHER],
     },

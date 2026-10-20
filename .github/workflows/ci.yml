@@ -27,4 +27,6 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # The workout player tests drive the built view in a real Chromium (tests/support/workoutHost.ts).
+      - run: node node_modules/playwright/cli.js install --with-deps chromium
       - run: npm test

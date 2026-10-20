@@ -11,6 +11,9 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    // The workout view tests drive a real browser, several files at once; the 5 s default is too tight for them.
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
     // Processed by Vite (not Node's loader) so the alias above applies inside the package.
     server: { deps: { inline: ['@cloudflare/workers-oauth-provider'] } },
   },

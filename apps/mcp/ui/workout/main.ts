@@ -65,8 +65,13 @@ const state = {
   swaps: new Map<string, { id: string; name: string; equipment: string }[]>(),
   swapNote: '',
   swapFailed: false,
-  /** The exercise this slot had before a swap, until the first set is logged (undo). */
-  swappedFrom: null as { id: string; name: string } | null,
+  /** The alternative a failed swap was trying, for Try again. */
+  swapTry: null as { id: string; name: string } | null,
+  /** The exercise a slot had before a swap, by slot uid, until the first set is logged (undo). */
+  swappedFrom: new Map<string, { id: string; name: string }>(),
+  /** The cardio block being edited (with the distance it cannot go below), and the one asking "Skip cardio?". */
+  cardioEdit: null as { id: string; kmFloor: number } | null,
+  cardioAsk: '',
   /** Moved straight on inside a superset round (no rest): the card it moved to, shown until the first stepper tap or `until`. */
   straight: null as { step: number; until: number } | null,
   /** Where the pager goes by itself after a log, until a manual move cancels it. */
@@ -202,6 +207,7 @@ function load(plan: WorkoutPlan) {
   plan.cardio ??= []; // a workout saved before cardio blocks existed
   state.plan = plan;
   state.finished = null;
+  state.swappedFrom.clear();
   state.rest = null;
   state.restChange = false;
   state.edit = null;
@@ -231,18 +237,15 @@ function resetSecondary() {
   state.swapAll = false;
   state.swapNote = '';
   state.swapFailed = false;
-  state.swappedFrom = null;
+  state.swapTry = null;
+  state.cardioEdit = null;
+  state.cardioAsk = '';
   state.confirmFinish = false;
   state.edit = null;
   state.editing = null;
   state.restChange = false;
   motion?.stop();
   motionFor = '';
-}
-
-/** Moves the pager to a step's card. */
-function select(i: number) {
-  goTo(i + 1);
 }
 
 /** Carries out the pending automatic move, unless a manual move cancelled it. */
@@ -252,15 +255,6 @@ function followIntent() {
   if (!intent || intent.cancelled || !intent.target) return;
   const pos = intent.target.kind === 'finish' ? cardCount() - 1 : intent.target.index + 1;
   goTo(pos, { auto: true });
-}
-
-function nextOpen(from: number): number {
-  const all = items();
-  for (let k = 0; k < all.length; k++) {
-    const i = (from + k) % all.length;
-    if (itemOpen(all[i]!)) return i;
-  }
-  return -1;
 }
 
 /** Exercises (as step indices) of the superset `ex` belongs to, in order; just `ex` when it is in none. */
@@ -307,7 +301,7 @@ function logSet(i: number, skip = false) {
     state.holdUntil = 0;
     state.readyUntil = 0;
   }
-  state.swappedFrom = null;
+  state.swappedFrom.delete(ex.uid);
   state.straight = null;
   state.intent = null;
   state.confirmFinish = false;
@@ -403,33 +397,40 @@ function logCardio(i: number, skip = false) {
   if (locked()) return;
   lock();
   const it = items()[i];
-  if (!it || it.kind !== 'cardio') return;
+  if (!it || it.kind !== 'cardio' || state.plan!.finished) return;
   const c = it.c;
   const d = state.drafts[i]!;
+  const wasClosed = cardioClosed(c);
+  const floor = state.cardioEdit?.id === c.id ? state.cardioEdit.kmFloor : 0;
+  const km = Math.max(d.km, floor);
+  state.cardioEdit = null;
+  state.cardioAsk = '';
   if (skip) c.skipped = true;
   else {
     c.done = true;
-    c.minutes = d.minutes;
-    if (d.km > 0) c.distanceKm = d.km;
+    c.minutes = clamp(d.minutes, 1, 240);
+    if (km > 0) c.distanceKm = km;
     delete c.skipped;
   }
   enqueue(`cardio:${c.id}`, () =>
     call('log_cardio_block', {
       workoutId: state.plan!.workoutId,
       blockId: c.id,
-      skip,
       ...(skip
-        ? {}
+        ? { skip: true }
         : {
             minutes: c.minutes ?? c.plannedMin,
             ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}),
           }),
     }),
   );
+  announce(skip ? `Skipped ${c.name}.` : `${wasClosed ? 'Saved' : 'Logged'} ${c.name}, ${c.minutes} min${c.distanceKm ? `, ${kg(c.distanceKm)} km` : ''}.`);
   void shareProgress();
-  const next = nextOpen(i + 1);
-  if (next === -1) render();
-  else select(next);
+  if (!wasClosed) {
+    state.intent = { target: nextTarget(stepsOf(state.plan!), i), cancelled: false };
+    followIntent();
+  }
+  render();
 }
 
 function adjustRest(delta: number) {
@@ -608,8 +609,8 @@ const STEPPERS: Record<Kind, StepperSpec> = {
     label: 'Distance km',
     noun: 'distance',
     text: (d) => (d.km > 0 ? kg(d.km) : '–'),
-    change: (d, dir) => void (d.km = clamp(r1(d.km + dir * 0.5), 0, 500)),
-    set: (d, n) => void (d.km = clamp(r1(n), 0, 500)),
+    change: (d, dir) => void (d.km = clamp(r1(d.km + dir * 0.5), state.cardioEdit?.kmFloor ?? 0, 500)),
+    set: (d, n) => void (d.km = clamp(r1(n), state.cardioEdit?.kmFloor ?? 0, 500)),
     raw: (d) => (d.km > 0 ? kg(d.km) : ''),
     decimal: true,
   },
@@ -799,10 +800,22 @@ const EQUIPMENT: Record<string, string> = {
 };
 const equipmentName = (e: string) => EQUIPMENT[e.toLowerCase()] ?? e;
 
+/** Scrolls the card in view just far enough to show a panel that opened under the action row; the rows above keep their place in the card. */
+function reveal(selector: string) {
+  const card = ui?.cards[state.pos];
+  const el = card?.querySelector<HTMLElement>(selector);
+  if (!card || !el) return;
+  const c = card.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  const tall = r.height + 8 > c.height;
+  const delta = tall ? r.top - c.top : r.bottom - c.bottom + 8;
+  if (tall ? Math.abs(delta) > 1 : delta > 8) card.scrollTo({ top: card.scrollTop + delta, behavior: scrollBehavior() });
+}
+
 /** The note for one exercise: shown as a line, edited in a panel under the action row. The textarea exists only while editing. */
 function notesPanel(ex: PlannedExercise) {
   if (state.noteEditing !== ex.uid) return null;
-  const before = ex.notes ?? '';
+  let before = ex.notes ?? '';
   const area = h('textarea', {
     rows: 2,
     maxLength: 300,
@@ -814,7 +827,9 @@ function notesPanel(ex: PlannedExercise) {
     },
     // No redraw here: a tap on another button blurs the field first, and redrawing now would swallow that tap.
     onblur: () => {
-      if ((ex.notes ?? '') !== before) saveNote(ex);
+      if ((ex.notes ?? '') === before) return;
+      before = ex.notes ?? '';
+      saveNote(ex);
     },
   });
   return h(
@@ -861,6 +876,7 @@ async function loadGuide(id: string) {
     state.guideFailed = true;
   }
   render();
+  reveal('.guide');
 }
 
 /** The animation element for an open guide, created on first use and started once per exercise. */
@@ -915,6 +931,7 @@ function toggleGuide(ex: PlannedExercise) {
     motionFor = '';
   }
   render();
+  if (state.guideOpen) reveal('.guide');
 }
 
 async function loadSwaps(ex: PlannedExercise) {
@@ -931,13 +948,16 @@ async function loadSwaps(ex: PlannedExercise) {
   } catch {
     state.swapNote = 'Could not load alternatives.';
     state.swapFailed = true;
+    state.swapTry = null;
   }
   render();
+  reveal('.swapbox');
 }
 
 async function swap(ex: PlannedExercise, to: { id: string; name: string }) {
   state.swapNote = `Swapping to ${to.name}…`;
   state.swapFailed = false;
+  state.swapTry = to;
   render();
   try {
     const res = await app.callServerTool({
@@ -949,17 +969,26 @@ async function swap(ex: PlannedExercise, to: { id: string; name: string }) {
       },
     });
     const plan = (res.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
-    if (res.isError || !plan) throw new Error('refused');
-    plan.cardio ??= [];
-    const undoing = state.swappedFrom?.id === to.id;
-    const from = { id: ex.id, name: ex.name };
-    state.plan = plan;
+    const fresh = plan?.exercises.find((x) => x.uid === ex.uid);
+    if (res.isError || !plan || !fresh) throw new Error('refused');
+    const local = state.plan!;
+    const at = local.exercises.findIndex((x) => x.uid === ex.uid);
+    // Only this slot comes from the returned plan: sets logged elsewhere may not have reached the server yet.
+    local.exercises[at] = fresh;
+    const undoing = state.swappedFrom.get(ex.uid)?.id === to.id;
+    if (undoing) state.swappedFrom.delete(ex.uid);
+    else state.swappedFrom.set(ex.uid, { id: ex.id, name: ex.name });
     state.swaps.delete(ex.uid);
+    state.swapOpen = false;
+    state.swapAll = false;
+    state.swapNote = '';
+    state.swapFailed = false;
+    state.swapTry = null;
     motion?.stop();
     motionFor = '';
-    const at = state.pos - 1;
-    state.drafts[at] = draftFor(stepsOf(plan)[at]!, plan.gym); // prefill the steppers from the new exercise
-    state.swappedFrom = undoing ? null : from;
+    state.guideOpen = false;
+    const step = items().findIndex((it) => it.kind === 'ex' && it.ex.uid === ex.uid);
+    state.drafts[step] = draftFor(stepsOf(local)[step]!, local.gym);
     announce(`Swapped to ${to.name}.`);
     render();
   } catch {
@@ -986,7 +1015,7 @@ function swapPanel(ex: PlannedExercise) {
         {
           type: 'button',
           className: 'link',
-          onclick: () => ((state.swapAll = true), render()),
+          onclick: () => ((state.swapAll = true), render(), reveal('.swapbox')),
         },
         `Show ${list.length - 4} more`,
       ),
@@ -1002,7 +1031,7 @@ function swapPanel(ex: PlannedExercise) {
             {
               type: 'button',
               className: 'link',
-              onclick: () => (list ? void swap(ex, list[0]!) : void loadSwaps(ex)),
+              onclick: () => (state.swapTry ? void swap(ex, state.swapTry) : void loadSwaps(ex)),
             },
             'Try again',
           ),
@@ -1885,6 +1914,7 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const first = nextSet(ex);
   const started = ex.sets.some(closed);
   const canSwap = !started && !readOnly;
+  const swappedFrom = state.swappedFrom.get(ex.uid);
   const resting = !!first && !readOnly && restRunning() && state.rest!.stepIndex === i;
   const zone = readOnly ? null : first ? (resting ? restZone(i, ex, first, d) : setZone(i, ex, first, d)) : doneZone(i, ex);
   const rows = [...ex.sets.filter((x) => x.warmup), ...ex.sets.filter((x) => !x.warmup)].flatMap((set) => (set === first && zone ? [h('li', { className: 'zonerow' }, zone)] : setRow(i, ex, set, readOnly)));
@@ -1900,19 +1930,19 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
       !started && !readOnly && !ex.bodyweight && !ex.timed && d.weightStep !== WEIGHT_STEP && h('p', { className: 'muted small' }, `Weight moves in ${kg(d.weightStep)} kg steps. Tap the number to type another value.`),
       ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
       ex.note && h('p', { className: 'muted small' }, ex.note),
-      ex.notes && h('p', { className: 'small' }, `Note: ${ex.notes}`, state.noteSaved === ex.uid && h('span', { className: 'muted' }, ' · saved')),
-      state.swappedFrom &&
+      (ex.notes || state.noteSaved === ex.uid) && h('p', { className: 'small' }, ex.notes ? `Note: ${ex.notes}` : 'Note removed', state.noteSaved === ex.uid && h('span', { className: 'muted' }, ' · saved')),
+      swappedFrom &&
         !started &&
         h(
           'p',
           { className: 'small' },
-          `Swapped from ${state.swappedFrom.name} · `,
+          `Swapped from ${swappedFrom.name} · `,
           h(
             'button',
             {
               type: 'button',
               className: 'link',
-              onclick: () => void swap(ex, state.swappedFrom!),
+              onclick: () => void swap(ex, swappedFrom),
             },
             'Undo',
           ),
@@ -1933,7 +1963,8 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
                 state.noteSaved = '';
                 render();
                 // Still inside the tap, so iOS opens the keyboard.
-                root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus();
+                root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus({ preventScroll: true });
+                reveal('.notes');
               },
             },
             ex.notes ? 'Edit note' : 'Note',
@@ -1950,6 +1981,7 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
                   state.swapOpen = !state.swapOpen;
                   if (state.swapOpen && !state.swaps.has(ex.uid)) void loadSwaps(ex);
                   render();
+                  if (state.swapOpen) reveal('.swapbox');
                 },
               },
               'Swap',
@@ -1980,28 +2012,55 @@ function stepCardBody(i: number): Child[] {
   const it = all[i]!;
   if (i !== state.pos - 1) return [h('div', { className: 'card' }, h('h1', { tabIndex: -1 }, listLabel(it)), setDots(it).node)];
   if (it.kind === 'ex') return exerciseBody(i, it.ex);
-  const c = it.c;
+  return cardioBody(i, it.c);
+}
+
+function cardioBody(i: number, c: PlannedCardio): Child[] {
   const d = state.drafts[i]!;
-  const allDone = nextOpen(0) === -1;
-  if (!cardioClosed(c)) {
+  const readOnly = !!state.plan!.finished;
+  const isClosed = cardioClosed(c);
+  const editing = state.cardioEdit?.id === c.id;
+  const heading = [h('p', { className: 'muted small' }, c.when === 'before' ? 'Warm-up' : 'Finisher'), h('h1', { tabIndex: -1 }, c.name)];
+  const planned = h('p', {}, `Planned ${c.plannedMin} min${c.plannedKm ? ` · ${kg(c.plannedKm)} km` : ''}`);
+  if (readOnly || (isClosed && !editing && c.done)) {
     return [
       h(
         'div',
         { className: 'card' },
-        h('p', { className: 'muted small' }, c.when === 'before' ? 'Warm-up' : 'Finisher'),
-        h('h1', { tabIndex: -1 }, c.name),
-        h('p', {}, `Planned ${c.plannedMin} min${c.plannedKm ? ` · ${kg(c.plannedKm)} km` : ''}`),
-        h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone')),
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'primary',
-            'data-key': 'log',
-            onclick: () => logCardio(i),
-          },
-          'Log cardio',
-        ),
+        ...heading,
+        c.done ? h('p', {}, `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}`) : h('p', { className: 'muted' }, 'Skipped'),
+        c.done &&
+          !readOnly &&
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'primary',
+              'data-key': 'cardio-edit',
+              onclick: () => {
+                if (locked()) return;
+                lock();
+                state.drafts[i] = draftFor({ kind: 'cardio', c }, state.plan!.gym);
+                state.cardioEdit = { id: c.id, kmFloor: c.distanceKm ?? 0 };
+                render();
+              },
+            },
+            'Edit',
+          ),
+      ),
+    ];
+  }
+  const asking = state.cardioAsk === c.id;
+  return [
+    h(
+      'div',
+      { className: 'card' },
+      ...heading,
+      isClosed && !editing && h('p', { className: 'muted' }, 'Skipped'),
+      planned,
+      h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone')),
+      h('button', { type: 'button', className: 'primary', 'data-key': 'log', onclick: () => logCardio(i) }, editing ? 'Save' : 'Log cardio'),
+      editing &&
         h(
           'div',
           { className: 'more' },
@@ -2010,31 +2069,53 @@ function stepCardBody(i: number): Child[] {
             {
               type: 'button',
               className: 'link',
-              'data-key': 'skip',
-              onclick: () => logCardio(i, true),
+              'data-key': 'cancel-edit',
+              onclick: () => {
+                state.cardioEdit = null;
+                render();
+              },
             },
-            'Skip this',
+            'Cancel',
           ),
         ),
-      ),
-    ];
-  }
-  return [
-    h(
-      'div',
-      { className: 'card' },
-      h('h1', { tabIndex: -1 }, c.name),
-      h('p', { className: 'muted' }, c.done ? `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}` : 'skipped'),
-      !allDone &&
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'primary',
-            onclick: () => select(nextOpen(i + 1)),
-          },
-          'Continue the workout',
-        ),
+      !isClosed &&
+        (asking
+          ? h(
+              'div',
+              { className: 'more', role: 'group', 'aria-label': 'Skip cardio?' },
+              h('span', {}, 'Skip cardio?'),
+              h('button', { type: 'button', className: 'link', 'data-key': 'skip-yes', onclick: () => logCardio(i, true) }, 'Skip'),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'link',
+                  'data-key': 'skip-keep',
+                  onclick: () => {
+                    state.cardioAsk = '';
+                    render();
+                  },
+                },
+                'Keep',
+              ),
+            )
+          : h(
+              'div',
+              { className: 'more' },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'link',
+                  'data-key': 'skip',
+                  onclick: () => {
+                    state.cardioAsk = c.id;
+                    render();
+                  },
+                },
+                'Skip this',
+              ),
+            )),
     ),
   ];
 }

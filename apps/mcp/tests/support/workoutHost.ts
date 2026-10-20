@@ -90,6 +90,8 @@ export interface HostOptions {
   reducedMotion?: boolean;
   touch?: boolean;
   finish?: 'error';
+  /** Answers a tool call the view makes (get_substitutes, swap_exercise, get_exercise_guide, ...); undefined falls through to the defaults. Read at call time, so tests can change what it returns. */
+  tools?: (name: string, args: Record<string, unknown>) => Record<string, unknown> | undefined;
   /** Installs Playwright's fake clock (it keeps running in real time until `page.clock.runFor` / `fastForward` jumps it). */
   clock?: boolean;
 }
@@ -98,7 +100,8 @@ let browser: Browser;
 const open: Opened[] = [];
 
 export async function launchBrowser() {
-  browser = await chromium.launch();
+  // Software GL so the guide's WebGL figure can be created in headless Chromium.
+  browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 }
 export async function closeBrowser() {
   await browser.close();
@@ -166,6 +169,8 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
       const name = String(msg.params?.name);
       const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;
       calls.push({ name, args });
+      const custom = o.tools?.(name, args);
+      if (custom) return { jsonrpc: '2.0', id: msg.id, result: custom };
       if (name === 'get_workout' && stored) return { jsonrpc: '2.0', id: msg.id, result: planResult(stored) };
       if (name === 'finish_workout') return { jsonrpc: '2.0', id: msg.id, result: o.finish === 'error' || !stored ? { content: [{ type: 'text', text: 'failed' }], isError: true } : summary(stored) };
       return { jsonrpc: '2.0', id: msg.id, result: { content: [{ type: 'text', text: 'ok' }] } };

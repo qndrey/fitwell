@@ -2,6 +2,7 @@
 /* Host variables (MCP Apps) first, Fitwell's own calm defaults as fallbacks. */
 :root {
   color-scheme: light dark;
+  --track-h: 560px;
   --bg: var(--color-background-primary, #faf8f5);
   --surface: var(--color-background-secondary, #f1ede7);
   --text: var(--color-text-primary, #1f1d1a);
@@ -31,6 +32,8 @@
   }
 }
 
+@media (min-width: 600px) { :root { --track-h: 600px; } }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 16px; line-height: 1.4; }
 html, body { overflow-x: hidden; max-width: 100%; }
@@ -45,9 +48,35 @@ p { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .center-text { text-align: center; }
 
-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-header strong { font-size: 1rem; }
+[hidden] { display: none !important; }
+header.head { display: grid; gap: 6px; }
+.titlebar { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.titlebar strong { font-size: 1rem; min-width: 0; overflow-wrap: anywhere; }
 .clock { font-variant-numeric: tabular-nums; }
+.counter { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.navrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nav { display: none; min-width: 44px; padding: 0 12px; font-size: 1.4rem; line-height: 1; }
+.nav:disabled { opacity: 0.4; cursor: default; }
+@media (pointer: fine) { .nav { display: inline-block; } }
+.strip { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 3px; padding: 0 4px; border: 0; background: transparent; }
+.seg { flex: 1 1 0; min-width: 0; height: 8px; border: 1px solid var(--muted); border-radius: 4px; background: transparent; }
+.seg.full { background: var(--text); border-color: var(--text); }
+.seg.half { background: linear-gradient(90deg, var(--text) 50%, transparent 50%); }
+.seg.current { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cbar { position: relative; flex: 1 1 auto; min-width: 0; height: 8px; border: 1px solid var(--muted); border-radius: 4px; }
+.cfill { position: absolute; inset: 0 auto 0 0; width: calc(var(--fill, 0) * 1%); background: var(--text); border-radius: 3px; }
+.cmark { position: absolute; top: -5px; bottom: -5px; width: 4px; margin-left: -2px; left: calc(var(--pos, 0) * 1%); background: var(--accent); border-radius: 2px; }
+.chip { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--border); border-radius: 999px; padding: 0 4px 0 12px; font-size: 0.85rem; min-width: 0; }
+.chip > span { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.chip button { flex: none; padding: 0 16px; border-radius: 999px; }
+
+.track { display: flex; height: var(--track-h); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; min-width: 0; }
+.track::-webkit-scrollbar { display: none; }
+.pcard { flex: 0 0 100%; min-width: 0; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; overflow-y: auto; overscroll-behavior-y: auto; }
+.pcard > .card { min-height: 100%; align-content: start; }
+.pcard h1:focus { outline: none; }
+.pcard h1:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; }
 .steppers { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
@@ -109,3 +138,12 @@ button.link { border: 0; background: transparent; padding: 0 8px; min-height: 44
 .plates { margin-top: -4px; }
 .hold { display: grid; gap: 6px; justify-items: center; }
 .hold .time { margin: 0; font-size: 3rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+.overview .ovprogress { width: 100%; height: 8px; accent-color: var(--text); }
+.restrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 4px 0 12px; font-variant-numeric: tabular-nums; }
+.restrow > span { min-width: 0; overflow-wrap: anywhere; }
+.restrow button { flex: none; padding: 0 16px; }
+ol.list li { position: relative; }
+ol.list button.ovrow { min-height: 44px; }
+.rowtext { display: grid; gap: 2px; min-width: 0; }
+ol.list button.ovrow .name { white-space: normal; overflow-wrap: anywhere; }

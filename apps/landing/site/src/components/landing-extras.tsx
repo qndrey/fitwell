@@ -66,9 +66,7 @@ export function SiteHeader({ children }: { children: ReactNode }) {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
         <a href="#top" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
           <img src="/icon-512.png" alt="" width={32} height={32} className="size-8 rounded-[22%]" />
-          <span>
-            Fitwell <span className="font-medium text-muted-foreground max-[419px]:sr-only">for Claude</span>
-          </span>
+          <span>Fitwell</span>
         </a>
         <nav aria-label="Sections" className="hidden md:block">
           <ul className="flex items-center gap-1 rounded-full border bg-card/60 p-1">
@@ -198,6 +196,184 @@ export function ChatDemo({ chats }: { chats: Chat[] }) {
       ))}
     </div>
   );
+}
+
+type Orb = { x: number; y: number; r: number; vx: number; vy: number; hue: 0 | 1; phase: number };
+type Ripple = { x: number; y: number; t: number };
+type Spark = { x: number; y: number; vx: number; vy: number; t: number; hue: 0 | 1 };
+
+/** Abstract hero backdrop: soft drifting orbs; a click sends out a ripple with a few sparks. */
+export function HeroCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const reduced = prefersReduced();
+    let w = 0;
+    let h = 0;
+    let raf = 0;
+    let running = false;
+    let visible = true;
+
+    const colors = (): [string, string] => {
+      const s = getComputedStyle(document.documentElement);
+      return [s.getPropertyValue("--amber").trim() || "#c2603f", s.getPropertyValue("--primary").trim() || "#5a5650"];
+    };
+
+    const orbs: Orb[] = [];
+    const ripples: Ripple[] = [];
+    const sparks: Spark[] = [];
+
+    const seed = () => {
+      orbs.length = 0;
+      const n = Math.max(8, Math.min(14, Math.round(w / 110)));
+      for (let i = 0; i < n; i++) {
+        orbs.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          r: 40 + Math.random() * 90,
+          vx: (Math.random() - 0.5) * 0.16,
+          vy: (Math.random() - 0.5) * 0.12,
+          hue: Math.random() < 0.45 ? 0 : 1,
+          phase: Math.random() * Math.PI * 2,
+        });
+      }
+    };
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = rect.width;
+      h = rect.height;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      seed();
+    };
+
+    const draw = (time: number) => {
+      const [amber, primary] = colors();
+      ctx.clearRect(0, 0, w, h);
+
+      for (const o of orbs) {
+        if (!reduced) {
+          o.x += o.vx;
+          o.y += o.vy;
+          if (o.x < -o.r) o.x = w + o.r;
+          if (o.x > w + o.r) o.x = -o.r;
+          if (o.y < -o.r) o.y = h + o.r;
+          if (o.y > h + o.r) o.y = -o.r;
+        }
+        const pulse = reduced ? 1 : 1 + Math.sin(time / 1600 + o.phase) * 0.12;
+        const r = o.r * pulse;
+        const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, r);
+        const c = o.hue === 0 ? amber : primary;
+        g.addColorStop(0, c + "2e");
+        g.addColorStop(1, c + "00");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rp = ripples[i];
+        if (!rp) continue;
+        const t = (time - rp.t) / 1100;
+        if (t >= 1) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        const r = 24 + t * 260;
+        ctx.strokeStyle = amber + Math.round((1 - t) * 120).toString(16).padStart(2, "0");
+        ctx.lineWidth = 2.5 * (1 - t) + 0.5;
+        ctx.beginPath();
+        ctx.arc(rp.x, rp.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        if (!s) continue;
+        const t = (time - s.t) / 700;
+        if (t >= 1) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        s.x += s.vx;
+        s.y += s.vy;
+        s.vy += 0.05;
+        const c = s.hue === 0 ? amber : primary;
+        ctx.fillStyle = c + Math.round((1 - t) * 200).toString(16).padStart(2, "0");
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 2.4 * (1 - t) + 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+
+    const loop = (time: number) => {
+      draw(time);
+      if (running) raf = requestAnimationFrame(loop);
+    };
+
+    const start = () => {
+      if (running || !visible) return;
+      running = true;
+      raf = requestAnimationFrame(loop);
+    };
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(raf);
+    };
+
+    resize();
+    if (reduced) {
+      draw(0);
+    } else {
+      start();
+    }
+
+    const ro = new ResizeObserver(() => {
+      resize();
+      if (reduced) draw(0);
+    });
+    ro.observe(canvas);
+
+    const io = new IntersectionObserver(([e]) => {
+      visible = !!e?.isIntersecting;
+      if (visible && !reduced) start();
+      else stop();
+    });
+    io.observe(canvas);
+
+    const onPointer = (e: PointerEvent) => {
+      if (reduced) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      ripples.push({ x, y, t: performance.now() });
+      for (let i = 0; i < 10; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const v = 1 + Math.random() * 2.4;
+        sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.6, t: performance.now(), hue: Math.random() < 0.6 ? 0 : 1 });
+      }
+    };
+    const host = canvas.parentElement;
+    host?.addEventListener("pointerdown", onPointer);
+
+    return () => {
+      stop();
+      ro.disconnect();
+      io.disconnect();
+      host?.removeEventListener("pointerdown", onPointer);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />;
 }
 
 export function BackToTop() {

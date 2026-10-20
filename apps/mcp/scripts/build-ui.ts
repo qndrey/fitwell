@@ -10,8 +10,8 @@ mkdirSync(OUT, { recursive: true });
 
 for (const name of readdirSync('ui', { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join('ui', d.name, 'main.ts'))).map((d) => d.name)) {
   const dir = join('ui', name);
-  const js = await build({ entryPoints: [join(dir, 'main.ts')], bundle: true, format: 'esm', minify: true, target: 'es2022', write: false, legalComments: 'none', loader: { '.gz': 'binary' } });
-  const css = await build({ entryPoints: [join(dir, 'style.css')], bundle: true, minify: true, write: false, loader: { '.css': 'css' } });
+  const js = await build({ entryPoints: [join(dir, 'main.ts')], bundle: true, format: 'esm', minify: true, target: 'es2022', write: false, legalComments: 'none', charset: 'utf8', loader: { '.gz': 'binary' } });
+  const css = await build({ entryPoints: [join(dir, 'style.css')], bundle: true, minify: true, write: false, charset: 'utf8', loader: { '.css': 'css' } });
   const script = js.outputFiles[0]!.text.replace(/<\/script/gi, '<\\/script');
   const html = readFileSync(join(dir, 'index.html'), 'utf8')
     .replace('<!-- style -->', () => `<style>${css.outputFiles[0]!.text}</style>`)

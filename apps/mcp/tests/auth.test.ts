@@ -89,7 +89,7 @@ async function mcpAs(token: string) {
   return client;
 }
 
-const codeIn = (mail: Mail) => mail.subject.match(/(\d{6})/)![1]!;
+const codeIn = (mail: Mail) => mail.text.match(/code is (\d{6})/)![1]!;
 const linkIn = (mail: Mail) => new URL(mail.text.match(/https:\/\/\S+\/authorize\/link\S+/)![0]);
 
 describe('email sign-in', () => {

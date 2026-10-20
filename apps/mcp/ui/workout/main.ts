@@ -1156,6 +1156,7 @@ function buildShell() {
       'aria-label': 'Workout cards',
       'aria-keyshortcuts': 'ArrowLeft ArrowRight Home End',
       onscroll: () => {
+        swipeEffect();
         if (hasScrollEnd) return;
         window.clearTimeout(settleTimer);
         settleTimer = window.setTimeout(settle, 120);
@@ -1187,6 +1188,33 @@ function trackPos(): number {
 }
 
 /** The scroll came to rest: the card in view is the current one. */
+/**
+ * While the track is being dragged, each card tilts, shrinks and fades by how far it is from the middle, pivoting from below
+ * like a card being thrown: the one leaving turns away, the one coming in straightens up. A card at rest has no transform at all.
+ */
+let fxFrame = 0;
+function swipeEffect() {
+  if (fxFrame || !ui) return;
+  fxFrame = window.requestAnimationFrame(() => {
+    fxFrame = 0;
+    if (!ui) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const w = ui.track.clientWidth;
+    ui.cards.forEach((card, i) => {
+      const d = w > 0 && !reduced ? clamp((i * w - ui!.track.scrollLeft) / w, -1, 1) : 0;
+      const a = Math.abs(d);
+      if (a < 0.002 || a > 0.998) {
+        card.style.transform = '';
+        card.style.opacity = '';
+        return;
+      }
+      card.style.transformOrigin = '50% 140%';
+      card.style.transform = `rotate(${(d * 7).toFixed(2)}deg) scale(${(1 - 0.08 * a).toFixed(3)})`;
+      card.style.opacity = String((1 - 0.55 * a).toFixed(3));
+    });
+  });
+}
+
 function settle() {
   if (!ui) return;
   const pos = trackPos();

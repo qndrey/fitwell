@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   calledTools,
   cardsOf,
+  trackOf,
   closed,
   closeBrowser,
   closeOpened,
@@ -671,5 +672,37 @@ describe('Specs: Pager and header, exercise card layout (P9; FR1, FR5)', () => {
     await pwExpect(next.locator('[data-zone]')).toHaveCount(1);
     await pwExpect(next.locator('[data-set-id]')).toHaveCount(1); // set 2 is a row, set 1 is the zone
     await pwExpect(next.locator('textarea, .guide, .swapbox')).toHaveCount(0); // the panels belong to the card in view
+  });
+});
+
+describe('Swipe effect while the track is dragged', () => {
+  const tilt = (v: Opened, k: number) =>
+    cardsOf(v)
+      .nth(k)
+      .evaluate((el) => ({ transform: (el as unknown as { style: { transform: string } }).style.transform, opacity: (el as unknown as { style: { opacity: string } }).style.opacity }));
+  const dragTo = (v: Opened, frac: number) =>
+    trackOf(v).evaluate((el, f) => {
+      const t = el as unknown as { scrollLeft: number; clientWidth: number; style: { scrollSnapType: string } };
+      t.style.scrollSnapType = 'none';
+      t.scrollLeft = t.clientWidth * f;
+    }, frac);
+
+  it('the card leaving tilts, shrinks and fades, the card coming in straightens up, and a card at rest has no transform', async () => {
+    const { v } = await onStep(plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')])]), 0);
+    await expect.poll(async () => (await tilt(v, 1)).transform).toBe('');
+    await dragTo(v, 1.4);
+    await expect.poll(async () => (await tilt(v, 1)).transform).toMatch(/rotate\(-?[\d.]+deg\) scale\(/);
+    expect(Number((await tilt(v, 1)).opacity)).toBeLessThan(1);
+    expect(Number((await tilt(v, 2)).opacity)).toBeLessThan(1);
+    await dragTo(v, 2);
+    await expect.poll(async () => (await tilt(v, 2)).transform).toBe('');
+    expect((await tilt(v, 2)).opacity).toBe('');
+  });
+
+  it('with reduced motion the cards are not transformed while dragging', async () => {
+    const { v } = await onStep(plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')])]), 0, { reducedMotion: true });
+    await dragTo(v, 1.4);
+    await v.page.waitForTimeout(200);
+    expect((await tilt(v, 1)).transform).toBe('');
   });
 });

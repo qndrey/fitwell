@@ -45,7 +45,17 @@ const timerOf = (card: Locator) => card.getByRole('timer');
 const inc = (card: Locator, what: 'reps' | 'weight') => btn(card, new RegExp(`^Increase ${what}`, 'i'));
 const MINUS_15 = '−15 s';
 /** Stops the fake clock from running in real time, so only `runFor` moves it (a slow machine must not change what a test sees). */
-const freeze = (v: Opened) => v.page.clock.pauseAt(new Date(Date.now() + 20));
+const freeze = async (v: Opened) => {
+  // Aim just past the page's own time (not the runner's), widening the margin when a slow machine already overshot it.
+  for (let margin = 20; ; margin *= 4) {
+    const now = await v.page.evaluate(() => Date.now());
+    try {
+      return await v.page.clock.pauseAt(new Date(now + margin));
+    } catch (e) {
+      if (margin > 2000 || !/past/.test(String(e))) throw e;
+    }
+  }
+};
 
 async function onStep(p: WorkoutPlan, k: number, o: HostOptions = {}) {
   const v = await openView(p, o);

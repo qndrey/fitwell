@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Link2,
   Refrigerator,
@@ -21,6 +21,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Roadmap } from "@/components/roadmap";
+import { BackToTop, ChatDemo, SiteHeader, Tilt, useReveal } from "@/components/landing-extras";
 
 // Every screenshot exists in a light and a dark version (<name>-light.png, <name>-dark.png), taken from the
 // real views by apps/mcp/scripts/screenshots.ts. The page theme picks one.
@@ -39,9 +40,9 @@ const SIZES: Record<string, [number, number]> = {
 
 const TITLE = "Fitwell for Claude";
 const DESC =
-  "A fitness and nutrition coach inside Claude. Log food, plan meals, run workouts and see your progress by talking to Claude. Invite-only, data stored in the EU.";
+  "A fitness and nutrition coach inside Claude. Log food, plan meals, run workouts and see your progress by talking to your assistant. Invite-only, data stored in the EU.";
 const OG_IMAGE = "https://fitwell.fyi/og.png";
-const OG_ALT = "Fitwell for Claude: track food, training and weight by talking to Claude";
+const OG_ALT = "Fitwell for Claude: track food, training and weight by talking to your assistant";
 const PRIVACY_URL = "https://mcp.fitwell.fyi/privacy";
 
 /**
@@ -501,112 +502,108 @@ function ThemeToggle() {
 }
 
 function Index() {
+  useReveal();
   return (
-    <div className="min-h-screen">
+    <div id="top" className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground">
         Skip to content
       </a>
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <span className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
-          <img src="/icon-512.png" alt="" width={32} height={32} className="size-8 rounded-[22%]" />
-          <span>
-            Fitwell <span className="font-medium text-muted-foreground max-[419px]:sr-only">for Claude</span>
-          </span>
-        </span>
-        <div className="flex items-center gap-2">
-          <a href="#join" className="whitespace-nowrap rounded-full border px-4 py-1.5 text-sm font-semibold hover:bg-card">
-            Ask for an invite
-          </a>
-          <ThemeToggle />
-        </div>
-      </header>
+      <SiteHeader>
+        <a href="#join" className="whitespace-nowrap rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-primary-foreground hover:opacity-90">
+          Ask for an invite
+        </a>
+        <ThemeToggle />
+      </SiteHeader>
 
       <main id="main">
         {/* Hero */}
-        <section className="mx-auto grid max-w-6xl items-center gap-14 px-5 pb-16 pt-10 sm:px-8 md:grid-cols-[1.15fr_1fr] md:pt-16">
-          <div>
-            <h1 className="text-4xl leading-[1.05] sm:text-5xl lg:text-6xl">
-              Track food, training and weight by talking to Claude
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Tell Claude what you ate or start a workout from the chat. Open a dashboard when you want to see how you are
-              doing.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-5">
-              <a href="#join" className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90">
-                Ask for an invite
-              </a>
-              <a href="#features" className="font-semibold text-primary underline-offset-4 hover:underline">
-                See what it does <span aria-hidden>↓</span>
-              </a>
+        <div className="relative overflow-hidden">
+          <div aria-hidden className="hero-backdrop pointer-events-none absolute inset-0" />
+          <section className="relative mx-auto grid max-w-6xl items-center gap-14 px-5 pb-20 pt-12 sm:px-8 md:grid-cols-[1.2fr_1fr] md:pb-28 md:pt-20">
+            <div data-reveal>
+              <h1 className="text-[2.6rem] leading-[1.02] sm:text-6xl lg:text-7xl">
+                Track food, training and weight by <span className="text-amber">talking to your assistant</span>
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
+                Tell Claude what you ate or start a workout from the chat. Open a dashboard when you want to see how you are
+                doing.
+              </p>
+              <div className="mt-9 flex flex-wrap items-center gap-5">
+                <a href="#join" className="group inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 font-semibold text-primary-foreground shadow-phone transition-transform hover:-translate-y-0.5">
+                  Ask for an invite
+                  <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
+                </a>
+                <a href="#features" className="font-semibold text-foreground underline-offset-4 hover:underline">
+                  See what it does <span aria-hidden>↓</span>
+                </a>
+              </div>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Already invited?{" "}
+                <a href="#connect" className="font-semibold text-foreground underline underline-offset-4">
+                  Connect it to Claude
+                </a>
+              </p>
+              <ul className="mt-10 flex flex-wrap gap-2 text-sm">
+                {["Invite-only", "Your Fitwell records stored in the EU", "Claude on desktop, web and iPhone"].map((f) => (
+                  <li key={f} className="flex items-center gap-2 rounded-full border bg-background/70 px-3 py-1.5 text-muted-foreground backdrop-blur">
+                    <span className="size-1.5 rounded-full bg-amber" aria-hidden />
+                    {f}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Already invited?{" "}
-              <a href="#connect" className="font-semibold text-foreground underline underline-offset-4">
-                Connect it to Claude
-              </a>
-            </p>
-            <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              {["Invite-only", "Your Fitwell records stored in the EU", "Claude on desktop, web and iPhone"].map((f) => (
-                <li key={f} className="flex items-center gap-2">
-                  <span className="size-1.5 rounded-full bg-amber" aria-hidden />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex justify-center md:justify-end">
-            <Phone
-              name="hero-squat"
-              priority
-              maxH="max-h-[560px]"
-              alt="The workout player on Barbell Squat, set 1 of 2: last time 5, 5 and 4 reps at 82.5 kg, so today 85 kg, with reps and weight steppers and a Log set button"
-            />
-          </div>
-        </section>
+            <div className="relative flex justify-center md:justify-end" data-reveal>
+              <Tilt className="w-full max-w-[380px]">
+                <Phone
+                  name="hero-squat"
+                  priority
+                  maxH="max-h-[560px]"
+                  alt="The workout player on Barbell Squat, set 1 of 2: last time 5, 5 and 4 reps at 82.5 kg, so today 85 kg, with reps and weight steppers and a Log set button"
+                />
+              </Tilt>
+              <p aria-hidden className="float-bubble absolute bottom-full left-0 mb-4 hidden rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-phone md:block">
+                Start my full-body workout.
+              </p>
+            </div>
+          </section>
+        </div>
 
         {/* Chats */}
         <section className="border-y bg-card/50">
-          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
-            <h2 className="text-3xl sm:text-4xl">You talk, it keeps the records.</h2>
-            <div className="mt-10 max-w-3xl space-y-10">
-              {chats.map((c) => (
-                <div key={c.you} className="space-y-3">
-                  <div className="flex justify-end">
-                    <p className="max-w-[85%] rounded-2xl rounded-br-md border bg-foreground/10 px-4 py-2.5">
-                      <span className="sr-only">You: </span>
-                      {c.you}
-                    </p>
-                  </div>
-                  <div className="flex justify-start">
-                    <p className="max-w-[85%] rounded-2xl rounded-bl-md border bg-card px-4 py-3 leading-relaxed">
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Claude</span>
-                      {c.claude}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 sm:px-8 md:grid-cols-[1fr_1.4fr] md:py-28">
+            <div data-reveal className="md:sticky md:top-28 md:self-start">
+              <h2 className="text-3xl sm:text-5xl">You talk, it keeps the records.</h2>
+              <p className="mt-6 max-w-sm text-sm text-muted-foreground">
+                The numbers come from a made-up demo person; Claude's wording will differ.
+              </p>
             </div>
-            <p className="mt-10 max-w-3xl text-sm text-muted-foreground">
-              The numbers come from a made-up demo person; Claude's wording will differ.
-            </p>
+            <ChatDemo chats={chats} />
           </div>
         </section>
 
         {/* Features */}
         <Section id="features" className="pb-16 md:pb-20">
-          <h2 className="max-w-2xl text-3xl sm:text-4xl">What it does</h2>
-          <FeatureCarousel />
+          <div data-reveal>
+            <h2 className="max-w-2xl text-3xl sm:text-5xl">What it does</h2>
+            <FeatureCarousel />
+          </div>
         </Section>
 
         {/* Little things */}
         <section className="border-y bg-card/50">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
-            <h2 className="text-3xl sm:text-4xl">And a few more</h2>
+            <h2 className="text-3xl sm:text-5xl" data-reveal>And a few more</h2>
             <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {little.map(({ icon: Icon, title, text }) => (
-                <li key={title} className="flex gap-4 rounded-xl border bg-background p-4 sm:block sm:p-5">
-                  <Icon className="mt-0.5 size-5 shrink-0 text-amber" aria-hidden />
+              {little.map(({ icon: Icon, title, text }, i) => (
+                <li
+                  key={title}
+                  data-reveal
+                  style={{ "--d": `${i * 70}ms` } as CSSProperties}
+                  className="group flex gap-4 rounded-2xl border bg-background p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-phone sm:block sm:p-5"
+                >
+                  <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber/10 transition-colors group-hover:bg-amber/20">
+                    <Icon className="size-5 text-amber" aria-hidden />
+                  </span>
                   <div>
                     <h3 className="font-bold sm:mt-4">{title}</h3>
                     <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{text}</p>
@@ -769,6 +766,7 @@ function Index() {
           </p>
         </div>
       </footer>
+      <BackToTop />
     </div>
   );
 }

@@ -662,3 +662,14 @@ describe('Specs: Rest rules 4 and 5 (P5.8; AC20)', () => {
     expect(calledTools(v).filter((n) => n !== 'get_workout')).toEqual(['log_set']);
   });
 });
+
+describe('Specs: Pager and header, exercise card layout (P9; FR1, FR5)', () => {
+  it('every card is drawn in full, so the card next to the current one is not empty while it swipes in', async () => {
+    const { v } = await onStep(plan([ex('Squat', [closed('1'), set('2')]), ex('Bench Press', [set('1'), set('2')])]), 0);
+    const next = cardOf(v, 1);
+    await pwExpect(next.getByRole('heading', { name: 'Bench Press', includeHidden: true })).toHaveCount(1);
+    await pwExpect(next.locator('[data-zone]')).toHaveCount(1);
+    await pwExpect(next.locator('[data-set-id]')).toHaveCount(1); // set 2 is a row, set 1 is the zone
+    await pwExpect(next.locator('textarea, .guide, .swapbox')).toHaveCount(0); // the panels belong to the card in view
+  });
+});

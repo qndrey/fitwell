@@ -1057,11 +1057,6 @@ function swapPanel(ex: PlannedExercise) {
   );
 }
 
-function listLabel(it: Item) {
-  if (it.kind === 'cardio') return `${it.c.name} · ${it.c.minutes ?? it.c.plannedMin} min`;
-  return it.ex.name;
-}
-
 function setDots(step: Item): { text: string; aria: string; node: Node } {
   if (step.kind === 'cardio') {
     const glyph = step.c.done ? '●' : step.c.skipped ? '–' : '○';
@@ -1938,6 +1933,8 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const plan = state.plan!;
   const d = state.drafts[i]!;
   const readOnly = !!plan.finished;
+  /** The panels (note editor, swap list, guide) belong to the card in view; the other cards are drawn without them. */
+  const current = i === state.pos - 1;
   const first = nextSet(ex);
   const started = ex.sets.some(closed);
   const canSwap = !started && !readOnly;
@@ -2002,7 +1999,7 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
               {
                 type: 'button',
                 className: 'link',
-                'aria-expanded': String(state.swapOpen),
+                'aria-expanded': String(current && state.swapOpen),
                 'data-key': 'swap',
                 onclick: () => {
                   state.swapOpen = !state.swapOpen;
@@ -2018,26 +2015,25 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
             {
               type: 'button',
               className: 'link',
-              'aria-expanded': String(state.guideOpen),
+              'aria-expanded': String(current && state.guideOpen),
               'data-key': 'guide',
               onclick: () => toggleGuide(ex),
             },
             'How to do it',
           ),
         ),
-      !readOnly && notesPanel(ex),
-      canSwap && swapPanel(ex),
-      guidePanel(ex),
+      current && !readOnly && notesPanel(ex),
+      current && canSwap && swapPanel(ex),
+      current && guidePanel(ex),
       resting && restBar(),
     ),
   ];
 }
 
-/** One step's card: the full body for the card in view, a heading with its progress for the others (they are out of view). */
+/** One step's card: every card is drawn in full, so a swipe never shows an empty card on its way in. */
 function stepCardBody(i: number): Child[] {
   const all = items();
   const it = all[i]!;
-  if (i !== state.pos - 1) return [h('div', { className: 'card' }, h('h1', { tabIndex: -1 }, listLabel(it)), setDots(it).node)];
   if (it.kind === 'ex') return exerciseBody(i, it.ex);
   return cardioBody(i, it.c);
 }

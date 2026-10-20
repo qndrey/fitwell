@@ -1101,8 +1101,6 @@ interface Shell {
   save: HTMLElement;
   strip: HTMLButtonElement;
   counter: HTMLElement;
-  prev: HTMLButtonElement;
-  next: HTMLButtonElement;
   chip: HTMLElement;
   track: HTMLElement;
   cards: HTMLElement[];
@@ -1127,7 +1125,7 @@ const cardName = (pos: number) => {
 
 function buildShell() {
   const plan = state.plan!;
-  const clock = h('span', { className: 'muted clock' });
+  const clock = h('span', { className: 'clock' });
   const save = h('p', {
     className: 'status-line',
     role: 'status',
@@ -1140,31 +1138,9 @@ function buildShell() {
     'data-key': 'strip',
     onclick: () => goTo(0, { focus: true }),
   });
-  const counter = h('span', { className: 'muted small counter' });
-  const prev = h(
-    'button',
-    {
-      type: 'button',
-      className: 'nav',
-      'aria-label': 'Previous card',
-      'data-key': 'prev',
-      onclick: () => goTo(state.pos - 1),
-    },
-    '‹',
-  );
-  const next = h(
-    'button',
-    {
-      type: 'button',
-      className: 'nav',
-      'aria-label': 'Next card',
-      'data-key': 'next',
-      onclick: () => goTo(state.pos + 1),
-    },
-    '›',
-  );
+  const counter = h('span', { className: 'counter' });
   const chip = h('div', { className: 'chip', hidden: true });
-  const header = h('header', { className: 'head' }, h('div', { className: 'titlebar' }, h('strong', {}, plan.name), clock), save, h('div', { className: 'navrow' }, prev, strip, counter, next), chip);
+  const header = h('header', { className: 'head' }, h('div', { className: 'titlebar' }, h('strong', { title: plan.name }, plan.name), counter, clock), strip, save, chip);
   const cards = Array.from({ length: cardCount() }, () =>
     h('section', {
       className: 'pcard',
@@ -1178,6 +1154,7 @@ function buildShell() {
       className: 'track',
       'aria-roledescription': 'carousel',
       'aria-label': 'Workout cards',
+      'aria-keyshortcuts': 'ArrowLeft ArrowRight Home End',
       onscroll: () => {
         if (hasScrollEnd) return;
         window.clearTimeout(settleTimer);
@@ -1190,7 +1167,7 @@ function buildShell() {
     },
     ...cards,
   );
-  ui = { header, clock, save, strip, counter, prev, next, chip, track, cards };
+  ui = { header, clock, save, strip, counter, chip, track, cards };
   root.replaceChildren(header, track);
 }
 
@@ -1342,8 +1319,6 @@ function updateHeader() {
   ui.strip.setAttribute('aria-label', `Card ${state.pos + 1} of ${count}. Go to the overview.`);
   ui.strip.replaceChildren(...stripSegments());
   ui.counter.textContent = `${state.pos + 1} / ${count}`;
-  ui.prev.disabled = state.pos === 0;
-  ui.next.disabled = state.pos === count - 1;
   const show = restRunning() && state.pos !== 0 && state.pos !== state.rest!.stepIndex + 1;
   ui.chip.hidden = !show;
   if (!show) {
@@ -1374,16 +1349,13 @@ function overviewBody(): Child[] {
   return [
     h(
       'div',
-      { className: 'card overview' },
-      h('p', { className: 'muted small' }, 'Today'),
-      h('h1', { tabIndex: -1 }, plan.name),
-      h('p', {}, `${ov.workingDone} of ${ov.workingTotal} sets · ${ov.exerciseCount} ${ov.exerciseCount === 1 ? 'exercise' : 'exercises'}`),
-      h('progress', {
-        className: 'ovprogress',
-        max: Math.max(1, ov.workingTotal),
-        value: ov.workingDone,
-        'aria-label': 'Sets done',
-      }),
+      { className: 'body overview' },
+      h(
+        'div',
+        { className: 'ovhead' },
+        h('h1', { tabIndex: -1 }, 'Today', h('span', { className: 'sr-only' }, ` · ${plan.name}`)),
+        h('p', { className: 'muted' }, `${ov.workingDone} of ${ov.workingTotal} sets · ${ov.exerciseCount} ${ov.exerciseCount === 1 ? 'exercise' : 'exercises'}`),
+      ),
       rest &&
         h(
           'div',
@@ -1419,7 +1391,7 @@ function overviewBody(): Child[] {
                 'data-key': `row-${row.index}`,
                 onclick: () => goTo(row.index + 1, { focus: true }),
               },
-              h('span', { className: 'rowtext' }, h('span', { className: 'name' }, row.name), row.todayTarget && h('span', { className: 'muted small' }, `Today: ${row.todayTarget}`), row.lastTime && h('span', { className: 'muted small' }, row.lastTime)),
+              h('span', { className: 'rowtext' }, h('span', { className: 'name' }, row.name), (row.todayTarget || row.lastTime) && h('span', { className: 'sub' }, [row.todayTarget ? `Today: ${row.todayTarget}` : '', row.lastTime ?? ''].filter(Boolean).join(' · '))),
               h(
                 'span',
                 {
@@ -1433,19 +1405,23 @@ function overviewBody(): Child[] {
           );
         }),
       ),
-      ov.action &&
-        !plan.finished &&
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'primary',
-            'data-key': 'overview-go',
-            onclick: () => goTo(ov.action!.stepIndex + 1, { focus: true }),
-          },
-          ov.action.label,
-        ),
-      h('p', { className: 'muted small center-text' }, 'Ask Claude to change the plan.'),
+      h(
+        'div',
+        { className: 'sticky' },
+        h('p', { className: 'muted small' }, 'Ask Claude to change the plan.', h('span', { className: 'hint' }, ' Arrow keys move between cards.')),
+        ov.action &&
+          !plan.finished &&
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'primary',
+              'data-key': 'overview-go',
+              onclick: () => goTo(ov.action!.stepIndex + 1, { focus: true }),
+            },
+            ov.action.label,
+          ),
+      ),
     ),
   ];
 }
@@ -1462,7 +1438,7 @@ function summaryBody(): Child[] {
   return [
     h(
       'div',
-      { className: 'card summary' },
+      { className: 'body summary' },
       h('h1', { tabIndex: -1 }, 'Workout finished'),
       h('p', { className: 'muted' }, `${f.minutes} min · ${doneWorking} working ${doneWorking === 1 ? 'set' : 'sets'}${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
       bests.length > 0 ? h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`))) : !state.summaryNote && h('p', { className: 'muted' }, 'No new bests this time.'),
@@ -1503,7 +1479,7 @@ function summaryBody(): Child[] {
 function finishBody(): Child[] {
   const plan = state.plan!;
   if (state.finished) return summaryBody();
-  if (state.finishing) return [h('div', { className: 'card' }, h('h1', { tabIndex: -1 }, 'End of workout'), h('p', { className: 'muted' }, 'Saving…'))];
+  if (state.finishing) return [h('div', { className: 'body' }, h('h1', { tabIndex: -1 }, 'End of workout'), h('p', { className: 'muted' }, 'Saving…'))];
   const steps = stepsOf(plan);
   const fs = finishState(steps);
   const counts = workingCounts(steps);
@@ -1511,7 +1487,7 @@ function finishBody(): Child[] {
   return [
     h(
       'div',
-      { className: 'card finish' },
+      { className: 'body finish' },
       h('h1', { tabIndex: -1 }, 'End of workout'),
       h('p', { className: 'muted' }, h('span', { 'data-clock': 'elapsed' }, mmss(Date.now() - plan.startedAt)), ` elapsed · ${counts.closed} of ${counts.total} working sets`),
       fs.notDone.length > 0 && h('p', {}, h('strong', {}, 'Not done'), ` ${fs.notDone.join(', ')}`),
@@ -1794,7 +1770,7 @@ function setZone(i: number, ex: PlannedExercise, set: PlannedSet, d: Draft): Nod
       'button',
       {
         type: 'button',
-        className: 'primary',
+        className: 'primary log',
         'aria-label': 'Log set',
         'data-key': 'log',
         onclick: () => logSet(i),
@@ -1826,7 +1802,6 @@ function restZone(i: number, ex: PlannedExercise, set: PlannedSet, d: Draft): No
     { className: 'zone rest', 'data-zone': '' },
     h('p', { className: 'muted' }, 'Rest'),
     h('p', { className: 'time', role: 'timer', 'data-clock': 'rest' }, mmss(rest.untilMs - Date.now())),
-    h('div', { className: 'bar', 'aria-hidden': 'true' }, h('span', { 'data-restbar': '' })),
     h(
       'div',
       { className: 'next' },
@@ -1849,7 +1824,7 @@ function restZone(i: number, ex: PlannedExercise, set: PlannedSet, d: Draft): No
         'button',
         {
           type: 'button',
-          className: 'primary',
+          className: 'primary log',
           'aria-label': 'Log set',
           'data-key': 'log',
           onclick: () => logSet(i),
@@ -1910,7 +1885,7 @@ function doneZone(i: number, ex: PlannedExercise): Node {
   const pos = target.kind === 'step' ? target.index + 1 : steps.length + 1;
   return h(
     'div',
-    { className: 'zone done-zone', 'data-zone': '' },
+    { className: 'zone auto', 'data-zone': '' },
     h('p', { className: 'setline' }, `${ex.name} done · ${working.filter(closed).length} of ${working.length} sets`),
     h(
       'button',
@@ -1945,11 +1920,10 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   return [
     h(
       'div',
-      { className: 'card exercise' },
-      h('p', { className: 'muted small' }, `Exercise ${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length} · ${equipmentName(ex.equipment)}`),
-      h('h1', { tabIndex: -1 }, ex.name),
+      { className: 'body exercise' },
+      h('div', { className: 'exhead' }, h('h1', { tabIndex: -1 }, ex.name), h('span', { className: 'muted' }, `${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length}`)),
       ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex), state.straight?.step === i && h('span', { 'data-straight': '' }, ' · Straight on, no rest')),
-      ex.lastTime && h('p', { className: 'muted small' }, formatLastTime(ex.lastTime)),
+      h('p', { className: 'muted small' }, [equipmentName(ex.equipment), ex.lastTime ? formatLastTime(ex.lastTime) : ''].filter(Boolean).join(' · ')),
       h('ol', { className: 'sets', 'aria-label': 'Sets' }, ...rows, !first && zone && h('li', { className: 'zonerow' }, zone)),
       !started && !readOnly && !ex.bodyweight && !ex.timed && d.weightStep !== WEIGHT_STEP && h('p', { className: 'muted small' }, `Weight moves in ${kg(d.weightStep)} kg steps. Tap the number to type another value.`),
       ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
@@ -2043,13 +2017,13 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
   const readOnly = !!state.plan!.finished;
   const isClosed = cardioClosed(c);
   const editing = state.cardioEdit?.id === c.id;
-  const heading = [h('p', { className: 'muted small' }, c.when === 'before' ? 'Warm-up' : 'Finisher'), h('h1', { tabIndex: -1 }, c.name)];
+  const heading = [h('div', { className: 'exhead' }, h('h1', { tabIndex: -1 }, c.name), h('span', { className: 'muted' }, c.when === 'before' ? 'Warm-up' : 'Finisher'))];
   const planned = h('p', {}, `Planned ${c.plannedMin} min${c.plannedKm ? ` · ${kg(c.plannedKm)} km` : ''}`);
   if (readOnly || (isClosed && !editing && c.done)) {
     return [
       h(
         'div',
-        { className: 'card' },
+        { className: 'body' },
         ...heading,
         c.done ? h('p', {}, `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}`) : h('p', { className: 'muted' }, 'Skipped'),
         c.done &&
@@ -2058,7 +2032,7 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
             'button',
             {
               type: 'button',
-              className: 'primary',
+              
               'data-key': 'cardio-edit',
               onclick: () => {
                 if (locked()) return;
@@ -2077,12 +2051,11 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
   return [
     h(
       'div',
-      { className: 'card' },
+      { className: 'body' },
       ...heading,
       isClosed && !editing && h('p', { className: 'muted' }, 'Skipped'),
       planned,
-      h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone')),
-      h('button', { type: 'button', className: 'primary', 'data-key': 'log', onclick: () => logCardio(i) }, editing ? 'Save' : 'Log cardio'),
+      h('div', { className: 'zone auto' }, h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone')), h('button', { type: 'button', className: 'primary log', 'data-key': 'log', onclick: () => logCardio(i) }, editing ? 'Save' : 'Log cardio')),
       editing &&
         h(
           'div',

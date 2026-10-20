@@ -82,7 +82,9 @@ async function expectRevealed(card: Locator, target: Locator) {
       async () => {
         const c = await card.boundingBox();
         const t = await target.boundingBox();
-        return !!c && !!t && t.y >= c.y - 1 && t.y + t.height <= c.y + c.height + 1;
+        if (!c || !t) return false;
+        // A panel taller than the card (the guide) is revealed when its top is at the top of the card.
+        return t.height + 8 > c.height ? t.y >= c.y - 1 && t.y <= c.y + 40 : t.y >= c.y - 1 && t.y + t.height <= c.y + c.height + 1;
       },
       { timeout: 5000 },
     )

@@ -555,13 +555,13 @@ describe('Specs: Rest rules 2 and 3 (P5.7; AC2, AC20)', () => {
     await expect.poll(() => restSeconds(card)).toBeLessThanOrEqual(before - 4);
   });
 
-  it('the pinned bar has the time, -15 s, +15 s and Skip rest, each 44 px high or more', async () => {
+  it('the pinned bar has the time, -15 s, +15 s and Skip rest, each 40 px high or more', async () => {
     const { card } = await onStep(plan([squat3(), bench()]), 0);
     await logBtn(card).click();
     for (const name of [MINUS_15, '+15 s', 'Skip rest']) {
       const b = btn(card, name);
       await pwExpect(b).toBeVisible();
-      expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(40);
     }
   });
 

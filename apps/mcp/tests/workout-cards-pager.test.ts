@@ -199,8 +199,6 @@ const trackOf = (v: Opened) => v.frame.locator('[aria-roledescription="carousel"
 const cardsOf = (v: Opened) => trackOf(v).locator('[aria-roledescription="card"]');
 const counterOf = (v: Opened) => v.frame.getByText(/^\d+ \/ \d+$/);
 const stripOf = (v: Opened) => v.frame.locator('[data-strip]');
-const prevOf = (v: Opened) => v.frame.getByRole('button', { name: /^previous/i });
-const nextOf = (v: Opened) => v.frame.getByRole('button', { name: /^next/i });
 const counterText = async (v: Opened) => (await counterOf(v).textContent())?.trim();
 const expectCounter = async (v: Opened, text: string) => {
   await expect.poll(() => counterText(v), { timeout: 5000 }).toBe(text);
@@ -233,7 +231,7 @@ describe('Specs: Pager and header rule 1 (track, snap, fixed height) and rule 5 
     expect(await cards.evaluateAll((els) => els.map((e) => e.getAttribute('role')))).toEqual(Array(5).fill('group'));
   });
 
-  it('the track snaps on x, contains horizontal overscroll and has one fixed height: 560 px under 600 px width, 600 px above', async () => {
+  it('the track snaps on x, contains horizontal overscroll and has one fixed height: 520 px under 600 px width, 560 px above', async () => {
     const narrow = await openView(fresh3(), { width: 375 });
     const css = await trackOf(narrow).evaluate((el) => {
       const gcs = (globalThis as unknown as Dom).getComputedStyle;
@@ -244,7 +242,7 @@ describe('Specs: Pager and header rule 1 (track, snap, fixed height) and rule 5 
     expect(css.snap).toContain('x mandatory');
     expect(css.ox).toBe('auto');
     expect(css.over).toBe('contain');
-    expect(css.height).toBe('560px');
+    expect(css.height).toBe('520px');
     expect(css.cardSnap).toBe('center');
     expect(css.stop).toBe('always');
     expect(css.oy).toBe('auto');
@@ -253,7 +251,7 @@ describe('Specs: Pager and header rule 1 (track, snap, fixed height) and rule 5 
     expect(css.shrink).toBe('0');
     expect(css.basis).toMatch(/^(100%|\d+(\.\d+)?px)$/);
     const wide = await openView(fresh3(), { width: 800 });
-    expect(await trackOf(wide).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).height)).toBe('600px');
+    expect(await trackOf(wide).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).height)).toBe('560px');
   });
 
   it('every card except the current one is inert, and the inert card moves with the pager', async () => {
@@ -414,23 +412,12 @@ describe('Specs: Pager and header rules 6 and 7 (strip, prev/next, keys)', () =>
     await expectCounter(v, '1 / 5');
   });
 
-  it('prev and next buttons move one card each and are disabled at the ends (fine pointer)', async () => {
-    const v = await openView(fresh3());
-    await pwExpect(prevOf(v)).toBeDisabled();
-    await nextOf(v).click();
-    await expectCounter(v, '2 / 5');
-    await pwExpect(prevOf(v)).toBeEnabled();
-    await prevOf(v).click();
-    await expectCounter(v, '1 / 5');
-    await jumpTo(v, 4);
-    await expectCounter(v, '5 / 5');
-    await pwExpect(nextOf(v)).toBeDisabled();
-  });
-
-  it('prev and next are not shown on a coarse pointer', async () => {
-    const v = await openView(fresh3(), { touch: true });
-    await pwExpect(prevOf(v)).toBeHidden();
-    await pwExpect(nextOf(v)).toBeHidden();
+  it('there are no previous or next buttons, with a fine or a coarse pointer: the strip, the keys and the swipe move the pager', async () => {
+    for (const touch of [false, true]) {
+      const v = await openView(fresh3(), { touch });
+      await pwExpect(v.frame.getByRole('button', { name: /^(previous|next)/i })).toHaveCount(0);
+      await v.page.close();
+    }
   });
 
   it('arrow keys move one card, Home and End go to the ends', async () => {
@@ -582,14 +569,14 @@ describe('Specs: Overview', () => {
     await pwExpect(overview(v)).toContainText('1 of 5 sets · 2 exercises');
   });
 
-  it('one row per step, each a button at least 44 px high with the label "<name>, <closed> of <total> sets done"', async () => {
+  it('one row per step, each a button at least 40 px high with the label "<name>, <closed> of <total> sets done"', async () => {
     const p = plan([ex('Squat', [closed('1'), set('2'), set('3')]), ex('Bench Press', [set('1'), set('2')])]);
     const v = await openView(p);
     await jumpTo(v, 0);
     for (const label of ['Squat, 1 of 3 sets done', 'Bench Press, 0 of 2 sets done']) {
       const row = overview(v).getByRole('button', { name: label });
       await pwExpect(row).toHaveCount(1);
-      expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(40);
     }
   });
 

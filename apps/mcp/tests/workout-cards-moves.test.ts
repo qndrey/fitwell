@@ -37,7 +37,6 @@ const logBtn = (card: Locator) => btn(card, 'Log set');
 const timerOf = (card: Locator) => card.getByRole('timer');
 const inc = (card: Locator, what: 'reps' | 'weight' | 'seconds') => btn(card, new RegExp(`^Increase ${what}`, 'i'));
 const stripOf = (v: Opened) => v.frame.locator('[data-strip]');
-const nextOf = (v: Opened) => v.frame.getByRole('button', { name: /^next/i });
 const straightOn = (card: Locator) => card.getByText(/Straight on, no rest/);
 const total = (p: WorkoutPlan) => p.exercises.length + p.cardio.length + 2;
 /** Waits until the pager shows position `pos` (0 = Overview). */
@@ -338,7 +337,6 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
 
   it.each([
     ['an arrow key', async (v: Opened) => press(v, 'ArrowRight'), 4],
-    ['the next button', async (v: Opened) => nextOf(v).click(), 4],
     ['the strip', async (v: Opened) => stripOf(v).click(), 1],
   ] as const)('a manual move (%s) during the rest cancels the return when the rest ends', async (_name, move, expected) => {
     const p = round();

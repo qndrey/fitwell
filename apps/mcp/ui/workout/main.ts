@@ -1,7 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
-import { buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, formatLastTime, isFresh, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type Rest, type Step } from './cards';
+import { buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, formatLastTime, isFresh, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -67,8 +67,10 @@ const state = {
   swapFailed: false,
   /** The exercise this slot had before a swap, until the first set is logged (undo). */
   swappedFrom: null as { id: string; name: string } | null,
-  /** Moved straight on inside a superset round (no rest). */
-  straightOn: false,
+  /** Moved straight on inside a superset round (no rest): the card it moved to, shown until the first stepper tap or `until`. */
+  straight: null as { step: number; until: number } | null,
+  /** Where the pager goes by itself after a log, until a manual move cancels it. */
+  intent: null as PagerIntent | null,
   /** Primary actions are ignored for a moment after the screen changes (a double tap must not log twice). */
   lockUntil: 0,
   confirmFinish: false,
@@ -205,6 +207,10 @@ function load(plan: WorkoutPlan) {
   state.edit = null;
   state.editing = null;
   state.timerStep = -1;
+  state.holdUntil = 0;
+  state.readyUntil = 0;
+  state.straight = null;
+  state.intent = null;
   const card = openingCard(plan);
   const steps = stepsOf(plan);
   state.pos = cardPosition(card, steps.length);
@@ -226,7 +232,6 @@ function resetSecondary() {
   state.swapNote = '';
   state.swapFailed = false;
   state.swappedFrom = null;
-  state.straightOn = false;
   state.confirmFinish = false;
   state.edit = null;
   state.editing = null;
@@ -238,6 +243,15 @@ function resetSecondary() {
 /** Moves the pager to a step's card. */
 function select(i: number) {
   goTo(i + 1);
+}
+
+/** Carries out the pending automatic move, unless a manual move cancelled it. */
+function followIntent() {
+  const intent = state.intent;
+  state.intent = null;
+  if (!intent || intent.cancelled || !intent.target) return;
+  const pos = intent.target.kind === 'finish' ? cardCount() - 1 : intent.target.index + 1;
+  goTo(pos, { auto: true });
 }
 
 function nextOpen(from: number): number {
@@ -289,10 +303,13 @@ function logSet(i: number, skip = false) {
   const set = nextSet(ex);
   if (!set) return;
   const d = state.drafts[i]!;
-  state.holdUntil = 0;
-  state.readyUntil = 0;
+  if (state.timerStep === i) {
+    state.holdUntil = 0;
+    state.readyUntil = 0;
+  }
   state.swappedFrom = null;
-  state.straightOn = false;
+  state.straight = null;
+  state.intent = null;
   state.confirmFinish = false;
   state.restChange = false;
   state.edit = null;
@@ -315,20 +332,22 @@ function logSet(i: number, skip = false) {
         untilMs: Date.now() + sec * 1000,
         totalMs: sec * 1000,
       };
+    if (state.rest?.stepIndex === i && handoff?.kind === 'rest') state.intent = { target: { kind: 'step', index: handoff.returnTo }, cancelled: false };
   }
   state.drafts[i] = draftFor(stepsOf(plan)[i]!, plan.gym);
   announce(skip ? `Skipped ${setName(ex, set)}.` : `Logged ${setValues(ex, set)}.${restRunning() ? ` Rest ${mmss(state.rest!.untilMs - Date.now())}.` : ''}`);
   enqueueSet(ex, set, skip);
   void shareProgress();
   if (partner !== -1) {
-    state.straightOn = true;
-    select(partner);
+    state.straight = { step: partner, until: Date.now() + 5000 };
+    state.intent = { target: { kind: 'step', index: partner }, cancelled: false };
+    followIntent();
     render();
     return;
   }
   if (!nextSet(ex)) {
-    const target = nextTarget(stepsOf(plan), i);
-    if (target.kind === 'step') select(target.index);
+    state.intent = { target: nextTarget(stepsOf(plan), i), cancelled: false };
+    followIntent();
   }
   render();
 }
@@ -362,6 +381,7 @@ function reopenSet(i: number, set: PlannedSet) {
   set.done = false;
   delete set.skipped;
   state.rest = null;
+  state.intent = null;
   state.restChange = false;
   state.edit = null;
   state.editing = null;
@@ -432,6 +452,7 @@ function skipRest() {
   lock();
   state.rest = null;
   state.restChange = false;
+  followIntent();
   render();
 }
 
@@ -446,6 +467,7 @@ function endRest() {
   } catch {
     /* not allowed in this frame */
   }
+  followIntent();
   render();
 }
 
@@ -626,6 +648,10 @@ function pressable(btn: HTMLButtonElement, kind: Kind, dir: 1 | -1, out: HTMLEle
     }
     STEPPERS[kind].change(d, dir);
     changed = true;
+    if (state.straight) {
+      state.straight = null;
+      root.querySelector('[data-straight]')?.remove();
+    }
     out.textContent = STEPPERS[kind].text(d);
     out.parentElement?.setAttribute('aria-label', `${STEPPERS[kind].label}: ${STEPPERS[kind].text(d)}. Tap to type a value.`);
   };
@@ -1043,6 +1069,8 @@ interface Shell {
 let ui: Shell | null = null;
 let pointerDown = false;
 let pendingFocus = -1;
+/** The card an automatic move is heading for, so settling there is not mistaken for a manual move. */
+let autoPos = -1;
 let settleTimer: number | undefined;
 let saveShown = 0;
 const hasScrollEnd = 'onscrollend' in window;
@@ -1143,21 +1171,52 @@ function trackPos(): number {
 function settle() {
   if (!ui) return;
   const pos = trackPos();
-  if (pos !== state.pos) enterCard(pos);
+  if (pos !== state.pos) {
+    if (pos !== autoPos && state.intent) state.intent.cancelled = true;
+    enterCard(pos);
+    queueCardAnnouncement(pos);
+  }
+  autoPos = -1;
   if (pendingFocus === pos) ui.cards[pos]?.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
   pendingFocus = -1;
 }
 
+let cardAnnounceTimer: number | undefined;
+let cardAnnounced = -1;
+
+/** Announces the card in view 300 ms after the scroll settled (after any log message), once per settled card. */
+function queueCardAnnouncement(pos: number) {
+  window.clearTimeout(cardAnnounceTimer);
+  cardAnnounceTimer = window.setTimeout(() => {
+    if (pos !== state.pos || pos === cardAnnounced) return;
+    cardAnnounced = pos;
+    const all = items();
+    const n = cardCount();
+    const step = all[pos - 1];
+    if (pos === 0) {
+      const ov = buildOverview(state.plan!);
+      announce(`Overview, card 1 of ${n}, ${ov.workingDone} of ${ov.workingTotal} sets done`);
+    } else if (!step) announce(`End of workout, card ${pos + 1} of ${n}`);
+    else announce(`${stepName(step)}, card ${pos + 1} of ${n}, ${setDots(step).aria}`);
+  }, 300);
+}
+
 function enterCard(pos: number) {
   if (pos !== state.pos) resetSecondary();
+  if (state.straight && state.straight.step + 1 !== pos) state.straight = null;
   state.pos = pos;
   render();
 }
 
 /** Moves the pager; never while a finger is down on the track (it would fight the swipe). */
-function goTo(pos: number, opts: { focus?: boolean } = {}) {
+function goTo(pos: number, opts: { focus?: boolean; auto?: boolean } = {}) {
   if (!ui || pointerDown) return;
   const target = clamp(pos, 0, ui.cards.length - 1);
+  if (opts.auto) autoPos = target;
+  else {
+    autoPos = -1;
+    if (state.intent) state.intent.cancelled = true;
+  }
   pendingFocus = opts.focus ? target : -1;
   if (trackPos() === target) {
     settle();
@@ -1835,7 +1894,7 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
       { className: 'card exercise' },
       h('p', { className: 'muted small' }, `Exercise ${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length} · ${equipmentName(ex.equipment)}`),
       h('h1', { tabIndex: -1 }, ex.name),
-      ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex), state.straightOn && ' · Straight on, no rest'),
+      ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex), state.straight?.step === i && h('span', { 'data-straight': '' }, ' · Straight on, no rest')),
       ex.lastTime && h('p', { className: 'muted small' }, formatLastTime(ex.lastTime)),
       h('ol', { className: 'sets', 'aria-label': 'Sets' }, ...rows, !first && zone && h('li', { className: 'zonerow' }, zone)),
       !started && !readOnly && !ex.bodyweight && !ex.timed && d.weightStep !== WEIGHT_STEP && h('p', { className: 'muted small' }, `Weight moves in ${kg(d.weightStep)} kg steps. Tap the number to type another value.`),
@@ -2058,6 +2117,10 @@ function tick() {
   if (!state.plan || state.finished) return;
   const now = Date.now();
   if (failed.size > 0 && now - lastFlushAt > 15_000) void flush();
+  if (state.straight && state.straight.until <= now) {
+    state.straight = null;
+    render();
+  }
   if (state.rest && state.rest.untilMs <= now) return endRest();
   if (state.readyUntil && state.readyUntil <= now) {
     state.readyUntil = 0;

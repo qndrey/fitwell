@@ -200,8 +200,25 @@ const cardsOf = (v: Opened) => trackOf(v).locator('[aria-roledescription="card"]
 const counterOf = (v: Opened) => v.frame.getByText(/^\d+ \/ \d+$/);
 const stripOf = (v: Opened) => v.frame.locator('[data-strip]');
 const counterText = async (v: Opened) => (await counterOf(v).textContent())?.trim();
+/** Waits until the scroll has come to rest on a card and that card is the current one (the counter leads the scroll). */
+const settled = async (v: Opened) => {
+  const deadline = Date.now() + 8000;
+  for (;;) {
+    const ok = await trackOf(v).evaluate((el) => {
+      const t = el as unknown as { scrollLeft: number; clientWidth: number; querySelectorAll(s: string): ArrayLike<{ inert: boolean }>; ownerDocument: { querySelector(s: string): { textContent: string | null } | null } };
+      const i = Math.round(t.scrollLeft / t.clientWidth);
+      const cards = t.querySelectorAll('[aria-roledescription="card"]');
+      const counter = t.ownerDocument.querySelector('.counter')?.textContent?.trim() ?? '';
+      // At rest on card i, that card is the current one, and the counter says so (it leads the scroll, so it must agree).
+      return Math.abs(t.scrollLeft - i * t.clientWidth) < 2 && !!cards[i] && !cards[i]!.inert && counter.startsWith(`${i + 1} /`);
+    });
+    if (ok || Date.now() > deadline) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+};
 const expectCounter = async (v: Opened, text: string) => {
   await expect.poll(() => counterText(v), { timeout: 5000 }).toBe(text);
+  await settled(v);
 };
 const jumpTo = async (v: Opened, position: number) => {
   await v.inView(() => undefined);
@@ -419,6 +436,13 @@ describe('Specs: Pager and header rules 6 and 7 (strip, prev/next, keys)', () =>
       await pwExpect(v.frame.getByRole('button', { name: /^(previous|next)/i })).toHaveCount(0);
       await v.page.close();
     }
+  });
+
+  it('two quick presses of an arrow key go two cards, because the second starts from the card being scrolled to', async () => {
+    const v = await openView(fresh3());
+    await press(v, 'ArrowRight');
+    await press(v, 'ArrowRight');
+    await expectCounter(v, '3 / 5');
   });
 
   it('arrow keys move one card, Home and End go to the ends', async () => {

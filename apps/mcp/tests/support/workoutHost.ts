@@ -244,6 +244,22 @@ export const jumpTo = async (v: Opened, position: number) => {
     el.scrollLeft = pos * el.clientWidth;
   }, position);
 };
+/** Waits until the scroll has come to rest on a card and that card is the current one (the counter leads the scroll). */
+export const settled = async (v: Opened) => {
+  const deadline = Date.now() + 8000;
+  for (;;) {
+    const ok = await trackOf(v).evaluate((el) => {
+      const t = el as unknown as { scrollLeft: number; clientWidth: number; querySelectorAll(s: string): ArrayLike<{ inert: boolean }>; ownerDocument: { querySelector(s: string): { textContent: string | null } | null } };
+      const i = Math.round(t.scrollLeft / t.clientWidth);
+      const cards = t.querySelectorAll('[aria-roledescription="card"]');
+      const counter = t.ownerDocument.querySelector('.counter')?.textContent?.trim() ?? '';
+      // At rest on card i, that card is the current one, and the counter says so (it leads the scroll, so it must agree).
+      return Math.abs(t.scrollLeft - i * t.clientWidth) < 2 && !!cards[i] && !cards[i]!.inert && counter.startsWith(`${i + 1} /`);
+    });
+    if (ok || Date.now() > deadline) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+};
 /** Key events must reach the view's document, so the iframe takes focus first. */
 export const press = async (v: Opened, key: string) => {
   await v.inView(() => (globalThis as unknown as Dom).window.focus());

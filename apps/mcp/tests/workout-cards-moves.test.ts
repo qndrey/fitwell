@@ -18,6 +18,7 @@ import {
   openView,
   plan,
   press,
+  settled,
   set,
   trackOf,
   type HostOptions,
@@ -42,6 +43,7 @@ const total = (p: WorkoutPlan) => p.exercises.length + p.cardio.length + 2;
 /** Waits until the pager shows position `pos` (0 = Overview). */
 const expectAt = async (v: Opened, p: WorkoutPlan, pos: number) => {
   await expect.poll(() => counterText(v), { timeout: 5000 }).toBe(`${pos + 1} / ${total(p)}`);
+  await settled(v);
 };
 /** Opens the view, jumps to step `k` (0-based) and waits for the counter. */
 async function onStep(p: WorkoutPlan, k: number, o: HostOptions = {}) {

@@ -1163,6 +1163,7 @@ function buildShell() {
       },
       onscrollend: () => settle(),
       onpointerdown: () => {
+        scrollTarget = -1;
         pointerDown = true;
       },
     },
@@ -1194,7 +1195,23 @@ function trackPos(): number {
  * like a card being thrown: the one leaving turns away, the one coming in straightens up. A card at rest has no transform at all.
  */
 let fxFrame = 0;
+/** The card the strip and the counter show while a scroll is under way: the one nearest the middle, or the one a jump is heading to. */
+let shownPos = -1;
+/** The card a button, key or tap is scrolling to; set until the scroll comes to rest. */
+let scrollTarget = -1;
+const stripAt = () => (shownPos >= 0 ? shownPos : state.pos);
+
+/** Moves the highlight in the strip and the counter now, without waiting for the scroll to settle. */
+function previewPos(pos: number) {
+  if (!ui || pos === stripAt()) return;
+  shownPos = pos;
+  const count = ui.cards.length;
+  ui.strip.replaceChildren(...stripSegments());
+  ui.strip.setAttribute('aria-label', `Card ${pos + 1} of ${count}. Go to the overview.`);
+  ui.counter.textContent = `${pos + 1} / ${count}`;
+}
 function swipeEffect() {
+  if (scrollTarget < 0) previewPos(trackPos());
   if (fxFrame || !ui) return;
   fxFrame = window.requestAnimationFrame(() => {
     fxFrame = 0;
@@ -1219,6 +1236,9 @@ function swipeEffect() {
 function settle() {
   if (!ui) return;
   const pos = trackPos();
+  const previewed = shownPos;
+  shownPos = -1;
+  scrollTarget = -1;
   // A hard fling can come to rest between two snap points: bring the card to the middle.
   const w = ui.track.clientWidth;
   if (w > 0 && Math.abs(ui.track.scrollLeft - pos * w) > 2 && !pointerDown) ui.track.scrollTo({ left: pos * w, behavior: scrollBehavior() });
@@ -1227,6 +1247,7 @@ function settle() {
     enterCard(pos);
     queueCardAnnouncement(pos);
   }
+  if (previewed >= 0 && previewed !== pos) updateHeader();
   autoPos = -1;
   if (pendingFocus === pos) ui.cards[pos]?.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
   pendingFocus = -1;
@@ -1273,6 +1294,8 @@ function goTo(pos: number, opts: { focus?: boolean; auto?: boolean } = {}) {
     settle();
     return;
   }
+  scrollTarget = target;
+  previewPos(target);
   ui.cards[target]!.parentElement!.scrollIntoView({
     inline: 'center',
     block: 'nearest',
@@ -1284,7 +1307,9 @@ document.addEventListener('keydown', (e) => {
   if (!ui || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
   const t = e.target;
   if (t instanceof HTMLElement && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
-  const to = e.key === 'ArrowLeft' ? state.pos - 1 : e.key === 'ArrowRight' ? state.pos + 1 : e.key === 'Home' ? 0 : e.key === 'End' ? ui.cards.length - 1 : null;
+  // From the card the pager is heading to, so two quick key presses go two cards.
+  const here = scrollTarget >= 0 ? scrollTarget : stripAt();
+  const to = e.key === 'ArrowLeft' ? here - 1 : e.key === 'ArrowRight' ? here + 1 : e.key === 'Home' ? 0 : e.key === 'End' ? ui.cards.length - 1 : null;
   if (to === null) return;
   e.preventDefault();
   goTo(to);
@@ -1305,7 +1330,7 @@ function stripSegments(): Node[] {
     const closedSteps = steps.filter((s) => !stepOpen(s)).length;
     const bar = h('span', { className: 'cbar', 'aria-hidden': 'true' }, h('span', { className: 'cfill' }), h('span', { className: 'cmark' }));
     bar.style.setProperty('--fill', String((closedSteps / Math.max(1, steps.length)) * 100));
-    bar.style.setProperty('--pos', String((state.pos / (count - 1)) * 100));
+    bar.style.setProperty('--pos', String((stripAt() / (count - 1)) * 100));
     return [bar];
   }
   const overview = isFresh(steps) ? 'empty' : 'full';
@@ -1313,7 +1338,7 @@ function stripSegments(): Node[] {
   return Array.from({ length: count }, (_, pos) => {
     const kind = pos === 0 ? overview : pos === count - 1 ? end : stepState(steps[pos - 1]!);
     return h('span', {
-      className: `seg ${kind}${pos === state.pos ? ' current' : ''}`,
+      className: `seg ${kind}${pos === stripAt() ? ' current' : ''}`,
       'data-seg': kind,
       'aria-hidden': 'true',
     });
@@ -1348,9 +1373,9 @@ function updateHeader() {
       ),
     );
   }
-  ui.strip.setAttribute('aria-label', `Card ${state.pos + 1} of ${count}. Go to the overview.`);
+  ui.strip.setAttribute('aria-label', `Card ${stripAt() + 1} of ${count}. Go to the overview.`);
   ui.strip.replaceChildren(...stripSegments());
-  ui.counter.textContent = `${state.pos + 1} / ${count}`;
+  ui.counter.textContent = `${stripAt() + 1} / ${count}`;
   const show = restRunning() && state.pos !== 0 && state.pos !== state.rest!.stepIndex + 1;
   ui.chip.hidden = !show;
   if (!show) {

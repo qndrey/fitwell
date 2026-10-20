@@ -8,6 +8,7 @@ import {
   calledTools,
   cardsOf,
   trackOf,
+  settled,
   closed,
   closeBrowser,
   closeOpened,
@@ -50,6 +51,7 @@ async function onStep(p: WorkoutPlan, k: number, o: HostOptions = {}) {
   const v = await openView(p, o);
   await jumpTo(v, k + 1);
   await expect.poll(() => counterText(v)).toBe(`${k + 2} / ${p.exercises.length + p.cardio.length + 2}`);
+  await settled(v);
   return { v, card: cardOf(v, k) };
 }
 /** Reads "Reps: 5. Tap to type a value." style labels. */
@@ -711,6 +713,20 @@ describe('Swipe effect while the track is dragged', () => {
       .poll(() => trackOf(v).evaluate((el) => { const t = el as unknown as { scrollLeft: number; clientWidth: number }; return Math.round(Math.abs(t.scrollLeft - t.clientWidth)); }), { timeout: 5000 })
       .toBeLessThanOrEqual(2);
     expect(await counterText(v)).toBe('2 / 4');
+  });
+
+  it('the strip and the counter move as soon as a jump starts, not when the scroll has finished', async () => {
+    const v = await openView(plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')]), ex('Pullups', [set('1')])]));
+    await expect.poll(() => counterText(v)).toBe('1 / 5');
+    await v.frame.getByRole('button', { name: /^Pullups,/ }).click();
+    const seen = await trackOf(v).evaluate((el) => {
+      const t = el as unknown as { scrollLeft: number; clientWidth: number; ownerDocument: { querySelectorAll(s: string): Iterable<{ className: string }> } };
+      const segs = Array.from(t.ownerDocument.querySelectorAll('.seg'));
+      return { left: t.scrollLeft / t.clientWidth, current: segs.findIndex((x) => x.className.includes('current')) };
+    });
+    expect(seen.current).toBe(3);
+    expect(seen.left).toBeLessThan(3);
+    await expect.poll(() => counterText(v)).toBe('4 / 5');
   });
 
   it('with reduced motion the cards are not transformed while dragging', async () => {

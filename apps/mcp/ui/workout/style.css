@@ -80,6 +80,8 @@ header.head { display: grid; gap: var(--s1); }
 .seg.full { background: var(--text); }
 .seg.half { background: linear-gradient(90deg, var(--text) 50%, var(--seg-off) 50%); }
 .seg.current { height: 8px; }
+.seg.current:not(.full):not(.half) { background: var(--muted); }
+.seg.current.half { background: linear-gradient(90deg, var(--text) 50%, var(--muted) 50%); }
 .cbar { position: relative; flex: 1 1 auto; min-width: 0; height: 4px; border: 0; border-radius: 2px; background: var(--seg-off); }
 .cfill { position: absolute; inset: 0 auto 0 0; width: calc(var(--fill, 0) * 1%); background: var(--text); border-radius: 2px; }
 .cmark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; left: calc(var(--pos, 0) * 1%); background: var(--accent); border-radius: 1px; }

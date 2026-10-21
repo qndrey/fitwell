@@ -110,8 +110,8 @@ export function barChart(o: BarChartOptions): HTMLElement {
   const digits = o.digits ?? 0;
   const top = Math.max(...o.points.map((q) => q.value), o.reference ?? 0, 1) * (o.headroom ?? 1.1);
   const y = scale(0, top, H - M.b, M.t);
-  const x = scale(dayNum(o.from), dayNum(o.to), M.l, W - M.r);
   const bw = Math.max(1.5, Math.min(14, ((W - M.l - M.r) / o.days) * 0.75));
+  const x = scale(dayNum(o.from), dayNum(o.to), M.l + bw / 2, W - M.r - bw / 2); // the first and last bar stay inside the plot, clear of the axis labels
   const el = frame(H, o.label);
   el.append(s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
   for (const v of niceTicks(0, top, 2).filter((t) => t > 0)) el.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));

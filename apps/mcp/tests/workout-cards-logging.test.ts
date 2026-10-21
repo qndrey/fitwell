@@ -624,7 +624,7 @@ describe('Specs: Rest rules 4 and 5 (P5.8; AC20)', () => {
     const { v, card } = await onStep(short(), 0, { clock: true });
     await logBtn(card).click();
     await pwExpect(timerOf(card).first()).toBeVisible();
-    await v.page.clock.runFor(5600);
+    await v.page.clock.runFor(6200);
     await pwExpect(timerOf(card)).toHaveCount(0);
     await expect.poll(async () => (await effects(v)).oscillators).toBe(2);
     expect((await effects(v)).vibrations).toContain(200);
@@ -894,7 +894,7 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
     await logBtn(card).click();
     await pwExpect(zoneOf(card).getByText('Rest', { exact: true })).toHaveCount(1); // the label stays above the clock while counting down
     const rest = (await zoneOf(card).boundingBox())!.height;
-    await v.page.clock.runFor(5600);
+    await v.page.clock.runFor(6200);
     await pwExpect(zoneOf(card)).toContainText('Rest over');
     await pwExpect(zoneOf(card).getByText('Rest', { exact: true })).toHaveCount(0); // no small label above the big words
     await pwExpect(timerOf(card)).toHaveCount(0);
@@ -909,7 +909,7 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
     const { v, card } = await onStep(short(), 0, { clock: true });
     await freeze(v);
     await logBtn(card).click();
-    await v.page.clock.runFor(5600);
+    await v.page.clock.runFor(6200);
     await pwExpect(zoneOf(card)).toContainText('Rest over');
     await v.page.clock.runFor(3500);
     await pwExpect(zoneOf(card)).toContainText('Set 2 of 3');
@@ -922,7 +922,9 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
     const { v, card } = await onStep(short(), 0, { clock: true });
     await freeze(v); // only runFor moves the page's time, so the rest and its 3 s of "Rest over" cannot run out while the test (or a slow CI machine) is busy
     await logBtn(card).click();
-    await v.page.clock.runFor(5600);
+    await v.page.clock.runFor(5000);
+    // The page checks the rest once a second: step until it has ended, so the 600 ms tap lock is still running below.
+    for (let i = 0; i < 12 && (await btn(card, 'Start set 2').count()) === 0; i++) await v.page.clock.runFor(100);
     await pwExpect(btn(card, 'Start set 2')).toBeVisible();
     await btn(card, 'Start set 2').evaluate((el) => (el as unknown as DomNode).click()); // inside the 600 ms lock after the rest ended: ignored
     await pwExpect(btn(card, 'Start set 2')).toBeVisible();
@@ -939,7 +941,7 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
     const { v, card } = await onStep(plan([e, bench()]), 0, { clock: true });
     await freeze(v);
     await logBtn(card).click();
-    await v.page.clock.runFor(5600);
+    await v.page.clock.runFor(6200);
     await pwExpect(btn(card, 'Start warm-up 2')).toBeVisible();
   });
 

@@ -132,27 +132,40 @@ export function buildProgress(i: ProgressInput): Progress {
   };
 
   // ---- records: best estimated 1RM per day for each exercise with weighted working sets
-  const byExercise = new Map<string, { name: string; days: Map<Day, number> }>();
+  type Top = { e1rm: number; kg: number; reps: number };
+  const byExercise = new Map<string, { name: string; days: Map<Day, Top> }>();
   for (const w of strength) {
     for (const e of w.exercises) {
       if (e.load === 'bodyweight' || e.mode === 'time') continue;
-      let best = 0;
-      for (const s of e.sets) if (s.type === 'working' && s.done !== false) best = Math.max(best, estimatedOneRepMax(s.weightKg, s.reps) ?? 0);
-      if (best <= 0) continue;
-      const x = byExercise.get(e.exerciseRef) ?? { name: e.exerciseName, days: new Map<Day, number>() };
-      x.days.set(w.day, Math.max(x.days.get(w.day) ?? 0, best));
+      let best: Top | null = null;
+      for (const s of e.sets) {
+        if (s.type !== 'working' || s.done === false) continue;
+        const est = estimatedOneRepMax(s.weightKg, s.reps) ?? 0;
+        if (est > (best?.e1rm ?? 0)) best = { e1rm: est, kg: s.weightKg ?? 0, reps: s.reps };
+      }
+      if (!best) continue;
+      const x = byExercise.get(e.exerciseRef) ?? { name: e.exerciseName, days: new Map<Day, Top>() };
+      const have = x.days.get(w.day);
+      if (!have || best.e1rm > have.e1rm) x.days.set(w.day, best);
       byExercise.set(e.exerciseRef, x);
     }
   }
   const records: RecordsProgress = {
     exercises: [...byExercise]
       .map(([id, x]) => {
-        const points = [...x.days].map(([day, e1rmKg]) => ({ day, e1rmKg: r1(e1rmKg) })).sort((a, b) => (a.day < b.day ? -1 : 1));
+        const days = [...x.days].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+        const points = days.map(([day, t]) => ({ day, e1rmKg: r1(t.e1rm) }));
         const best = points.reduce((b, p) => (p.e1rmKg > b.e1rmKg ? p : b), points[0]!);
-        return { id, name: x.name, sessions: points.length, firstE1rmKg: points[0]!.e1rmKg, latestE1rmKg: points[points.length - 1]!.e1rmKg, bestE1rmKg: best.e1rmKg, bestDay: best.day, points };
+        let running = 0;
+        const sessions = days.map(([day, t], k) => {
+          const isBest = k > 0 && t.e1rm > running;
+          running = Math.max(running, t.e1rm);
+          return { day, topSet: { kg: r1(t.kg), reps: t.reps }, e1rm: r1(t.e1rm), isBest };
+        });
+        return { id, name: x.name, firstE1rmKg: points[0]!.e1rmKg, latestE1rmKg: points[points.length - 1]!.e1rmKg, bestE1rmKg: best.e1rmKg, bestDay: best.day, points, sessions };
       })
-      .sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name))
-      .slice(0, 6),
+      .sort((a, b) => b.sessions.length - a.sessions.length || a.name.localeCompare(b.name))
+      .slice(0, 12),
   };
 
   // ---- measurements: first and latest value per type in the period
@@ -216,7 +229,7 @@ export function summarize(p: Progress) {
     weight: { latestKg: w.latestKg, latestDay: w.latestDay, weighIns: w.daily.length, trendChangeKg: w.trendChangeKg, trendNote: w.trendChangeKg === null ? 'Needs at least 3 weigh-ins within a week to show a trend.' : 'Change of the 7-day average over the period.', goalKg: w.goalKg, fromGoalKg: w.fromGoalKg },
     nutrition: { daysLogged: n.daysLogged, averagePerLoggedDay: n.averagePerLoggedDay, proteinPerKg: n.proteinPerKg, goals: n.goals, adherence: n.adherence },
     training: { sessions: t.sessions, perWeek: t.perWeek, goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
-    records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
+    records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions.length, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
     measurements: m.types.map((t) => ({ key: t.key, label: t.label, unit: t.unit, firstDay: t.firstDay, first: t.first, latestDay: t.latestDay, latest: t.latest, change: t.change })),
     energy: { ...p.energy, method: 'Average intake on fully logged days minus the weight trend (least squares) × 7700 kcal/kg; each 0.1 kg a week is about 110 kcal a day. suggest_targets with expenditure_kcal gives macros for any rate.' },
     dailyMetrics: { sleepAverageHours: x.sleep.averageHours, nightsLogged: x.sleep.daily.length, stepsAverage: x.steps.average, stepsDaysLogged: x.steps.daily.length, waterAverageMl: x.water.averageMl, waterDaysLogged: x.water.daily.length },

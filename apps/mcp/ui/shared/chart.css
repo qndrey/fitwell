@@ -15,6 +15,7 @@ svg .cal-off { fill: none; stroke: var(--border); stroke-width: 1.5; }
 svg .cal-letter { fill: var(--on-accent); font-weight: 700; }
 svg .bar-partial { fill: none; stroke: var(--accent); stroke-width: 1.5; }
 svg .bar2-partial { fill: none; stroke: var(--series-2); stroke-width: 1.5; }
+svg .pr { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
 svg .spark { fill: none; stroke: var(--accent); stroke-width: 2; }
 
 .chartbox { position: relative; }

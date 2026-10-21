@@ -2,12 +2,13 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { Progress } from '../../src/analytics/types';
 import { barChart, consistencyCalendar, crossesYear, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
 import { weekMidpoint } from '../shared/chartMath';
+import { shortName } from '../shared/names';
 import { h } from '../shared/dom';
 import { energyView } from './energy';
 import { buildPager, type PagerCard } from '../shared/pager';
 
 const RANGES = [30, 90, 365] as const;
-const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '', card: 0, measure: '', habit: 'sleep' as 'sleep' | 'steps' | 'water' };
+const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '', card: 0, allLifts: false, measure: '', habit: 'sleep' as 'sleep' | 'steps' | 'water' };
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell dashboard', version: '0.1.0' }, {}, { autoResize: true });
@@ -185,27 +186,40 @@ function trainingCard(p: Progress) {
   );
 }
 
+const FIRST_LIFTS = 6;
+
+/** One lift: a row with its numbers, opening to the e1RM line (◆ marks a new best), and the last 5 sessions. */
+function liftRow(p: Progress, e: Progress['records']['exercises'][number]) {
+  const name = shortName(e.name);
+  const values = e.sessions.length > 1 ? `${num(e.firstE1rmKg)} → ${num(e.latestE1rmKg)} kg · best ${num(e.bestE1rmKg)} kg (${dayLabel(p, e.bestDay)})` : `${num(e.latestE1rmKg)} kg · one session`;
+  const bests = e.sessions.filter((x) => x.isBest);
+  const recent = e.sessions.slice(-5).reverse();
+  return h(
+    'details',
+    { className: 'lift' },
+    h('summary', { 'aria-label': `${e.name}: ${values}` }, h('div', {}, h('div', { className: 'name' }, name), h('div', { className: 'val' }, values)), sparkline(e.points.map((q) => ({ day: q.day, value: q.e1rmKg })))),
+    lineChart({ from: startOf(p), to: p.to, label: `${e.name}, estimated 1RM by session: ${num(e.firstE1rmKg)} to ${num(e.latestE1rmKg)} kg${bests.length ? `, ${bests.length} new best${bests.length === 1 ? '' : 's'}` : ''}.`, columns: ['Date', 'Estimated 1RM (kg)'], dots: e.points.map((q) => ({ day: q.day, value: q.e1rmKg })), line: e.points.map((q) => ({ day: q.day, value: q.e1rmKg })), digits: 0, height: 110, boldSingle: true, dotRadius: 2.2, marks: bests.map((x) => x.day) }),
+    bests.length > 0 && h('p', { className: 'muted small' }, '◆ new best estimate'),
+    h(
+      'table',
+      { className: 'sessions' },
+      h('caption', {}, `Last ${recent.length} session${recent.length === 1 ? '' : 's'}`),
+      h('thead', {}, h('tr', {}, ...['Date', 'Top set', 'Est. 1RM', ''].map((c) => h('th', { scope: 'col' }, c)))),
+      h('tbody', {}, ...recent.map((x) => h('tr', {}, h('td', {}, dayLabel(p, x.day)), h('td', {}, `${x.topSet.reps} × ${num(x.topSet.kg)} kg`), h('td', {}, `${num(x.e1rm)} kg`), h('td', {}, x.isBest ? '◆ best' : '')))),
+    ),
+  );
+}
+
 function recordsCard(p: Progress) {
   const r = p.records.exercises;
+  const shown = state.allLifts ? r : r.slice(0, FIRST_LIFTS);
   return h(
     'section',
     { className: 'card', 'aria-label': 'Strength' },
     h('h2', {}, 'Strength (estimated 1RM)'),
-    r.length === 0
-      ? empty('Log weighted exercises in the workout player to see estimated one-rep maxes.')
-      : h(
-          'div',
-          { className: 'rows' },
-          ...r.map((e) =>
-            h(
-              'div',
-              { className: 'rec' },
-              h('div', {}, h('div', { className: 'name' }, e.name), h('div', { className: 'val' }, e.sessions > 1 ? `${num(e.firstE1rmKg)} → ${num(e.latestE1rmKg)} kg · best ${num(e.bestE1rmKg)} kg (${dayLabel(p, e.bestDay)})` : `${num(e.latestE1rmKg)} kg · one session`)),
-              sparkline(e.points.map((q) => ({ day: q.day, value: q.e1rmKg }))),
-            ),
-          ),
-        ),
-    r.length > 0 && empty('Epley estimate from working sets of 12 reps or fewer.'),
+    r.length === 0 ? empty('Log weighted exercises in the workout player to see estimated one-rep maxes.') : h('div', { className: 'rows' }, ...shown.map((e) => liftRow(p, e))),
+    r.length > FIRST_LIFTS && h('button', { type: 'button', className: 'more', onclick: () => { state.allLifts = !state.allLifts; render(); } }, state.allLifts ? `Show fewer lifts` : `Show all lifts (${r.length})`),
+    r.length > 0 && empty('Epley estimate from sets of 12 reps or fewer.'),
   );
 }
 

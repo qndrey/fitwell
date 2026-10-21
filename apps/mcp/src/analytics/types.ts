@@ -47,7 +47,10 @@ export interface TrainingProgress {
 }
 
 export interface RecordsProgress {
-  exercises: { id: string; name: string; sessions: number; firstE1rmKg: number; latestE1rmKg: number; bestE1rmKg: number; bestDay: Day; points: { day: Day; e1rmKg: number }[] }[];
+  exercises: { id: string; name: string; firstE1rmKg: number; latestE1rmKg: number; bestE1rmKg: number; bestDay: Day; points: { day: Day; e1rmKg: number }[];
+    /** One entry per day trained, oldest first: the set with the highest estimate, and whether the day set a new best (beat every earlier day in the period). */
+    sessions: { day: Day; topSet: { kg: number; reps: number }; e1rm: number; isBest: boolean }[];
+  }[];
 }
 
 export interface MeasurementProgress {

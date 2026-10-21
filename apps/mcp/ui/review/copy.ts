@@ -4,8 +4,7 @@ export type Confidence = 'low' | 'medium' | 'high';
 /** What the energy estimate's confidence means to a person, in one word. */
 export const CONFIDENCE_WORD: Record<Confidence, string> = { high: 'reliable', medium: 'fair', low: 'rough' };
 
-/** "Barbell Bench Press - Medium Grip" → "Barbell Bench Press": the variant after the dash is noise in a tile. */
-export const shortName = (name: string) => name.split(' - ')[0]!.replace(/\s*\(.*\)\s*$/, '').trim();
+export { shortName } from '../shared/names';
 
 const DAY = 86_400_000;
 const dayNumber = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / DAY);

@@ -50,6 +50,8 @@ export interface LineChartOptions {
   dotRadius?: number;
   /** Draw the dots above the line (the weight chart) rather than under it. */
   dotsOnTop?: boolean;
+  /** Days to mark with a diamond (a new best): a shape, so the meaning does not rest on colour. */
+  marks?: string[];
 }
 
 /** Dots and an optional line over a value axis with grid lines at round values. */
@@ -71,6 +73,11 @@ export function lineChart(o: LineChartOptions): HTMLElement {
   const dots = o.dots.map((q) => s('circle', { class: bold ? 'dotfull' : 'dot', cx: x(dayNum(q.day)), cy: y(q.value), r: bold ? 3.5 : o.dotRadius ?? 2.5 }));
   if (o.dotsOnTop) el.append(...(line ? [line] : []), ...dots);
   else el.append(...dots, ...(line ? [line] : []));
+  for (const q of o.dots.filter((q) => o.marks?.includes(q.day))) {
+    const cx = x(dayNum(q.day));
+    const cy = y(q.value);
+    el.append(s('polygon', { class: 'pr', points: `${cx},${cy - 5.5} ${cx + 4.5},${cy} ${cx},${cy + 5.5} ${cx - 4.5},${cy}` }));
+  }
   axisLabels(el, o.from, o.to, H);
   const average = new Map((o.line ?? []).map((q) => [q.day, q.value]));
   const days = [...new Set([...o.dots.map((q) => q.day), ...(o.line ?? []).map((q) => q.day)])].sort();

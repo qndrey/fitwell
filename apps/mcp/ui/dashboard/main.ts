@@ -2,6 +2,7 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { Progress } from '../../src/analytics/types';
 import { barChart, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
 import { h } from '../shared/dom';
+import { energyView } from './energy';
 import { buildPager, type PagerCard } from '../shared/pager';
 
 const RANGES = [30, 90, 365] as const;
@@ -100,6 +101,27 @@ function nutritionCard(p: Progress) {
     a.kcalWithin10Pct !== null && h('p', { className: 'small' }, `Calories within 10 % of your goal on ${a.kcalWithin10Pct} of ${a.ofDays} logged days.`),
     a.proteinReached !== null && h('p', { className: 'small' }, `Protein goal reached on ${a.proteinReached} of ${a.ofDays}.`),
     n.goals.kcal === null && n.averagePerLoggedDay && empty('Set calorie and macro goals with Claude to see them on the chart.'),
+  );
+}
+
+function energyCard(p: Progress) {
+  const v = energyView(p.energy);
+  const top = Math.max(v.burned ?? 0, v.eaten ?? 0, 1);
+  const bar = (label: string, kcal: number, cls: string) =>
+    h('div', { className: 'row' }, h('span', { className: 'name' }, label), h('span', { className: 'val' }, `~${num(kcal, 0)} kcal`), h('div', { className: `meter ${cls}`, 'aria-hidden': 'true' }, h('span', { css: { width: `${Math.round((kcal / top) * 100)}%` } })));
+  return h(
+    'section',
+    { className: 'card', 'aria-label': 'Energy' },
+    h('h2', {}, 'Energy'),
+    v.empty ? h('p', { className: 'muted small' }, v.empty) : h('p', { className: 'headline' }, v.headline),
+    v.empty && v.reason && h('p', { className: 'muted small' }, v.reason),
+    v.burned !== null && h('div', { className: 'rows' }, v.eaten !== null && bar('Eaten (average)', v.eaten, 'eaten'), bar('Burned (estimate)', v.burned, 'burned')),
+    v.gap && h('p', { className: 'small' }, v.gap),
+    v.trend && h('p', { className: 'small' }, v.trend),
+    v.target && h('p', { className: 'small' }, v.target),
+    v.goalDate && h('p', { className: 'small' }, v.goalDate),
+    v.ask && h('p', { className: 'muted small' }, v.ask),
+    v.basis && h('p', { className: 'muted small' }, v.basis),
   );
 }
 
@@ -210,7 +232,7 @@ function draw() {
   }
   const ctx = app.getHostContext();
   const pagerCards: PagerCard[] = [];
-  for (const [title, el] of [['Weight', weightCard(p)], ['Nutrition', nutritionCard(p)], ['Training', trainingCard(p)], ['Strength', recordsCard(p)], ['Habits', habitsCard(p)], ['Measures', measurementsCard(p)]] as [string, HTMLElement | null][]) if (el) pagerCards.push({ title, el });
+  for (const [title, el] of [['Weight', weightCard(p)], ['Nutrition', nutritionCard(p)], ['Energy', energyCard(p)], ['Training', trainingCard(p)], ['Strength', recordsCard(p)], ['Habits', habitsCard(p)], ['Measures', measurementsCard(p)]] as [string, HTMLElement | null][]) if (el) pagerCards.push({ title, el });
   root.replaceChildren(
     controls,
     h('p', { className: 'muted small' }, `${rangeLabel(p.from, p.to)}${state.loading ? ' · updating…' : ''}`),

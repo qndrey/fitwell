@@ -69,3 +69,4 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 footer { font-size: 0.75rem; color: var(--muted); text-align: center; }
 .error { color: var(--color-text-danger, #b3261e); }
+.meter.burned > span { background: var(--series-2); }

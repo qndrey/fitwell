@@ -50,11 +50,21 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
   const averageKg = avgAt(h, end);
   const previousAverageKg = avgAt(h, addDays(i.weekStart, -1));
 
+  // The week strip: one row per counted day. A day with two kinds of workout shows the heaviest one.
+  const rank = { strength: 0, session: 1, cardio: 2 } as const;
+  const days: WeekReview['days'] = Array.from({ length: daysCounted }, (_, k) => {
+    const day = addDays(i.weekStart, k);
+    const food = w.nutrition.daily.find((d) => d.day === day);
+    const workout = w.training.days.filter((d) => d.day === day).sort((a, b) => rank[a.type] - rank[b.type])[0]?.type ?? null;
+    return { day, kcal: food?.kcal ?? null, proteinG: food?.protein ?? null, workout, weighIn: w.weight.daily.find((d) => d.day === day)?.kg ?? null };
+  });
+
   const review: WeekReview = {
     weekStart: i.weekStart,
     weekEnd: end,
     inProgress,
     daysCounted,
+    days,
     nutrition: {
       daysLogged: w.nutrition.daysLogged,
       average: w.nutrition.averagePerLoggedDay,

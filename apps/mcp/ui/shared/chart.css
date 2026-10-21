@@ -9,6 +9,7 @@ svg .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoi
 svg .goal { stroke: var(--text); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.7; }
 svg .bar { fill: var(--accent); }
 svg .bar2 { fill: var(--series-2); }
+svg .letter { font-weight: 700; fill: var(--text); }
 svg .spark { fill: none; stroke: var(--accent); stroke-width: 2; }
 
 .chartbox { position: relative; }

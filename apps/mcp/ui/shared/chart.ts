@@ -1,5 +1,5 @@
 // Charts for the dashboard and the weekly review: small SVGs that scale with the card, each with a visually hidden data table as its text alternative.
-import { crossesYear, dayNum, fmtDay, num } from './chartMath';
+import { crossesYear, dayNum, fmtDay, num, weekdayShort, WORKOUT_LETTER, WORKOUT_NAME, type WorkoutKind } from './chartMath';
 import { h, svg as s } from './dom';
 
 export { crossesYear, fmtDay, num, rangeLabel } from './chartMath';
@@ -165,4 +165,41 @@ export function sparkline(points: Point[]): SVGElement {
   const y = scale(Math.min(...vals), Math.max(...vals), 25, 3);
   el.append(s('polyline', { class: 'spark', points: points.map((q) => `${x(dayNum(q.day))},${y(q.value)}`).join(' ') }));
   return el;
+}
+
+export interface StripDay {
+  day: string;
+  kcal: number | null;
+  proteinG: number | null;
+  workout: WorkoutKind | null;
+  weighIn: number | null;
+}
+
+export interface WeekStripOptions {
+  days: StripDay[];
+  goalKcal?: number | null;
+  label: string;
+}
+
+/** A week at a glance: calorie bars (goal dashed, value under each bar, "–" for an unlogged day), the workout letter and the weigh-in of each day. */
+export function weekStrip(o: WeekStripOptions): HTMLElement {
+  const L = 44;
+  const slot = (W - L - M.r) / 7;
+  const bw = Math.min(26, slot * 0.6);
+  const top = Math.max(...o.days.map((d) => d.kcal ?? 0), o.goalKcal ?? 0, 1) * 1.1;
+  const base = 56;
+  const y = scale(0, top, base, 6);
+  const row = { kcal: 70, day: 84, trained: 100, weight: 116 };
+  const el = frame(124, o.label);
+  const label = (text: string, yy: number) => s('text', { x: 0, y: yy }, text);
+  el.append(s('line', { class: 'axis', x1: L, x2: W - M.r, y1: base, y2: base }), label('kcal', row.kcal), label('Trained', row.trained), label('Weight', row.weight));
+  if (o.goalKcal) el.append(s('line', { class: 'goal', x1: L, x2: W - M.r, y1: y(o.goalKcal), y2: y(o.goalKcal) }));
+  o.days.forEach((d, i) => {
+    const cx = L + slot * (i + 0.5);
+    const mid = { x: cx, 'text-anchor': 'middle' };
+    if (d.kcal !== null) el.append(s('rect', { class: 'bar', x: cx - bw / 2, y: y(d.kcal), width: bw, height: Math.max(0, base - y(d.kcal)), rx: 1.5 }));
+    el.append(s('text', { ...mid, y: row.kcal }, d.kcal === null ? '–' : num(d.kcal, 0)), s('text', { ...mid, y: row.day }, weekdayShort(d.day)), s('text', { class: 'letter', ...mid, y: row.trained }, d.workout ? WORKOUT_LETTER[d.workout] : '–'), s('text', { ...mid, y: row.weight }, d.weighIn === null ? '–' : num(d.weighIn, 1)));
+  });
+  const rows = o.days.map((d) => [`${weekdayShort(d.day)} ${fmtDay(d.day)}`, d.kcal === null ? 'not logged' : num(d.kcal, 0), d.proteinG === null ? 'not logged' : num(d.proteinG, 0), d.workout ? WORKOUT_NAME[d.workout] : 'none', d.weighIn === null ? 'none' : num(d.weighIn, 1)]);
+  return box(el, dataTable(o.label, ['Day', 'Calories (kcal)', 'Protein (g)', 'Workout', 'Weigh-in (kg)'], rows));
 }

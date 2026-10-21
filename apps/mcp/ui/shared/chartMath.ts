@@ -23,3 +23,11 @@ export function niceTicks(lo: number, hi: number, count = 3): number[] {
   for (let t = Math.ceil(lo / step - 1e-9); t * step <= hi + step * 1e-9; t++) ticks.push(Math.round(t * step * 1e9) / 1e9 + 0); // + 0: no negative zero
   return ticks;
 }
+
+export type WorkoutKind = 'strength' | 'cardio' | 'session';
+/** One letter for a kind of workout, always shown with a key: S strength, C cardio, P class (Pilates, HIIT, ...). */
+export const WORKOUT_LETTER: Record<WorkoutKind, string> = { strength: 'S', cardio: 'C', session: 'P' };
+export const WORKOUT_KEY = 'S strength · C cardio · P class';
+export const WORKOUT_NAME: Record<WorkoutKind, string> = { strength: 'Strength', cardio: 'Cardio', session: 'Class' };
+/** "Mon", "Tue", ... */
+export const weekdayShort = (d: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));

@@ -1,7 +1,8 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { WeekReview } from '../../src/analytics/reviewTypes';
 import { h, type Child } from '../shared/dom';
-import { fmtDay } from '../shared/chart';
+import { fmtDay, weekStrip } from '../shared/chart';
+import { WORKOUT_KEY } from '../shared/chartMath';
 import { buildPager } from '../shared/pager';
 import { addDays, CONFIDENCE_WORD, gain, mondayOf, shortName, weekTitle } from './copy';
 
@@ -54,6 +55,7 @@ function draw() {
   const hb = r.habits;
   const sessions = t.strength + t.cardio + t.session;
   const cards: HTMLElement[] = [];
+  const strip = card('The week', weekStrip({ days: r.days, goalKcal: n.goals.kcal, label: `Each day of the week: calories, workout and weigh-in.` }), h('div', { className: 'legend' }, n.goals.kcal ? h('span', {}, h('i', { className: 'goalsw' }), `calorie goal ${num(n.goals.kcal)} kcal`) : null, h('span', {}, WORKOUT_KEY)));
 
   if (r.highlights.length) cards.push(card('Went well', h('ul', { className: 'notes' }, ...r.highlights.map((x) => h('li', {}, x)))));
 
@@ -140,6 +142,7 @@ function draw() {
     header,
     h('p', { className: 'muted small' }, title && h('strong', {}, title), title && ' · ', `${fmtDay(r.weekStart)} to ${fmtDay(r.weekEnd)}`, r.inProgress && ' ', r.inProgress && h('span', { className: 'pill' }, 'week in progress'), state.loading && ' · updating…'),
     state.error && h('p', { className: 'error small' }, state.error),
+    strip,
     ...buildPager(cards.map((el) => ({ title: el.getAttribute('aria-label') ?? '', el })), state.card, (i) => (state.card = i)),
     h('footer', {}, 'Compared with the same days of the week before. Weight uses the 7-day average.'),
   );

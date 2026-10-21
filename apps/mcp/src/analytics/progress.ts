@@ -110,6 +110,7 @@ export function buildProgress(i: ProgressInput): Progress {
   const training: TrainingProgress = {
     weeks,
     sessions: { strength: strength.length, cardio: cardio.length, session: sessions.length },
+    days: [...strength.map((w) => ({ day: w.day, type: 'strength' as const })), ...cardio.map((w) => ({ day: w.day, type: 'cardio' as const })), ...sessions.map((w) => ({ day: w.day, type: 'session' as const }))].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0)),
     averageStrengthMin: timed.length ? r0(timed.reduce((a, b) => a + b, 0) / timed.length) : null,
     setsPerWeekByMuscle: [...muscleTotals].map(([muscle, sets]) => ({ muscle, sets: r1(sets / Math.max(1, weeks.length)) })).sort((a, b) => b.sets - a.sets),
     goalWorkoutsPerWeek: g?.workoutsPerWeek ?? null,

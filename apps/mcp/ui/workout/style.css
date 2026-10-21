@@ -3,7 +3,8 @@
 :root {
   color-scheme: light dark;
   --track-h: 520px;
-  --zone-h: calc(var(--track-h) * 0.48);
+  /* The zone holds the set line, steppers, plates, last time and the progression reason; Log set and Skip set are in the dock. */
+  --zone-h: calc(var(--track-h) * 0.42);
   --bg: var(--color-background-primary, #faf8f5);
   --surface: var(--color-background-secondary, #f1ede7);
   --text: var(--color-text-primary, #1f1d1a);
@@ -24,16 +25,17 @@
   --fs-label: 12px;
   --fs-title: 18px;
   --fs-big: 22px;
-  --fs-time: 48px;
+  --fs-time: 64px;
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
-  --h-log: 44px;
-  --h-primary: 40px;
-  --h-stepper: 40px;
-  --h-secondary: 36px;
-  --h-link: 36px;
-  --h-row: 36px;
+  /* Every control is at least 44 px high; Log set is the one that is hit most, 52 px. */
+  --h-log: 52px;
+  --h-primary: 44px;
+  --h-stepper: 44px;
+  --h-secondary: 44px;
+  --h-link: 44px;
+  --h-row: 44px;
   --h-strip: 24px;
   --seg-off: var(--border);
 }
@@ -71,7 +73,9 @@ p { margin: 0; }
 
 /* header: one text line and a 4 px strip */
 header.head { display: grid; gap: var(--s1); }
-.titlebar { display: flex; align-items: baseline; gap: var(--s2); min-height: 22px; }
+.titlebar { display: flex; align-items: center; gap: var(--s2); min-height: 44px; }
+.navbtn { flex: none; width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; font-size: 28px; line-height: 1; }
+.navbtn[aria-disabled='true'] { opacity: 0.3; cursor: default; }
 .titlebar strong { flex: 1 1 auto; min-width: 0; font-size: var(--fs-body); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .counter, .clock { flex: none; font-size: var(--fs-small); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .strip { display: flex; align-items: center; gap: 2px; width: 100%; height: var(--h-strip); min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
@@ -96,13 +100,14 @@ header.head { display: grid; gap: var(--s1); }
 .track { display: flex; height: var(--track-h); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; min-width: 0; }
 .track::-webkit-scrollbar { display: none; }
 .slide { flex: 0 0 100%; min-width: 0; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
-.pcard { min-width: 0; height: 100%; overflow-y: auto; overscroll-behavior-y: auto; }
+.pcard { display: flex; flex-direction: column; min-width: 0; height: 100%; overflow-y: auto; overscroll-behavior-y: auto; }
 .pcard :focus-visible { outline-offset: -2px; }
+/* the exercise name stays at the top of its card while the card scrolls; a hairline shows under it once it has */
+.exercise > h1 { position: sticky; top: 0; z-index: 1; padding: var(--s1) 0; background: var(--bg); }
+.pcard[data-scrolled] .exercise > h1 { box-shadow: 0 1px 0 var(--border); }
 .pcard h1:focus { outline: none; }
 .pcard h1:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.body { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--s2); min-height: 100%; }
-.exhead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2); }
-.exhead > .muted { flex: none; font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
+.body { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--s2); flex: 1 0 auto; }
 
 /* buttons */
 button { font: inherit; font-size: 14px; color: inherit; min-height: var(--h-secondary); padding: 0 var(--s3); border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; touch-action: manipulation; }
@@ -113,8 +118,13 @@ button.link { border: 0; background: transparent; padding: 0 10px; min-height: v
 .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
 .more { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0 var(--s1); border-top: 1px solid var(--border); padding-top: var(--s1); }
 .more > button.link:first-child { padding-left: 0; }
-.zone .more { justify-content: center; border: 0; padding: 0; }
-.sticky { position: sticky; bottom: 0; z-index: 1; display: grid; gap: var(--s2); padding-top: var(--s2); background: var(--bg); }
+
+/* The dock: the card's main action(s), pinned to the bottom of every card. It sits at the bottom when the content is short and stays in view when the card scrolls. */
+.dock { position: sticky; bottom: 0; z-index: 1; flex: none; margin-top: auto; display: grid; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--border); background: var(--bg); }
+.dock.split { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.dock > button { width: 100%; }
+.dock.stack button { white-space: nowrap; }
+.dock .primary.log { min-height: var(--h-log); }
 
 /* steppers: the +/- buttons are the only bordered things inside a zone */
 .steppers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
@@ -131,10 +141,12 @@ button.link { border: 0; background: transparent; padding: 0 10px; min-height: v
 /* rest and timed sets */
 .rest { text-align: center; }
 .rest .time { font-size: var(--fs-time); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.rest .time.over { font-size: 40px; line-height: calc(var(--fs-time) * 1.05); }
 .bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
 .bar > span { display: block; height: 100%; width: 100%; background: var(--text); border-radius: 3px; }
-.hold { display: grid; gap: 6px; justify-items: center; }
-.hold .time { margin: 0; font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+/* the timer line of a timed set: one slot of fixed height, whatever it shows (Start, Get ready, the time left, Time) */
+.holdslot { display: grid; place-items: center; height: 56px; }
+.holdslot .time { margin: 0; font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 
 /* Overview: plain rows with hairlines */
 .ovhead { display: flex; align-items: baseline; gap: var(--s2); }
@@ -150,7 +162,7 @@ ol.list li.ss button.ovrow { box-shadow: inset 3px 0 0 var(--muted); padding-lef
 .dots { flex: none; font-size: var(--fs-label); letter-spacing: 2px; white-space: nowrap; color: var(--muted); }
 .wdots { font-size: 0.8em; margin-right: 6px; }
 .done { color: var(--ok); }
-.error { color: var(--danger); }
+.error, .unsaved { color: var(--danger); }
 .hint { display: none; }
 @media (pointer: fine) { .hint { display: inline; } }
 
@@ -173,6 +185,7 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .zone.rest { text-align: center; align-content: center; }
 .zone.rest .next { display: flex; align-items: center; justify-content: center; gap: var(--s2); padding: 0; border: 0; }
 .setline { font-size: var(--fs-body); font-weight: 600; }
+.straight { min-height: 20px; }
 .plates { margin-top: 0; }
 @container (max-width: 296px) {
   .zone .steppers { grid-template-columns: minmax(0, 1fr); gap: var(--s2); }
@@ -180,12 +193,10 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 }
 @container (max-width: 250px) { .zone .stepper { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
 
-/* pinned rest bar */
-.restbar { position: sticky; bottom: 0; flex: none; height: 52px; background: var(--bg); border-top: 1px solid var(--border); }
-.restbar .bar { position: absolute; inset: -1px 0 auto 0; height: 2px; border-radius: 0; }
-.restbtns { display: flex; align-items: center; gap: var(--s2); height: 100%; padding-top: 2px; }
-.restbtns .restclock { flex: 1 1 auto; font-size: var(--fs-body); font-weight: 600; font-variant-numeric: tabular-nums; }
-.restbtns button { flex: none; min-height: var(--h-primary); padding: 0 var(--s3); }
+/* the dock while a rest runs: a progress line on its top edge, then three buttons (the clock is the zone's) */
+.dock .bar { position: absolute; inset: -1px 0 auto 0; height: 2px; border-radius: 0; }
+.restbtns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr); gap: var(--s2); }
+.restbtns button { width: 100%; min-height: var(--h-primary); padding: 0 var(--s1); }
 
 /* panels, finish, summary */
 .panel { border-top: 1px solid var(--border); padding-top: var(--s2); display: grid; gap: var(--s2); text-align: left; }
@@ -193,7 +204,6 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .bests { border: 0; padding: 0; gap: 0; display: grid; }
 .bests p { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .confirm { gap: var(--s2); }
-.finish-early { margin-top: 0; justify-self: start; }
 .block { display: block; }
 /* 16px at least: a smaller field makes iOS zoom the page when it is focused. */
 .notes { text-align: left; }

@@ -142,12 +142,44 @@ export function nextTarget(steps: Step[], fromIndex: number): { kind: 'step'; in
   return i === -1 ? { kind: 'finish' } : { kind: 'step', index: i };
 }
 
+/** The first open step when it lies before `from`: where "Back to ..." goes, with how much is left there ("2 sets left"). Null when nothing earlier is open. */
+export function backTarget(steps: Step[], from: number): { index: number; name: string; left: string } | null {
+  const index = firstOpenStep(steps, 0);
+  const step = steps[index];
+  if (index === -1 || index >= from || !step) return null;
+  const open = step.kind === 'ex' ? step.ex.sets.filter((x) => !setClosed(x)).length : 1;
+  return { index, name: stepName(step), left: step.kind === 'ex' ? `${open} ${open === 1 ? 'set' : 'sets'} left` : 'not done' };
+}
+
 /** Steps of the superset the step at `index` belongs to, in order; empty for an exercise in none. */
 export function supersetSteps(steps: Step[], index: number): number[] {
   const step = steps[index];
   if (!step || step.kind !== 'ex' || !step.ex.supersetId) return [];
   const id = step.ex.supersetId;
   return steps.flatMap((s, i) => (s.kind === 'ex' && s.ex.supersetId === id ? [i] : []));
+}
+
+/**
+ * Where an exercise sits in its superset: one round count for the whole group. The round is the earliest working set any member
+ * still has open (a member still in its warm-ups counts as round 1), the total is the largest number of working sets among the
+ * members, so partners never disagree. An exercise whose next set is a warm-up reads "Warm-up k of n" instead. Null in no superset.
+ */
+export function supersetRound(steps: Step[], index: number): { text: string; total: number } | null {
+  const members = supersetSteps(steps, index);
+  if (members.length === 0) return null;
+  const exs = members.map((i) => (steps[i] as { kind: 'ex'; ex: PlannedExercise }).ex);
+  const total = Math.max(...exs.map((e) => workingSets(e).length));
+  const mine = (steps[index] as { kind: 'ex'; ex: PlannedExercise }).ex;
+  const next = nextSet(mine);
+  if (next?.warmup) {
+    const warm = mine.sets.filter((x) => x.warmup);
+    return { text: `Warm-up ${warm.indexOf(next) + 1} of ${warm.length}`, total };
+  }
+  const rounds = exs.flatMap((e) => {
+    const n = nextSet(e);
+    return n ? [n.warmup ? 1 : workingSets(e).indexOf(n) + 1] : [];
+  });
+  return { text: `round ${Math.min(...rounds, total)} of ${total}`, total };
 }
 
 /**
@@ -188,6 +220,58 @@ export function finishState(steps: Step[]): FinishState {
     }
   }
   return { workingOpen, cardioOpen, notDone, skipped, canFinishDirectly: workingOpen === 0 && cardioOpen === 0 };
+}
+
+/**
+ * What is not done (or skipped) grouped by exercise, one line each: "Pullups: 2 sets", "Squat: set 3", "Squat: warm-up 2, 2 sets".
+ * Warm-ups are listed only with `withWarmups` (they never block finishing); an open cardio block is listed by name.
+ */
+export function openGroups(steps: Step[], which: 'notDone' | 'skipped', withWarmups: boolean): string[] {
+  const lines: string[] = [];
+  for (const s of steps) {
+    if (s.kind === 'cardio') {
+      if (which === 'skipped' ? s.c.skipped && !s.c.done : !s.c.skipped && !s.c.done) lines.push(s.c.name);
+      continue;
+    }
+    const hit = (x: PlannedSet) => (which === 'skipped' ? !!x.skipped && !x.done : !x.done && !x.skipped);
+    const working = workingSets(s.ex);
+    const warm = s.ex.sets.filter((x) => x.warmup);
+    const parts: string[] = [];
+    const warmHits = withWarmups ? warm.filter(hit).map((x) => warm.indexOf(x) + 1) : [];
+    if (warmHits.length) parts.push(`warm-up${warmHits.length > 1 ? 's' : ''} ${warmHits.join(' and ')}`);
+    const hits = working.filter(hit);
+    if (hits.length === 1) parts.push(`set ${working.indexOf(hits[0]!) + 1}`);
+    else if (hits.length > 1) parts.push(`${hits.length} sets`);
+    if (parts.length) lines.push(`${s.ex.name}: ${parts.join(', ')}`);
+  }
+  return lines;
+}
+
+/** What the plan says was logged: working sets done, the weight lifted (loaded, non-timed working sets) and the cardio minutes done. */
+export function loggedTotals(steps: Step[]): { sets: number; volumeKg: number; cardioMin: number } {
+  let sets = 0;
+  let volumeKg = 0;
+  let cardioMin = 0;
+  for (const s of steps) {
+    if (s.kind === 'cardio') {
+      if (s.c.done) cardioMin += s.c.minutes ?? s.c.plannedMin;
+      continue;
+    }
+    for (const x of workingSets(s.ex).filter((y) => y.done)) {
+      sets++;
+      if (!s.ex.bodyweight && !s.ex.timed) volumeKg += (x.reps ?? 0) * (x.weightKg ?? 0);
+    }
+  }
+  return { sets, volumeKg: Math.round(volumeKg), cardioMin };
+}
+
+/** "Will send: 3 sets, ~1,075 kg, cardio 10 min": a one-line preview of the message to Claude, from what is logged. */
+export function sendPreview(steps: Step[]): string {
+  const t = loggedTotals(steps);
+  const parts = [`${t.sets} ${t.sets === 1 ? 'set' : 'sets'}`];
+  if (t.volumeKg > 0) parts.push(`~${t.volumeKg.toLocaleString('en-US')} kg`);
+  if (t.cardioMin > 0) parts.push(`cardio ${t.cardioMin} min`);
+  return `Will send: ${parts.join(', ')}`;
 }
 
 /** "<n> sets are not done." for the early-finish confirmation. */
@@ -234,35 +318,146 @@ export function plateText(ex: PlannedExercise, weight: number, gym: Gym = STANDA
   return l.shortKg > 0 ? `${side} (${kg(l.totalKg)} kg; your plates can't make ${kg(weight)})` : `${side} · bar ${kg(gym.barKg)} kg`;
 }
 
+/**
+ * The plates for the next set, while resting, with what changes from the set just done: "Each side: 25 + 15 · no change",
+ * "… · add 2.5 a side", "… · take off 5 a side". Null when the exercise has no plate maths (not a barbell).
+ */
+export function nextPlatesText(ex: PlannedExercise, next: number, prev: number | undefined, gym: Gym = STANDARD_GYM): string | null {
+  const text = plateText(ex, next, gym);
+  if (!text) return null;
+  const head = text.replace(/ · bar [\d.]+ kg$/, '');
+  if (prev === undefined || !/^(Each side|Empty bar)/.test(head)) return head;
+  const side = Math.round(((next - prev) / 2) * 100) / 100;
+  const n = (x: number) => String(Math.round(x * 100) / 100);
+  return `${head} · ${side === 0 ? 'no change' : side > 0 ? `add ${n(side)} a side` : `take off ${n(-side)} a side`}`;
+}
+
 const LAST_TIME = /^(.*?)\s*\((\d{4})-(\d{2})-(\d{2})\)$/;
 
+/** One set as the server writes it: reps or seconds, with a weight, bodyweight (plus any added kg) or no load. */
+interface ParsedSet {
+  measure: 'reps' | 'sec';
+  n: number;
+  load: { kind: 'kg'; kg: number } | { kind: 'bw'; addedKg: number } | { kind: 'none' };
+}
+
+// The server (core summarizeSets) writes "3×5 @ 80 kg", "3×45 s", "3×8 @ BW + 10 kg" when every set matches, else "5 @ 80, 5 @ 82.5 kg".
+const MEASURE = String.raw`(\d+ s|\d+:\d{2}|\d+)`;
+const LOAD = String.raw`(BW(?: \+ [\d.]+)?|[\d.]+)`;
+const GROUPED = new RegExp(`^(\\d+)×${MEASURE}(?: @ ${LOAD}(?: kg)?)?$`);
+const SINGLE = new RegExp(`^${MEASURE}(?: @ ${LOAD})?$`);
+
+function parseSet(measure: string, load: string | undefined): ParsedSet {
+  const colon = /^(\d+):(\d{2})$/.exec(measure);
+  const sec = colon ? Number(colon[1]) * 60 + Number(colon[2]) : measure.endsWith(' s') ? parseInt(measure, 10) : null;
+  const bw = load?.startsWith('BW') ? { kind: 'bw' as const, addedKg: Number(/\+ ([\d.]+)/.exec(load)?.[1] ?? 0) } : null;
+  return {
+    measure: sec === null ? 'reps' : 'sec',
+    n: sec ?? parseInt(measure, 10),
+    load: bw ?? (load ? { kind: 'kg', kg: Number(load) } : { kind: 'none' }),
+  };
+}
+
+/** The sets in a summary like "3×5 @ 80 kg" or "5 @ 80, 4 @ 82.5 kg", one entry per set; null when the text is anything else. */
+function parseSets(text: string): ParsedSet[] | null {
+  const g = GROUPED.exec(text);
+  if (g) return Array.from({ length: Number(g[1]) }, () => parseSet(g[2]!, g[3]));
+  const parts = text.replace(/ kg$/, '').split(', ');
+  const sets: ParsedSet[] = [];
+  for (const part of parts) {
+    const m = SINGLE.exec(part);
+    if (!m) return null;
+    sets.push(parseSet(m[1]!, m[2]));
+  }
+  return sets;
+}
+
+const num = (n: number) => String(Math.round(n * 100) / 100);
+const loadKey = (l: ParsedSet['load']) => (l.kind === 'kg' ? `kg ${l.kg}` : l.kind === 'bw' ? `bw ${l.addedKg}` : 'none');
+
+/**
+ * One notation for a list of sets: "5, 5 × 107.5 kg", "5 × 105 kg, 4 × 107.5 kg" (a new weight starts a new group),
+ * "8, 8 reps" (bodyweight; "+10 kg" when weighted) and "40, 35 s" (timed). No "@", no "BW".
+ */
+function formatParsed(sets: ParsedSet[]): string {
+  const groups: { measure: ParsedSet['measure']; load: ParsedSet['load']; ns: number[] }[] = [];
+  for (const s of sets) {
+    const load: ParsedSet['load'] = s.measure === 'sec' ? { kind: 'none' } : s.load; // a hold is told by its time alone
+    const last = groups.at(-1);
+    if (last && last.measure === s.measure && loadKey(last.load) === loadKey(load)) last.ns.push(s.n);
+    else groups.push({ measure: s.measure, load, ns: [s.n] });
+  }
+  return groups
+    .map((g) => {
+      const ns = g.ns.join(', ');
+      if (g.measure === 'sec') return `${ns} s`;
+      if (g.load.kind === 'kg') return `${ns} × ${num(g.load.kg)} kg`;
+      return g.load.kind === 'bw' && g.load.addedKg > 0 ? `${ns} reps +${num(g.load.addedKg)} kg` : `${ns} reps`;
+    })
+    .join(', ');
+}
+
+/** The sets of one exercise as the person sees them: "5, 5 × 107.5 kg", "8, 8 reps", "40, 35 s". */
+export function formatSets(ex: PlannedExercise, sets: { reps?: number; weightKg?: number; seconds?: number }[]): string {
+  return formatParsed(
+    sets.map((s): ParsedSet => (ex.timed ? { measure: 'sec', n: s.seconds ?? 0, load: { kind: 'none' } } : { measure: 'reps', n: s.reps ?? 0, load: ex.bodyweight ? { kind: 'bw', addedKg: 0 } : { kind: 'kg', kg: s.weightKg ?? 0 } })),
+  );
+}
+
+/** The server's summary of the sets of one exercise ("2×5 @ 100 kg", "45 s @ BW, 40 s @ BW") in the on-screen notation; text it cannot read is returned as it came. */
+export function formatSetSummary(raw: string): string {
+  const sets = parseSets(raw);
+  return sets ? formatParsed(sets) : raw;
+}
+
 /** The server's last-time summary, when it has the "(yyyy-mm-dd)" tail; null otherwise. */
-function parseLastTime(raw: string): { text: string; when: string; sets: { reps: number; weight: number | null; raw: string }[] | null } | null {
+function parseLastTime(raw: string): { text: string; when: string; sets: ParsedSet[] | null } | null {
   const m = LAST_TIME.exec(raw);
   if (!m) return null;
   const when = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(m[2]), Number(m[3]) - 1, Number(m[4]))));
-  const text = (m[1] ?? '').replace(/ kg$/, '');
-  const found = [...text.matchAll(/(\d+) @ (BW|[\d.]+)/g)];
-  const exact = found.length > 0 && found.map((x) => x[0]).join(', ') === text;
-  return {
-    text: m[1] ?? '',
-    when,
-    sets: exact ? found.map((x) => ({ reps: Number(x[1]), weight: x[2] === 'BW' ? null : Number(x[2]), raw: x[2]! })) : null,
-  };
+  return { text: m[1] ?? '', when, sets: parseSets(m[1] ?? '') };
 }
 
 /** "Last time (9 Oct): 5, 5, 4 × 82.5 kg": the server's summary, with a plain date and one notation. */
 export function formatLastTime(raw: string): string {
   const p = parseLastTime(raw);
   if (!p) return raw;
-  if (p.sets) {
-    const same = p.sets.every((x) => x.raw === p.sets![0]!.raw);
-    const unit = (w: string) => (w === 'BW' ? 'bodyweight' : `${w} kg`);
-    return same
-      ? `Last time (${p.when}): ${p.sets.map((x) => x.reps).join(', ')} ${p.sets[0]!.raw === 'BW' ? 'reps, bodyweight' : `× ${p.sets[0]!.raw} kg`}`
-      : `Last time (${p.when}): ${p.sets.map((x) => `${x.reps} × ${unit(x.raw)}`).join(', ')}`;
+  return `Last time (${p.when}): ${p.sets ? formatParsed(p.sets) : p.text}`;
+}
+
+/** "5 × 107.5 kg": what the same working set (by its place among the working sets) was last time; null for a warm-up, or when the text or the set is not there. */
+export function lastTimeForSet(ex: PlannedExercise, set: PlannedSet): string | null {
+  if (set.warmup || !ex.lastTime) return null;
+  const last = parseLastTime(ex.lastTime)?.sets?.[workingSets(ex).indexOf(set)];
+  return last ? formatParsed([last]) : null;
+}
+
+/**
+ * How today's best working set compares with last time's best, as good news only: "+2.5 kg vs 19 Oct", "+1 rep vs 19 Oct",
+ * "+5 s vs 19 Oct" or "same as 19 Oct". Heavier counts first, then reps (seconds for a timed exercise). A drop (a planned light day,
+ * a deload) says nothing: null, like when nothing was logged today or the last-time text cannot be read.
+ */
+export function compareToLast(ex: PlannedExercise): string | null {
+  const last = ex.lastTime ? parseLastTime(ex.lastTime) : null;
+  const today = workingSets(ex).filter((x) => x.done);
+  if (!last?.sets || today.length === 0) return null;
+  const sets = last.sets.filter((x) => x.measure === (ex.timed ? 'sec' : 'reps'));
+  if (sets.length === 0) return null;
+  const same = `same as ${last.when}`;
+  if (ex.timed) {
+    const diff = Math.max(...today.map((x) => x.seconds ?? 0)) - Math.max(...sets.map((x) => x.n));
+    return diff === 0 ? same : diff > 0 ? `+${num(diff)} s vs ${last.when}` : null;
   }
-  return `Last time (${p.when}): ${p.text}`;
+  const weightOf = (x: ParsedSet) => (x.load.kind === 'kg' ? x.load.kg : 0);
+  const bestLast = sets.reduce((a, b) => (weightOf(b) > weightOf(a) || (weightOf(b) === weightOf(a) && b.n > a.n) ? b : a));
+  const bestToday = today.reduce((a, b) => ((b.weightKg ?? 0) > (a.weightKg ?? 0) || ((b.weightKg ?? 0) === (a.weightKg ?? 0) && (b.reps ?? 0) > (a.reps ?? 0)) ? b : a));
+  if (!ex.bodyweight && bestLast.load.kind === 'kg') {
+    const w = Math.round(((bestToday.weightKg ?? 0) - bestLast.load.kg) * 100) / 100;
+    if (w > 0) return `+${num(w)} kg vs ${last.when}`;
+    if (w < 0) return null; // lighter than last time: nothing to say
+  }
+  const r = (bestToday.reps ?? 0) - bestLast.n;
+  return r === 0 ? same : r > 0 ? `+${r} rep${r === 1 ? '' : 's'} vs ${last.when}` : null;
 }
 
 /** True when `formatLastTime` understands the text (it carries a date). */
@@ -274,16 +469,16 @@ export function beatLast(ex: PlannedExercise): string | null {
   if (!lastTime || ex.timed) return null;
   const today = workingSets(ex)[0];
   const last = parseLastTime(lastTime)?.sets?.at(-1);
-  if (!today || !last || !Number.isFinite(today.targetReps)) return null;
+  if (!today || !last || last.measure !== 'reps' || !Number.isFinite(today.targetReps)) return null;
   const plusReps = (n: number) => `beat last: +${n} rep${n === 1 ? '' : 's'}`;
-  if (ex.bodyweight || last.weight === null) {
-    const reps = today.targetReps - last.reps;
+  if (ex.bodyweight || last.load.kind === 'bw') {
+    const reps = today.targetReps - last.n;
     return reps > 0 ? plusReps(reps) : null;
   }
-  if (today.weightKg === undefined || !Number.isFinite(today.weightKg)) return null;
-  const weight = Math.round((today.weightKg - last.weight) * 100) / 100;
+  if (last.load.kind !== 'kg' || today.weightKg === undefined || !Number.isFinite(today.weightKg)) return null;
+  const weight = Math.round((today.weightKg - last.load.kg) * 100) / 100;
   if (weight > 0) return `beat last: +${kg(weight)} kg`;
-  const reps = today.targetReps - last.reps;
+  const reps = today.targetReps - last.n;
   return weight === 0 && reps > 0 ? plusReps(reps) : null;
 }
 
@@ -322,14 +517,17 @@ export function buildOverview(plan: WorkoutPlan): Overview {
   return { workingDone: counts.done, workingTotal: counts.total, exerciseCount: plan.exercises.length, rows, action };
 }
 
-/** Prefill the steppers: the last done set of the same kind (a working set never starts from a warm-up's weight), else the plan. */
+/**
+ * Prefill the steppers. A warm-up always starts from its own planned values (the ramp climbs, so the last warm-up's weight is wrong
+ * for the next one). A working set carries over the last done working set, else the plan; it never starts from a warm-up's weight.
+ */
 export function draftFor(step: Step, gym?: Gym): Draft {
   if (step.kind === 'cardio') {
     return { reps: 0, weight: 0, seconds: 30, minutes: step.c.minutes ?? step.c.plannedMin, km: step.c.distanceKm ?? step.c.plannedKm ?? 0, weightStep: WEIGHT_STEP };
   }
   const ex = step.ex;
   const target = nextSet(ex) ?? ex.sets[ex.sets.length - 1];
-  const prev = target ? [...ex.sets].reverse().find((x) => x.done && !!x.warmup === !!target.warmup) : undefined;
+  const prev = target && !target.warmup ? [...ex.sets].reverse().find((x) => x.done && !x.warmup) : undefined;
   return {
     reps: prev?.reps ?? target?.targetReps ?? 0,
     weight: prev?.weightKg ?? target?.weightKg ?? 0,

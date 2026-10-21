@@ -21,6 +21,7 @@ import {
   settled,
   set,
   trackOf,
+  type Dom,
   type HostOptions,
   type Opened,
 } from './support/workoutHost';
@@ -38,11 +39,11 @@ const logBtn = (card: Locator) => btn(card, 'Log set');
 const timerOf = (card: Locator) => card.getByRole('timer');
 const inc = (card: Locator, what: 'reps' | 'weight' | 'seconds') => btn(card, new RegExp(`^Increase ${what}`, 'i'));
 const stripOf = (v: Opened) => v.frame.locator('[data-strip]');
-const straightOn = (card: Locator) => card.getByText(/Straight on, no rest/);
+const straightOn = (card: Locator) => card.getByText(/Straight on · no rest/);
 const total = (p: WorkoutPlan) => p.exercises.length + p.cardio.length + 2;
 /** Waits until the pager shows position `pos` (0 = Overview). */
 const expectAt = async (v: Opened, p: WorkoutPlan, pos: number) => {
-  await expect.poll(() => counterText(v), { timeout: 5000 }).toBe(`${pos + 1} / ${total(p)}`);
+  await expect.poll(() => counterText(v), { timeout: 5000 }).toBe(`${pos + 1} of ${total(p)}`);
   await settled(v);
 };
 /** Opens the view, jumps to step `k` (0-based) and waits for the counter. */
@@ -52,6 +53,17 @@ async function onStep(p: WorkoutPlan, k: number, o: HostOptions = {}) {
   await expectAt(v, p, k + 1);
   return { v, card: cardOf(v, k) };
 }
+/** Stops the fake clock from running in real time, so only `runFor` moves it. */
+const freeze = async (v: Opened) => {
+  for (let margin = 20; ; margin *= 4) {
+    const now = await v.page.evaluate(() => Date.now());
+    try {
+      return await v.page.clock.pauseAt(new Date(now + margin));
+    } catch (e) {
+      if (margin > 2000 || !/past/.test(String(e))) throw e;
+    }
+  }
+};
 /** Goes back to step `k` by hand (the done card of the automatic move is only drawn in full while it is current). */
 async function backTo(v: Opened, p: WorkoutPlan, k: number) {
   await jumpTo(v, k + 1);
@@ -178,7 +190,7 @@ describe('Specs: After an exercise is done, rules 2 and 4 (P6.2; FR11, AC6)', ()
     const { v, card } = await onStep(p, 0);
     await logBtn(card).click();
     await v.page.waitForTimeout(1000);
-    expect(await counterText(v)).toBe('2 / 4');
+    expect(await counterText(v)).toBe('2 of 4');
   });
 
   it('rule 2: a person who has moved on after the automatic move is not pulled back', async () => {
@@ -189,7 +201,7 @@ describe('Specs: After an exercise is done, rules 2 and 4 (P6.2; FR11, AC6)', ()
     await press(v, 'ArrowRight');
     await expectAt(v, p, 3);
     await v.page.waitForTimeout(1000);
-    expect(await counterText(v)).toBe('4 / 5');
+    expect(await counterText(v)).toBe('4 of 5');
   });
 
   it('rule 4: the move is a scroll of the track (the current card follows the scroll position)', async () => {
@@ -221,7 +233,7 @@ describe('Specs: After an exercise is done, rules 2 and 4 (P6.2; FR11, AC6)', ()
 describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
   const round = () => plan([partner('Curl'), partner('Pushdown'), row()]);
 
-  it('after a set of a superset exercise the pager moves at once to the partner with no rest, and "Straight on, no rest" shows there', async () => {
+  it('after a set of a superset exercise the pager moves at once to the partner with no rest, and "Straight on · no rest" shows there', async () => {
     const p = round();
     const { v, card } = await onStep(p, 0);
     await logBtn(card).click();
@@ -233,7 +245,7 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
     await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 5, skip: false, weightKg: 20 }]);
   });
 
-  it('"Straight on, no rest" goes away at the first stepper tap on the partner card', async () => {
+  it('"Straight on · no rest" goes away at the first stepper tap on the partner card', async () => {
     const p = round();
     const { v, card } = await onStep(p, 0);
     await logBtn(card).click();
@@ -244,7 +256,7 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
     await pwExpect(straightOn(partnerCard)).toHaveCount(0);
   });
 
-  it('"Straight on, no rest" goes away by itself after 5 s', async () => {
+  it('"Straight on · no rest" goes away by itself after 5 s', async () => {
     const p = round();
     const { v, card } = await onStep(p, 0, { clock: true });
     await logBtn(card).click();
@@ -295,7 +307,7 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
     await logBtn(card).click();
     await pwExpect(timerOf(card).first()).toBeVisible();
     await v.page.waitForTimeout(800);
-    expect(await counterText(v)).toBe('2 / 4');
+    expect(await counterText(v)).toBe('2 of 4');
   });
 
   it('with no later partner open, the rest runs on the last partner\'s card and the pager stays there', async () => {
@@ -309,7 +321,7 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
     await pwExpect(timerOf(second).first()).toBeVisible();
     await pwExpect(timerOf(card)).toHaveCount(0);
     await v.page.waitForTimeout(800);
-    expect(await counterText(v)).toBe('3 / 5');
+    expect(await counterText(v)).toBe('3 of 5');
   });
 
   it('when that rest ends the pager returns to the first partner that has an open set', async () => {
@@ -352,7 +364,7 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
     await expectAt(v, p, expected - 1);
     await v.page.clock.runFor(6000);
     await v.page.waitForTimeout(1000);
-    expect(await counterText(v)).toBe(`${expected} / 5`);
+    expect(await counterText(v)).toBe(`${expected} of 5`);
   });
 
   it('a non-superset exercise gets a normal rest and no hand-off', async () => {
@@ -361,7 +373,62 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
     await logBtn(card).click();
     await pwExpect(timerOf(card).first()).toBeVisible();
     await pwExpect(straightOn(cardOf(v, 1))).toHaveCount(0);
-    expect(await counterText(v)).toBe('2 / 4');
+    expect(await counterText(v)).toBe('2 of 4');
+  });
+});
+
+// ---------- A9 Supersets: one round count, the cue as the zone's first line ----------
+describe('Specs: Supersets, one round count and the cue in the zone (A9; FR9)', () => {
+  const label = (card: Locator) => card.getByText(/^Superset with /);
+
+  it('both partners read the same round, which advances only when every partner has done its set', async () => {
+    const p = plan([partner('Curl'), partner('Pushdown'), row()]);
+    const { v, card } = await onStep(p, 0);
+    await pwExpect(label(card)).toHaveText('Superset with Pushdown · round 1 of 2');
+    await pwExpect(label(cardOf(v, 1))).toHaveText('Superset with Curl · round 1 of 2');
+    await logBtn(card).click(); // Curl set 1: Pushdown is next, no rest
+    await expectAt(v, p, 2);
+    await pwExpect(label(cardOf(v, 0))).toHaveText('Superset with Pushdown · round 1 of 2'); // Curl is at its set 2, the group is still in round 1
+    await pwExpect(label(cardOf(v, 1))).toHaveText('Superset with Curl · round 1 of 2');
+    await v.page.waitForTimeout(LOCK);
+    await logBtn(cardOf(v, 1)).click(); // Pushdown set 1: the round is over
+    await expect.poll(() => logCalls(v).length).toBe(2);
+    await pwExpect(label(cardOf(v, 0))).toHaveText('Superset with Pushdown · round 2 of 2');
+    await pwExpect(label(cardOf(v, 1))).toHaveText('Superset with Curl · round 2 of 2');
+  });
+
+  it('the total is the largest number of working sets among the partners', async () => {
+    const three = [set('1', { weightKg: 20 }), set('2', { weightKg: 20 }), set('3', { weightKg: 20 })];
+    const { v, card } = await onStep(plan([partner('Curl', three), partner('Pushdown'), row()]), 0);
+    await pwExpect(label(card)).toHaveText('Superset with Pushdown · round 1 of 3');
+    await pwExpect(label(cardOf(v, 1))).toHaveText('Superset with Curl · round 1 of 3');
+  });
+
+  it('while an exercise is in its warm-ups it reads "Warm-up 1 of 2", not a round', async () => {
+    const warm = [set('w1', { warmup: true, weightKg: 10 }), set('w2', { warmup: true, weightKg: 15 }), set('1', { weightKg: 20 }), set('2', { weightKg: 20 })];
+    const { v, card } = await onStep(plan([partner('Curl', warm), partner('Pushdown'), row()]), 0);
+    await pwExpect(label(card)).toHaveText('Superset with Pushdown · Warm-up 1 of 2');
+    await pwExpect(label(cardOf(v, 1))).toHaveText('Superset with Curl · round 1 of 2');
+  });
+
+  it('"Straight on · no rest" is the first line of the zone, in normal weight, and its going away moves nothing', async () => {
+    const p = plan([partner('Curl'), partner('Pushdown'), row()]);
+    const { v, card } = await onStep(p, 0);
+    await logBtn(card).click();
+    await expectAt(v, p, 2);
+    const partnerCard = cardOf(v, 1);
+    await settled(v); // the card is still arriving (it tilts and shrinks while it scrolls in)
+    const zone = partnerCard.locator('[data-zone]');
+    const cue = zone.getByText('Straight on · no rest');
+    await pwExpect(cue).toBeVisible();
+    const y = async (l: Locator) => (await l.boundingBox())!.y;
+    expect(await y(cue)).toBeLessThan(await y(zone.getByText(/^Set 1 of 2/)));
+    expect(await cue.evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).fontWeight)).toBe('400');
+    const before = { zone: (await zone.boundingBox())!.height, set: await y(zone.getByText(/^Set 1 of 2/)) };
+    await inc(partnerCard, 'reps').click();
+    await pwExpect(cue).toHaveCount(0);
+    expect(Math.abs((await zone.boundingBox())!.height - before.zone)).toBeLessThanOrEqual(1);
+    expect(Math.abs((await y(zone.getByText(/^Set 1 of 2/))) - before.set)).toBeLessThanOrEqual(1);
   });
 });
 
@@ -369,6 +436,7 @@ describe('Specs: After an exercise is done, rule 3 (P6.3; FR9, AC5)', () => {
 describe('Specs: Timed and bodyweight sets, timed (P6.4; FR10, AC13)', () => {
   const START = (s: number) => `Start a ${s} s timer (5 s to get ready)`;
   const getReady = (card: Locator) => card.getByText(/Get ready \d+/);
+  const STOP = /^Stop · log \d+:\d\d$/;
   const timedStep = (o: HostOptions = { clock: true }) => onStep(plan([plank(), bench()]), 0, o);
 
   it('the zone shows the seconds stepper and "Start a <s> s timer (5 s to get ready)", which follows the stepper', async () => {
@@ -395,7 +463,7 @@ describe('Specs: Timed and bodyweight sets, timed (P6.4; FR10, AC13)', () => {
     await btn(card, START(30)).click();
     await pwExpect(getReady(card)).toBeVisible();
     await v.page.clock.runFor(5600);
-    await pwExpect(btn(card, 'Stop the timer')).toBeVisible();
+    await pwExpect(btn(card, STOP)).toBeVisible();
     await pwExpect(getReady(card)).toHaveCount(0);
   });
 
@@ -404,7 +472,7 @@ describe('Specs: Timed and bodyweight sets, timed (P6.4; FR10, AC13)', () => {
     await btn(card, START(30)).click();
     await v.page.waitForTimeout(LOCK);
     await btn(card, 'Start now').click();
-    await pwExpect(btn(card, 'Stop the timer')).toBeVisible();
+    await pwExpect(btn(card, STOP)).toBeVisible();
     await pwExpect(getReady(card)).toHaveCount(0);
   });
 
@@ -416,36 +484,79 @@ describe('Specs: Timed and bodyweight sets, timed (P6.4; FR10, AC13)', () => {
     await pwExpect(btn(card, START(30))).toBeVisible();
     await pwExpect(getReady(card)).toHaveCount(0);
     await v.page.clock.runFor(8000);
-    await pwExpect(btn(card, 'Stop the timer')).toHaveCount(0);
+    await pwExpect(btn(card, STOP)).toHaveCount(0);
     expect(logCalls(v)).toEqual([]);
   });
 
-  it('stopping early writes the held seconds (seconds minus remaining) into the stepper and logs nothing by itself', async () => {
+  it('Stop · log shows the seconds held so far, live, and logs them when tapped (4 s of a 10 s hold logs 4)', async () => {
+    const p = plan([ex('Plank', [set('1', { weightKg: undefined, targetReps: 0, targetSec: 10 })], { timed: true, bodyweight: true, equipment: 'body only' }), bench()]);
+    const { v, card } = await onStep(p, 0, { clock: true });
+    await freeze(v); // only runFor moves the page's time now, so the seconds held are exact
+    await btn(card, 'Start a 10 s timer (5 s to get ready)').click();
+    await v.page.clock.runFor(LOCK);
+    await btn(card, 'Start now').click();
+    await expect.poll(async () => (await btn(card, STOP).textContent())?.trim()).toBe('Stop · log 0:00');
+    await v.page.clock.runFor(2000); // 2 s held; the 600 ms lock is over
+    await expect.poll(async () => (await btn(card, STOP).textContent())?.trim()).toMatch(/^Stop · log 0:0[12]$/); // the label moves once a second
+    await v.page.clock.runFor(2000);
+    await btn(card, STOP).click();
+    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 0, skip: false, seconds: 4 }]);
+    await pwExpect(card.locator('[data-set-id="1"]')).toContainText('4 s');
+  });
+
+  it('Cancel during the hold stops the timer and logs nothing; the Start button is back', async () => {
     const { v, card } = await timedStep();
     await btn(card, START(30)).click();
     await v.page.waitForTimeout(LOCK);
     await btn(card, 'Start now').click();
-    await v.page.clock.runFor(10_000);
-    await btn(card, 'Stop the timer').click();
-    await pwExpect(btn(card, 'Stop the timer')).toHaveCount(0);
-    const held = await valueOf(card, 'Seconds');
-    expect(held).toBeGreaterThanOrEqual(9);
-    expect(held).toBeLessThanOrEqual(12);
+    await v.page.clock.runFor(5000);
+    await v.page.waitForTimeout(LOCK);
+    await btn(card, 'Cancel').click();
+    await pwExpect(btn(card, STOP)).toHaveCount(0);
+    await pwExpect(btn(card, START(30))).toBeVisible();
+    await pwExpect(logBtn(card)).toHaveText('Log set · 30 s');
     expect(logCalls(v)).toEqual([]);
   });
 
-  it('Log set after an early stop sends the held seconds', async () => {
+  it('while a timer runs the dock holds Cancel and the primary; the zone holds no button of the timer', async () => {
+    const { v, card } = await timedStep();
+    await btn(card, START(30)).click();
+    await pwExpect(getReady(card)).toBeVisible();
+    await pwExpect(card.locator('.dock').getByRole('button', { name: 'Cancel' })).toBeVisible();
+    await pwExpect(card.locator('.dock').getByRole('button', { name: 'Start now' })).toBeVisible();
+    await pwExpect(card.locator('.dock').getByRole('button', { name: 'Log set' })).toHaveCount(0);
+    await pwExpect(card.locator('[data-zone]').getByRole('button', { name: /Cancel|Start now|Stop/ })).toHaveCount(0);
+    await v.page.waitForTimeout(LOCK);
+    await btn(card, 'Start now').click();
+    await pwExpect(card.locator('.dock').getByRole('button', { name: STOP })).toBeVisible();
+    expect(await btn(card, STOP).evaluate((el) => (el as unknown as { getBoundingClientRect(): { height: number } }).getBoundingClientRect().height)).toBeGreaterThanOrEqual(52);
+  });
+
+  it('when the hold completes the zone reads "Time" and the dock is back to Log set with the full time', async () => {
     const { v, card } = await timedStep();
     await btn(card, START(30)).click();
     await v.page.waitForTimeout(LOCK);
     await btn(card, 'Start now').click();
-    await v.page.clock.runFor(10_000);
-    await btn(card, 'Stop the timer').click();
-    const held = await valueOf(card, 'Seconds');
+    await v.page.clock.runFor(31_000);
+    await pwExpect(card.locator('[data-zone]').getByText('Time', { exact: true })).toBeVisible();
+    await pwExpect(btn(card, STOP)).toHaveCount(0);
+    await pwExpect(logBtn(card)).toHaveText('Log set · 30 s');
+  });
+
+  it('the zone is the same height in every phase: before the start, Get ready, the hold and Time', async () => {
+    const { v, card } = await timedStep();
+    const zoneHeight = async () => (await card.locator('[data-zone]').boundingBox())!.height;
+    const idle = await zoneHeight();
+    await btn(card, START(30)).click();
+    await pwExpect(getReady(card)).toBeVisible();
+    expect(Math.abs((await zoneHeight()) - idle)).toBeLessThanOrEqual(1);
     await v.page.waitForTimeout(LOCK);
-    await logBtn(card).click();
-    await expect.poll(() => logCalls(v)[0]).toMatchObject({ workoutId: 'w1', setId: '1', skip: false, seconds: held });
-    expect(logCalls(v)[0]).not.toHaveProperty('weightKg');
+    await btn(card, 'Start now').click();
+    await pwExpect(card.locator('[data-zone] [role="timer"]')).toBeVisible();
+    expect(Math.abs((await zoneHeight()) - idle)).toBeLessThanOrEqual(1);
+    await v.page.clock.runFor(31_000);
+    await pwExpect(card.locator('[data-zone]').getByText('Time', { exact: true })).toBeVisible();
+    expect(Math.abs((await zoneHeight()) - idle)).toBeLessThanOrEqual(1);
   });
 
   it('at zero the view beeps three times and vibrates [200, 100, 200]', async () => {
@@ -457,7 +568,7 @@ describe('Specs: Timed and bodyweight sets, timed (P6.4; FR10, AC13)', () => {
     await v.page.clock.runFor(1000);
     await expect.poll(async () => (await effects(v)).oscillators, { timeout: 5000 }).toBe(3);
     expect((await effects(v)).vibrations).toContainEqual([200, 100, 200]);
-    await pwExpect(btn(card, 'Stop the timer')).toHaveCount(0);
+    await pwExpect(btn(card, STOP)).toHaveCount(0);
   });
 
   it('a hold keeps running when another card is logged: it still beeps at zero', async () => {
@@ -491,7 +602,7 @@ describe('Specs: Timed and bodyweight sets, timed (P6.4; FR10, AC13)', () => {
     await v.page.clock.runFor(5600);
     await jumpTo(v, 1);
     await expectAt(v, p, 1);
-    await pwExpect(btn(card, 'Stop the timer')).toBeVisible();
+    await pwExpect(btn(card, STOP)).toBeVisible();
   });
 });
 

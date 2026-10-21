@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../src/workout/plan';
 import {
+  backTarget,
   beatLast,
   buildOverview,
+  compareToLast,
   confirmCount,
   drainQueue,
   draftFor,
   finishState,
   formatLastTime,
+  formatSets,
+  formatSetSummary,
+  lastTimeForSet,
+  nextPlatesText,
   nextTarget,
+  openGroups,
+  sendPreview,
   openingCard,
   plateText,
   setName,
@@ -16,6 +24,7 @@ import {
   stepOpen,
   stepsOf,
   supersetHandoff,
+  supersetRound,
   weightStepFor,
   type Step,
 } from '../ui/workout/cards';
@@ -283,6 +292,8 @@ describe('Specs: Overview (FR4, FR15, AC1)', () => {
     const none = ex('Row', [set('1')]);
     const o = buildOverview(plan([parsed, odd, none]));
     expect(o.rows[0]?.lastTime).toBe('Last time (9 Oct): 5, 5, 4 × 80 kg');
+    const grouped = buildOverview(plan([ex('Bench', [set('1')], { lastTime: '3×5 @ 60 kg (2026-10-09)' })]));
+    expect(grouped.rows[0]?.lastTime).toBe('Last time (9 Oct): 5, 5, 5 × 60 kg');
     expect(o.rows[1]?.lastTime).toBeUndefined();
     expect(o.rows[2]?.lastTime).toBeUndefined();
   });
@@ -324,6 +335,19 @@ describe('Specs: Overview, beat last (FR15)', () => {
     expect(beatLast(ex('Squat', [set('1', { targetReps: 6 })], { lastTime: undefined }))).toBeNull();
   });
 
+  it('reads the server\'s grouped form, so a weighted lift gets "+2.5 kg"', () => {
+    const grouped = '3×5 @ 80 kg (2026-10-09)';
+    expect(beatLast(ex('Squat', [set('1', { targetReps: 5, weightKg: 82.5 })], { lastTime: grouped }))).toBe('beat last: +2.5 kg');
+    expect(beatLast(ex('Squat', [set('1', { targetReps: 6, weightKg: 80 })], { lastTime: grouped }))).toBe('beat last: +1 rep');
+    expect(beatLast(ex('Squat', [set('1', { targetReps: 5, weightKg: 80 })], { lastTime: grouped }))).toBeNull();
+  });
+
+  it('compares with the last set when the weights differed, and with reps for a grouped bodyweight form', () => {
+    expect(beatLast(ex('Squat', [set('1', { targetReps: 5, weightKg: 110 })], { lastTime: '5 @ 105, 4 @ 107.5 kg (2026-10-09)' }))).toBe('beat last: +2.5 kg');
+    const pushup = ex('Push-up', [set('1', { weightKg: undefined, targetReps: 12 })], { bodyweight: true, lastTime: '3×10 @ BW (2026-10-09)' });
+    expect(beatLast(pushup)).toBe('beat last: +2 reps');
+  });
+
   it('is omitted when today\'s target is not numeric', () => {
     const e = ex('Squat', [set('1', { targetReps: Number.NaN })], { lastTime: lt });
     expect(beatLast(e)).toBeNull();
@@ -337,7 +361,7 @@ describe('Specs: Data model rules, Draft carry-over', () => {
     expect(d).toMatchObject({ reps: 5, weight: 87.5, seconds: 30 });
   });
 
-  it('carries over the last done set of the same kind', () => {
+  it('carries over the last done working set', () => {
     const e = ex('Squat', [closed('1', { reps: 6, weightKg: 85 }), closed('2', { reps: 4, weightKg: 90 }), set('3', { targetReps: 5, weightKg: 80 })]);
     expect(draftFor(exStep(e))).toMatchObject({ reps: 4, weight: 90 });
   });
@@ -347,9 +371,19 @@ describe('Specs: Data model rules, Draft carry-over', () => {
     expect(draftFor(exStep(e))).toMatchObject({ reps: 5, weight: 87.5 });
   });
 
-  it('a warm-up carries over from the last done warm-up', () => {
+  it('a warm-up starts from its own planned values, not from the warm-up before it', () => {
     const e = ex('Squat', [closed('w1', { warmup: true, reps: 8, weightKg: 40 }), set('w2', { warmup: true, targetReps: 5, weightKg: 60 }), set('1')]);
-    expect(draftFor(exStep(e))).toMatchObject({ reps: 8, weight: 40 });
+    expect(draftFor(exStep(e))).toMatchObject({ reps: 5, weight: 60 });
+  });
+
+  it('a warm-up ignores what was typed into the earlier warm-ups and the working sets alike', () => {
+    const e = ex('Squat', [closed('w1', { warmup: true, reps: 12, weightKg: 20 }), closed('w2', { warmup: true, reps: 3, weightKg: 55 }), set('w3', { warmup: true, targetReps: 3, weightKg: 75 }), set('1', { targetReps: 5, weightKg: 100 })]);
+    expect(draftFor(exStep(e))).toMatchObject({ reps: 3, weight: 75 });
+  });
+
+  it('a warm-up of a timed exercise starts from its target seconds, not from the earlier warm-up', () => {
+    const timed = ex('Plank', [closed('w1', { warmup: true, seconds: 20 }), set('w2', { warmup: true, targetSec: 30 })], { timed: true, bodyweight: true, equipment: 'body only' });
+    expect(draftFor(exStep(timed)).seconds).toBe(30);
   });
 
   it('seconds come from the last done set, else the target, else 30', () => {
@@ -428,14 +462,100 @@ describe('Specs: Architecture outline, helpers moved from main.ts', () => {
     it('per-set weights when they differ', () => {
       expect(formatLastTime('5 @ 80, 5 @ 82.5 kg (2026-10-09)')).toBe('Last time (9 Oct): 5 × 80 kg, 5 × 82.5 kg');
     });
-    it('bodyweight sets', () => {
-      expect(formatLastTime('8 @ BW, 7 @ BW (2026-10-09)')).toBe('Last time (9 Oct): 8, 7 reps, bodyweight');
+    it('bodyweight sets read "reps", with no "BW"', () => {
+      expect(formatLastTime('8 @ BW, 7 @ BW (2026-10-09)')).toBe('Last time (9 Oct): 8, 7 reps');
+      expect(formatLastTime('3×8 @ BW (2026-10-09)')).toBe('Last time (9 Oct): 8, 8, 8 reps');
+    });
+    it('the server\'s grouped form "N×R @ W kg" is spread over the sets', () => {
+      expect(formatLastTime('3×5 @ 80 kg (2026-10-09)')).toBe('Last time (9 Oct): 5, 5, 5 × 80 kg');
+      expect(formatLastTime('2×5 @ 107.5 kg (2026-10-09)')).toBe('Last time (9 Oct): 5, 5 × 107.5 kg');
+    });
+    it('a new weight starts a new group', () => {
+      expect(formatLastTime('5 @ 105, 4 @ 107.5 kg (2026-10-09)')).toBe('Last time (9 Oct): 5 × 105 kg, 4 × 107.5 kg');
+      expect(formatLastTime('5 @ 105, 5 @ 105, 4 @ 107.5 kg (2026-10-09)')).toBe('Last time (9 Oct): 5, 5 × 105 kg, 4 × 107.5 kg');
+    });
+    it('timed sets read "40, 35 s", grouped or not, and a minute or more is in seconds', () => {
+      expect(formatLastTime('40 s @ BW, 35 s @ BW (2026-10-09)')).toBe('Last time (9 Oct): 40, 35 s');
+      expect(formatLastTime('3×45 s (2026-10-09)')).toBe('Last time (9 Oct): 45, 45, 45 s');
+      expect(formatLastTime('2×1:30 @ BW (2026-10-09)')).toBe('Last time (9 Oct): 90, 90 s');
+    });
+    it('added load on a bodyweight lift is "+10 kg"', () => {
+      expect(formatLastTime('3×8 @ BW + 10 kg (2026-10-09)')).toBe('Last time (9 Oct): 8, 8, 8 reps +10 kg');
+      expect(formatLastTime('8 @ BW + 10, 6 @ BW + 10 kg (2026-10-09)')).toBe('Last time (9 Oct): 8, 6 reps +10 kg');
+    });
+    it('never shows "@" or "BW" for any form the server writes', () => {
+      for (const raw of ['3×5 @ 80 kg', '5 @ 80, 5 @ 82.5 kg', '3×8 @ BW', '8 @ BW, 7 @ BW', '3×8 @ BW + 10 kg', '3×45 s', '45 s @ BW, 40 s @ BW', '1×5 @ 60 kg']) {
+        expect(formatLastTime(`${raw} (2026-10-09)`)).not.toMatch(/@|BW/);
+      }
     });
     it('text without a date is returned as it came', () => {
       expect(formatLastTime('whatever')).toBe('whatever');
     });
-    it('text that is not "n @ weight" is kept after the date', () => {
-      expect(formatLastTime('45 s (2026-10-09)')).toBe('Last time (9 Oct): 45 s');
+    it('text that is not a list of sets is kept after the date', () => {
+      expect(formatLastTime('held a while (2026-10-09)')).toBe('Last time (9 Oct): held a while');
+    });
+  });
+
+  describe('formatSetSummary (the finish card\'s lines)', () => {
+    it('writes every form the server sends in the one notation', () => {
+      expect(formatSetSummary('2×5 @ 100 kg')).toBe('5, 5 × 100 kg');
+      expect(formatSetSummary('5 @ 105, 4 @ 107.5 kg')).toBe('5 × 105 kg, 4 × 107.5 kg');
+      expect(formatSetSummary('45 s @ BW, 40 s @ BW')).toBe('45, 40 s');
+      expect(formatSetSummary('8 @ BW, 8 @ BW, 6 @ BW')).toBe('8, 8, 6 reps');
+    });
+    it('returns text it cannot read as it came', () => {
+      expect(formatSetSummary('nothing logged')).toBe('nothing logged');
+      expect(formatSetSummary('')).toBe('');
+    });
+  });
+
+  describe('lastTimeForSet (the set zone\'s "Last time: ..." line)', () => {
+    const e = (lastTime?: string) => ex('Squat', [set('w', { warmup: true }), set('1'), set('2'), set('3')], lastTime ? { lastTime } : {});
+    it('is the same working set last time, in the one notation', () => {
+      const x = e('3×5 @ 107.5 kg (2026-10-09)');
+      expect(lastTimeForSet(x, x.sets[1]!)).toBe('5 × 107.5 kg');
+      const mixed = e('5 @ 105, 4 @ 107.5 kg (2026-10-09)');
+      expect(lastTimeForSet(mixed, mixed.sets[2]!)).toBe('4 × 107.5 kg');
+    });
+    it('reads reps for bodyweight and seconds for timed sets', () => {
+      const bw = ex('Dip', [set('1')], { bodyweight: true, lastTime: '8 @ BW, 7 @ BW (2026-10-09)' });
+      expect(lastTimeForSet(bw, bw.sets[0]!)).toBe('8 reps');
+      const plank = ex('Plank', [set('1')], { timed: true, lastTime: '45 s @ BW (2026-10-09)' });
+      expect(lastTimeForSet(plank, plank.sets[0]!)).toBe('45 s');
+    });
+    it('is null for a warm-up, a set past the last session\'s, no last time or text it cannot read', () => {
+      const x = e('2×5 @ 80 kg (2026-10-09)');
+      expect(lastTimeForSet(x, x.sets[0]!)).toBeNull();
+      expect(lastTimeForSet(x, x.sets[3]!)).toBeNull();
+      expect(lastTimeForSet(e(), e().sets[1]!)).toBeNull();
+      const odd = e('held a while (2026-10-09)');
+      expect(lastTimeForSet(odd, odd.sets[1]!)).toBeNull();
+    });
+  });
+
+  describe('nextPlatesText (the plates for the next set while resting)', () => {
+    const squat = ex('Squat', []);
+    it('says "no change" for the same weight and what to add or take off a side otherwise', () => {
+      expect(nextPlatesText(squat, 100, 100)).toBe('Each side: 25 + 15 · no change');
+      expect(nextPlatesText(squat, 102.5, 100)).toBe('Each side: 25 + 15 + 1.25 · add 1.25 a side');
+      expect(nextPlatesText(squat, 60, 80)).toBe('Each side: 20 · take off 10 a side');
+    });
+    it('has no change text without a previous weight, and none at all for a non-barbell', () => {
+      expect(nextPlatesText(squat, 100, undefined)).toBe('Each side: 25 + 15');
+      expect(nextPlatesText(ex('Curl', [], { equipment: 'dumbbell' }), 20, 20)).toBeNull();
+    });
+    it('keeps "Lighter than the bar" as it is', () => {
+      expect(nextPlatesText(squat, 10, 20)).toBe('Lighter than the 20 kg bar');
+    });
+  });
+
+  describe('formatSets (sets the player holds)', () => {
+    const sets = [{ reps: 5, weightKg: 107.5 }, { reps: 5, weightKg: 107.5 }];
+    it('matches the notation of the server\'s summaries', () => {
+      expect(formatSets(ex('Squat', []), sets)).toBe('5, 5 × 107.5 kg');
+      expect(formatSets(ex('Squat', []), [{ reps: 5, weightKg: 105 }, { reps: 4, weightKg: 107.5 }])).toBe('5 × 105 kg, 4 × 107.5 kg');
+      expect(formatSets(ex('Dip', [], { bodyweight: true }), [{ reps: 8 }, { reps: 8 }])).toBe('8, 8 reps');
+      expect(formatSets(ex('Plank', [], { timed: true, bodyweight: true }), [{ seconds: 40 }, { seconds: 35 }])).toBe('40, 35 s');
     });
   });
 
@@ -547,5 +667,84 @@ describe('Specs: Honest saving, drainQueue keeps running until every entry has b
     await drainQueue(pending, failed);
     // The newer entry was added during the run, so it is tried in this run and removed.
     expect(pending.size).toBe(0);
+  });
+});
+
+describe('Specs: Exercise done looks back (A8), backTarget', () => {
+  it('is the first open step when it lies before this one, with the sets left there', () => {
+    const steps = stepsOf(plan([ex('Squat', [closed('1'), set('2'), skipped('3'), set('4')]), ex('Bench', [closed('1')]), ex('Row', [set('1')])]));
+    expect(backTarget(steps, 1)).toEqual({ index: 0, name: 'Squat', left: '2 sets left' });
+    expect(backTarget(steps, 0)).toBeNull();
+  });
+  it('says "1 set left" and "not done" for a cardio block, and is null when nothing earlier is open', () => {
+    expect(backTarget(stepsOf(plan([ex('Squat', [set('1')]), ex('Bench', [closed('1')])])), 1)?.left).toBe('1 set left');
+    expect(backTarget(stepsOf(plan([ex('Squat', [closed('1')])], [cardio('c', 'before')])), 1)).toMatchObject({ name: 'Cardio c', left: 'not done' });
+    expect(backTarget(stepsOf(plan([ex('Squat', [closed('1')]), ex('Bench', [closed('1')])])), 1)).toBeNull();
+  });
+});
+
+describe('Specs: Supersets, one round count (A9), supersetRound', () => {
+  const pair = (a: PlannedSet[], b: PlannedSet[]) => stepsOf(plan([ex('A', a, { supersetId: 's' }), ex('B', b, { supersetId: 's' }), ex('C', [set('1')])]));
+  it('is the earliest open working set of the group out of the largest working-set count, the same for both partners', () => {
+    const steps = pair([closed('1'), set('2'), set('3')], [set('1'), set('2')]);
+    expect(supersetRound(steps, 0)).toEqual({ text: 'round 1 of 3', total: 3 });
+    expect(supersetRound(steps, 1)).toEqual({ text: 'round 1 of 3', total: 3 });
+    const later = pair([closed('1'), closed('2'), set('3')], [closed('1'), closed('2')]);
+    expect(supersetRound(later, 0)?.text).toBe('round 3 of 3');
+    expect(supersetRound(later, 1)?.text).toBe('round 3 of 3'); // B is done, the group is where A is
+  });
+  it('reads "Warm-up k of n" for an exercise whose next set is a warm-up', () => {
+    const steps = pair([closed('w1', { warmup: true }), set('w2', { warmup: true }), set('1')], [set('1')]);
+    expect(supersetRound(steps, 0)?.text).toBe('Warm-up 2 of 2');
+    expect(supersetRound(steps, 1)?.text).toBe('round 1 of 1');
+  });
+  it('is null for an exercise in no superset', () => {
+    expect(supersetRound(pair([set('1')], [set('1')]), 2)).toBeNull();
+  });
+});
+
+describe('Specs: Finish card before finishing (A10), grouped lines and the preview', () => {
+  const steps = stepsOf(plan([
+    ex('Squat', [set('w1', { warmup: true }), closed('1', { reps: 5, weightKg: 100 }), set('2'), set('3')]),
+    ex('Pullups', [skipped('1'), skipped('2')], { bodyweight: true }),
+    ex('Plank', [closed('1', { seconds: 40 })], { timed: true, bodyweight: true }),
+  ], [cardio('r', 'after', { name: 'Row' }), cardio('s', 'before', { name: 'Bike', skipped: true })]));
+  it('groups by exercise: a single set by number, several by count, warm-ups only when asked, an open cardio block by name', () => {
+    expect(openGroups(steps, 'notDone', true)).toEqual(['Squat: warm-up 1, 2 sets', 'Row']);
+    expect(openGroups(steps, 'notDone', false)).toEqual(['Squat: 2 sets', 'Row']);
+    expect(openGroups(steps, 'skipped', true)).toEqual(['Bike', 'Pullups: 2 sets']);
+  });
+  it('previews the working sets done, the weight lifted and the cardio minutes', () => {
+    expect(sendPreview(steps)).toBe('Will send: 2 sets, ~500 kg');
+    const withCardio = stepsOf(plan([ex('Squat', [closed('1', { reps: 5, weightKg: 215 })])], [cardio('c', 'after', { done: true, minutes: 10 })]));
+    expect(sendPreview(withCardio)).toBe('Will send: 1 set, ~1,075 kg, cardio 10 min');
+    expect(sendPreview(stepsOf(plan([ex('Squat', [set('1')])])))).toBe('Will send: 0 sets');
+  });
+});
+
+describe('Specs: Summary (A11), compareToLast: gains and "same" only', () => {
+  const day = (lastTime: string, sets: PlannedSet[], o: Partial<PlannedExercise> = {}) => ex('Squat', sets, { lastTime, ...o });
+  it('compares the best set: the weight first, then the reps', () => {
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [closed('1', { reps: 5, weightKg: 82.5 })]))).toBe('+2.5 kg vs 9 Oct');
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [closed('1', { reps: 6, weightKg: 80 })]))).toBe('+1 rep vs 9 Oct');
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [closed('1', { reps: 5, weightKg: 80 })]))).toBe('same as 9 Oct');
+    expect(compareToLast(day('5 @ 100, 3 @ 105 kg (2026-10-09)', [closed('1', { reps: 5, weightKg: 100 }), closed('2', { reps: 4, weightKg: 105 })]))).toBe('+1 rep vs 9 Oct');
+  });
+  it('compares reps for bodyweight and seconds for timed exercises', () => {
+    expect(compareToLast(day('8 @ BW, 8 @ BW (2026-10-09)', [closed('1', { reps: 10 })], { bodyweight: true }))).toBe('+2 reps vs 9 Oct');
+    expect(compareToLast(day('40 s @ BW (2026-10-09)', [closed('1', { seconds: 45 })], { timed: true, bodyweight: true }))).toBe('+5 s vs 9 Oct');
+  });
+  it('says nothing for a drop: lighter, fewer reps or a shorter hold are null, never a minus', () => {
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [closed('1', { reps: 5, weightKg: 65 })]))).toBeNull();
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [closed('1', { reps: 8, weightKg: 77.5 })]))).toBeNull(); // lighter wins over more reps
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [closed('1', { reps: 4, weightKg: 80 })]))).toBeNull();
+    expect(compareToLast(day('8 @ BW, 8 @ BW (2026-10-09)', [closed('1', { reps: 6 })], { bodyweight: true }))).toBeNull();
+    expect(compareToLast(day('40 s @ BW (2026-10-09)', [closed('1', { seconds: 35 })], { timed: true, bodyweight: true }))).toBeNull();
+  });
+  it('is null with nothing logged today, no last time or text it cannot read; warm-ups do not count', () => {
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [set('1')]))).toBeNull();
+    expect(compareToLast(day('3×5 @ 80 kg (2026-10-09)', [closed('w', { warmup: true, reps: 5, weightKg: 90 })]))).toBeNull();
+    expect(compareToLast(ex('Squat', [closed('1')]))).toBeNull();
+    expect(compareToLast(day('held a while (2026-10-09)', [closed('1')]))).toBeNull();
   });
 });

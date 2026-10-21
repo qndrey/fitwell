@@ -60,7 +60,7 @@ const freeze = async (v: Opened) => {
 async function onStep(p: WorkoutPlan, k: number, o: HostOptions = {}) {
   const v = await openView(p, o);
   await jumpTo(v, k + 1);
-  await expect.poll(() => counterText(v)).toBe(`${k + 2} / ${p.exercises.length + p.cardio.length + 2}`);
+  await expect.poll(() => counterText(v)).toBe(`${k + 2} of ${p.exercises.length + p.cardio.length + 2}`);
   await settled(v);
   return { v, card: cardOf(v, k) };
 }
@@ -124,20 +124,20 @@ describe('Specs: Exercise card layout (P5.1)', () => {
     await pwExpect(rowOf(card, '4')).not.toContainText('✓');
   });
 
-  it('the zone is as tall as about half the track and Log set stays where it was from set to set', async () => {
+  it('the zone is as tall as about two fifths of the track and stays so from set to set, and Log set (in the dock) stays where it was', async () => {
     const { v, card } = await onStep(plan([squat3(), bench()]), 0);
     const track = (await v.frame.locator('[aria-roledescription="carousel"]').boundingBox())!.height;
     const zone = (await zoneOf(card).boundingBox())!;
-    expect(zone.height).toBeGreaterThanOrEqual(track * 0.4);
-    expect(zone.height).toBeLessThanOrEqual(track * 0.6);
-    // Log set keeps its place inside the zone (the zone itself moves down by the logged row that appears above it).
-    const offset = async () => (await logBtn(card).boundingBox())!.y - (await zoneOf(card).boundingBox())!.y;
-    const before = await offset();
+    expect(zone.height).toBeGreaterThanOrEqual(track * 0.35);
+    expect(zone.height).toBeLessThanOrEqual(track * 0.5);
+    // Log set is in the dock, at a fixed distance from the bottom of the card; it does not move with the rows.
+    const fromBottom = async () => (await card.boundingBox())!.y + (await card.boundingBox())!.height - ((await logBtn(card).boundingBox())!.y + (await logBtn(card).boundingBox())!.height);
+    const before = await fromBottom();
     await logBtn(card).click();
     await v.page.waitForTimeout(700); // out of the 600 ms lock
     await btn(card, 'Skip rest').click();
     await pwExpect(rowOf(card, '1')).toContainText('✓');
-    expect(Math.abs((await offset()) - before)).toBeLessThanOrEqual(1);
+    expect(Math.abs((await fromBottom()) - before)).toBeLessThanOrEqual(1);
     expect(Math.abs((await zoneOf(card).boundingBox())!.height - zone.height)).toBeLessThanOrEqual(1);
   });
 });
@@ -469,7 +469,7 @@ describe('Specs: Edit and re-open (P5.5; AC3)', () => {
 
     const v = await openView(plan([e], [], { finished: true }));
     await jumpTo(v, 1);
-    await expect.poll(() => counterText(v)).toBe('2 / 3');
+    await expect.poll(() => counterText(v)).toBe('2 of 3');
     const card = cardOf(v, 0);
     await rowOf(card, '1').click({ force: true });
     await pwExpect(saveBtn(card)).toHaveCount(0);
@@ -539,11 +539,11 @@ describe('Specs: Rest rule 1 (P5.6; AC2)', () => {
     const { v, card } = await onStep(plan([squat3(), bench()]), 0);
     await logBtn(card).click();
     await jumpTo(v, 2);
-    await expect.poll(() => counterText(v)).toBe('3 / 4');
+    await expect.poll(() => counterText(v)).toBe('3 of 4');
     const chip = v.frame.getByText(/^Rest \d+:\d\d · Squat/);
     await pwExpect(chip).toBeVisible();
     await v.frame.getByRole('button', { name: 'Go', exact: true }).click();
-    await expect.poll(() => counterText(v)).toBe('2 / 4');
+    await expect.poll(() => counterText(v)).toBe('2 of 4');
   });
 });
 
@@ -654,7 +654,7 @@ describe('Specs: Rest rules 4 and 5 (P5.8; AC20)', () => {
     const { v, card } = await onStep(plan([squat3(), bench()]), 0, { clock: true });
     await logBtn(card).click();
     await jumpTo(v, 2);
-    await expect.poll(() => counterText(v)).toBe('3 / 4');
+    await expect.poll(() => counterText(v)).toBe('3 of 4');
     const read = () =>
       v.inView(() => {
         const d = globalThis as unknown as Dom;
@@ -722,12 +722,12 @@ describe('Swipe effect while the track is dragged', () => {
     await expect
       .poll(() => trackOf(v).evaluate((el) => { const t = el as unknown as { scrollLeft: number; clientWidth: number }; return Math.round(Math.abs(t.scrollLeft - t.clientWidth)); }), { timeout: 5000 })
       .toBeLessThanOrEqual(2);
-    expect(await counterText(v)).toBe('2 / 4');
+    expect(await counterText(v)).toBe('2 of 4');
   });
 
   it('the strip and the counter move as soon as a jump starts, not when the scroll has finished', async () => {
     const v = await openView(plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')]), ex('Pullups', [set('1')])]));
-    await expect.poll(() => counterText(v)).toBe('1 / 5');
+    await expect.poll(() => counterText(v)).toBe('1 of 5');
     await v.frame.getByRole('button', { name: /^Pullups,/ }).click();
     const seen = await trackOf(v).evaluate((el) => {
       const t = el as unknown as { scrollLeft: number; clientWidth: number; ownerDocument: { querySelectorAll(s: string): Iterable<{ className: string }> } };
@@ -736,7 +736,7 @@ describe('Swipe effect while the track is dragged', () => {
     });
     expect(seen.current).toBe(3);
     expect(seen.left).toBeLessThan(3);
-    await expect.poll(() => counterText(v)).toBe('4 / 5');
+    await expect.poll(() => counterText(v)).toBe('4 of 5');
   });
 
   it('with reduced motion the cards are not transformed while dragging', async () => {
@@ -744,5 +744,207 @@ describe('Swipe effect while the track is dragged', () => {
     await dragTo(v, 1.4);
     await v.page.waitForTimeout(200);
     expect((await tilt(v, 1)).transform).toBe('');
+  });
+});
+
+// ---------- A1 Warm-up prefill ----------
+describe('Specs: a warm-up starts from its own planned values (A1)', () => {
+  const ramp = () =>
+    ex('Squat', [set('w1', { warmup: true, targetReps: 8, weightKg: 20 }), set('w2', { warmup: true, targetReps: 5, weightKg: 55 }), set('1', { targetReps: 5, weightKg: 100 }), set('2', { targetReps: 5, weightKg: 100 })], { restSec: 0 });
+
+  it('after warm-up 1 the steppers and the plates show warm-up 2, even when warm-up 1 was changed before logging', async () => {
+    const { card } = await onStep(plan([ramp(), bench()]), 0);
+    await inc(card, 'reps').click(); // 8 -> 9 for warm-up 1
+    await inc(card, 'weight').click(); // 20 -> 22.5 for warm-up 1
+    await logBtn(card).click();
+    await pwExpect(rowOf(card, 'w1')).toContainText('9 × 22.5 kg');
+    expect(await valueOf(card, 'Reps')).toBe(5);
+    expect(await valueOf(card, 'Weight kg')).toBe(55);
+    await pwExpect(zoneOf(card)).toContainText('Each side: 15 + 2.5 · bar 20 kg'); // the plates are those of 55 kg
+    await pwExpect(logBtn(card)).toHaveText('Log set · 5 × 55 kg');
+  });
+
+  it('the first working set after the warm-ups starts from its own plan, and the next one carries the logged working set', async () => {
+    const { v, card } = await onStep(plan([ramp(), bench()]), 0);
+    await logBtn(card).click();
+    await v.page.waitForTimeout(700); // out of the 600 ms lock
+    await logBtn(card).click();
+    await v.page.waitForTimeout(700); // out of the 600 ms lock
+    expect(await valueOf(card, 'Reps')).toBe(5);
+    expect(await valueOf(card, 'Weight kg')).toBe(100);
+    await inc(card, 'weight').click(); // 102.5 for set 1
+    await logBtn(card).click();
+    await pwExpect(rowOf(card, '1')).toContainText('5 × 102.5 kg');
+    await v.page.waitForTimeout(700); // out of the 600 ms lock
+    expect(await valueOf(card, 'Weight kg')).toBe(102.5); // set 2: working sets still carry over
+  });
+});
+
+// ---------- A6 Set zone context ----------
+describe('Specs: Set zone context, last time for this set and the progression reason (A6)', () => {
+  const reason = 'All sets reached 5 reps at 80 kg; add 2.5 kg.';
+  const lifted = (o: Partial<PlannedExercise> = {}) =>
+    ex('Squat', [set('w1', { warmup: true, targetReps: 5, weightKg: 40 }), set('1', { weightKg: 82.5 }), set('2', { weightKg: 82.5 }), set('3', { weightKg: 82.5 })], { lastTime: '5 @ 80, 4 @ 80 (2026-10-09)', note: reason, ...o });
+
+  it('a working set shows "Last time: 4 × 80 kg" for its own place, under the plates, then the reason', async () => {
+    const e = lifted();
+    e.sets[0]!.done = true;
+    e.sets[0]!.reps = 5;
+    const { card } = await onStep(plan([e, bench()]), 0);
+    const zone = zoneOf(card);
+    await pwExpect(zone).toContainText('Last time: 5 × 80 kg');
+    await pwExpect(zone).toContainText(reason);
+    const y = async (l: Locator) => (await l.boundingBox())!.y;
+    expect(await y(zone.getByText(/^Each side/))).toBeLessThan(await y(zone.getByText('Last time: 5 × 80 kg')));
+    expect(await y(zone.getByText('Last time: 5 × 80 kg'))).toBeLessThan(await y(zone.getByText(reason)));
+  });
+
+  it('the set after the last one of last time shows no "Last time" line, and neither does a lastTime that cannot be read', async () => {
+    const e = lifted();
+    for (const id of ['w1', '1', '2']) Object.assign(e.sets.find((x) => x.id === id)!, { done: true, reps: 5 });
+    const { card } = await onStep(plan([e, bench()]), 0);
+    await pwExpect(zoneOf(card)).toContainText('Set 3 of 3');
+    await pwExpect(zoneOf(card)).not.toContainText('Last time');
+    await pwExpect(zoneOf(card)).toContainText(reason);
+    const odd = await onStep(plan([lifted({ lastTime: 'held a while' }), bench()]), 0);
+    await pwExpect(zoneOf(odd.card)).not.toContainText('Last time');
+  });
+
+  it('a warm-up shows neither the last-time line nor the reason, and the reason is no longer under the set list', async () => {
+    const { card } = await onStep(plan([lifted(), bench()]), 0);
+    await pwExpect(zoneOf(card)).toContainText('Warm-up 1 of 1');
+    await pwExpect(zoneOf(card)).not.toContainText('Last time');
+    await pwExpect(zoneOf(card)).not.toContainText(reason);
+    await pwExpect(card.getByText(reason)).toHaveCount(0);
+  });
+
+  it('the zone is as tall for a warm-up, a working set with context and the rest, at 375 and at 398 px', async () => {
+    for (const width of [375, 398]) {
+      const e = lifted();
+      const { v, card } = await onStep(plan([e, bench()]), 0, { width });
+      const warm = (await zoneOf(card).boundingBox())!.height;
+      await logBtn(card).click();
+      await v.page.waitForTimeout(700);
+      await pwExpect(zoneOf(card)).toContainText('Rest');
+      expect(Math.abs((await zoneOf(card).boundingBox())!.height - warm)).toBeLessThanOrEqual(1);
+      await btn(card, 'Skip rest').click();
+      await pwExpect(zoneOf(card)).toContainText('Last time: 5 × 80 kg');
+      expect(Math.abs((await zoneOf(card).boundingBox())!.height - warm)).toBeLessThanOrEqual(1);
+      await v.page.close();
+    }
+  });
+});
+
+describe('Specs: the weight-steps hint shows once per session (A6)', () => {
+  const HINT = /Weight moves in 2\.5 kg steps/;
+  const two = () => plan([ex('Squat', [set('1'), set('2')]), ex('Deadlift', [set('1'), set('2')])]);
+
+  it('the first card the person opens shows the hint; the next card carries it as a description of the weight value', async () => {
+    const { v, card } = await onStep(two(), 0);
+    await pwExpect(card.getByText(HINT)).toBeVisible();
+    await jumpTo(v, 2);
+    await settled(v);
+    const second = cardOf(v, 1);
+    await pwExpect(second.getByText(HINT)).toHaveCount(0);
+    const weight = second.getByRole('button', { name: /^Weight kg: / });
+    expect(await weight.getAttribute('aria-description')).toMatch(HINT);
+    await jumpTo(v, 1);
+    await settled(v);
+    await pwExpect(card.getByText(HINT)).toBeVisible();
+    expect(await card.getByRole('button', { name: /^Weight kg: / }).getAttribute('aria-description')).toBeNull();
+  });
+});
+
+// ---------- A7 Rest ----------
+describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)', () => {
+  const short = () => plan([ex('Squat', [set('1', { weightKg: 82.5 }), set('2', { weightKg: 85 }), set('3', { weightKg: 85 })], { restSec: 5 }), bench()]);
+
+  it('the zone holds the only clock of the rest (64 px); the dock keeps the progress line and the three buttons but no time', async () => {
+    const { card } = await onStep(plan([squat3(), bench()]), 0);
+    await logBtn(card).click();
+    await pwExpect(timerOf(card)).toHaveCount(1);
+    await pwExpect(zoneOf(card).getByRole('timer')).toBeVisible();
+    expect(await timerOf(card).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).fontSize)).toBe('64px');
+    await pwExpect(card.locator('.dock [data-clock]')).toHaveCount(0);
+    await pwExpect(card.locator('.dock [data-restbar]')).toHaveCount(1);
+    for (const name of [MINUS_15, '+15 s', 'Skip rest']) await pwExpect(card.locator('.dock').getByRole('button', { name, exact: true })).toBeVisible();
+  });
+
+  it('"Next:" gets the plates for the next set: "no change" when the weight is the same, and what to add or take off a side when it differs', async () => {
+    const { card } = await onStep(plan([squat3(), bench()]), 0);
+    await logBtn(card).click();
+    await pwExpect(zoneOf(card)).toContainText('Each side: 25 + 5 + 1.25 · no change');
+    await btn(card, 'Change').click();
+    await inc(card, 'weight').click(); // 82.5 -> 85: 1.25 more a side
+    await pwExpect(zoneOf(card)).toContainText('Each side: 25 + 5 + 2.5 · add 1.25 a side');
+    await btn(card, /^Decrease weight/).click();
+    await btn(card, /^Decrease weight/).click();
+    await pwExpect(zoneOf(card)).toContainText(/Each side: .* · take off 1\.25 a side/);
+  });
+
+  it('a dumbbell exercise has no plates line while resting', async () => {
+    const { card } = await onStep(plan([ex('Curl', [set('1'), set('2')], { equipment: 'dumbbell' }), bench()]), 0);
+    await logBtn(card).click();
+    await pwExpect(zoneOf(card)).not.toContainText('Each side');
+  });
+
+  it('at 0:00 the zone reads "Rest over" and the dock offers "Start set 2"; the zone height does not change; one announcement', async () => {
+    const { v, card } = await onStep(short(), 0, { clock: true });
+    await logBtn(card).click();
+    await pwExpect(zoneOf(card).getByText('Rest', { exact: true })).toHaveCount(1); // the label stays above the clock while counting down
+    const rest = (await zoneOf(card).boundingBox())!.height;
+    await v.page.clock.runFor(5600);
+    await pwExpect(zoneOf(card)).toContainText('Rest over');
+    await pwExpect(zoneOf(card).getByText('Rest', { exact: true })).toHaveCount(0); // no small label above the big words
+    await pwExpect(timerOf(card)).toHaveCount(0);
+    await pwExpect(card.locator('.dock').getByRole('button', { name: 'Start set 2', exact: true })).toBeVisible();
+    await pwExpect(logBtn(card)).toHaveCount(0);
+    expect(Math.abs((await zoneOf(card).boundingBox())!.height - rest)).toBeLessThanOrEqual(1);
+    await pwExpect(v.frame.locator('#status')).toHaveText('Rest over.');
+    expect((await effects(v)).oscillators).toBe(2);
+  });
+
+  it('after 3 s the zone shows the set by itself, with Skip set and Log set in the dock', async () => {
+    const { v, card } = await onStep(short(), 0, { clock: true });
+    await logBtn(card).click();
+    await v.page.clock.runFor(5600);
+    await pwExpect(zoneOf(card)).toContainText('Rest over');
+    await v.page.clock.runFor(3500);
+    await pwExpect(zoneOf(card)).toContainText('Set 2 of 3');
+    await pwExpect(logBtn(card)).toBeVisible();
+    await pwExpect(btn(card, 'Skip set')).toBeVisible();
+    await pwExpect(btn(card, 'Start set 2')).toHaveCount(0);
+  });
+
+  it('tapping "Start set 2" goes to the set zone at once (the tap lock applies), with the focus on Log set', async () => {
+    const { v, card } = await onStep(short(), 0, { clock: true });
+    await logBtn(card).click();
+    await freeze(v); // only runFor moves the page's time, so the 3 s of "Rest over" cannot run out while the test is slow
+    await v.page.clock.runFor(5600);
+    await pwExpect(btn(card, 'Start set 2')).toBeVisible();
+    await btn(card, 'Start set 2').evaluate((el) => (el as unknown as DomNode).click()); // inside the 600 ms lock after the rest ended: ignored
+    await pwExpect(btn(card, 'Start set 2')).toBeVisible();
+    await v.page.clock.runFor(700);
+    await btn(card, 'Start set 2').click();
+    await pwExpect(zoneOf(card)).toContainText('Set 2 of 3');
+    await pwExpect(logBtn(card)).toBeVisible();
+    expect(await v.inView(() => (globalThis as unknown as Dom).document.activeElement?.getAttribute('data-key'))).toBe('log');
+    expect(logCalls(v)).toHaveLength(1); // starting a set logs nothing
+  });
+
+  it('a warm-up rest that ends offers "Start warm-up 2"', async () => {
+    const e = ex('Squat', [set('w1', { warmup: true, weightKg: 40 }), set('w2', { warmup: true, weightKg: 60 }), set('1')], { restSec: 5 });
+    const { v, card } = await onStep(plan([e, bench()]), 0, { clock: true });
+    await logBtn(card).click();
+    await v.page.clock.runFor(5600);
+    await pwExpect(btn(card, 'Start warm-up 2')).toBeVisible();
+  });
+
+  it('a rest that ended while the page was hidden shows the set at once, not another 3 s of "Rest over"', async () => {
+    const { v, card } = await onStep(short(), 0, { clock: true });
+    await logBtn(card).click();
+    await v.page.clock.fastForward(20_000);
+    await pwExpect(logBtn(card)).toBeVisible();
+    await pwExpect(zoneOf(card)).not.toContainText('Rest over');
   });
 });

@@ -1,6 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { Progress } from '../../src/analytics/types';
 import { barChart, consistencyCalendar, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
+import { weekMidpoint } from '../shared/chartMath';
 import { h } from '../shared/dom';
 import { energyView } from './energy';
 import { buildPager, type PagerCard } from '../shared/pager';
@@ -32,20 +33,44 @@ function weightChart(p: Progress) {
   });
 }
 
+/** Longer periods show a weekly average instead of a bar a day, so the bars stay readable. */
+const weekly = (p: Progress) => p.days >= 60 && p.nutrition.weeks.length > 0;
+
 function nutritionChart(p: Progress) {
   const n = p.nutrition;
   if (n.daily.length === 0) return null;
+  const average = n.averagePerLoggedDay ? `, average ${num(n.averagePerLoggedDay.kcal, 0)} kcal` : '';
+  if (weekly(p)) {
+    return barChart({
+      from: p.from,
+      to: p.to,
+      days: n.weeks.length,
+      label: `Average calories per logged day, by week, ${n.weeks.length} weeks${average}.`,
+      columns: ['Week of', 'Average calories (kcal a day)'],
+      points: n.weeks.map((w) => ({ day: weekMidpoint(w.week, p.from, p.to), value: w.kcal })),
+      height: 130,
+      headroom: 1.08,
+      reference: n.goals.kcal ?? undefined,
+    });
+  }
   return barChart({
     from: p.from,
     to: p.to,
     days: p.days,
-    label: `Calories per logged day, ${n.daysLogged} days${n.averagePerLoggedDay ? `, average ${num(n.averagePerLoggedDay.kcal, 0)} kcal` : ''}.`,
+    label: `Calories per logged day, ${n.daysLogged} days${average}.`,
     columns: ['Date', 'Calories (kcal)'],
     points: n.daily.map((d) => ({ day: d.day, value: d.kcal })),
     height: 130,
     headroom: 1.08,
     reference: n.goals.kcal ?? undefined,
   });
+}
+
+function proteinChart(p: Progress) {
+  const n = p.nutrition;
+  if (!weekly(p)) return null;
+  const points = n.weeks.map((w) => ({ day: weekMidpoint(w.week, p.from, p.to), value: w.protein }));
+  return lineChart({ from: p.from, to: p.to, label: `Average protein per logged day, by week: ${num(n.weeks[0]!.protein, 0)} to ${num(n.weeks[n.weeks.length - 1]!.protein, 0)} g.`, columns: ['Week of', 'Protein (g a day)'], dots: points, line: points, goal: n.goals.proteinG ? { value: n.goals.proteinG, atStart: true } : undefined, digits: 0, height: 100, boldSingle: true });
 }
 
 function trainingChart(p: Progress) {
@@ -97,7 +122,10 @@ function nutritionCard(p: Progress) {
     n.averagePerLoggedDay?.extras && h('p', { className: 'muted small' }, EXTRA_LABELS.filter(([k]) => n.averagePerLoggedDay!.extras![k] !== undefined).map(([k, label]) => `${label[0]!.toUpperCase()}${label.slice(1)} ${num(n.averagePerLoggedDay!.extras![k]!, 1)} g`).join(' · '), ' per day'),
     n.averagePerLoggedDay?.extras && (n.goals.fiberG !== null || n.goals.satFatG !== null || n.goals.addedSugarG !== null) && h('p', { className: 'muted small' }, [n.goals.fiberG !== null && `fiber target ${num(n.goals.fiberG, 0)} g`, n.goals.satFatG !== null && `sat. fat limit ${num(n.goals.satFatG, 0)} g`, n.goals.addedSugarG !== null && `added sugar limit ${num(n.goals.addedSugarG, 0)} g`].filter(Boolean).join(' · ')),
     chart,
-    chart && n.goals.kcal !== null && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), 'calories per day'), h('span', {}, h('i', { className: 'goalsw' }), `goal ${num(n.goals.kcal, 0)} kcal`)),
+    chart && n.goals.kcal !== null && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), weekly(p) ? 'average calories per day, by week' : 'calories per day'), h('span', {}, h('i', { className: 'goalsw' }), `goal ${num(n.goals.kcal, 0)} kcal`)),
+    weekly(p) && h('h2', { className: 'small muted' }, 'Protein, weekly average'),
+    proteinChart(p),
+    n.proteinPerKg !== null && h('p', { className: 'small' }, `${num(n.proteinPerKg, 1)} g protein per kg of trend weight (average)`),
     a.kcalWithin10Pct !== null && h('p', { className: 'small' }, `Calories within 10 % of your goal on ${a.kcalWithin10Pct} of ${a.ofDays} logged days.`),
     a.proteinReached !== null && h('p', { className: 'small' }, `Protein goal reached on ${a.proteinReached} of ${a.ofDays}.`),
     n.goals.kcal === null && n.averagePerLoggedDay && empty('Set calorie and macro goals with Claude to see them on the chart.'),

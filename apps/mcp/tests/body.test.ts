@@ -85,6 +85,17 @@ describe('measurements', () => {
 });
 
 describe('progress and dashboard', () => {
+  it('averages nutrition per week and protein per kg of trend weight', async () => {
+    // 1000 g rye bread = 2090 kcal, 58 g protein. Two logged days in the week of Monday 12 Oct, one in the next.
+    for (const [day, grams] of [['2026-10-12', 1000], ['2026-10-14', 500], ['2026-10-20', 1000]] as const) await call(client, 'log_food', { day, items: [{ food_id: 'frida:413', grams }] });
+    for (const day of ['2026-10-12', '2026-10-13', '2026-10-14']) await call(client, 'log_body', { day, weight_kg: 80 });
+    const p = ((await call(client, 'get_dashboard_data', { days: 90 })).data as unknown as { progress: { nutrition: { weeks: { week: string; kcal: number; protein: number; daysLogged: number }[]; proteinPerKg: number | null } } }).progress.nutrition;
+    expect(p.weeks).toEqual([{ week: '2026-10-12', kcal: 1568, protein: 43.5, daysLogged: 2 }, { week: '2026-10-19', kcal: 2090, protein: 58, daysLogged: 1 }]);
+    expect(p.proteinPerKg).toBe(0.6); // (58 + 29 + 58) / 3 = 48.3 g a day over 80 kg
+    const summary = (await call(client, 'get_progress', { days: 90 })).data as { nutrition: { proteinPerKg: number | null } };
+    expect(summary.nutrition.proteinPerKg).toBe(0.6);
+  });
+
   it('summarises food against goals, training and records', async () => {
     await call(client, 'set_goals', { kcal: 2000, protein_g: 100, workouts_per_week: 3 });
     // 100 g rye bread = 209 kcal, 5.8 g protein per 100 g. Three days around the calorie goal, one far off.

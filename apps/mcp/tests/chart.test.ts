@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calendarRows, crossesYear, fmtDay, niceTicks, rangeLabel } from '../ui/shared/chartMath';
+import { weekMidpoint, calendarRows, crossesYear, fmtDay, niceTicks, rangeLabel } from '../ui/shared/chartMath';
 
 describe('niceTicks', () => {
   it('picks round values inside the range', () => {
@@ -49,5 +49,13 @@ describe('calendarRows', () => {
     const weeks = Array.from({ length: 14 }, (_, i) => new Date(Date.parse('2026-07-20T00:00:00Z') + i * 7 * 86_400_000).toISOString().slice(0, 10));
     expect(calendarRows(weeks, [], '2026-10-25')).toHaveLength(12);
     expect(calendarRows(weeks, [], '2026-10-25')[11]!.week).toBe(weeks[13]);
+  });
+});
+
+describe('weekMidpoint', () => {
+  it('puts a week on its Thursday and keeps it inside the period', () => {
+    expect(weekMidpoint('2026-10-12', '2026-07-01', '2026-10-21')).toBe('2026-10-15');
+    expect(weekMidpoint('2026-07-27', '2026-07-30', '2026-10-21')).toBe('2026-07-30');
+    expect(weekMidpoint('2026-10-19', '2026-07-01', '2026-10-21')).toBe('2026-10-21');
   });
 });

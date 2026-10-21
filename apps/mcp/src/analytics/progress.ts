@@ -63,6 +63,11 @@ export function buildProgress(i: ProgressInput): Progress {
   const nutrition: NutritionProgress = {
     daily: n.map((d) => ({ day: d.day, kcal: r0(d.kcal), protein: r1(d.protein), carbs: r1(d.carbs), fat: r1(d.fat), ...(d.extras ? { extras: round1Extras(d.extras) } : {}) })),
     daysLogged: n.length,
+    weeks: weeksIn(i.from, i.to).flatMap((week) => {
+      const inWeek = n.filter((d) => d.day >= week && d.day <= addDays(week, 6));
+      return inWeek.length ? [{ week, kcal: r0(inWeek.reduce((x, d) => x + d.kcal, 0) / inWeek.length), protein: r1(inWeek.reduce((x, d) => x + d.protein, 0) / inWeek.length), daysLogged: inWeek.length }] : [];
+    }),
+    proteinPerKg: n.length && avg.length ? Math.round((avgOf('protein') / avg[avg.length - 1]!.value) * 10) / 10 : null,
     averagePerLoggedDay: n.length ? { kcal: r0(avgOf('kcal')), protein: r1(avgOf('protein')), carbs: r1(avgOf('carbs')), fat: r1(avgOf('fat')), ...avgExtras(n) } : null,
     goals: { kcal: g?.kcal ?? null, proteinG: g?.proteinG ?? null, carbsG: g?.carbsG ?? null, fatG: g?.fatG ?? null, fiberG: g?.fiberG ?? null, satFatG: g?.satFatG ?? null, addedSugarG: g?.addedSugarG ?? null },
     adherence: {
@@ -199,7 +204,7 @@ export function summarize(p: Progress) {
   return {
     period: { from: p.from, to: p.to, days: p.days },
     weight: { latestKg: w.latestKg, latestDay: w.latestDay, weighIns: w.daily.length, trendChangeKg: w.trendChangeKg, trendNote: w.trendChangeKg === null ? 'Needs at least 3 weigh-ins within a week to show a trend.' : 'Change of the 7-day average over the period.', goalKg: w.goalKg, fromGoalKg: w.fromGoalKg },
-    nutrition: { daysLogged: n.daysLogged, averagePerLoggedDay: n.averagePerLoggedDay, goals: n.goals, adherence: n.adherence },
+    nutrition: { daysLogged: n.daysLogged, averagePerLoggedDay: n.averagePerLoggedDay, proteinPerKg: n.proteinPerKg, goals: n.goals, adherence: n.adherence },
     training: { sessions: t.sessions, perWeek: r1((t.sessions.strength + t.sessions.cardio + t.sessions.session) / Math.max(1, t.weeks.length)), goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
     records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
     measurements: m.types.map((t) => ({ key: t.key, label: t.label, unit: t.unit, firstDay: t.firstDay, first: t.first, latestDay: t.latestDay, latest: t.latest, change: t.change })),

@@ -40,7 +40,7 @@ export interface LineChartOptions {
   dots: Point[];
   /** A line through points (the 7-day average); the same points as the dots when it is a plain series. */
   line?: Point[];
-  goal?: { value: number; label?: string };
+  goal?: { value: number; label?: string; /** Put the label at the left end of the line, where the data is not. */ atStart?: boolean };
   height?: number;
   digits?: number;
   /** Padding around the data as a share of its range, and the least padding. */
@@ -65,7 +65,7 @@ export function lineChart(o: LineChartOptions): HTMLElement {
   const x = scale(dayNum(o.from), dayNum(o.to), M.l, W - M.r);
   const el = frame(H, o.label);
   for (const v of [lo + (hi - lo) * 0.15, (lo + hi) / 2, hi - (hi - lo) * 0.15]) el.append(s('line', { class: 'grid', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) }), s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
-  if (o.goal) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(o.goal.value), y2: y(o.goal.value) }), s('text', { x: W - M.r, y: y(o.goal.value) - 4, 'text-anchor': 'end' }, o.goal.label ?? `goal ${num(o.goal.value, digits)}`));
+  if (o.goal) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(o.goal.value), y2: y(o.goal.value) }), s('text', { x: o.goal.atStart ? M.l + 2 : W - M.r, y: y(o.goal.value) - 4, 'text-anchor': o.goal.atStart ? 'start' : 'end' }, o.goal.label ?? `goal ${num(o.goal.value, digits)}`));
   const line = o.line && o.line.length > 1 ? s('polyline', { class: 'line', points: o.line.map((q) => `${x(dayNum(q.day))},${y(q.value)}`).join(' ') }) : null;
   const bold = o.boldSingle && o.dots.length === 1;
   const dots = o.dots.map((q) => s('circle', { class: bold ? 'dotfull' : 'dot', cx: x(dayNum(q.day)), cy: y(q.value), r: bold ? 3.5 : o.dotRadius ?? 2.5 }));

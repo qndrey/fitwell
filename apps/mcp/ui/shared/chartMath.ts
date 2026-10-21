@@ -64,3 +64,9 @@ export function calendarRows(weeks: string[], days: { day: string; type: Workout
     return { week, cells, trained: cells.filter((c) => c.kind).length };
   });
 }
+
+/** Where a week's value sits on a day axis: its Thursday, kept inside the period (the first and last week may be cut off). */
+export function weekMidpoint(week: string, from: string, to: string) {
+  const mid = new Date(Date.parse(`${week}T00:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
+  return mid < from ? from : mid > to ? to : mid;
+}

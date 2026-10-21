@@ -128,6 +128,24 @@ describe('weekly review', () => {
     expect(res.text).toContain('The weekly review is open.');
   });
 
+  it('lists a new record in Training only, not again under what went well', async () => {
+    const bench = 'ex:Barbell_Bench_Press_-_Medium_Grip';
+    await call(client, 'log_past_workout', { day: '2026-09-22', exercises: [{ id: bench, sets: [{ reps: 5, weight_kg: 60 }] }] });
+    await call(client, 'log_past_workout', { day: '2026-09-30', exercises: [{ id: bench, sets: [{ reps: 5, weight_kg: 65 }] }] });
+    const r = ((await call(client, 'show_weekly_review', { week_start: WEEK })).data as unknown as { review: import('../src/analytics/reviewTypes').WeekReview }).review;
+    expect(r.training.records).toHaveLength(1);
+    expect(r.training.records[0]).toMatchObject({ name: 'Barbell Bench Press - Medium Grip' });
+    expect(r.highlights.join('\n')).not.toMatch(/1RM|Bench/);
+  });
+
+  it('counts the days the protein goal was reached', async () => {
+    await seed();
+    const r = ((await call(client, 'show_weekly_review', { week_start: WEEK })).data as unknown as { review: import('../src/analytics/reviewTypes').WeekReview }).review;
+    expect(r.nutrition.goals.proteinG).toBe(120);
+    expect(r.nutrition.proteinReached).toBe(0); // 55 g a day against 120 g
+    expect(r.nutrition.daysLogged).toBe(5);
+  });
+
   it('navigates weeks for the view, and rejects non-Mondays and weeks that have not started', async () => {
     const hidden = (await client.listTools()).tools.find((t) => t.name === 'get_review_data')!;
     expect((hidden._meta as { ui?: { visibility?: string[] } }).ui?.visibility).toEqual(['app']);

@@ -1,28 +1,18 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { WeekReview } from '../../src/analytics/reviewTypes';
+import { h, type Child } from '../shared/dom';
+import { fmtDay } from '../shared/chart';
 import { buildPager } from '../shared/pager';
+import { addDays, CONFIDENCE_WORD, gain, mondayOf, shortName, weekTitle } from './copy';
 
 const state = { review: null as WeekReview | null, card: 0, loading: false, error: '' };
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell weekly review', version: '0.1.0' }, {}, { autoResize: true });
 
-// textContent only: nothing from data is ever parsed as HTML
-type Child = Node | string | null | false | undefined;
-function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> & Record<string, unknown> = {}, ...children: Child[]) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v as EventListener);
-    else if (k.startsWith('aria-') || k === 'role') el.setAttribute(k, String(v));
-    else (el as unknown as Record<string, unknown>)[k] = v;
-  }
-  for (const c of children) if (c !== null && c !== false && c !== undefined) el.append(c);
-  return el;
-}
-
-const fmtDay = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
 const num = (n: number, digits = 0) => n.toLocaleString('en-GB', { maximumFractionDigits: digits });
-const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+/** Today on the person's device, as a day. */
+const today = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
 
 /** "+120 vs last week", or nothing when there is no earlier number. Neutral: no colour says up is good or bad. */
 function delta(cur: number | null, prev: number | null, unit: string, digits = 0) {
@@ -41,6 +31,7 @@ const card = (title: string, ...children: Child[]) => h('section', { className: 
 
 function draw() {
   const r = state.review;
+  const title = r && (r.inProgress ? 'This week' : weekTitle(r.weekStart, today()));
   const header = h(
     'header',
     {},
@@ -48,6 +39,7 @@ function draw() {
     h(
       'div',
       { className: 'nav' },
+      r && title !== 'This week' && h('button', { type: 'button', disabled: state.loading, onclick: () => void go(0, mondayOf(today())) }, 'This week'),
       h('button', { type: 'button', 'aria-label': 'Previous week', disabled: state.loading || !r, onclick: () => void go(-7) }, '‹'),
       h('button', { type: 'button', 'aria-label': 'Next week', disabled: state.loading || !r || r.inProgress, onclick: () => void go(7) }, '›'),
     ),
@@ -79,6 +71,7 @@ function draw() {
         n.average?.extras?.salt !== undefined && tile('Salt a day', `${num(n.average.extras.salt, 1)} g`),
         tile('Days logged', `${n.daysLogged} of ${r.daysCounted}`, n.kcalWithin10Pct !== null ? h('span', { className: 'delta' }, `${n.kcalWithin10Pct} within 10 % of the calorie goal`) : null),
       ),
+      n.goals.proteinG !== null && n.proteinReached !== null && n.daysLogged > 0 && h('p', { className: 'small' }, `Protein goal: ${n.proteinReached} of ${n.daysLogged} logged days`),
       !n.average && h('p', { className: 'muted small' }, 'No food logged this week.'),
     ),
   );
@@ -90,7 +83,7 @@ function draw() {
         'div',
         { className: 'tiles' },
         tile('Workouts', String(sessions), h('span', { className: 'delta' }, `${t.strength} strength · ${t.cardio} cardio${t.cardioMin ? ` (${t.cardioMin} min)` : ''}${t.session ? ` · ${t.session} session${t.session === 1 ? '' : 's'} (${t.sessionMin} min)` : ''}`), t.goalPerWeek ? h('span', { className: 'delta' }, `goal ${t.goalPerWeek} a week`) : null, delta(sessions, t.previousSessions, '')),
-        tile('New records', String(t.records.length), ...t.records.slice(0, 3).map((x) => h('span', { className: 'delta' }, `${x.name} ${num(x.e1rmKg, 1)} kg`))),
+        tile('New records', String(t.records.length), ...t.records.slice(0, 3).map((x) => h('span', { className: 'delta' }, `${shortName(x.name)} ${x.previousKg === null ? `${num(x.e1rmKg, 1)} kg` : gain(x.e1rmKg, x.previousKg)}`)), t.records.length > 3 ? h('span', { className: 'delta' }, `and ${t.records.length - 3} more`) : null),
       ),
     ),
   );
@@ -115,7 +108,7 @@ function draw() {
         ? h(
             'div',
             { className: 'tiles' },
-            tile('Burn a day', `${num(en.expenditureKcal)} kcal`, h('span', { className: 'delta' }, `${en.confidence} confidence · ${en.daysCounted} days, ${en.weighIns} weigh-ins`)),
+            tile('Burn a day', `${num(en.expenditureKcal)} kcal`, h('span', { className: 'delta' }, `${en.confidence ? CONFIDENCE_WORD[en.confidence] : 'rough'} estimate · ${en.daysCounted} days, ${en.weighIns} weigh-ins`)),
             tile('Weight trend', en.trendKgPerWeek !== null ? `${en.trendKgPerWeek > 0 ? '+' : en.trendKgPerWeek < 0 ? '−' : ''}${num(Math.abs(en.trendKgPerWeek), 2)} kg` : null, h('span', { className: 'delta' }, 'a week')),
             en.suggestedKcal !== null && tile(en.direction === 'maintain' ? 'To keep the weight' : `To ${en.direction} ${num(en.suggestedRateKgPerWeek ?? 0, 2)} kg a week`, `${num(en.suggestedKcal)} kcal`, en.goalKcal ? h('span', { className: 'delta' }, `goal ${num(en.goalKcal)}`) : null),
             en.goalDate && tile('Goal weight around', fmtDay(en.goalDate), h('span', { className: 'delta' }, 'at the current trend')),
@@ -145,7 +138,7 @@ function draw() {
 
   root.replaceChildren(
     header,
-    h('p', { className: 'muted small' }, `${fmtDay(r.weekStart)} to ${fmtDay(r.weekEnd)}`, r.inProgress && ' ', r.inProgress && h('span', { className: 'pill' }, 'week in progress'), state.loading && ' · updating…'),
+    h('p', { className: 'muted small' }, title && h('strong', {}, title), title && ' · ', `${fmtDay(r.weekStart)} to ${fmtDay(r.weekEnd)}`, r.inProgress && ' ', r.inProgress && h('span', { className: 'pill' }, 'week in progress'), state.loading && ' · updating…'),
     state.error && h('p', { className: 'error small' }, state.error),
     ...buildPager(cards.map((el) => ({ title: el.getAttribute('aria-label') ?? '', el })), state.card, (i) => (state.card = i)),
     h('footer', {}, 'Compared with the same days of the week before. Weight uses the 7-day average.'),
@@ -162,14 +155,14 @@ function render() {
   }
 }
 
-async function go(deltaDays: number) {
+async function go(deltaDays: number, weekStart?: string) {
   const r = state.review;
   if (!r) return;
   state.loading = true;
   state.error = '';
   render();
   try {
-    const res = await app.callServerTool({ name: 'get_review_data', arguments: { week_start: addDays(r.weekStart, deltaDays) } });
+    const res = await app.callServerTool({ name: 'get_review_data', arguments: { week_start: weekStart ?? addDays(r.weekStart, deltaDays) } });
     const review = (res.structuredContent as { review?: WeekReview } | undefined)?.review;
     if (res.isError || !review) throw new Error('no data');
     state.review = review;

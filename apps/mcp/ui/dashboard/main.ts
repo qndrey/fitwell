@@ -1,6 +1,6 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { Progress } from '../../src/analytics/types';
-import { barChart, consistencyCalendar, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
+import { barChart, consistencyCalendar, crossesYear, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
 import { weekMidpoint } from '../shared/chartMath';
 import { h } from '../shared/dom';
 import { energyView } from './energy';
@@ -15,14 +15,20 @@ const app = new App({ name: 'Fitwell dashboard', version: '0.1.0' }, {}, { autoR
 
 const signed = (n: number, digits = 1) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${num(Math.abs(n), digits)}`;
 
+/** Charts start where the data does, not at the start of the period. */
+const startOf = (p: Progress) => (p.dataFrom && p.dataFrom > p.from ? p.dataFrom : p.from);
+const daysShown = (p: Progress) => Math.floor((Date.parse(`${p.to}T00:00:00Z`) - Date.parse(`${startOf(p)}T00:00:00Z`)) / 86_400_000) + 1;
+/** Dates carry the year when what is shown crosses one. */
+const dayLabel = (p: Progress, d: string) => fmtDay(d, crossesYear(startOf(p), p.to));
+
 // ---------- charts ----------
 function weightChart(p: Progress) {
   const w = p.weight;
   if (w.daily.length === 0) return null;
   return lineChart({
-    from: p.from,
+    from: startOf(p),
     to: p.to,
-    label: `Weight from ${rangeLabel(p.from, p.to)}: ${w.daily.length} weigh-ins${w.trendChangeKg !== null ? `, 7-day average changed by ${signed(w.trendChangeKg)} kg` : ''}.`,
+    label: `Weight from ${rangeLabel(startOf(p), p.to)}: ${w.daily.length} weigh-ins${w.trendChangeKg !== null ? `, 7-day average changed by ${signed(w.trendChangeKg)} kg` : ''}.`,
     columns: ['Date', 'Weigh-in (kg)', '7-day average (kg)'],
     dots: w.daily.map((d) => ({ day: d.day, value: d.kg })),
     line: w.average.map((d) => ({ day: d.day, value: d.kg })),
@@ -42,21 +48,21 @@ function nutritionChart(p: Progress) {
   const average = n.averagePerLoggedDay ? `, average ${num(n.averagePerLoggedDay.kcal, 0)} kcal` : '';
   if (weekly(p)) {
     return barChart({
-      from: p.from,
+      from: startOf(p),
       to: p.to,
       days: n.weeks.length,
       label: `Average calories per logged day, by week, ${n.weeks.length} weeks${average}.`,
       columns: ['Week of', 'Average calories (kcal a day)'],
-      points: n.weeks.map((w) => ({ day: weekMidpoint(w.week, p.from, p.to), value: w.kcal })),
+      points: n.weeks.map((w) => ({ day: weekMidpoint(w.week, startOf(p), p.to), value: w.kcal })),
       height: 130,
       headroom: 1.08,
       reference: n.goals.kcal ?? undefined,
     });
   }
   return barChart({
-    from: p.from,
+    from: startOf(p),
     to: p.to,
-    days: p.days,
+    days: daysShown(p),
     label: `Calories per logged day, ${n.daysLogged} days${average}.`,
     columns: ['Date', 'Calories (kcal)'],
     points: n.daily.map((d) => ({ day: d.day, value: d.kcal })),
@@ -69,15 +75,15 @@ function nutritionChart(p: Progress) {
 function proteinChart(p: Progress) {
   const n = p.nutrition;
   if (!weekly(p)) return null;
-  const points = n.weeks.map((w) => ({ day: weekMidpoint(w.week, p.from, p.to), value: w.protein }));
-  return lineChart({ from: p.from, to: p.to, label: `Average protein per logged day, by week: ${num(n.weeks[0]!.protein, 0)} to ${num(n.weeks[n.weeks.length - 1]!.protein, 0)} g.`, columns: ['Week of', 'Protein (g a day)'], dots: points, line: points, goal: n.goals.proteinG ? { value: n.goals.proteinG, atStart: true } : undefined, digits: 0, height: 100, boldSingle: true });
+  const points = n.weeks.map((w) => ({ day: weekMidpoint(w.week, startOf(p), p.to), value: w.protein }));
+  return lineChart({ from: startOf(p), to: p.to, label: `Average protein per logged day, by week: ${num(n.weeks[0]!.protein, 0)} to ${num(n.weeks[n.weeks.length - 1]!.protein, 0)} g.`, columns: ['Week of', 'Protein (g a day)'], dots: points, line: points, goal: n.goals.proteinG ? { value: n.goals.proteinG, atStart: true } : undefined, digits: 0, height: 100, boldSingle: true });
 }
 
 function trainingChart(p: Progress) {
   const wk = p.training.weeks;
   if (!wk.some((w) => w.strength + w.cardio + w.session > 0)) return null;
   return weekBars({
-    weeks: wk.map((w) => ({ week: w.week, a: w.strength, b: w.cardio + w.session })),
+    weeks: wk.map((w) => ({ week: w.week, a: w.strength, b: w.cardio + w.session, partial: w.partial })),
     to: p.to,
     label: `Workouts per week over ${wk.length} weeks: ${p.training.sessions.strength} strength and ${p.training.sessions.cardio + p.training.sessions.session} cardio or class sessions in total.`,
     columns: ['Week', 'Strength workouts', 'Cardio and class workouts'],
@@ -97,11 +103,14 @@ function weightCard(p: Progress) {
     h('h2', {}, 'Weight'),
     w.latestKg === null
       ? empty('No weigh-ins in this period. Tell Claude your weight to start the chart.')
-      : h('p', { className: 'headline' }, `${num(w.latestKg)} kg `, w.trendChangeKg !== null && h('small', {}, `${signed(w.trendChangeKg)} kg over the period (7-day average)`)),
-    w.fromGoalKg !== null && w.latestKg !== null && h('p', { className: 'muted small' }, `${num(w.fromGoalKg)} kg from your goal of ${num(w.goalKg!)} kg`),
+      : w.trendKg !== null
+        ? h('p', { className: 'headline' }, `${num(w.trendKg)} kg `, h('small', {}, `trend${w.trendChangeKg !== null ? ` · ${signed(w.trendChangeKg)} kg since ${dayLabel(p, w.average[0]!.day)}` : ''}`))
+        : h('p', { className: 'headline' }, `${num(w.latestKg)} kg `, h('small', {}, 'last weigh-in')),
+    w.trendKg !== null && w.latestKg !== null && h('p', { className: 'muted small' }, `Last weigh-in ${num(w.latestKg)} kg on ${dayLabel(p, w.latestDay!)}`),
+    w.fromGoalKg !== null && h('p', { className: 'muted small' }, `${num(w.fromGoalKg)} kg from your goal of ${num(w.goalKg!)} kg${w.trendKg !== null ? ' (by the trend)' : ''}`),
     chart,
     chart && w.trendChangeKg === null && empty('A trend line needs at least 3 weigh-ins within a week.'),
-    chart && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1 faint' }), 'weigh-in'), h('span', {}, h('i', { className: 'sw1' }), '7-day average')),
+    chart && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1 faint' }), 'weigh-in'), h('span', {}, h('i', { className: 'sw1' }), '7-day average'), w.goalKg !== null && h('span', {}, h('i', { className: 'goalsw' }), `goal ${num(w.goalKg)} kg`)),
   );
 }
 
@@ -164,9 +173,9 @@ function trainingCard(p: Progress) {
     h('h2', {}, 'Training'),
     total === 0
       ? empty('No workouts in this period.')
-      : h('p', { className: 'headline' }, `${num(total / Math.max(1, t.weeks.length))} `, h('small', {}, `workouts a week${t.goalWorkoutsPerWeek ? ` (goal ${t.goalWorkoutsPerWeek})` : ''}${t.averageStrengthMin ? ` · strength sessions about ${t.averageStrengthMin} min` : ''}`)),
+      : h('p', { className: 'headline' }, `${num(t.perWeek)} `, h('small', {}, `workouts a week${t.goalWorkoutsPerWeek ? ` (goal ${t.goalWorkoutsPerWeek})` : ''}${t.averageStrengthMin ? ` · strength sessions about ${t.averageStrengthMin} min` : ''}`)),
     chart,
-    chart && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), `strength ${t.sessions.strength}`), h('span', {}, h('i', { className: 'sw2' }), `cardio & classes ${t.sessions.cardio + t.sessions.session}`)),
+    chart && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), `strength ${t.sessions.strength}`), h('span', {}, h('i', { className: 'sw2' }), `cardio & classes ${t.sessions.cardio + t.sessions.session}`), t.weeks.some((w) => w.partial) && h('span', {}, h('i', { className: 'outline' }), 'outline: week not complete'), t.goalWorkoutsPerWeek !== null && h('span', {}, h('i', { className: 'goalsw' }), `goal ${t.goalWorkoutsPerWeek} a week`)),
     total > 0 && h('h2', { className: 'small muted' }, 'Days trained, by week'),
     total > 0 && consistencyCalendar({ weeks: t.weeks.map((w) => w.week), days: t.days, to: p.to, goal: t.goalWorkoutsPerWeek }),
     total > 0 && h('p', { className: 'muted small' }, 'S strength · C cardio · P class · outline: no workout'),
@@ -191,7 +200,7 @@ function recordsCard(p: Progress) {
             h(
               'div',
               { className: 'rec' },
-              h('div', {}, h('div', { className: 'name' }, e.name), h('div', { className: 'val' }, e.sessions > 1 ? `${num(e.firstE1rmKg)} → ${num(e.latestE1rmKg)} kg · best ${num(e.bestE1rmKg)} kg (${fmtDay(e.bestDay)})` : `${num(e.latestE1rmKg)} kg · one session`)),
+              h('div', {}, h('div', { className: 'name' }, e.name), h('div', { className: 'val' }, e.sessions > 1 ? `${num(e.firstE1rmKg)} → ${num(e.latestE1rmKg)} kg · best ${num(e.bestE1rmKg)} kg (${dayLabel(p, e.bestDay)})` : `${num(e.latestE1rmKg)} kg · one session`)),
               sparkline(e.points.map((q) => ({ day: q.day, value: q.e1rmKg }))),
             ),
           ),
@@ -209,8 +218,8 @@ function measurementsCard(p: Progress) {
     { className: 'card', 'aria-label': 'Measurements' },
     h('h2', {}, 'Measurements'),
     m.length > 1 && h('div', { className: 'seg wrap', role: 'group', 'aria-label': 'Measurement' }, ...m.map((t) => h('button', { type: 'button', 'aria-pressed': String(t.key === picked.key), onclick: () => { state.measure = t.key; render(); } }, t.label))),
-    h('p', { className: 'headline' }, `${num(picked.latest)} ${picked.unit} `, picked.points.length > 1 && h('small', {}, `${signed(picked.change)} ${picked.unit} since ${fmtDay(picked.firstDay)}`)),
-    lineChart({ from: p.from, to: p.to, label: `${picked.label} from ${rangeLabel(p.from, p.to)}: ${picked.points.length} measurements, ${num(picked.first)} to ${num(picked.latest)} ${picked.unit}.`, columns: ['Date', `${picked.label} (${picked.unit})`], dots: picked.points, line: picked.points, boldSingle: true, dotRadius: 2.2 }),
+    h('p', { className: 'headline' }, `${num(picked.latest)} ${picked.unit} `, picked.points.length > 1 && h('small', {}, `${signed(picked.change)} ${picked.unit} since ${dayLabel(p, picked.firstDay)}`)),
+    lineChart({ from: startOf(p), to: p.to, label: `${picked.label} from ${rangeLabel(startOf(p), p.to)}: ${picked.points.length} measurements, ${num(picked.first)} to ${num(picked.latest)} ${picked.unit}.`, columns: ['Date', `${picked.label} (${picked.unit})`], dots: picked.points, line: picked.points, boldSingle: true, dotRadius: 2.2 }),
     picked.points.length < 2 && empty('A line needs at least two measurements.'),
     m.length > 1 && h('div', { className: 'rows' }, ...m.filter((t) => t.key !== picked.key).map((t) => h('div', { className: 'row' }, h('span', { className: 'name' }, t.label), h('span', { className: 'val' }, t.firstDay === t.latestDay ? `${num(t.latest)} ${t.unit}` : `${num(t.first)} → ${num(t.latest)} ${t.unit} (${signed(t.change)})`)))),
   );
@@ -233,7 +242,7 @@ function habitsCard(p: Progress) {
     h('h2', {}, 'Sleep, steps and water'),
     tabs.length > 1 && h('div', { className: 'seg', role: 'group', 'aria-label': 'Habit' }, ...tabs.map((t) => h('button', { type: 'button', 'aria-pressed': String(t[0] === kind), onclick: () => { state.habit = t[0]; render(); } }, t[1]))),
     avg !== null && h('p', { className: 'headline' }, `${num(avg, kind === 'steps' ? 0 : 1)} ${unit} `, h('small', {}, `average on ${series.length} logged ${series.length === 1 ? 'day' : 'days'}`)),
-    barChart({ from: p.from, to: p.to, days: p.days, label: `${picked[1]} per logged day, ${series.length} days, average ${avg === null ? 'unknown' : num(avg, kind === 'steps' ? 0 : 1)} ${unit}.`, columns: ['Date', `${picked[1]} (${unit})`], points: series, digits: kind === 'steps' ? 0 : 1, reference: kind === 'sleep' ? SLEEP_TARGET_H : undefined }),
+    barChart({ from: startOf(p), to: p.to, days: daysShown(p), label: `${picked[1]} per logged day, ${series.length} days, average ${avg === null ? 'unknown' : num(avg, kind === 'steps' ? 0 : 1)} ${unit}.`, columns: ['Date', `${picked[1]} (${unit})`], points: series, digits: kind === 'steps' ? 0 : 1, reference: kind === 'sleep' ? SLEEP_TARGET_H : undefined }),
     kind === 'sleep' && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), 'hours slept'), h('span', {}, h('i', { className: 'goalsw' }), `${SLEEP_TARGET_H} h`)),
   );
 }
@@ -261,15 +270,14 @@ function draw() {
     root.replaceChildren(controls, state.error ? h('p', { className: 'error center' }, state.error) : h('p', { className: 'muted center' }, 'Loading your progress…'));
     return;
   }
-  const ctx = app.getHostContext();
   const pagerCards: PagerCard[] = [];
   for (const [title, el] of [['Weight', weightCard(p)], ['Nutrition', nutritionCard(p)], ['Energy', energyCard(p)], ['Training', trainingCard(p)], ['Strength', recordsCard(p)], ['Habits', habitsCard(p)], ['Measures', measurementsCard(p)]] as [string, HTMLElement | null][]) if (el) pagerCards.push({ title, el });
   root.replaceChildren(
     controls,
-    h('p', { className: 'muted small' }, `${rangeLabel(p.from, p.to)}${state.loading ? ' · updating…' : ''}`),
+    h('p', { className: 'muted small' }, `${rangeLabel(startOf(p), p.to)}${startOf(p) > p.from ? ` · since your first log on ${dayLabel(p, startOf(p))}` : ''}${state.loading ? ' · updating…' : ''}`),
     state.error && h('p', { className: 'error small' }, state.error),
     ...buildPager(pagerCards, state.card, (i) => (state.card = i)),
-    h('footer', {}, `${ctx?.platform ?? 'unknown platform'} · trends use the 7-day average; a single weigh-in swings with water and food.`),
+    h('footer', {}, 'Trends use the 7-day average; a single weigh-in swings with water and food.'),
   );
 }
 

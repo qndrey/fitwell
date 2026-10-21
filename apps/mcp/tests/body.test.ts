@@ -85,6 +85,57 @@ describe('measurements', () => {
 });
 
 describe('progress and dashboard', () => {
+  type Dash = { progress: { dataFrom: string | null; weight: { trendKg: number | null; latestKg: number | null; fromGoalKg: number | null }; training: { perWeek: number; weeks: { week: string; partial: boolean }[]; sessions: { strength: number } } } };
+  const dashboard = async (days: number) => ((await call(client, 'get_dashboard_data', { days })).data as unknown as Dash).progress;
+  const addD = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const mondayOfWeek = (d: string) => addD(d, -((new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7));
+  const today = new Date().toISOString().slice(0, 10);
+  const squat = [{ id: 'ex:Barbell_Squat', sets: [{ reps: 5, weight_kg: 80 }] }];
+
+  it('starts the period where the data starts: 3 workouts a week for 12 weeks is 3.0 a week in a year view', async () => {
+    const thisMonday = mondayOfWeek(today);
+    for (let k = 12; k >= 1; k--) for (const off of [0, 2, 4]) await call(client, 'log_past_workout', { day: addD(thisMonday, -7 * k + off), exercises: squat });
+    const p = await dashboard(365);
+    expect(p.dataFrom).toBe(addD(thisMonday, -84));
+    expect(p.training.perWeek).toBe(3);
+    expect(p.training.weeks).toHaveLength(13); // 12 full weeks and the week in progress
+    expect(p.training.weeks[0]).toEqual(expect.objectContaining({ week: addD(thisMonday, -84), partial: false }));
+    expect(p.training.weeks[12]).toEqual(expect.objectContaining({ week: thisMonday, partial: true }));
+    expect(p.training.sessions.strength).toBe(36);
+  });
+
+  it('marks the first week partial when the data starts mid-week, and leaves it out of the average', async () => {
+    const thisMonday = mondayOfWeek(today);
+    const wednesday = addD(thisMonday, -21 + 2); // three weeks ago
+    await call(client, 'log_past_workout', { day: wednesday, exercises: squat });
+    for (const off of [-14, -12, -10, -7, -5, -3]) await call(client, 'log_past_workout', { day: addD(thisMonday, off), exercises: squat });
+    const p = await dashboard(90);
+    expect(p.dataFrom).toBe(wednesday);
+    expect(p.training.weeks.slice(0, 3).map((w) => [w.week, w.partial])).toEqual([[addD(thisMonday, -21), true], [addD(thisMonday, -14), false], [addD(thisMonday, -7), false]]);
+    expect(p.training.perWeek).toBe(3); // two full weeks of three workouts; the Wednesday start is not counted
+  });
+
+  it('shows no more than one week of workouts when there is no full week yet', async () => {
+    await call(client, 'log_past_workout', { day: today, exercises: squat });
+    const p = await dashboard(90);
+    expect(p.dataFrom).toBe(today);
+    expect(p.training.perWeek).toBe(1);
+    expect(p.training.weeks.every((w) => w.partial) || p.training.weeks.length === 1).toBe(true);
+  });
+
+  it('has no data start without logs', async () => {
+    expect((await dashboard(30)).dataFrom).toBeNull();
+  });
+
+  it('measures the distance from the goal weight from the trend, not from the last weigh-in', async () => {
+    await call(client, 'set_goals', { goal_weight_kg: 78 });
+    for (const [d, kg] of [[-6, 81], [-5, 80], [-4, 80], [-3, 80], [-2, 80], [-1, 80], [0, 82]] as const) await call(client, 'log_body', { day: addD(today, d), weight_kg: kg });
+    const w = (await dashboard(30)).weight;
+    expect(w.latestKg).toBe(82);
+    expect(w.trendKg).toBe(80.4); // mean of the last 7 days
+    expect(w.fromGoalKg).toBe(2.4);
+  });
+
   it('averages nutrition per week and protein per kg of trend weight', async () => {
     // 1000 g rye bread = 2090 kcal, 58 g protein. Two logged days in the week of Monday 12 Oct, one in the next.
     for (const [day, grams] of [['2026-10-12', 1000], ['2026-10-14', 500], ['2026-10-20', 1000]] as const) await call(client, 'log_food', { day, items: [{ food_id: 'frida:413', grams }] });
@@ -100,9 +151,8 @@ describe('progress and dashboard', () => {
     await call(client, 'set_goals', { kcal: 2000, protein_g: 100, workouts_per_week: 3 });
     // 100 g rye bread = 209 kcal, 5.8 g protein per 100 g. Three days around the calorie goal, one far off.
     for (const [day, grams] of [['2026-10-10', 950], ['2026-10-11', 1000], ['2026-10-12', 100], ['2026-10-13', 960]] as const) await call(client, 'log_food', { day, items: [{ food_id: 'frida:413', grams }] });
-    const plan = (await call(client, 'start_workout', { exercises: [{ id: 'ex:Barbell_Squat', sets: 2, reps: 5, weight_kg: 80 }] })).data.workout as { workoutId: string };
-    for (const setId of ['s1.1', 's1.2']) await call(client, 'log_set', { workoutId: plan.workoutId, setId, reps: 5, weightKg: 80 });
-    await call(client, 'finish_workout', { workoutId: plan.workoutId });
+    // On a day of a full week: sets per muscle are averaged over full weeks, and the week in progress is not one.
+    await call(client, 'log_past_workout', { day: '2026-10-13', exercises: [{ id: 'ex:Barbell_Squat', sets: [{ reps: 5, weight_kg: 80 }, { reps: 5, weight_kg: 80 }] }] });
     await call(client, 'log_cardio', { activity_id: 'act:run-10', duration_min: 30 });
 
     const p = (await call(client, 'get_progress', { days: 30 })).data as {

@@ -9,10 +9,12 @@ export interface WeightProgress {
   average: { day: Day; kg: number }[];
   latestKg: number | null;
   latestDay: Day | null;
+  /** The 7-day average on the last day that has one; null without a trend. */
+  trendKg: number | null;
   /** Change of the smoothed line over the period. */
   trendChangeKg: number | null;
   goalKg: number | null;
-  /** Distance from the goal weight, always positive; the direction is the person's to read. */
+  /** Distance of the trend weight (the latest weigh-in without a trend) from the goal weight, always positive; the direction is the person's to read. */
   fromGoalKg: number | null;
 }
 
@@ -32,12 +34,14 @@ export interface NutritionProgress {
 }
 
 export interface TrainingProgress {
-  weeks: { week: Day; strength: number; cardio: number; cardioMin: number; session: number; sessionMin: number; sets: Record<string, number> }[];
+  weeks: { week: Day; /** The week is cut off: it starts before the data (or the period) does, or ends after the period. Left out of averages. */ partial: boolean; strength: number; cardio: number; cardioMin: number; session: number; sessionMin: number; sets: Record<string, number> }[];
   sessions: { strength: number; cardio: number; session: number };
+  /** Workouts a week over the full weeks only; the whole period's workouts over one week when there is no full week yet. */
+  perWeek: number;
   /** Every workout in the period as a day and a kind, oldest first (a day with two workouts appears twice). */
   days: { day: Day; type: 'strength' | 'cardio' | 'session' }[];
   averageStrengthMin: number | null;
-  /** Working sets per primary muscle, averaged over the weeks in the period. */
+  /** Working sets per primary muscle, averaged over the full weeks in the period. */
   setsPerWeekByMuscle: { muscle: string; sets: number }[];
   goalWorkoutsPerWeek: number | null;
 }
@@ -88,6 +92,8 @@ export interface Progress {
   from: Day;
   to: Day;
   days: number;
+  /** The first day with anything logged in the period; null when nothing is. Charts and weekly averages start here, not at `from`. */
+  dataFrom: Day | null;
   weight: WeightProgress;
   nutrition: NutritionProgress;
   training: TrainingProgress;

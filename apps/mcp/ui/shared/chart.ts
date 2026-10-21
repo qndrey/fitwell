@@ -1,5 +1,5 @@
 // Charts for the dashboard and the weekly review: small SVGs that scale with the card, each with a visually hidden data table as its text alternative.
-import { calendarRows, crossesYear, dayNum, fmtDay, num, weekdayShort, WORKOUT_LETTER, WORKOUT_NAME, type WorkoutKind } from './chartMath';
+import { calendarRows, crossesYear, niceTicks, dayNum, fmtDay, num, weekdayShort, WORKOUT_LETTER, WORKOUT_NAME, type WorkoutKind } from './chartMath';
 import { h, svg as s } from './dom';
 
 export { crossesYear, fmtDay, num, rangeLabel } from './chartMath';
@@ -52,7 +52,7 @@ export interface LineChartOptions {
   dotsOnTop?: boolean;
 }
 
-/** Dots and an optional line over a value axis with three grid labels (placed at 15, 50 and 85 % of the range). */
+/** Dots and an optional line over a value axis with grid lines at round values. */
 export function lineChart(o: LineChartOptions): HTMLElement {
   const H = o.height ?? 120;
   const digits = o.digits ?? 1;
@@ -64,7 +64,7 @@ export function lineChart(o: LineChartOptions): HTMLElement {
   const y = scale(lo, hi, H - M.b, M.t);
   const x = scale(dayNum(o.from), dayNum(o.to), M.l, W - M.r);
   const el = frame(H, o.label);
-  for (const v of [lo + (hi - lo) * 0.15, (lo + hi) / 2, hi - (hi - lo) * 0.15]) el.append(s('line', { class: 'grid', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) }), s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
+  for (const v of niceTicks(lo, hi, 4)) el.append(s('line', { class: 'grid', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) }), s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
   if (o.goal) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(o.goal.value), y2: y(o.goal.value) }), s('text', { x: o.goal.atStart ? M.l + 2 : W - M.r, y: y(o.goal.value) - 4, 'text-anchor': o.goal.atStart ? 'start' : 'end' }, o.goal.label ?? `goal ${num(o.goal.value, digits)}`));
   const line = o.line && o.line.length > 1 ? s('polyline', { class: 'line', points: o.line.map((q) => `${x(dayNum(q.day))},${y(q.value)}`).join(' ') }) : null;
   const bold = o.boldSingle && o.dots.length === 1;
@@ -107,7 +107,7 @@ export function barChart(o: BarChartOptions): HTMLElement {
   const bw = Math.max(1.5, Math.min(14, ((W - M.l - M.r) / o.days) * 0.75));
   const el = frame(H, o.label);
   el.append(s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
-  for (const v of [top / 2, top * 0.92]) el.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
+  for (const v of niceTicks(0, top, 2).filter((t) => t > 0)) el.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
   for (const q of o.points) el.append(s('rect', { class: 'bar', x: x(dayNum(q.day)) - bw / 2, y: y(q.value), width: bw, height: Math.max(0, H - M.b - y(q.value)), rx: 1.5 }));
   if (o.reference) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(o.reference), y2: y(o.reference) }));
   axisLabels(el, o.from, o.to, H);
@@ -121,6 +121,8 @@ export interface WeekBar {
   /** The lower, darker segment (strength) and the lighter one stacked on it (cardio and classes). */
   a: number;
   b: number;
+  /** The week is cut off at either end: drawn as an outline, not a filled bar. */
+  partial?: boolean;
 }
 
 export interface WeekBarsOptions {
@@ -144,16 +146,17 @@ export function weekBars(o: WeekBarsOptions): HTMLElement {
   const bw = Math.max(2, Math.min(24, slot * 0.7));
   const el = frame(H, o.label);
   el.append(s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
-  el.append(s('text', { x: M.l - 4, y: y(Math.ceil(top)) + 3, 'text-anchor': 'end' }, String(Math.ceil(top))));
+  for (const v of niceTicks(0, top, 2).filter((t) => t > 0 && Number.isInteger(t))) el.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, String(v)));
   wk.forEach((w, i) => {
     const cx = M.l + slot * (i + 0.5);
-    el.append(s('rect', { class: 'bar', x: cx - bw / 2, y: y(w.a), width: bw, height: Math.max(0, H - M.b - y(w.a)), rx: 1.5 }));
-    el.append(s('rect', { class: 'bar2', x: cx - bw / 2, y: y(w.a + w.b), width: bw, height: Math.max(0, y(w.a) - y(w.a + w.b)), rx: 1.5 }));
+    const inset = w.partial ? 0.75 : 0; // the outline's stroke stays inside the bar's footprint
+    el.append(s('rect', { class: w.partial ? 'bar-partial' : 'bar', x: cx - bw / 2 + inset, y: y(w.a), width: bw - 2 * inset, height: Math.max(0, H - M.b - y(w.a)), rx: 1.5 }));
+    el.append(s('rect', { class: w.partial ? 'bar2-partial' : 'bar2', x: cx - bw / 2 + inset, y: y(w.a + w.b), width: bw - 2 * inset, height: Math.max(0, y(w.a) - y(w.a + w.b)), rx: 1.5 }));
   });
   if (o.goal) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(o.goal), y2: y(o.goal) }));
   axisLabels(el, wk[0]!.week, o.to, H);
   const withYear = crossesYear(wk[0]!.week, o.to);
-  return box(el, dataTable(o.label, [...o.columns], wk.map((w) => [`Week of ${fmtDay(w.week, withYear)}`, w.a, w.b])));
+  return box(el, dataTable(o.label, [...o.columns], wk.map((w) => [`Week of ${fmtDay(w.week, withYear)}${w.partial ? ' (partial week)' : ''}`, w.a, w.b])));
 }
 
 /** A tiny trend line with no axes; decorative (the numbers beside it say the same), so it has no table. */

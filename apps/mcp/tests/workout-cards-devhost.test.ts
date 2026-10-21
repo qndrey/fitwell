@@ -69,7 +69,11 @@ vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
     async sendToolResult(r: unknown) {
       this.sent.push(r);
     }
+    // Like the real AppBridge: connect() installs its own tools/call forwarder, replacing a handler set before it. The host's failure
+    // switches therefore only work when they are installed after connect (they were not, and ?fail=log never failed).
+    oncalltool?: (params: { name: string; arguments?: Record<string, unknown> }, extra: unknown) => Promise<unknown>;
     async connect() {
+      this.oncalltool = async (params) => h.real.callTool(params);
       this.oninitialized?.();
     }
   },

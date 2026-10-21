@@ -96,6 +96,8 @@ export interface HostOptions {
   messageFails?: () => boolean;
   /** Answers a tool call the view makes (get_substitutes, swap_exercise, get_exercise_guide, ...); undefined falls through to the defaults. Read at call time, so tests can change what it returns. */
   tools?: (name: string, args: Record<string, unknown>) => Record<string, unknown> | undefined;
+  /** How long (ms) a tool call waits before the host answers it, by tool name: to see what the view shows meanwhile. */
+  delay?: (name: string) => number;
   /** Installs Playwright's fake clock (it keeps running in real time until `page.clock.runFor` / `fastForward` jumps it). */
   clock?: boolean;
 }
@@ -174,6 +176,8 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
       const name = String(msg.params?.name);
       const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;
       calls.push({ name, args });
+      const wait = o.delay?.(name) ?? 0;
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       const custom = o.tools?.(name, args);
       if (custom) return { jsonrpc: '2.0', id: msg.id, result: custom };
       if (name === 'get_workout' && stored) return { jsonrpc: '2.0', id: msg.id, result: planResult(stored) };
@@ -235,7 +239,7 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
 // ---------- locators and helpers ----------
 export const trackOf = (v: Opened) => v.frame.locator('[aria-roledescription="carousel"]');
 export const cardsOf = (v: Opened) => trackOf(v).locator('[aria-roledescription="card"]');
-export const counterOf = (v: Opened) => v.frame.getByText(/^\d+ \/ \d+$/);
+export const counterOf = (v: Opened) => v.frame.getByText(/^\d+ of \d+$/);
 export const counterText = async (v: Opened) => (await counterOf(v).textContent())?.trim();
 export const jumpTo = async (v: Opened, position: number) => {
   await v.inView(() => undefined);
@@ -254,7 +258,7 @@ export const settled = async (v: Opened) => {
       const cards = t.querySelectorAll('[aria-roledescription="card"]');
       const counter = t.ownerDocument.querySelector('.counter')?.textContent?.trim() ?? '';
       // At rest on card i, that card is the current one, and the counter says so (it leads the scroll, so it must agree).
-      return Math.abs(t.scrollLeft - i * t.clientWidth) < 2 && !!cards[i] && !cards[i]!.inert && counter.startsWith(`${i + 1} /`);
+      return Math.abs(t.scrollLeft - i * t.clientWidth) < 2 && !!cards[i] && !cards[i]!.inert && counter.startsWith(`${i + 1} of`);
     });
     if (ok || Date.now() > deadline) return;
     await new Promise((r) => setTimeout(r, 50));

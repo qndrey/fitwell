@@ -197,7 +197,7 @@ async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): Promise<
 // ---------- locators and helpers (the interface assumptions are listed in the reply) ----------
 const trackOf = (v: Opened) => v.frame.locator('[aria-roledescription="carousel"]');
 const cardsOf = (v: Opened) => trackOf(v).locator('[aria-roledescription="card"]');
-const counterOf = (v: Opened) => v.frame.getByText(/^\d+ \/ \d+$/);
+const counterOf = (v: Opened) => v.frame.getByText(/^\d+ of \d+$/);
 const stripOf = (v: Opened) => v.frame.locator('[data-strip]');
 const counterText = async (v: Opened) => (await counterOf(v).textContent())?.trim();
 /** Waits until the scroll has come to rest on a card and that card is the current one (the counter leads the scroll). */
@@ -210,7 +210,7 @@ const settled = async (v: Opened) => {
       const cards = t.querySelectorAll('[aria-roledescription="card"]');
       const counter = t.ownerDocument.querySelector('.counter')?.textContent?.trim() ?? '';
       // At rest on card i, that card is the current one, and the counter says so (it leads the scroll, so it must agree).
-      return Math.abs(t.scrollLeft - i * t.clientWidth) < 2 && !!cards[i] && !cards[i]!.inert && counter.startsWith(`${i + 1} /`);
+      return Math.abs(t.scrollLeft - i * t.clientWidth) < 2 && !!cards[i] && !cards[i]!.inert && counter.startsWith(`${i + 1} of`);
     });
     if (ok || Date.now() > deadline) return;
     await new Promise((r) => setTimeout(r, 50));
@@ -277,7 +277,7 @@ describe('Specs: Pager and header rule 1 (track, snap, fixed height) and rule 5 
     const inert = () => cardsOf(v).evaluateAll((els) => els.map((e) => (e as unknown as DomNode).inert));
     expect(await inert()).toEqual([false, true, true, true, true]);
     await press(v, 'ArrowRight');
-    await expectCounter(v, '2 / 5');
+    await expectCounter(v, '2 of 5');
     await expect.poll(inert).toEqual([true, false, true, true, true]);
   });
 });
@@ -298,7 +298,7 @@ describe('Specs: Pager and header rule 2 (no horizontal page overflow from 320 p
     expect((await overflow()).doc).toBeLessThanOrEqual(0);
     expect((await overflow()).body).toBeLessThanOrEqual(0);
     await jumpTo(v, 1);
-    await expectCounter(v, '2 / 4');
+    await expectCounter(v, '2 of 4');
     expect((await overflow()).doc).toBeLessThanOrEqual(0);
     expect((await overflow()).body).toBeLessThanOrEqual(0);
   });
@@ -321,7 +321,7 @@ describe('Specs: Pager and header rule 3 (the header is built once, outside the 
       const d = globalThis as unknown as Dom;
       const track = d.document.querySelector('[aria-roledescription="carousel"]')!;
       const find = (re: RegExp) => [...d.document.querySelectorAll('body *')].find((e) => e.children.length === 0 && re.test(e.textContent ?? ''));
-      const counter = find(/^\d+ \/ \d+$/)!;
+      const counter = find(/^\d+ of \d+$/)!;
       const strip = d.document.querySelector('[data-strip]')!;
       const name = [...d.document.querySelectorAll('body *')].find((e) => e.children.length === 0 && e.textContent === 'Full body A' && !track.contains(e));
       return {
@@ -341,7 +341,7 @@ describe('Specs: Pager and header rule 3 (the header is built once, outside the 
     const pos = () =>
       v.inView(() => {
         const d = globalThis as unknown as Dom;
-        const c = [...d.document.querySelectorAll('body *')].find((e) => e.children.length === 0 && /^\d+ \/ \d+$/.test(e.textContent ?? ''))!;
+        const c = [...d.document.querySelectorAll('body *')].find((e) => e.children.length === 0 && /^\d+ of \d+$/.test(e.textContent ?? ''))!;
         const r = c.getBoundingClientRect();
         const s = d.document.querySelector('[data-strip]')!.getBoundingClientRect();
         return { top: Math.round(r.top), left: Math.round(r.left), stripTop: Math.round(s.top), pageY: d.window.scrollY };
@@ -350,7 +350,7 @@ describe('Specs: Pager and header rule 3 (the header is built once, outside the 
     await cardsOf(v).first().evaluate((el) => (el.scrollTop = 400));
     expect(await pos()).toEqual(before);
     await press(v, 'ArrowRight');
-    await expectCounter(v, '2 / 16');
+    await expectCounter(v, '2 of 16');
     expect(await pos()).toEqual(before);
   });
 
@@ -367,14 +367,14 @@ describe('Specs: Pager and header rule 3 (the header is built once, outside the 
 describe('Specs: Pager and header rule 4 (current card from the scroll position) and rule 9', () => {
   it('four swipes left reach Finish in plan order and four swipes right come back in reverse order', async () => {
     const v = await openView(fresh3());
-    await expectCounter(v, '1 / 5');
+    await expectCounter(v, '1 of 5');
     for (let pos = 1; pos <= 4; pos += 1) {
       await jumpTo(v, pos);
-      await expectCounter(v, `${pos + 1} / 5`);
+      await expectCounter(v, `${pos + 1} of 5`);
     }
     for (let pos = 3; pos >= 0; pos -= 1) {
       await jumpTo(v, pos);
-      await expectCounter(v, `${pos + 1} / 5`);
+      await expectCounter(v, `${pos + 1} of 5`);
     }
   });
 
@@ -384,7 +384,7 @@ describe('Specs: Pager and header rule 4 (current card from the scroll position)
       el.style.scrollSnapType = 'none';
       el.scrollLeft = el.clientWidth * 2.3;
     });
-    await expectCounter(v, '3 / 5');
+    await expectCounter(v, '3 of 5');
   });
 
   it('no programmatic scroll fires while a pointer is down on the track', async () => {
@@ -401,16 +401,16 @@ describe('Specs: Pager and header rule 4 (current card from the scroll position)
 });
 
 describe('Specs: Pager and header rules 6 and 7 (strip, prev/next, keys)', () => {
-  it('the strip has one segment per card with the counter k / n', async () => {
+  it('the strip has one segment per card with the counter "k of n"', async () => {
     const v = await openView(fresh3());
     expect(await stripOf(v).locator('[data-seg]').count()).toBe(5);
-    await pwExpect(counterOf(v)).toHaveText('1 / 5');
+    await pwExpect(counterOf(v)).toHaveText('1 of 5');
   });
 
   it('above 12 cards the strip is one continuous bar with a marker instead of segments', async () => {
     const many = Array.from({ length: 12 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
     const v = await openView(plan(many));
-    await expectCounter(v, '1 / 14');
+    await expectCounter(v, '1 of 14');
     expect(await stripOf(v).locator('[data-seg]').count()).toBe(0);
     await pwExpect(stripOf(v)).toBeVisible();
   });
@@ -418,45 +418,96 @@ describe('Specs: Pager and header rules 6 and 7 (strip, prev/next, keys)', () =>
   it('exactly 12 cards still show segments', async () => {
     const ten = Array.from({ length: 10 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
     const v = await openView(plan(ten));
-    await expectCounter(v, '1 / 12');
+    await expectCounter(v, '1 of 12');
     expect(await stripOf(v).locator('[data-seg]').count()).toBe(12);
   });
 
   it('tapping the strip scrolls to the Overview', async () => {
     const v = await openView(fresh3());
     await jumpTo(v, 3);
-    await expectCounter(v, '4 / 5');
+    await expectCounter(v, '4 of 5');
     await stripOf(v).click();
-    await expectCounter(v, '1 / 5');
+    await expectCounter(v, '1 of 5');
   });
 
-  it('there are no previous or next buttons, with a fine or a coarse pointer: the strip, the keys and the swipe move the pager', async () => {
-    for (const touch of [false, true]) {
-      const v = await openView(fresh3(), { touch });
-      await pwExpect(v.frame.getByRole('button', { name: /^(previous|next)/i })).toHaveCount(0);
-      await v.page.close();
-    }
+  it('‹ and › are 44 px buttons on both sides of the title, and they name the card they go to', async () => {
+    const v = await openView(fresh3());
+    const prev = v.frame.getByRole('button', { name: /^Previous card/ });
+    const next = v.frame.getByRole('button', { name: /^Next card/ });
+    const title = v.frame.locator('.titlebar strong');
+    const [pb, nb, tb] = [(await prev.boundingBox())!, (await next.boundingBox())!, (await title.boundingBox())!];
+    expect(pb.width).toBeGreaterThanOrEqual(44);
+    expect(pb.height).toBeGreaterThanOrEqual(44);
+    expect(nb.width).toBeGreaterThanOrEqual(44);
+    expect(nb.height).toBeGreaterThanOrEqual(44);
+    expect(pb.x + pb.width).toBeLessThanOrEqual(tb.x + 1);
+    expect(nb.x).toBeGreaterThanOrEqual(tb.x + tb.width - 1);
+    await pwExpect(prev).toHaveAttribute('aria-label', 'Previous card');
+    await pwExpect(next).toHaveAttribute('aria-label', 'Next card: Squat');
+    await next.click();
+    await expectCounter(v, '2 of 5');
+    await pwExpect(v.frame.getByRole('button', { name: 'Previous card: Overview' })).toHaveAttribute('aria-disabled', 'false');
+    await pwExpect(v.frame.getByRole('button', { name: 'Next card: Bench Press' })).toBeVisible();
+  });
+
+  it('at either end the button stays, is aria-disabled and does nothing', async () => {
+    const v = await openView(fresh3());
+    const prev = v.frame.locator('[data-key="prev"]');
+    const next = v.frame.locator('[data-key="next"]');
+    await pwExpect(prev).toHaveAttribute('aria-disabled', 'true');
+    await prev.click({ force: true }); // Playwright waits for an enabled button: aria-disabled counts as disabled
+    await v.page.waitForTimeout(500);
+    await expectCounter(v, '1 of 5');
+    await jumpTo(v, 4);
+    await expectCounter(v, '5 of 5');
+    await pwExpect(next).toHaveAttribute('aria-disabled', 'true');
+    await pwExpect(next).toHaveAttribute('aria-label', 'Next card');
+    await pwExpect(prev).toHaveAttribute('aria-label', 'Previous card: Push-up');
+    await next.click({ force: true });
+    await v.page.waitForTimeout(500);
+    await expectCounter(v, '5 of 5');
+  });
+
+  it('moving with a button puts the focus on the new card\'s heading, and two quick taps go two cards', async () => {
+    const v = await openView(fresh3());
+    const next = v.frame.locator('[data-key="next"]');
+    await next.click();
+    await expectCounter(v, '2 of 5');
+    await expect.poll(() => v.inView(() => (globalThis as unknown as Dom).document.activeElement?.textContent ?? '')).toContain('Squat');
+    await next.click();
+    await next.click();
+    await expectCounter(v, '4 of 5');
+  });
+
+  it('the counter is one "k of n" text, the strip is labelled "Card k of n. Show the overview.", and an exercise card has no counter of its own', async () => {
+    const v = await openView(fresh3());
+    await v.frame.locator('[data-key="next"]').click();
+    await expectCounter(v, '2 of 5');
+    await pwExpect(counterOf(v)).toHaveText('2 of 5');
+    await pwExpect(stripOf(v)).toHaveAttribute('aria-label', 'Card 2 of 5. Show the overview.');
+    const card = cardsOf(v).nth(1);
+    await pwExpect(card.getByText(/^\d+ of \d+$/)).toHaveCount(0);
   });
 
   it('two quick presses of an arrow key go two cards, because the second starts from the card being scrolled to', async () => {
     const v = await openView(fresh3());
     await press(v, 'ArrowRight');
     await press(v, 'ArrowRight');
-    await expectCounter(v, '3 / 5');
+    await expectCounter(v, '3 of 5');
   });
 
   it('arrow keys move one card, Home and End go to the ends', async () => {
     const v = await openView(fresh3());
     await press(v, 'ArrowRight');
-    await expectCounter(v, '2 / 5');
+    await expectCounter(v, '2 of 5');
     await press(v, 'ArrowRight');
-    await expectCounter(v, '3 / 5');
+    await expectCounter(v, '3 of 5');
     await press(v, 'ArrowLeft');
-    await expectCounter(v, '2 / 5');
+    await expectCounter(v, '2 of 5');
     await press(v, 'End');
-    await expectCounter(v, '5 / 5');
+    await expectCounter(v, '5 of 5');
     await press(v, 'Home');
-    await expectCounter(v, '1 / 5');
+    await expectCounter(v, '1 of 5');
   });
 
   it('arrow, Home and End keys do nothing while an input, textarea or select has focus', async () => {
@@ -471,7 +522,7 @@ describe('Specs: Pager and header rules 6 and 7 (strip, prev/next, keys)', () =>
     await press(v, 'ArrowRight');
     await press(v, 'End');
     await v.page.waitForTimeout(500);
-    expect(await counterText(v)).toBe('1 / 5');
+    expect(await counterText(v)).toBe('1 of 5');
   });
 
   it('with reduced motion the arrow key scrolls with behavior auto: the card changes at once', async () => {
@@ -488,38 +539,38 @@ describe('Specs: Pager and header rules 6 and 7 (strip, prev/next, keys)', () =>
 describe('Specs: Opening and resume', () => {
   it('rule 1: a fresh workout opens on the Overview', async () => {
     const v = await openView(fresh3());
-    await expectCounter(v, '1 / 5');
+    await expectCounter(v, '1 of 5');
     expect(await cardsOf(v).first().evaluate((el) => (el as unknown as DomNode).inert)).toBe(false);
   });
 
   it('rule 2: a resumed workout opens on the first step with an open set', async () => {
     const p = plan([ex('Squat', [closed('1'), closed('2')]), ex('Bench Press', [closed('1'), set('2')]), ex('Row', [set('1')])]);
     const v = await openView(p);
-    await expectCounter(v, '3 / 5');
+    await expectCounter(v, '3 of 5');
   });
 
   it('rule 2: a step with only open warm-ups counts as open', async () => {
     const p = plan([ex('Squat', [closed('1'), closed('2')]), ex('Bench Press', [set('w1', { warmup: true }), closed('1')])]);
     const v = await openView(p);
-    await expectCounter(v, '3 / 4');
+    await expectCounter(v, '3 of 4');
   });
 
   it('rule 2: skipped sets are closed, so a resumed workout skips past a step with all sets skipped', async () => {
     const p = plan([ex('Squat', [closed('1'), skipped('2')]), ex('Bench Press', [set('1')])]);
     const v = await openView(p);
-    await expectCounter(v, '3 / 4');
+    await expectCounter(v, '3 of 4');
   });
 
   it('rule 2: cardio before the lifting that is done leaves the first open exercise as the opening card', async () => {
     const p = plan([ex('Squat', [set('1')])], [cardio('c1', 'before', { done: true, minutes: 10 })]);
     const v = await openView(p);
-    await expectCounter(v, '3 / 4');
+    await expectCounter(v, '3 of 4');
   });
 
   it('rule 3: all steps closed and not finished opens on Finish and calls neither finish_workout nor sendMessage', async () => {
     const p = plan([ex('Squat', [closed('1'), closed('2')]), ex('Bench Press', [closed('1'), skipped('2')])]);
     const v = await openView(p);
-    await expectCounter(v, '4 / 4');
+    await expectCounter(v, '4 of 4');
     await v.page.waitForTimeout(600);
     expect(calledTools(v)).not.toContain('finish_workout');
     expect(v.messages).toEqual([]);
@@ -528,7 +579,7 @@ describe('Specs: Opening and resume', () => {
   it('rule 4: a finished workout opens on Finish, calls finish_workout once and sends nothing to Claude', async () => {
     const p = plan([ex('Squat', [closed('1')])], [], { finished: true });
     const v = await openView(p);
-    await expectCounter(v, '3 / 3');
+    await expectCounter(v, '3 of 3');
     await expect.poll(() => calledTools(v).filter((n) => n === 'finish_workout').length).toBe(1);
     await v.page.waitForTimeout(500);
     expect(calledTools(v).filter((n) => n === 'finish_workout').length).toBe(1);
@@ -539,16 +590,16 @@ describe('Specs: Opening and resume', () => {
     const p = fresh3();
     const v = await openView(p);
     await jumpTo(v, 2);
-    await expectCounter(v, '3 / 5');
+    await expectCounter(v, '3 of 5');
     await v.sendResult(planResult(p));
     await v.page.waitForTimeout(500);
-    await expectCounter(v, '3 / 5');
+    await expectCounter(v, '3 of 5');
     await pwExpect(cardsOf(v)).toHaveCount(5);
   });
 
   it('the same exercise twice in a plan (distinct uid) has two cards', async () => {
     const v = await openView(plan([ex('Squat', [set('1')]), ex('Squat', [set('1')])]));
-    await expectCounter(v, '1 / 4');
+    await expectCounter(v, '1 of 4');
     const labels = await cardsOf(v).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
     expect(labels.slice(1, 3)).toEqual(['2 of 4: Squat', '3 of 4: Squat']);
   });
@@ -562,13 +613,13 @@ describe('Specs: Opening and resume', () => {
 
   it('a plan with only cardio and a plan with one exercise render and page', async () => {
     const only = await openView(plan([ex('Squat', [set('1')])]));
-    await expectCounter(only, '1 / 3');
+    await expectCounter(only, '1 of 3');
     await press(only, 'End');
-    await expectCounter(only, '3 / 3');
+    await expectCounter(only, '3 of 3');
     const cardioOnly = await openView(plan([], [cardio('c1', 'before')]));
-    await expectCounter(cardioOnly, '1 / 3');
+    await expectCounter(cardioOnly, '1 of 3');
     await press(cardioOnly, 'ArrowRight');
-    await expectCounter(cardioOnly, '2 / 3');
+    await expectCounter(cardioOnly, '2 of 3');
   });
 });
 
@@ -588,9 +639,9 @@ describe('Specs: Overview', () => {
   it('counts working sets only: warm-ups are not counted and skipped working sets are closed but not done', async () => {
     const p = plan([ex('Squat', [closed('w1', { warmup: true }), closed('1'), skipped('2'), set('3')]), ex('Row', [set('1'), set('2')])]);
     const v = await openView(p);
-    await expectCounter(v, '2 / 4');
+    await expectCounter(v, '2 of 4');
     await jumpTo(v, 0);
-    await expectCounter(v, '1 / 4');
+    await expectCounter(v, '1 of 4');
     await pwExpect(overview(v)).toContainText('1 of 5 sets · 2 exercises');
   });
 
@@ -608,7 +659,7 @@ describe('Specs: Overview', () => {
   it('tapping a row moves the pager to that card and focus to its heading', async () => {
     const v = await openView(fresh3());
     await overview(v).getByRole('button', { name: 'Bench Press, 0 of 2 sets done' }).click();
-    await expectCounter(v, '3 / 5');
+    await expectCounter(v, '3 of 5');
     await expect.poll(() => v.inView(() => (globalThis as unknown as Dom).document.activeElement?.textContent ?? '')).toContain('Bench Press');
     expect(await v.inView(() => (globalThis as unknown as Dom).document.activeElement?.closest('[aria-roledescription="card"]')?.getAttribute('aria-label'))).toBe('3 of 5: Bench Press');
   });
@@ -644,19 +695,27 @@ describe('Specs: Overview', () => {
     expect(await squat.evaluate((el) => el.textContent ?? '')).not.toMatch(/Superset/);
   });
 
+  it('supersets also show the word "Superset" as a visible sub-label on the member rows only', async () => {
+    const p = plan([ex('Curl', [set('1')], { supersetId: 's1' }), ex('Pushdown', [set('1')], { supersetId: 's1' }), ex('Squat', [set('1')])]);
+    const v = await openView(p);
+    await pwExpect(overview(v).getByText('Superset', { exact: true })).toHaveCount(2);
+    await pwExpect(overview(v).getByRole('button', { name: /^Curl,/ }).getByText('Superset', { exact: true })).toBeVisible();
+    await pwExpect(overview(v).getByRole('button', { name: /^Squat,/ }).getByText('Superset', { exact: true })).toHaveCount(0);
+  });
+
   it('the primary button reads "Start: <name>" when fresh and moves to that card', async () => {
     const v = await openView(fresh3());
     const primary = overview(v).getByRole('button', { name: 'Start: Squat' });
     await pwExpect(primary).toBeVisible();
     await primary.click();
-    await expectCounter(v, '2 / 5');
+    await expectCounter(v, '2 of 5');
   });
 
   it('the primary button reads "Continue: <name>" when resumed, pointing at the first open step', async () => {
     const p = plan([ex('Squat', [closed('1')]), ex('Bench Press', [set('1')])]);
     const v = await openView(p);
     await jumpTo(v, 0);
-    await expectCounter(v, '1 / 4');
+    await expectCounter(v, '1 of 4');
     await pwExpect(overview(v).getByRole('button', { name: 'Continue: Bench Press' })).toBeVisible();
   });
 

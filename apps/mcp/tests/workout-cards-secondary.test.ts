@@ -35,7 +35,7 @@ const cardOf = (v: Opened, k: number) => cardsOf(v).nth(k + 1);
 const btn = (card: Locator, name: string | RegExp) => card.getByRole('button', typeof name === 'string' ? { name, exact: true } : { name });
 const total = (p: WorkoutPlan) => p.exercises.length + p.cardio.length + 2;
 const expectAt = async (v: Opened, p: WorkoutPlan, pos: number) => {
-  await expect.poll(() => counterText(v), { timeout: 5000 }).toBe(`${pos + 1} / ${total(p)}`);
+  await expect.poll(() => counterText(v), { timeout: 5000 }).toBe(`${pos + 1} of ${total(p)}`);
 };
 /** Opens the view, jumps to step `k` (0-based) and waits for the counter. */
 async function onStep(p: WorkoutPlan, k: number, o: HostOptions = {}) {
@@ -67,13 +67,15 @@ interface Box {
   querySelectorAll(selector: string): ArrayLike<unknown>;
   getBoundingClientRect(): { top: number; bottom: number };
 }
-/** Top of the first set row and of Log set, measured from the top of the card's scrolled content. */
+/** Top of the first set row (from the top of the card's content) and how far Log set, in the dock, is above the card's bottom edge. */
 const layoutOf = (card: Locator) =>
   card.evaluate((el) => {
     const root = el as unknown as Box;
+    // A row is measured in the card's content (it must not move when a panel opens); Log set is in the dock, pinned to the bottom of
+    // the card, so it is measured where it is seen: its distance from the card's bottom edge must not change.
     const rel = (n: Box | null) => (n ? Math.round(n.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop) : -1);
     const log = Array.from(root.querySelectorAll('button') as ArrayLike<Box & { textContent: string | null; getAttribute(n: string): string | null }>).find((b) => (b.getAttribute('aria-label') ?? b.textContent?.trim() ?? '').startsWith('Log set')) ?? null;
-    return { row: rel(root.querySelector('[data-set-id]')), log: rel(log) };
+    return { row: rel(root.querySelector('[data-set-id]')), log: log ? Math.round(root.getBoundingClientRect().bottom - log.getBoundingClientRect().bottom) : -1 };
   });
 /** Waits until `target` lies inside the card's visible box (the card scrolled to reveal it). */
 async function expectRevealed(card: Locator, target: Locator) {
@@ -495,6 +497,18 @@ describe('Specs: Cardio card (P7.5; FR13, AC15, NG3)', () => {
     expect(await valueOf(card, 'Distance km')).toBe(3);
     await pwExpect(logBtn(card)).toBeVisible();
     await pwExpect(btn(card, 'Skip this')).toBeVisible();
+  });
+
+  it('shows "Warm-up" or "Finisher" under the title, not in a counter slot beside it', async () => {
+    const before = await onStep(cardioPlan(), 0);
+    const heading = before.card.getByRole('heading');
+    const sub = before.card.getByText('Warm-up', { exact: true });
+    await pwExpect(sub).toBeVisible();
+    const [h, sb] = [(await heading.boundingBox())!, (await sub.boundingBox())!];
+    expect(sb.y).toBeGreaterThanOrEqual(h.y + h.height - 1); // under the title
+    await before.v.page.close();
+    const after = await onStep(plan([squat(), bench()], [cardio('c2', 'after', { plannedMin: 10 })]), 2);
+    await pwExpect(after.card.getByText('Finisher', { exact: true })).toBeVisible();
   });
 
   it('a block without a planned distance shows "Planned m min" only and starts with no distance', async () => {

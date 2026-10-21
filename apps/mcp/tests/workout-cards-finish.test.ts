@@ -38,7 +38,7 @@ const finishWith =
 async function onFinish(p: WorkoutPlan, o: HostOptions = {}) {
   const v = await openView(p, o);
   await jumpTo(v, total(p) - 1);
-  await expect.poll(() => counterText(v)).toBe(`${total(p)} / ${total(p)}`);
+  await expect.poll(() => counterText(v)).toBe(`${total(p)} of ${total(p)}`);
   await wait(LOCK);
   return { v, card: finishCard(v) };
 }
@@ -59,9 +59,9 @@ describe('Specs: Finish card rule 1, before finishing (P8.1; FR14, FR15, AC7)', 
   it('lists what is not done and skipped, and asks before ending early', async () => {
     const { v, card } = await onFinish(oneOpen());
     await pwExpect(card).toContainText('Not done');
-    await pwExpect(card).toContainText('Squat set 2');
+    await pwExpect(card).toContainText('Squat: set 2');
     await pwExpect(card).toContainText('Skipped');
-    await pwExpect(card).toContainText('Bench Press set 1');
+    await pwExpect(card).toContainText('Bench Press: set 1');
     await pwExpect(btn(card, 'Finish and send to Claude')).toHaveCount(0);
     await btn(card, 'Finish early').click();
     await pwExpect(card).toContainText('End the workout now? 2 sets are not done.');
@@ -77,7 +77,7 @@ describe('Specs: Finish card rule 1, before finishing (P8.1; FR14, FR15, AC7)', 
     await btn(card, 'Finish early').click();
     await wait(LOCK);
     await btn(card, 'Keep training').click();
-    await expect.poll(() => counterText(v)).toBe(`2 / ${total(p)}`);
+    await expect.poll(() => counterText(v)).toBe(`2 of ${total(p)}`);
     await pwExpect(btn(card, 'Finish early')).toBeVisible();
     expect(finishCalls(v)).toHaveLength(0);
   });
@@ -95,6 +95,28 @@ describe('Specs: Finish card rule 1, before finishing (P8.1; FR14, FR15, AC7)', 
     const { card } = await onFinish(allClosed(), { tools: finishWith(true) });
     await pwExpect(card).not.toContainText('New best');
     await pwExpect(card).not.toContainText('No new bests');
+  });
+
+  it('groups what is not done and skipped by exercise, one line each, with open warm-ups, and previews what will be sent', async () => {
+    const p = plan([
+      ex('Squat', [set('w1', { warmup: true }), closed('1', { reps: 5, weightKg: 100 }), closed('2', { reps: 5, weightKg: 100 })]),
+      ex('Pullups', [set('1', { weightKg: undefined }), set('2', { weightKg: undefined })], { bodyweight: true }),
+      ex('Bench Press', [closed('1', { reps: 8, weightKg: 50 }), skipped('2')]),
+    ], [cardio('c1', 'after', { done: true, minutes: 10 })]);
+    const { card } = await onFinish(p);
+    const lines = (title: string) => card.locator(`p:has(strong:text-is("${title}")) .block`).allTextContents();
+    expect(await lines('Not done')).toEqual(['Squat: warm-up 1', 'Pullups: 2 sets']);
+    expect(await lines('Skipped')).toEqual(['Bench Press: set 2']);
+    await pwExpect(card).toContainText('Will send: 3 sets, ~1,400 kg, cardio 10 min');
+  });
+
+  it('the confirm pair is stacked at full width and neither label wraps at 375 px', async () => {
+    const { card } = await onFinish(oneOpen(), { width: 375 });
+    await btn(card, 'Finish early').click();
+    for (const name of ['End and send to Claude', 'Keep training']) {
+      const b = (await btn(card, name).boundingBox())!;
+      expect(b.height).toBeLessThanOrEqual(56); // one line
+    }
   });
 
   it('lists an open cardio block with the open sets', async () => {
@@ -183,11 +205,110 @@ describe('Specs: Finish card rule 4, send failure (P8.4; FR14, AC21)', () => {
   });
 });
 
+describe('Specs: Summary (A11)', () => {
+  const summaryWith = (extra: Record<string, unknown>, name = 'Squat', done = '2×5 @ 82.5 kg') => (tool: string): Record<string, unknown> | undefined =>
+    tool === 'finish_workout' ? { content: [{ type: 'text', text: 'Finished.' }], structuredContent: { minutes: 34, volumeKg: 825, exercises: [{ name, done }], ...extra } } : undefined;
+  const lifted = (weight: number, reps: number, lastTime = '3×5 @ 80 kg (2026-10-09)') => plan([ex('Squat', [closed('1', { reps, weightKg: weight }), closed('2', { reps, weightKg: weight })], { lastTime })]);
+  const finishOn = async (p: WorkoutPlan, tools: HostOptions['tools']) => {
+    const { card } = await onFinish(p, { tools });
+    if (await btn(card, 'Finish early').count()) {
+      await btn(card, 'Finish early').click();
+      await wait(LOCK);
+      await btn(card, 'End and send to Claude').click();
+    } else await btn(card, 'Finish and send to Claude').click();
+    await pwExpect(card.getByRole('heading', { name: 'Workout finished' })).toBeVisible();
+    return card;
+  };
+
+  it('an exercise line is in the one notation, with how it compares to last time when that can be read', async () => {
+    const heavier = await finishOn(lifted(82.5, 5), summaryWith({}));
+    await pwExpect(heavier).toContainText('Squat 5, 5 × 82.5 kg');
+    await pwExpect(heavier).toContainText('+2.5 kg vs 9 Oct');
+  });
+
+  it('says "+1 rep vs …" at the same weight', async () => {
+    await pwExpect(await finishOn(lifted(80, 6), summaryWith({}))).toContainText('+1 rep vs 9 Oct');
+  });
+
+  it('says "same as 9 Oct" for the same sets, and gives no comparison when last time cannot be read', async () => {
+    const same = await finishOn(lifted(80, 5), summaryWith({}));
+    await pwExpect(same).toContainText('same as 9 Oct');
+  });
+
+  it('says nothing about a lighter day: no "vs", no minus sign, no "same as"', async () => {
+    const card = await finishOn(lifted(65, 5), summaryWith({}, 'Squat', '2×5 @ 65 kg'));
+    await pwExpect(card).toContainText('Squat 5, 5 × 65 kg');
+    await pwExpect(card).not.toContainText(' vs ');
+    await pwExpect(card).not.toContainText('same as');
+    await pwExpect(card).not.toContainText('−');
+  });
+
+  it('gives no comparison when last time cannot be read', async () => {
+    const odd = await finishOn(lifted(82.5, 5, 'held a while (2026-10-09)'), summaryWith({}));
+    await pwExpect(odd).not.toContainText(' vs ');
+    await pwExpect(odd).not.toContainText('same as');
+  });
+
+  it('puts "New best" in its own block, with a text heading, above the exercise lines', async () => {
+    const card = await finishOn(lifted(82.5, 5), summaryWith({ exercises: [{ name: 'Squat', done: '2×5 @ 82.5 kg', personalRecord: 'new best estimated 1RM: 96.3 kg (was 90)' }] }));
+    const heading = card.getByRole('heading', { name: 'New best' });
+    await pwExpect(heading).toBeVisible();
+    const line = card.getByText('Squat 5, 5 × 82.5 kg');
+    expect((await heading.boundingBox())!.y).toBeLessThan((await line.boundingBox())!.y);
+  });
+
+  it('groups skipped and not-done sets by exercise and shows cardio with minutes, distance and "~kcal"', async () => {
+    const p = plan([ex('Squat', [closed('1'), skipped('2'), set('3')]), ex('Pullups', [skipped('1'), skipped('2')], { bodyweight: true })]);
+    const card = await finishOn(p, summaryWith({ cardio: [{ activity: 'Running', when: 'after', minutes: 10, distanceKm: 1.5, kcal: 130 }] }));
+    await pwExpect(card).toContainText('Squat: set 2');
+    await pwExpect(card).toContainText('Squat: set 3');
+    await pwExpect(card).toContainText('Pullups: 2 sets');
+    await pwExpect(card).toContainText('Running 10 min · 1.5 km · ~130 kcal');
+  });
+});
+
+describe('Specs: Reopening a finished workout (A11)', () => {
+  it('shows the summary at once with "Loading the summary…", never "End of workout" or "Saving…", then fills it in', async () => {
+    const p = plan([ex('Squat', [closed('1', { weightKg: 80 }), closed('2', { weightKg: 80 })])], [], { finished: true });
+    const v = await openView(p, { tools: finishWith(true), delay: (name) => (name === 'finish_workout' ? 1500 : 0) });
+    const card = finishCard(v);
+    await pwExpect(card.getByRole('heading', { name: 'Workout finished' })).toBeVisible();
+    await pwExpect(card).toContainText('Loading the summary…');
+    await pwExpect(card).toContainText('Squat');
+    await pwExpect(card).not.toContainText('Saving…');
+    await pwExpect(card.getByRole('heading', { name: 'End of workout' })).toHaveCount(0);
+    await pwExpect(card).not.toContainText('Loading the summary…');
+    await pwExpect(card.getByRole('heading', { name: 'New best' })).toBeVisible();
+  });
+
+  it('has one "Try again" when the summary cannot be loaded, and Try again does not flash "Saving…"', async () => {
+    const p = plan([ex('Squat', [closed('1', { weightKg: 80 }), closed('2', { weightKg: 80 })])], [], { finished: true });
+    let fails = true;
+    const v = await openView(p, { tools: (name) => (name === 'finish_workout' && fails ? { content: [{ type: 'text', text: 'no' }], isError: true } : finishWith(true)(name)), delay: (name) => (name === 'finish_workout' ? 300 : 0) });
+    const card = finishCard(v);
+    await pwExpect(card).toContainText('Could not load the full summary. Try again');
+    expect(await card.getByText(/Try again/).count()).toBe(1);
+    await pwExpect(card).toContainText('New bests could not be checked.');
+    fails = false;
+    await wait(LOCK);
+    await btn(card, 'Try again').click();
+    await pwExpect(card).toContainText('Loading the summary…');
+    await pwExpect(card).not.toContainText('Saving…');
+    await pwExpect(card.getByRole('heading', { name: 'New best' })).toBeVisible();
+  });
+
+  it('the fallback summary keeps the cardio', async () => {
+    const p = plan([ex('Squat', [closed('1', { weightKg: 80 })])], [cardio('c1', 'after', { name: 'Running', done: true, minutes: 12, distanceKm: 2 })], { finished: true });
+    const v = await openView(p, { finish: 'error' });
+    await pwExpect(finishCard(v)).toContainText('Running 12 min · 2 km');
+  });
+});
+
 describe('Specs: Opening and resume rule 4, a finished workout (P8.5; FR2, AC12)', () => {
   it('opens on Finish, refetches the summary once and sends nothing to Claude', async () => {
     const p = plan([ex('Squat', [closed('1'), closed('2')])], [], { finished: true });
     const v = await openView(p, { tools: finishWith(true) });
-    await expect.poll(() => counterText(v)).toBe(`${total(p)} / ${total(p)}`);
+    await expect.poll(() => counterText(v)).toBe(`${total(p)} of ${total(p)}`);
     const card = finishCard(v);
     await pwExpect(card.getByRole('heading', { name: 'Workout finished' })).toBeVisible();
     await pwExpect(card.getByRole('heading', { name: 'New best' })).toBeVisible();
@@ -201,7 +322,7 @@ describe('Specs: Opening and resume rule 4, a finished workout (P8.5; FR2, AC12)
     let fails = true;
     const v = await openView(p, { tools: (name) => (name === 'finish_workout' && fails ? { content: [{ type: 'text', text: 'no' }], isError: true } : finishWith(true)(name)) });
     const card = finishCard(v);
-    await expect.poll(() => counterText(v)).toBe(`${total(p)} / ${total(p)}`);
+    await expect.poll(() => counterText(v)).toBe(`${total(p)} of ${total(p)}`);
     await pwExpect(card).toContainText('Could not load the full summary. Try again');
     await pwExpect(card).toContainText('Squat');
     await pwExpect(card.getByRole('heading', { name: 'New best' })).toHaveCount(0);
@@ -215,7 +336,7 @@ describe('Specs: Opening and resume rule 4, a finished workout (P8.5; FR2, AC12)
 
   it('a workout whose steps are all closed but not finished is not finished by opening it', async () => {
     const v = await openView(allClosed(), { tools: finishWith(false) });
-    await expect.poll(() => counterText(v)).toBe('3 / 3');
+    await expect.poll(() => counterText(v)).toBe('3 of 3');
     await wait(LOCK);
     expect(finishCalls(v)).toHaveLength(0);
     expect(v.messages).toHaveLength(0);
@@ -229,31 +350,71 @@ describe('Specs: Finish card rule 5, read-only after finish (P8.6; FR17, AC16)',
     const v = await openView(p, { tools: finishWith(false) });
     for (let k = 1; k < total(p) - 1; k++) {
       await jumpTo(v, k);
-      await expect.poll(() => counterText(v)).toBe(`${k + 1} / ${total(p)}`);
+      await expect.poll(() => counterText(v)).toBe(`${k + 1} of ${total(p)}`);
       const card = cardsOf(v).nth(k);
       for (const name of [/^Log set/, /^Skip set/, /^Swap$/, /^Edit/, /^Note$/, /^Edit note$/, /^Log cardio/, /^Skip this/, /^Increase /, /^Skip rest/, /^Save changes/]) {
         await pwExpect(card.getByRole('button', { name })).toHaveCount(0);
       }
     }
     await jumpTo(v, 0);
-    await expect.poll(() => counterText(v)).toBe(`1 / ${total(p)}`);
+    await expect.poll(() => counterText(v)).toBe(`1 of ${total(p)}`);
   });
 });
 
 describe('Specs: Honest saving (P8.7; FR16, AC9)', () => {
-  it('shows "1 change not saved. Try again." only while a save is failing, and Try again clears it once it works', async () => {
+  it('shows "1 set not saved. Try again." only while a save is failing, and Try again clears it once it works', async () => {
     let fail = true;
     const p = plan([ex('Squat', [set('1'), set('2')])]);
     const v = await openView(p, { tools: (name) => (name === 'log_set' && fail ? { content: [{ type: 'text', text: 'no' }], isError: true } : undefined) });
     await jumpTo(v, 1);
-    await expect.poll(() => counterText(v)).toBe(`2 / ${total(p)}`);
+    await expect.poll(() => counterText(v)).toBe(`2 of ${total(p)}`);
     await wait(LOCK);
     await pwExpect(v.frame.getByRole('button', { name: 'Try again' })).toHaveCount(0);
     await btn(cardsOf(v).nth(1), 'Log set').click();
-    await pwExpect(v.frame.getByText(/1 change not saved\./).first()).toBeVisible();
+    await pwExpect(v.frame.getByText(/1 set not saved\./).first()).toBeVisible();
     fail = false;
     await v.frame.getByRole('button', { name: 'Try again' }).click();
     await pwExpect(v.frame.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+  });
+
+  it('a set whose save failed says "not saved" in its row, next to its ✓, and the header says "1 set not saved."; a retry clears both (A12)', async () => {
+    let fail = true;
+    const p = plan([ex('Squat', [set('1'), set('2'), set('3')], { restSec: 0 })]);
+    const v = await openView(p, { tools: (name) => (name === 'log_set' && fail ? { content: [{ type: 'text', text: 'no' }], isError: true } : undefined) });
+    await jumpTo(v, 1);
+    await expect.poll(() => counterText(v)).toBe(`2 of ${total(p)}`);
+    await wait(LOCK);
+    const card = cardsOf(v).nth(1);
+    const row = (id: string) => card.locator(`[data-set-id="${id}"]`);
+    await btn(card, 'Log set').click();
+    await pwExpect(row('1')).toContainText('✓');
+    await pwExpect(row('1')).toContainText('not saved');
+    await pwExpect(row('1').getByRole('button')).toHaveAttribute('aria-label', /not saved/);
+    await pwExpect(v.frame.locator('.status-line').filter({ hasText: '1 set not saved.' })).toBeVisible();
+    await wait(LOCK);
+    await btn(card, 'Log set').click();
+    await pwExpect(row('2')).toContainText('not saved');
+    await pwExpect(v.frame.locator('.status-line').filter({ hasText: '2 sets not saved.' })).toBeVisible();
+    fail = false;
+    await v.frame.getByRole('button', { name: 'Try again' }).click();
+    await pwExpect(row('1')).not.toContainText('not saved');
+    await pwExpect(row('2')).not.toContainText('not saved');
+    await pwExpect(row('1')).toContainText('✓');
+    await pwExpect(v.frame.locator('.status-line')).toBeHidden();
+  });
+
+  it('a skipped set whose save failed says "not saved" too, and a saved row never does (A12)', async () => {
+    const p = plan([ex('Squat', [set('1'), set('2')], { restSec: 0 })]);
+    const v = await openView(p, { tools: (name, args) => (name === 'log_set' && args.skip ? { content: [{ type: 'text', text: 'no' }], isError: true } : undefined) });
+    await jumpTo(v, 1);
+    await expect.poll(() => counterText(v)).toBe(`2 of ${total(p)}`);
+    await wait(LOCK);
+    const card = cardsOf(v).nth(1);
+    await btn(card, 'Log set').click();
+    await wait(LOCK);
+    await btn(card, 'Skip set').click();
+    await pwExpect(card.locator('[data-set-id="2"]')).toContainText('skipped · not saved');
+    await pwExpect(card.locator('[data-set-id="1"]')).not.toContainText('not saved');
   });
 
   it('a set logged while another save is in flight is saved without another tap', async () => {
@@ -284,7 +445,7 @@ describe('Specs: Progress sharing and finish message (P8.8; FR21, AC22)', () => 
     const p = plan([ex('Squat', [set('1'), set('2'), set('3')], { restSec: 0 })]);
     const v = await openView(p);
     await jumpTo(v, 1);
-    await expect.poll(() => counterText(v)).toBe(`2 / ${total(p)}`);
+    await expect.poll(() => counterText(v)).toBe(`2 of ${total(p)}`);
     await wait(LOCK);
     const card = cardsOf(v).nth(1);
     await btn(card, 'Log set').click();

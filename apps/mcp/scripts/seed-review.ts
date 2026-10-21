@@ -13,6 +13,7 @@
 // weekly review and the meal plan always show the current weeks. Sign-in for this address is REVIEW_LOGIN
 // (see REVIEW.md); the account must not be in ADMIN_EMAILS.
 import { addDays, dayDiff } from '@fitwell/core/domain/dates';
+import { friendlyFoodName } from '@fitwell/core/domain/foodNames';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -84,7 +85,9 @@ await tool('update_profile', {
 await tool('set_goals', { kcal: 2300, protein_g: 150, carbs_g: 250, fat_g: 75, workouts_per_week: 3, goal_weight_kg: 78 });
 
 // --- Foods: Frida ids found through search_foods by their exact name, so the seed follows the bundled data -------
-async function food(name: string) {
+// Search shows Frida names cleaned for reading (friendlyFoodName), so match on that form.
+async function food(frida: string) {
+  const name = friendlyFoodName(frida);
   const { foods } = (await tool('search_foods', { query: name, limit: 25 })) as { foods: { id: string; name: string }[] };
   const hit = foods.find((f) => f.name === name);
   if (!hit) throw new Error(`No food named "${name}"; search found: ${foods.map((f) => f.name).join('; ')}`);

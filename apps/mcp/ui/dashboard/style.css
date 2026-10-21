@@ -1,4 +1,5 @@
 @import '../shared/pager.css';
+@import '../shared/chart.css';
 /* Host variables (MCP Apps) first, Fitwell's own calm defaults as fallbacks. */
 :root {
   color-scheme: light dark;
@@ -50,18 +51,6 @@ button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: grid; gap: 8px; }
 .headline { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .headline small { font-size: 0.9rem; font-weight: 400; color: var(--muted); }
-
-svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
-svg .axis { stroke: var(--border); stroke-width: 1; }
-svg .grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 3; }
-svg text { fill: var(--muted); font-size: 10px; font-family: var(--font); }
-svg .dot { fill: var(--accent); opacity: 0.35; }
-svg .dotfull { fill: var(--accent); }
-svg .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
-svg .goal { stroke: var(--text); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.7; }
-svg .bar { fill: var(--accent); }
-svg .bar2 { fill: var(--series-2); }
-svg .spark { fill: none; stroke: var(--accent); stroke-width: 2; }
 
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }

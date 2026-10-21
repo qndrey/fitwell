@@ -440,18 +440,6 @@ const bridge = new AppBridge(
 bridge.onsizechange = ({ height }) => {
   if (height) iframe.style.height = `${height}px`;
 };
-bridge.oncalltool = async (params) => {
-  if (
-    (params.name === "log_set" && fail.value === "log") ||
-    (params.name === "finish_workout" && fail.value === "finish")
-  ) {
-    log("failing", params.name);
-    return failed(params.name);
-  }
-  return (await client.callTool(params)) as Awaited<
-    ReturnType<NonNullable<typeof bridge.oncalltool>>
-  >;
-};
 bridge.onopenlink = async (params) => {
   log("open link", params.url);
   return {};
@@ -477,3 +465,19 @@ await bridge.connect(
     iframe.contentWindow as never,
   ),
 );
+// connect() installs its own tools/call forwarder when the server has tools, replacing any handler set before it, so the failure
+// switches are put in after it (set before, ?fail=log and ?fail=finish never applied).
+bridge.oncalltool = undefined;
+bridge.oncalltool = async (params) => {
+  if (
+    (params.name === "log_set" && fail.value === "log") ||
+    (params.name === "finish_workout" && fail.value === "finish")
+  ) {
+    log("failing", params.name);
+    return failed(params.name);
+  }
+  return (await client.callTool(params)) as Awaited<
+    ReturnType<NonNullable<typeof bridge.oncalltool>>
+  >;
+};
+

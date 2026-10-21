@@ -1,7 +1,7 @@
 // Regenerates the screenshots of the About page (apps/landing/site/src/assets) from the views, the way Claude embeds them.
 // Needs the demo person's data in the local database, `npm run dev` (wrangler, :8787) and `npm run dev:host` (:8788) running.
 // Run: npx tsx scripts/screenshots.ts [name ...]     (no names = all shots, each in light and dark; names as listed in SHOTS and PAGES)
-import { chromium, type Frame, type Page } from 'playwright';
+import { chromium, type Browser, type Frame, type Page } from 'playwright';
 import { expect } from 'playwright/test';
 import { execFileSync } from 'node:child_process';
 import type { ConsentDescription } from '@cloudflare/workers-oauth-provider';
@@ -36,24 +36,35 @@ interface Shot {
   clip?: number;
   /** Steps run in the view before the shot. */
   steps?: (f: Frame, page: Page) => Promise<void>;
+  /** Makes the dev host fail these calls: ?fail=log, send or finish. */
+  fail?: string;
   /** Calorie goal to have while shooting. */
   kcalGoal?: number;
   /** Also save the image under these names. */
   copyTo?: string[];
 }
 
-const click = (f: Frame, name: string | RegExp, exact = true) => f.getByRole('button', { name, exact }).first().click();
-const bodyText = (f: Frame) => f.locator('body').innerText();
+/** The card in view: the player draws every card, and the ones off screen are inert, so text checks and clicks look only here. */
+const card = (f: Frame) => f.locator('section.pcard:not([inert])');
+// A script click instead of a pointer click: Playwright scrolls the card to "centre" a button that sits at its edge (the dock), which no
+// finger does, and the shot would show a card scrolled by the tool.
+const click = (f: Frame, name: string | RegExp, exact = true) => card(f).getByRole('button', { name, exact }).first().evaluate((el) => (el as unknown as { click(): void }).click());
+const bodyText = (f: Frame) => card(f).innerText();
 const PAUSE = 750; // longer than the player's tap guard after a state change (600 ms)
 /** The workout's duration is computed on the server from its stored start: make the workout in progress start that many minutes ago. */
 const backdate = (minutes: number) => sqlite(`update workouts set started_at = started_at - ${minutes * 60_000} where created_at >= ${startedAt} and finished_at is null;`);
-/** Logs sets, skips rests and finishes cardio blocks until `done` matches the page text (at most `max` clicks). */
+/** From the Overview: the Start button opens the first exercise's card. */
+const start = async (f: Frame, page: Page) => {
+  await click(f, /^(Start|Continue):/, false);
+  await page.waitForTimeout(PAUSE);
+};
+/** Logs sets, skips rests and finishes cardio blocks on the card in view until its text matches `done` (at most `max` clicks). */
 async function work(f: Frame, page: Page, done: RegExp, max = 40) {
   for (let i = 0; i < max && !done.test(await bodyText(f)); i++) {
-    for (const name of [/^Skip rest$/, /^Start (set|warm-up)/, /^Log set/, /^Log cardio$/]) {
-      const b = f.getByRole('button', { name }).first();
+    for (const name of [/^Skip rest$/, /^(Start|Continue):/, /^Log set/, /^Log cardio$/]) {
+      const b = card(f).getByRole('button', { name }).first();
       if (await b.isVisible().catch(() => false)) {
-        await b.click();
+        await b.evaluate((el) => (el as unknown as { click(): void }).click());
         break;
       }
     }
@@ -82,17 +93,33 @@ export const SHOTS: Shot[] = [
   { name: 'muscles', clip: 535, view: 'muscles', args: { weeks: 4 } },
   { name: 'guide-legpress', view: 'exercise', args: { query: 'leg press' } },
   { name: 'guide-squat', clip: 500, view: 'exercise', args: { query: 'barbell squat' } },
+  { name: 'overview', view: 'workout', args: FULL },
   { name: 'hero-squat', clip: 660, view: 'workout', args: { ...FULL, exercises: [squat({ weight_kg: undefined }), ...FULL.exercises.slice(1)] } },
-  { name: 'player-rest', view: 'workout', args: FULL, steps: async (f, page) => (await click(f, /^Log set/, false), page.waitForTimeout(PAUSE), undefined) },
-  { name: 'rest-next', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 1 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => (await click(f, /^Log set/, false), page.waitForTimeout(PAUSE), undefined) },
+  // The exercise card of the squat, rest running after set 1 of 2.
+  { name: 'player-rest', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); } },
+  // There is no rest after an exercise's last set (the pager moves on), so the rest zone with its "Next:" line needs a second set to come.
+  { name: 'rest-next', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 3 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); } },
+  // The 3 s after a rest ran out (a 3 s rest): "Rest over" in the zone, "Start set 2" in the dock.
+  { name: 'rest-over', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 3, rest_sec: 3 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(4200); } },
+  // A finished exercise (pullups) with the squat still open behind it: "Back to Barbell Squat · 2 sets left" above "Go to ...".
+  { name: 'done-back', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await f.getByRole('button', { name: /^Next card/ }).click(); await page.waitForTimeout(PAUSE); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE * 2); await f.getByRole('button', { name: /^Previous card/ }).click(); await page.waitForTimeout(PAUSE); } },
+  // The Finish card with sets left, asking before ending: what is not done by exercise, what will be sent, the confirm pair stacked.
+  { name: 'finish-open', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); for (let k = 0; k < 3; k++) { await f.getByRole('button', { name: /^Next card/ }).click(); await page.waitForTimeout(PAUSE); } await click(f, 'Finish early'); await page.waitForTimeout(300); } },
+  // log_set fails (dev host ?fail=log): "not saved" in the row and "1 set not saved." in the header.
+  { name: 'save-failed', view: 'workout', args: FULL, fail: 'log', steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE * 2); } },
   { name: 'player-summary', view: 'workout', args: FULL, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/); await page.clock.fastForward(45 * 60_000); backdate(45); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
-  { name: 'warmup', fitTo: 600, view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); await click(f, 'Skip rest'); await page.waitForTimeout(PAUSE); } },
-  { name: 'working', view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await work(f, page, /Set 1 of 2/i); } },
-  { name: 'superset', view: 'workout', args: A2, steps: async (f, page) => { await work(f, page, /superset/i, 60); } },
-  { name: 'timed', view: 'workout', args: { name: 'Core', exercises: [{ id: 'ex:Plank', sets: 1, seconds: 10, rest_sec: 90 }] }, steps: async (f, page) => { await click(f, /Start a \d+ s timer/, false); await page.waitForTimeout(1200); } },
-  { name: 'swap', view: 'workout', args: FULL, steps: async (f, page) => { await click(f, 'Swap'); await page.waitForTimeout(1500); } },
-  { name: 'note', view: 'workout', args: FULL, steps: async (f, page) => { await click(f, 'Note'); await f.locator('textarea').fill('seat 4'); await click(f, 'Save note'); await page.waitForTimeout(300); } },
-  { name: 'guide-in-player', view: 'workout', args: FULL, steps: async (f, page) => { await click(f, 'How to do it'); await page.waitForTimeout(3500); } },
+  // Warm-up 1 logged and its rest skipped: warm-up 2 opens with its own ramp values.
+  { name: 'warmup', fitTo: 700, view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); await click(f, 'Skip rest'); await page.waitForTimeout(PAUSE); } },
+  // The first working set, after the warm-up ramp.
+  { name: 'working', view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 102.5, warmup: true })] }, steps: async (f, page) => { await work(f, page, /Set 1 of 2 · target/); } },
+  // The second exercise of the superset, just after the first one's set: "Straight on, no rest".
+  { name: 'superset', view: 'workout', args: A2, steps: async (f, page) => { await work(f, page, /Straight on/, 60); } },
+  // The hold running: the time left in the zone, Cancel and "Stop · log" in the dock.
+  { name: 'timed', view: 'workout', args: { name: 'Core', exercises: [{ id: 'ex:Plank', sets: 1, seconds: 10, rest_sec: 90 }] }, steps: async (f, page) => { await start(f, page); await click(f, /Start a \d+ s timer/, false); await page.waitForTimeout(PAUSE); await click(f, 'Start now'); await page.waitForTimeout(3200); } },
+  { name: 'swap', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, 'Swap'); await page.waitForTimeout(1500); } },
+  { name: 'note', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, 'Note'); await f.locator('textarea').fill('seat 4'); await click(f, 'Save note'); await page.waitForTimeout(300); } },
+  { name: 'guide-in-player', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, 'How to do it'); await page.waitForTimeout(3500); } },
+  // The cardio finisher card, after the squat's only set.
   { name: 'cardio', view: 'workout', args: { name: 'Squat and run', exercises: [squat({ sets: 1 })], cardio: [{ activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /\bMinutes\b/, 6); } },
   { name: 'summary-cardio', view: 'workout', args: { ...FULL, cardio: [{ activity_id: 'act:row-machine', minutes: 5, when: 'before' }, { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/, 60); await page.clock.fastForward(52 * 60_000); backdate(52); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
   { name: 'food', view: 'food', args: { day: '2026-10-13', slot: 'lunch', items: [{ food_id: 'frida:59', grams: 80 }, { food_id: 'frida:413', grams: 120 }] }, kcalGoal: GOAL_2300 },
@@ -102,6 +129,7 @@ async function shoot(page: Page, shot: Shot, theme: Theme) {
   if (shot.kcalGoal) sqlite(`update goals set kcal = ${shot.kcalGoal}, carbs_g = ${Math.round((shot.kcalGoal - 600 - 675) / 4)};`);
   const q = new URLSearchParams({ view: shot.view, theme });
   if (shot.sample) q.set('sample', shot.sample);
+  if (shot.fail) q.set('fail', shot.fail);
   if (shot.args) q.set('args', JSON.stringify(shot.args));
   await page.emulateMedia({ colorScheme: theme });
   await page.goto(`${HOST}/?${q}`);
@@ -172,27 +200,38 @@ const PAGES: { name: string; html: () => Promise<string>; steps?: (page: Page) =
 const emailPageTitle = 'Sign in to Fitwell';
 
 const wanted = process.argv.slice(2);
-cleanUp();
-const browser = await chromium.launch();
-if (!existsSync(OUT)) throw new Error(`${OUT} does not exist`);
-for (const [shot, theme] of SHOTS.filter((s) => !wanted.length || wanted.includes(s.name)).flatMap((s) => (['light', 'dark'] as const).map((t) => [s, t] as const))) {
-  // A fresh context per shot: the fake clock of one (a workout fast-forwarded 45 minutes) must not leak into the next.
-  const context = await browser.newContext({ viewport: { width: WIDTH + 24, height: 900 }, deviceScaleFactor: 2 });
-  await context.clock.install();
-  const page = await context.newPage();
-  page.on('pageerror', (e) => console.log('page error:', e.message.slice(0, 300)));
-  await shoot(page, shot, theme);
-  await context.close();
-  cleanUp(); // the next shot must not see this one's workout as history
+// Shots start workouts and log food: whatever happens (an error, Ctrl-C, a kill), they must not stay in the demo account.
+const stop = (code: number) => () => {
+  cleanUp();
+  process.exit(code);
+};
+process.on('SIGINT', stop(130));
+process.on('SIGTERM', stop(143));
+let browser: Browser | undefined;
+try {
+  cleanUp();
+  browser = await chromium.launch();
+  if (!existsSync(OUT)) throw new Error(`${OUT} does not exist`);
+  for (const [shot, theme] of SHOTS.filter((s) => !wanted.length || wanted.includes(s.name)).flatMap((s) => (['light', 'dark'] as const).map((t) => [s, t] as const))) {
+    // A fresh context per shot: the fake clock of one (a workout fast-forwarded 45 minutes) must not leak into the next.
+    const context = await browser.newContext({ viewport: { width: WIDTH + 24, height: 900 }, deviceScaleFactor: 2 });
+    await context.clock.install();
+    const page = await context.newPage();
+    page.on('pageerror', (e) => console.log('page error:', e.message.slice(0, 300)));
+    await shoot(page, shot, theme);
+    await context.close();
+    cleanUp(); // the next shot must not see this one's workout as history
+  }
+  for (const [p, theme] of PAGES.filter((x) => !wanted.length || wanted.includes(x.name)).flatMap((x) => (['light', 'dark'] as const).map((t) => [x, t] as const))) {
+    const context = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 2, colorScheme: theme });
+    const tab = await context.newPage();
+    await tab.setContent(await p.html());
+    await p.steps?.(tab);
+    await tab.locator('main').screenshot({ path: join(OUT, `${p.name}-${theme}.png`) });
+    console.log('wrote', join(OUT, `${p.name}-${theme}.png`));
+    await context.close();
+  }
+} finally {
+  await browser?.close().catch(() => undefined);
+  cleanUp();
 }
-for (const [p, theme] of PAGES.filter((x) => !wanted.length || wanted.includes(x.name)).flatMap((x) => (['light', 'dark'] as const).map((t) => [x, t] as const))) {
-  const context = await browser.newContext({ viewport: { width: 420, height: 900 }, deviceScaleFactor: 2, colorScheme: theme });
-  const tab = await context.newPage();
-  await tab.setContent(await p.html());
-  await p.steps?.(tab);
-  await tab.locator('main').screenshot({ path: join(OUT, `${p.name}-${theme}.png`) });
-  console.log('wrote', join(OUT, `${p.name}-${theme}.png`));
-  await context.close();
-}
-await browser.close();
-cleanUp();

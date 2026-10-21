@@ -37,6 +37,8 @@ export interface Goals {
   /** Daily maximums. */
   satFatG: number | null;
   addedSugarG: number | null;
+  /** Hours of sleep to aim for a night. */
+  sleepH: number | null;
 }
 
 export interface FoodEntry extends Nutrients {
@@ -180,21 +182,22 @@ export class UserData {
       fiberG: (r.fiber_g as number | null) ?? null,
       satFatG: (r.sat_fat_g as number | null) ?? null,
       addedSugarG: (r.added_sugar_g as number | null) ?? null,
+      sleepH: (r.sleep_h as number | null) ?? null,
     };
   }
 
   async setGoals(patch: Partial<Goals>): Promise<Goals> {
-    const empty: Goals = { kcal: null, proteinG: null, carbsG: null, fatG: null, workoutsPerWeek: null, goalWeightKg: null, fiberG: null, satFatG: null, addedSugarG: null };
+    const empty: Goals = { kcal: null, proteinG: null, carbsG: null, fatG: null, workoutsPerWeek: null, goalWeightKg: null, fiberG: null, satFatG: null, addedSugarG: null, sleepH: null };
     const g = { ...empty, ...(await this.goals()), ...patch };
     await this.db
       .prepare(
-        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, fiber_g, sat_fat_g, added_sugar_g, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, fiber_g, sat_fat_g, added_sugar_g, sleep_h, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (user_id) DO UPDATE SET kcal = excluded.kcal, protein_g = excluded.protein_g, carbs_g = excluded.carbs_g,
            fat_g = excluded.fat_g, workouts_per_week = excluded.workouts_per_week, goal_weight_kg = excluded.goal_weight_kg,
-           fiber_g = excluded.fiber_g, sat_fat_g = excluded.sat_fat_g, added_sugar_g = excluded.added_sugar_g, updated_at = excluded.updated_at`,
+           fiber_g = excluded.fiber_g, sat_fat_g = excluded.sat_fat_g, added_sugar_g = excluded.added_sugar_g, sleep_h = excluded.sleep_h, updated_at = excluded.updated_at`,
       )
-      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, g.fiberG, g.satFatG, g.addedSugarG, this.now())
+      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, g.fiberG, g.satFatG, g.addedSugarG, g.sleepH, this.now())
       .run();
     return g;
   }

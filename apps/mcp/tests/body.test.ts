@@ -84,6 +84,37 @@ describe('measurements', () => {
   });
 });
 
+describe('sleep goal', () => {
+  type Goals = { kcal: number | null; sleepH: number | null };
+  const goals = async () => ((await call(client, 'get_profile')).data as unknown as { goals: Goals | null }).goals;
+
+  it('is saved, read back, kept when other goals change, and cleared with null', async () => {
+    await call(client, 'set_goals', { kcal: 2000 });
+    expect((await goals())!.sleepH).toBeNull(); // nothing saved unless given
+    expect(((await call(client, 'set_goals', { sleep_h: 7.5 })).data as unknown as { goals: Goals }).goals).toMatchObject({ kcal: 2000, sleepH: 7.5 });
+    await call(client, 'set_goals', { kcal: 2200 });
+    expect(await goals()).toMatchObject({ kcal: 2200, sleepH: 7.5 });
+    await call(client, 'set_goals', { sleep_h: null });
+    expect((await goals())!.sleepH).toBeNull();
+  });
+
+  it('only accepts 4 to 12 hours', async () => {
+    for (const bad of [3.9, 12.1, 0, -1]) expect((await call(client, 'set_goals', { sleep_h: bad })).isError).toBe(true);
+    for (const ok of [4, 12]) expect((await call(client, 'set_goals', { sleep_h: ok })).isError).toBe(false);
+    expect((await goals())!.sleepH).toBe(12);
+  });
+
+  it('reaches the dashboard data and the summary for Claude, and is null without a goal', async () => {
+    await call(client, 'log_body', { day: '2026-10-19', sleep_hours: 6.5 });
+    const dash = async () => ((await call(client, 'get_dashboard_data', { days: 30 })).data as unknown as { progress: { metrics: { sleep: { goalHours: number | null } } } }).progress.metrics.sleep.goalHours;
+    expect(await dash()).toBeNull();
+    await call(client, 'set_goals', { sleep_h: 8 });
+    expect(await dash()).toBe(8);
+    const summary = (await call(client, 'get_progress', { days: 30 })).data as { dailyMetrics: { sleepGoalHours: number | null } };
+    expect(summary.dailyMetrics.sleepGoalHours).toBe(8);
+  });
+});
+
 describe('progress and dashboard', () => {
   type Dash = { progress: { dataFrom: string | null; weight: { trendKg: number | null; latestKg: number | null; fromGoalKg: number | null }; training: { perWeek: number; weeks: { week: string; partial: boolean }[]; sessions: { strength: number } } } };
   const dashboard = async (days: number) => ((await call(client, 'get_dashboard_data', { days })).data as unknown as Dash).progress;

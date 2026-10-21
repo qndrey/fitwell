@@ -239,8 +239,6 @@ function measurementsCard(p: Progress) {
   );
 }
 
-const SLEEP_TARGET_H = 8;
-
 function habitsCard(p: Progress) {
   const x = p.metrics;
   if (!x.sleep.daily.length && !x.steps.daily.length && !x.water.daily.length) return null;
@@ -256,8 +254,9 @@ function habitsCard(p: Progress) {
     h('h2', {}, 'Sleep, steps and water'),
     tabs.length > 1 && h('div', { className: 'seg', role: 'group', 'aria-label': 'Habit' }, ...tabs.map((t) => h('button', { type: 'button', 'aria-pressed': String(t[0] === kind), onclick: () => { state.habit = t[0]; render(); } }, t[1]))),
     avg !== null && h('p', { className: 'headline' }, `${num(avg, kind === 'steps' ? 0 : 1)} ${unit} `, h('small', {}, `average on ${series.length} logged ${series.length === 1 ? 'day' : 'days'}`)),
-    barChart({ from: startOf(p), to: p.to, days: daysShown(p), label: `${picked[1]} per logged day, ${series.length} days, average ${avg === null ? 'unknown' : num(avg, kind === 'steps' ? 0 : 1)} ${unit}.`, columns: ['Date', `${picked[1]} (${unit})`], points: series, digits: kind === 'steps' ? 0 : 1, reference: kind === 'sleep' ? SLEEP_TARGET_H : undefined }),
-    kind === 'sleep' && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), 'hours slept'), h('span', {}, h('i', { className: 'goalsw' }), `${SLEEP_TARGET_H} h`)),
+    barChart({ from: startOf(p), to: p.to, days: daysShown(p), label: `${picked[1]} per logged day, ${series.length} days, average ${avg === null ? 'unknown' : num(avg, kind === 'steps' ? 0 : 1)} ${unit}.`, columns: ['Date', `${picked[1]} (${unit})`], points: series, digits: kind === 'steps' ? 0 : 1, reference: kind === 'sleep' ? x.sleep.goalHours ?? undefined : undefined }),
+    kind === 'sleep' && avg !== null && x.sleep.goalHours !== null && h('p', { className: 'muted small' }, `Your sleep goal is ${num(x.sleep.goalHours)} h a night.`),
+    kind === 'sleep' && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), 'hours slept'), x.sleep.goalHours !== null && h('span', {}, h('i', { className: 'goalsw' }), `sleep goal ${num(x.sleep.goalHours)} h`)),
   );
 }
 

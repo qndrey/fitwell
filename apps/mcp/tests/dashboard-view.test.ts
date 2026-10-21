@@ -72,3 +72,28 @@ describe('strength card', () => {
     await pwExpect(card.locator('details.lift')).toHaveCount(p.records.exercises.length);
   }, 60_000);
 });
+
+describe('sleep goal in the habits card', () => {
+  async function habits(goal: number | null) {
+    for (const [d, h] of [[-4, 6.5], [-3, 7], [-2, 8], [-1, 7.5]] as const) await call(client, 'log_body', { day: addD(today, d), sleep_hours: h });
+    if (goal !== null) await call(client, 'set_goals', { sleep_h: goal });
+    const v = await open(await progress(30));
+    await v.frame.getByRole('button', { name: 'Habits' }).click();
+    return v.frame.locator('section[aria-label="Sleep, steps and water"]');
+  }
+
+  it('draws the line, the legend entry and the text when there is a goal', async () => {
+    const card = await habits(7.5);
+    await pwExpect(card.getByText('sleep goal 7.5 h')).toBeVisible();
+    await pwExpect(card.getByText('Your sleep goal is 7.5 h a night.')).toBeVisible();
+    await pwExpect(card.locator('svg line.goal')).toHaveCount(1);
+  }, 30_000);
+
+  it('draws no line and makes no claim without a goal', async () => {
+    const card = await habits(null);
+    await pwExpect(card.getByText('hours slept')).toBeVisible();
+    await pwExpect(card.locator('svg line.goal')).toHaveCount(0);
+    await pwExpect(card.getByText(/sleep goal/i)).toHaveCount(0);
+    await pwExpect(card.getByText(/\b8 h\b/)).toHaveCount(0);
+  }, 30_000);
+});

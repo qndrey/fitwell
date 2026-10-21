@@ -59,7 +59,7 @@ export interface MeasurementProgress {
 
 /** Sleep, steps and water: the days the person logged them. Averages are over those days only. */
 export interface MetricsProgress {
-  sleep: { daily: { day: Day; hours: number }[]; averageHours: number | null };
+  sleep: { daily: { day: Day; hours: number }[]; averageHours: number | null; /** The person's sleep goal in hours a night; null when they have none. */ goalHours: number | null };
   steps: { daily: { day: Day; steps: number }[]; average: number | null };
   water: { daily: { day: Day; ml: number }[]; averageMl: number | null };
 }

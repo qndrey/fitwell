@@ -68,6 +68,13 @@ describe('measurements', () => {
     expect((await call(client, 'log_body', { measurements: { 'body-fat': 120 } })).isError).toBe(true);
   });
 
+  it('returns a body-fat trend once there are two readings in two weeks', async () => {
+    const first = await call(client, 'log_body', { measurements: { 'body-fat': 22 }, day: '2026-10-01' });
+    expect((first.data.logged as { bodyFat: { fourteenDayAveragePct: number | null; note?: string } }).bodyFat).toMatchObject({ percent: 22, fourteenDayAveragePct: null });
+    const second = await call(client, 'log_body', { measurements: { 'body-fat': 21 }, day: '2026-10-08' });
+    expect((second.data.logged as { bodyFat: unknown }).bodyFat).toMatchObject({ percent: 21, fourteenDayAveragePct: 21.5 });
+  });
+
   it('shows first-to-latest change per type in the progress report', async () => {
     await call(client, 'log_body', { measurements: { waist: 86, 'body-fat': 22 }, day: '2026-09-20' });
     await call(client, 'log_body', { measurements: { waist: 84.5 }, day: TO });

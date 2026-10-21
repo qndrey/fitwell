@@ -1,7 +1,8 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { WeekReview } from '../../src/analytics/reviewTypes';
+import { buildPager } from '../shared/pager';
 
-const state = { review: null as WeekReview | null, loading: false, error: '' };
+const state = { review: null as WeekReview | null, card: 0, loading: false, error: '' };
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell weekly review', version: '0.1.0' }, {}, { autoResize: true });
@@ -146,7 +147,7 @@ function draw() {
     header,
     h('p', { className: 'muted small' }, `${fmtDay(r.weekStart)} to ${fmtDay(r.weekEnd)}`, r.inProgress && ' ', r.inProgress && h('span', { className: 'pill' }, 'week in progress'), state.loading && ' · updating…'),
     state.error && h('p', { className: 'error small' }, state.error),
-    ...cards,
+    ...buildPager(cards.map((el) => ({ title: el.getAttribute('aria-label') ?? '', el })), state.card, (i) => (state.card = i)),
     h('footer', {}, 'Compared with the same days of the week before. Weight uses the 7-day average.'),
   );
 }

@@ -97,3 +97,20 @@ describe('sleep goal in the habits card', () => {
     await pwExpect(card.getByText(/\b8 h\b/)).toHaveCount(0);
   }, 30_000);
 });
+
+describe('muscle rows', () => {
+  it('say hard sets a week with the level in words, the 10 and 20 ticks, and point to the muscle map', async () => {
+    const sets = (n: number) => Array.from({ length: n }, () => ({ reps: 8, weight_kg: 40 }));
+    for (const off of [-2, -3, -4]) expect((await call(client, 'log_past_workout', { day: addD(today, off), exercises: [{ id: BENCH, sets: sets(8) }, ...(off === -2 ? [{ id: 'ex:Barbell_Squat', sets: sets(4) }] : [])] })).isError).toBe(false);
+    const v = await open(await progress(30));
+    await v.frame.getByRole('button', { name: 'Training' }).click();
+    const card = v.frame.locator('section[aria-label="Training"]');
+    await pwExpect(card.getByText('Hard sets a week, by muscle')).toBeVisible();
+    await pwExpect(card.getByText('Working sets')).toHaveCount(0);
+    await pwExpect(card.locator('.row', { hasText: 'chest' })).toContainText('over 20');
+    await pwExpect(card.locator('.row', { hasText: 'quadriceps' })).toContainText('under 10');
+    await pwExpect(card.locator('.row').first().locator('i.tick')).toHaveCount(2);
+    await pwExpect(card.getByText(/Ask Claude to show the muscle map\./)).toBeVisible();
+    await pwExpect(card.getByText(/1 for the muscles an exercise mainly works and 0\.5/)).toBeVisible();
+  }, 30_000);
+});

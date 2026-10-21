@@ -2,6 +2,7 @@ import type { Client } from '@modelcontextprotocol/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { levelFor, MUSCLE_GROUPS, type MuscleMap } from '../src/analytics/muscles';
 import { BODY_MUSCLES } from '../ui/shared/humanBody';
+import { HEAT } from '../ui/shared/muscleHeat';
 import { createTestEnv } from './support/env';
 import { call, connectAs, signedInUser } from './support/mcp';
 
@@ -50,6 +51,26 @@ describe('muscle map', () => {
     // The model gets the same picture as text.
     expect(res.text).toContain('Over the range: chest 24, last 1 d ago.');
     expect(res.text).toContain('Not trained: abdominals 0');
+  });
+
+  it('counts the same on the dashboard as on the map for the same week', async () => {
+    await seed();
+    const map = ((await call(client, 'show_muscle_map', { weeks: 1, to: '2026-10-11' })).data as unknown as { muscleMap: MuscleMap }).muscleMap;
+    const dash = ((await call(client, 'get_progress', { days: 7, to: '2026-10-11' })).data as unknown as { training: { setsPerWeekByMuscle: { muscle: string; sets: number }[] } }).training.setsPerWeekByMuscle;
+    expect(dash.length).toBeGreaterThanOrEqual(8);
+    for (const d of dash) expect({ muscle: d.muscle, sets: d.sets }).toEqual({ muscle: d.muscle, sets: map.muscles.find((m) => m.muscle === d.muscle)!.setsPerWeek });
+    expect(dash.find((d) => d.muscle === 'chest')!.sets).toBe(24); // 24 sets with chest as the main muscle
+    expect(dash.find((d) => d.muscle === 'shoulders')!.sets).toBe(12); // only ever helping: 0.5 each
+  });
+
+  it('draws "under the range" as a neutral grey in both themes, not blue', () => {
+    for (const theme of ['light', 'dark'] as const) {
+      const c = HEAT[theme].below;
+      const [r, g, b] = [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+      expect(Math.max(r, g, b) - Math.min(r, g, b), `${theme} spread`).toBeLessThanOrEqual(24); // near-equal channels: a grey
+      expect(b, `${theme} is not bluer than red`).toBeLessThanOrEqual(r + 8);
+      expect(c).not.toBe(HEAT[theme].none); // still told apart from "not trained" (and the lists say it in words)
+    }
   });
 
   it('averages over longer periods and says when there is nothing to show', async () => {

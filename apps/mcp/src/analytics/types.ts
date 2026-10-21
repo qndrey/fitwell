@@ -41,7 +41,7 @@ export interface TrainingProgress {
   /** Every workout in the period as a day and a kind, oldest first (a day with two workouts appears twice). */
   days: { day: Day; type: 'strength' | 'cardio' | 'session' }[];
   averageStrengthMin: number | null;
-  /** Working sets per primary muscle, averaged over the full weeks in the period. */
+  /** Hard sets a week per muscle (1 per set for a main muscle, 0.5 for a helping one, as in the muscle map), averaged over the full weeks in the period. */
   setsPerWeekByMuscle: { muscle: string; sets: number }[];
   goalWorkoutsPerWeek: number | null;
 }

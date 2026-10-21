@@ -15,6 +15,9 @@ export interface MuscleMapInput {
   musclesOf: (exerciseRef: string) => { primary: string[]; secondary: string[] };
 }
 
+/** What a set counts for: 1 for a main muscle, 0.5 for a helping one. The dashboard and the map both count this way. */
+export const muscleCredit = (primary: string[], secondary: string[]): (readonly [string, number])[] => [...primary.map((m) => [m, 1] as const), ...secondary.filter((m) => !primary.includes(m)).map((m) => [m, 0.5] as const)];
+
 export const levelFor = (setsPerWeek: number): MuscleLevel => (setsPerWeek <= 0 ? 'none' : setsPerWeek < WEEKLY_SET_RANGE.low ? 'below' : setsPerWeek <= WEEKLY_SET_RANGE.high ? 'in_range' : 'high');
 
 export function buildMuscleMap(i: MuscleMapInput): MuscleMap {
@@ -28,8 +31,7 @@ export function buildMuscleMap(i: MuscleMapInput): MuscleMap {
       const done = e.sets.filter((s) => s.type === 'working' && s.done !== false).length;
       if (!done) continue;
       const { primary, secondary } = i.musclesOf(e.exerciseRef);
-      const credit = [...primary.map((m) => [m, 1] as const), ...secondary.filter((m) => !primary.includes(m)).map((m) => [m, 0.5] as const)];
-      for (const [m, k] of credit) {
+      for (const [m, k] of muscleCredit(primary, secondary)) {
         sets.set(m, (sets.get(m) ?? 0) + done * k);
         const ex = byExercise.get(m) ?? new Map<string, number>();
         ex.set(e.exerciseName, (ex.get(e.exerciseName) ?? 0) + done * k);

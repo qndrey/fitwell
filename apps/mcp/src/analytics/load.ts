@@ -20,7 +20,7 @@ export async function loadProgress(deps: ProgressDeps, days: number, to?: string
   const end = to ?? todayIn(profile.timeZone);
   const from = rangeStart(end, days);
   const lib = await loadExercises();
-  const primary = new Map(lib.exercises.map((e) => [e.ref, e.primary]));
+  const muscles = new Map(lib.exercises.map((e) => [e.ref, { primary: e.primary, secondary: e.secondary }]));
   const [weights, measurements, metrics, nutrition, workouts, goals] = await Promise.all([
     deps.body.weights(from, end),
     deps.body.measurements(from, end),
@@ -31,7 +31,7 @@ export async function loadProgress(deps: ProgressDeps, days: number, to?: string
   ]);
   const weightKg = weights.at(-1)?.kg ?? profile.weightKg;
   const bmrKcal = profile.sex && profile.birthYear && profile.heightCm && weightKg ? bmr({ sex: profile.sex, ageYears: Number(end.slice(0, 4)) - profile.birthYear, heightCm: profile.heightCm, weightKg }) : undefined;
-  return buildProgress({ from, to: end, weights, measurements, metrics, nutrition, workouts, goals, musclesOf: (ref) => primary.get(ref) ?? [], bmrKcal });
+  return buildProgress({ from, to: end, weights, measurements, metrics, nutrition, workouts, goals, musclesOf: (ref) => muscles.get(ref) ?? { primary: [], secondary: [] }, bmrKcal });
 }
 
 export interface ReviewDeps extends ProgressDeps {

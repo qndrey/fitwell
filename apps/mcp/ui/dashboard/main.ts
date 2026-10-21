@@ -3,6 +3,7 @@ import type { Progress } from '../../src/analytics/types';
 import { barChart, consistencyCalendar, crossesYear, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
 import { weekMidpoint } from '../shared/chartMath';
 import { shortName } from '../shared/names';
+import { WEEKLY_SET_RANGE } from '../../src/analytics/muscleTypes';
 import { h } from '../shared/dom';
 import { energyView } from './energy';
 import { buildPager, type PagerCard } from '../shared/pager';
@@ -167,7 +168,10 @@ function trainingCard(p: Progress) {
   const t = p.training;
   const chart = trainingChart(p);
   const total = t.sessions.strength + t.sessions.cardio + t.sessions.session;
-  const maxSets = Math.max(1, ...t.setsPerWeekByMuscle.map((m) => m.sets));
+  const { low, high } = WEEKLY_SET_RANGE;
+  const scale = Math.max(high * 1.1, ...t.setsPerWeekByMuscle.map((m) => m.sets)); // room past 20, so its tick is inside the bar
+  const levelWord = (n: number) => (n < low ? `under ${low}` : n <= high ? `${low}–${high}` : `over ${high}`);
+  const tick = (at: number, of: number) => h('i', { className: 'tick', css: { left: `${(at / of) * 100}%` } });
   return h(
     'section',
     { className: 'card', 'aria-label': 'Training' },
@@ -180,9 +184,16 @@ function trainingCard(p: Progress) {
     total > 0 && h('h2', { className: 'small muted' }, 'Days trained, by week'),
     total > 0 && consistencyCalendar({ weeks: t.weeks.map((w) => w.week), days: t.days, to: p.to, goal: t.goalWorkoutsPerWeek }),
     total > 0 && h('p', { className: 'muted small' }, 'S strength · C cardio · P class · outline: no workout'),
-    t.setsPerWeekByMuscle.length > 0 && h('h2', { className: 'small muted' }, 'Working sets per week, by muscle'),
+    t.setsPerWeekByMuscle.length > 0 && h('h2', { className: 'small muted' }, 'Hard sets a week, by muscle'),
     t.setsPerWeekByMuscle.length > 0 &&
-      h('div', { className: 'rows' }, ...t.setsPerWeekByMuscle.slice(0, 8).map((m) => h('div', { className: 'row' }, h('span', { className: 'name' }, m.muscle), h('span', { className: 'val' }, num(m.sets)), h('div', { className: 'meter', 'aria-hidden': 'true' }, h('span', { css: { width: `${Math.round((m.sets / maxSets) * 100)}%` } }))))),
+      h(
+        'div',
+        { className: 'rows' },
+        ...t.setsPerWeekByMuscle.slice(0, 8).map((m) =>
+          h('div', { className: 'row' }, h('span', { className: 'name' }, m.muscle), h('span', { className: 'val' }, `${num(m.sets)} · ${levelWord(m.sets)}`), h('div', { className: 'meter', 'aria-hidden': 'true' }, h('span', { css: { width: `${Math.min(100, (m.sets / scale) * 100)}%` } }), tick(low, scale), tick(high, scale))),
+        ),
+      ),
+    t.setsPerWeekByMuscle.length > 0 && h('p', { className: 'muted small' }, `A set counts 1 for the muscles an exercise mainly works and 0.5 for the ones that help. The ticks mark ${low} and ${high} hard sets a week, the usual range. Ask Claude to show the muscle map.`),
   );
 }
 

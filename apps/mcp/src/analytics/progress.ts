@@ -1,5 +1,6 @@
 // Progress numbers for Claude and for the dashboard, from a person's stored rows. Pure: no I/O.
 import { sessionMuscleCredit } from '../workout/sessions';
+import { muscleCredit } from './muscles';
 import { PRESETS } from '@fitwell/core/data/measurements';
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import { distanceFromGoal } from '@fitwell/core/domain/body';
@@ -23,8 +24,8 @@ export interface ProgressInput {
   nutrition: DayTotal[];
   workouts: Workout[];
   goals: Goals | null;
-  /** Primary muscles of a library exercise id. */
-  musclesOf: (exerciseRef: string) => string[];
+  /** Main and helping muscles of a library exercise id. */
+  musclesOf: (exerciseRef: string) => { primary: string[]; secondary: string[] };
   /** Basal metabolic rate when the profile allows it: suggested calories never go below it. */
   bmrKcal?: number;
 }
@@ -98,7 +99,8 @@ export function buildProgress(i: ProgressInput): Progress {
     for (const e of w.exercises) {
       const done = e.sets.filter((s) => s.type === 'working' && s.done !== false).length;
       if (!done) continue;
-      for (const m of i.musclesOf(e.exerciseRef)) wk.sets[m] = (wk.sets[m] ?? 0) + done;
+      const { primary, secondary } = i.musclesOf(e.exerciseRef);
+      for (const [m, k] of muscleCredit(primary, secondary)) wk.sets[m] = (wk.sets[m] ?? 0) + done * k;
     }
   }
   for (const w of cardio) {

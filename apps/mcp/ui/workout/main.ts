@@ -1,7 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
-import { buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, formatLastTime, isFresh, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
+import { backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -47,12 +47,20 @@ const state = {
   editing: null as { scope: Scope; kind: Kind } | null,
   /** Timed sets: the countdown before the hold, the running hold (0 when stopped) and the step that owns them. */
   holdUntil: 0,
+  /** When the running hold began, for the seconds held so far. */
+  holdStart: 0,
   readyUntil: 0,
   timerStep: -1,
+  /** The step whose hold ran to zero and has not been logged yet ("Time" shows in its zone). */
+  timerDone: -1,
   /** The one running rest of the workout. */
   rest: null as Rest | null,
   /** The next set's steppers are shown in the rest zone. */
   restChange: false,
+  /** A rest that just ran out: its card says "Rest over" with "Start set n" for 3 s, then shows the set. */
+  restOver: null as { stepIndex: number; until: number } | null,
+  /** The exercise card that shows the "Weight moves in ..." hint: the first one the person opens; the others carry it as a description of the weight value. */
+  hintUid: '',
   /** The exercise whose note is being edited; the textarea exists only then (see notesPanel). */
   noteEditing: '',
   noteSaved: '',
@@ -94,6 +102,15 @@ const pending = new Map<string, () => Promise<boolean>>();
 /** The ones among them whose last try failed: only these are shown to the person (a save in flight is not news). */
 const failed = new Set<string>();
 let flushing = false;
+
+/** "1 set", "2 sets" when only sets failed to save, else "1 change", "3 changes": what the header and the announcement say is not saved. */
+function unsavedText(): string {
+  const sets = [...failed].every((k) => k.startsWith('set:'));
+  const word = sets ? 'set' : 'change';
+  return `${failed.size} ${word}${failed.size === 1 ? '' : 's'}`;
+}
+/** True while the save of this set (logged, skipped or edited) is failing. */
+const setUnsaved = (ex: PlannedExercise, set: PlannedSet) => failed.has(`set:${set.id}:${ex.uid}`);
 let lastFlushAt = 0;
 
 const root = document.getElementById('app')!;
@@ -125,8 +142,14 @@ const locked = () => Date.now() < state.lockUntil;
 
 function startHold(i: number) {
   state.timerStep = i;
-  state.holdUntil = Date.now() + state.drafts[i]!.seconds * 1000;
+  state.holdStart = Date.now();
+  state.holdUntil = state.holdStart + state.drafts[i]!.seconds * 1000;
+  state.timerDone = -1;
 }
+
+/** Whole seconds held so far in the running hold (never more than the target). */
+const heldSeconds = () => clamp(Math.floor((Date.now() - state.holdStart) / 1000), 0, state.drafts[state.timerStep]?.seconds ?? 3600);
+const timerRunning = (i: number) => state.timerStep === i && (state.holdUntil > Date.now() || state.readyUntil > Date.now());
 
 // A short beep when a rest or a hold ends. A browser only allows sound after the person has touched the page, so the audio context is
 // created on the first tap or key press; until then the screen change and the status announcement are the only cues.
@@ -183,7 +206,7 @@ async function flush() {
   } finally {
     flushing = false;
   }
-  if (failed.size > 0) announce(`${failed.size === 1 ? '1 change' : `${failed.size} changes`} not saved.`);
+  if (failed.size > 0) announce(`${unsavedText()} not saved.`);
   render();
 }
 
@@ -217,10 +240,12 @@ function load(plan: WorkoutPlan) {
   state.note = '';
   state.swappedFrom.clear();
   state.rest = null;
+  state.restOver = null;
   state.restChange = false;
   state.edit = null;
   state.editing = null;
   state.timerStep = -1;
+  state.timerDone = -1;
   state.holdUntil = 0;
   state.readyUntil = 0;
   state.straight = null;
@@ -233,7 +258,13 @@ function load(plan: WorkoutPlan) {
   buildShell();
   render();
   if (ui) ui.track.scrollLeft = state.pos * ui.track.clientWidth;
-  if (plan.finished) void finish();
+  if (plan.finished) {
+    // A finished workout opens on its summary at once, from the stored plan; the server's summary fills it in.
+    state.finished = summaryFromPlan();
+    state.summaryNote = 'Loading the summary…';
+    render();
+    void finish();
+  }
 }
 
 /** The notes editor, swap list and guide belong to the card in view; they close when another card comes in. */
@@ -309,7 +340,9 @@ function logSet(i: number, skip = false) {
     state.holdUntil = 0;
     state.readyUntil = 0;
   }
+  if (state.timerDone === i) state.timerDone = -1;
   state.swappedFrom.delete(ex.uid);
+  state.restOver = null;
   state.straight = null;
   state.intent = null;
   state.confirmFinish = false;
@@ -383,6 +416,7 @@ function reopenSet(i: number, set: PlannedSet) {
   set.done = false;
   delete set.skipped;
   state.rest = null;
+  state.restOver = null;
   state.intent = null;
   state.restChange = false;
   state.edit = null;
@@ -466,8 +500,12 @@ function skipRest() {
 }
 
 function endRest() {
+  const ended = state.rest!;
   state.rest = null;
   state.restChange = false;
+  // Counted from the moment the rest ran out, so a rest that ended while the page was in the background shows the set at once.
+  const until = ended.untilMs + 3000;
+  state.restOver = until > Date.now() ? { stepIndex: ended.stepIndex, until } : null;
   lock();
   announce('Rest over.');
   beep(2);
@@ -519,9 +557,14 @@ async function finish() {
   if (state.finishing || (state.plan && !state.plan.finished && locked())) return;
   lock();
   motion?.stop();
-  state.finishing = true;
+  const reopened = !!state.plan!.finished;
   state.confirmFinish = false;
   state.rest = null;
+  if (reopened) {
+    // Reopened or retried: the summary stays on screen while it loads (no "Saving…").
+    state.summaryNote = 'Loading the summary…';
+    state.summaryFailed = false;
+  } else state.finishing = true;
   render();
   if (pending.size > 0) await flush(); // what is still unsaved gets one more try before the workout is closed
   let summary: FinishSummary | null = null;
@@ -534,9 +577,8 @@ async function finish() {
   } catch {
     /* the summary below is built from the stored plan */
   }
-  const reopened = !!state.plan!.finished;
   state.summaryFailed = !summary && reopened;
-  state.summaryNote = summary ? '' : reopened ? 'Could not load the full summary. Try again' : 'Could not load the full summary.';
+  state.summaryNote = summary ? '' : 'Could not load the full summary.'; // the Try again button follows it, so the text does not say it
   state.finished = summary ?? summaryFromPlan();
   state.finishing = false;
   render();
@@ -545,15 +587,16 @@ async function finish() {
   void sendSummary(summary);
 }
 
-/** What the plan itself knows, when the server's summary is not available: time, volume and the sets that were logged. */
+/** What the plan itself knows, when the server's summary is not available (or not here yet): time, volume, the sets that were logged and the cardio. */
 function summaryFromPlan(): FinishSummary {
   const plan = state.plan!;
   const lines = plan.exercises.flatMap((ex) => {
     const done = ex.sets.filter((x) => x.done && !x.warmup);
-    return done.length ? [{ name: ex.name, done: done.map((x) => setValues(ex, x)).join(', ') }] : [];
+    return done.length ? [{ name: ex.name, done: formatSets(ex, done) }] : [];
   });
-  const volumeKg = plan.exercises.reduce((n, ex) => (ex.bodyweight || ex.timed ? n : n + ex.sets.filter((x) => x.done && !x.warmup).reduce((m, x) => m + (x.reps ?? 0) * (x.weightKg ?? 0), 0)), 0);
-  return { minutes: Math.round((Date.now() - plan.startedAt) / 60000), volumeKg: Math.round(volumeKg), exercises: lines };
+  const cardio = plan.cardio.filter((c) => c.done).map((c) => ({ activity: c.name, when: c.when, minutes: c.minutes ?? c.plannedMin, ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}) }));
+  const minutes = Math.round((Date.now() - plan.startedAt) / 60000);
+  return { minutes, volumeKg: loggedTotals(stepsOf(plan)).volumeKg, exercises: lines, ...(cardio.length ? { cardio } : {}) };
 }
 
 async function sendSummary(summary: FinishSummary | null) {
@@ -669,7 +712,9 @@ function pressable(btn: HTMLButtonElement, kind: Kind, dir: 1 | -1, out: HTMLEle
     changed = true;
     if (state.straight) {
       state.straight = null;
-      root.querySelector('[data-straight]')?.remove();
+      const cue = root.querySelector('[data-straight]'); // the line keeps its place, so nothing moves
+      cue?.removeAttribute('data-straight');
+      if (cue) cue.textContent = '';
     }
     out.textContent = STEPPERS[kind].text(d);
     out.parentElement?.setAttribute('aria-label', `${STEPPERS[kind].label}: ${STEPPERS[kind].text(d)}. Tap to type a value.`);
@@ -733,7 +778,8 @@ function commitValue(scope: Scope, kind: Kind, raw: string) {
   render();
 }
 
-function stepper(kind: Kind, d: Draft, scope: Scope) {
+/** `description` (the weight stepper only): read out with the value, in place of a visible hint. */
+function stepper(kind: Kind, d: Draft, scope: Scope, description?: string) {
   const spec = STEPPERS[kind];
   const key = `${scope}-${kind}`;
   const out = h('output', { 'data-key': `${key}-value` }, spec.text(d));
@@ -784,6 +830,7 @@ function stepper(kind: Kind, d: Draft, scope: Scope) {
         type: 'button',
         className: 'value',
         'aria-label': `${spec.label}: ${spec.text(d)}. Tap to type a value.`,
+        ...(description ? { 'aria-description': description } : {}),
         'data-key': `${key}-edit`,
         onclick: () => {
           state.editing = { scope, kind };
@@ -800,16 +847,14 @@ function stepper(kind: Kind, d: Draft, scope: Scope) {
   return h('div', { className: 'stepper', role: 'group', 'aria-label': spec.label }, h('span', { className: 'muted small' }, spec.label), h('div', { className: 'row' }, dec, value, inc));
 }
 
-/** "Superset with Triceps Pushdown · round 1 of 2": where an exercise sits in its superset. */
+/** "Superset with Triceps Pushdown · round 1 of 2": where an exercise sits in its superset (one round count for the group; warm-ups read "Warm-up 1 of 4"). */
 function supersetLabel(ex: PlannedExercise): string | null {
   if (!ex.supersetId) return null;
   const others = supersetSteps(ex)
     .map((i) => items()[i]!)
     .flatMap((x) => (x.kind === 'ex' && x.ex !== ex ? [x.ex.name] : []));
-  const working = ex.sets.filter((x) => !x.warmup);
-  const set = nextSet(ex);
-  const round = set && !set.warmup ? working.indexOf(set) + 1 : 1;
-  return `Superset with ${others.join(' and ')} · round ${round} of ${working.length}`;
+  const at = supersetRound(stepsOf(state.plan!), items().findIndex((x) => x.kind === 'ex' && x.ex === ex));
+  return `Superset with ${others.join(' and ')}${at ? ` · ${at.text}` : ''}`;
 }
 
 const EQUIPMENT: Record<string, string> = {
@@ -825,8 +870,12 @@ function reveal(selector: string) {
   if (!card || !el) return;
   const c = card.getBoundingClientRect();
   const r = el.getBoundingClientRect();
-  const tall = r.height + 8 > c.height;
-  const delta = tall ? r.top - c.top : r.bottom - c.bottom + 8;
+  // The dock is pinned over the bottom of the card: what can be seen ends where the dock begins.
+  const bottom = card.querySelector('.dock')?.getBoundingClientRect().top ?? c.bottom;
+  // The exercise name is pinned over the top of the card: what can be seen begins where it ends.
+  const top = card.querySelector('.exercise > h1')?.getBoundingClientRect().bottom ?? c.top;
+  const tall = r.height + 8 > bottom - top;
+  const delta = tall ? r.top - top : r.bottom - bottom + 8;
   if (tall ? Math.abs(delta) > 1 : delta > 8) card.scrollTo({ top: card.scrollTop + delta, behavior: scrollBehavior() });
 }
 
@@ -1097,6 +1146,8 @@ function setDots(step: Item): { text: string; aria: string; node: Node } {
 // ---------- pager ----------
 interface Shell {
   header: HTMLElement;
+  prev: HTMLButtonElement;
+  next: HTMLButtonElement;
   clock: HTMLElement;
   save: HTMLElement;
   strip: HTMLButtonElement;
@@ -1112,7 +1163,7 @@ let pendingFocus = -1;
 /** The card an automatic move is heading for, so settling there is not mistaken for a manual move. */
 let autoPos = -1;
 let settleTimer: number | undefined;
-let saveShown = 0;
+let saveShown = '';
 const hasScrollEnd = 'onscrollend' in window;
 
 const clean = (cs: Child[]) => cs.filter((c): c is Node | string => c !== null && c !== false && c !== undefined);
@@ -1140,12 +1191,16 @@ function buildShell() {
   });
   const counter = h('span', { className: 'counter' });
   const chip = h('div', { className: 'chip', hidden: true });
-  const header = h('header', { className: 'head' }, h('div', { className: 'titlebar' }, h('strong', { title: plan.name }, plan.name), counter, clock), strip, save, chip);
+  const prev = h('button', { type: 'button', className: 'navbtn', 'data-key': 'prev', onclick: () => stepBy(-1) }, '‹');
+  const next = h('button', { type: 'button', className: 'navbtn', 'data-key': 'next', onclick: () => stepBy(1) }, '›');
+  const header = h('header', { className: 'head' }, h('div', { className: 'titlebar' }, prev, h('strong', { title: plan.name }, plan.name), counter, clock, next), strip, save, chip);
   const cards = Array.from({ length: cardCount() }, () =>
     h('section', {
       className: 'pcard',
       role: 'group',
       'aria-roledescription': 'card',
+      // The pinned exercise name gets a hairline under it once the card has scrolled.
+      onscroll: (e: Event) => (e.currentTarget as HTMLElement).toggleAttribute('data-scrolled', (e.currentTarget as HTMLElement).scrollTop > 0),
     }),
   );
   const track = h(
@@ -1170,7 +1225,7 @@ function buildShell() {
     // The slide is what snaps; the card inside it is what tilts while dragged, so the snap position never moves with the effect.
     ...cards.map((card) => h('div', { className: 'slide' }, card)),
   );
-  ui = { header, clock, save, strip, counter, chip, track, cards };
+  ui = { header, prev, next, clock, save, strip, counter, chip, track, cards };
   root.replaceChildren(header, track);
 }
 
@@ -1207,8 +1262,29 @@ function previewPos(pos: number) {
   shownPos = pos;
   const count = ui.cards.length;
   ui.strip.replaceChildren(...stripSegments());
-  ui.strip.setAttribute('aria-label', `Card ${pos + 1} of ${count}. Go to the overview.`);
-  ui.counter.textContent = `${pos + 1} / ${count}`;
+  ui.strip.setAttribute('aria-label', `Card ${pos + 1} of ${count}. Show the overview.`);
+  ui.counter.textContent = `${pos + 1} of ${count}`;
+  updateNav(pos);
+}
+
+/** ‹ and ›: they name the card they go to; at either end they stay in place, `aria-disabled`, and do nothing. */
+function updateNav(pos: number) {
+  if (!ui) return;
+  const last = ui.cards.length - 1;
+  for (const [btn, to, word] of [[ui.prev, pos - 1, 'Previous'], [ui.next, pos + 1, 'Next']] as const) {
+    const end = to < 0 || to > last;
+    btn.setAttribute('aria-label', end ? `${word} card` : `${word} card: ${cardName(to)}`);
+    btn.setAttribute('aria-disabled', String(end));
+  }
+}
+
+/** The ‹ and › buttons: one card on from where the pager is heading (so two quick taps go two cards), focus on the new card's heading. */
+function stepBy(dir: -1 | 1) {
+  if (!ui) return;
+  const here = scrollTarget >= 0 ? scrollTarget : stripAt();
+  const to = here + dir;
+  if (to < 0 || to > ui.cards.length - 1) return;
+  goTo(to, { focus: true });
 }
 function swipeEffect() {
   if (scrollTarget < 0) previewPos(trackPos());
@@ -1350,15 +1426,15 @@ function updateHeader() {
   const plan = state.plan;
   const count = ui.cards.length;
   ui.clock.replaceChildren(...(state.finished ? [`${state.finished.minutes} min`] : [h('span', { 'data-clock': 'elapsed' }, mmss(Date.now() - plan.startedAt))]));
-  if (failed.size !== saveShown) {
-    saveShown = failed.size;
+  if (failed.size === 0 ? saveShown !== '' : saveShown !== unsavedText()) {
+    saveShown = failed.size === 0 ? '' : unsavedText();
     ui.save.hidden = failed.size === 0;
     ui.save.replaceChildren(
       ...clean(
         failed.size === 0
           ? []
           : [
-              `${failed.size === 1 ? '1 change' : `${failed.size} changes`} not saved. `,
+              `${unsavedText()} not saved. `,
               h(
                 'button',
                 {
@@ -1373,9 +1449,10 @@ function updateHeader() {
       ),
     );
   }
-  ui.strip.setAttribute('aria-label', `Card ${stripAt() + 1} of ${count}. Go to the overview.`);
+  ui.strip.setAttribute('aria-label', `Card ${stripAt() + 1} of ${count}. Show the overview.`);
   ui.strip.replaceChildren(...stripSegments());
-  ui.counter.textContent = `${stripAt() + 1} / ${count}`;
+  ui.counter.textContent = `${stripAt() + 1} of ${count}`;
+  updateNav(stripAt());
   const show = restRunning() && state.pos !== 0 && state.pos !== state.rest!.stepIndex + 1;
   ui.chip.hidden = !show;
   if (!show) {
@@ -1448,7 +1525,7 @@ function overviewBody(): Child[] {
                 'data-key': `row-${row.index}`,
                 onclick: () => goTo(row.index + 1, { focus: true }),
               },
-              h('span', { className: 'rowtext' }, h('span', { className: 'name' }, row.name), (row.todayTarget || row.lastTime) && h('span', { className: 'sub' }, [row.todayTarget ? `Today: ${row.todayTarget}` : '', row.lastTime ?? ''].filter(Boolean).join(' · '))),
+              h('span', { className: 'rowtext' }, h('span', { className: 'name' }, row.name), row.superset && h('span', { className: 'sub', id: `ss-${row.index}` }, 'Superset'), (row.todayTarget || row.lastTime) && h('span', { className: 'sub' }, [row.todayTarget ? `Today: ${row.todayTarget}` : '', row.lastTime ?? ''].filter(Boolean).join(' · '))),
               h(
                 'span',
                 {
@@ -1457,52 +1534,64 @@ function overviewBody(): Child[] {
                 },
                 row.dots,
               ),
-              row.superset && h('span', { className: 'sr-only', id: `ss-${row.index}` }, 'Superset'),
             ),
           );
         }),
       ),
-      h(
-        'div',
-        { className: 'sticky' },
-        h('p', { className: 'muted small' }, 'Ask Claude to change the plan.', h('span', { className: 'hint' }, ' Arrow keys move between cards.')),
-        ov.action &&
-          !plan.finished &&
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'primary',
-              'data-key': 'overview-go',
-              onclick: () => goTo(ov.action!.stepIndex + 1, { focus: true }),
-            },
-            ov.action.label,
-          ),
-      ),
+      h('p', { className: 'muted small' }, 'Ask Claude to change the plan.', h('span', { className: 'hint' }, ' Arrow keys move between cards.')),
     ),
+    ov.action &&
+      !plan.finished &&
+      dock(
+        '',
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'primary',
+            'data-key': 'overview-go',
+            onclick: () => goTo(ov.action!.stepIndex + 1, { focus: true }),
+          },
+          ov.action.label,
+        ),
+      ),
   ];
 }
 
 function summaryBody(): Child[] {
   const plan = state.plan!;
-  const working = plan.exercises.flatMap((e) => e.sets.filter((s) => !s.warmup));
+  const steps = stepsOf(plan);
   const f = state.finished;
   if (!f) return [];
-  const doneWorking = working.filter((s) => s.done).length;
+  const doneWorking = loggedTotals(steps).sets;
   const bests = f.exercises.filter((e) => e.personalRecord);
-  const skipped = plan.exercises.flatMap((e) => e.sets.flatMap((s) => (s.skipped && !s.warmup ? [`${e.name} set ${e.sets.filter((x) => !x.warmup).indexOf(s) + 1}`] : [])));
-  const notDone = plan.exercises.flatMap((e) => e.sets.flatMap((s) => (!closed(s) && !s.warmup ? [`${e.name} set ${e.sets.filter((x) => !x.warmup).indexOf(s) + 1}`] : [])));
+  const compared = new Set<PlannedExercise>();
+  // The comparison with last time is read from the plan's exercise of the same name (the same exercise twice takes them in turn).
+  const comparison = (name: string) => {
+    const ex = plan.exercises.find((x) => x.name === name && !compared.has(x));
+    if (ex) compared.add(ex);
+    return ex ? compareToLast(ex) : null;
+  };
+  const loading = state.summaryNote === 'Loading the summary…';
   return [
     h(
       'div',
       { className: 'body summary' },
       h('h1', { tabIndex: -1 }, 'Workout finished'),
-      h('p', { className: 'muted' }, `${f.minutes} min · ${doneWorking} working ${doneWorking === 1 ? 'set' : 'sets'}${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
-      bests.length > 0 ? h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`))) : !state.summaryNote && h('p', { className: 'muted' }, 'No new bests this time.'),
-      ...f.exercises.map((e) => h('p', {}, h('strong', {}, e.name), ` ${e.done}`, e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`))),
-      skipped.length > 0 && h('p', {}, h('strong', {}, 'Skipped'), ` ${skipped.join(', ')}`),
-      notDone.length > 0 && h('p', {}, h('strong', {}, 'Not done'), ` ${notDone.join(', ')}`),
-      ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · about ${c.kcal} kcal` : ''}`)),
+      h('p', { className: 'muted' }, `${loading ? '' : `${f.minutes} min · `}${doneWorking} working ${doneWorking === 1 ? 'set' : 'sets'}${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
+      // New bests get their own block with a text heading, above the exercise lines.
+      bests.length > 0
+        ? h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`)))
+        : loading
+          ? null
+          : h('p', { className: 'muted' }, state.summaryNote ? 'New bests could not be checked.' : 'No new bests this time.'),
+      ...f.exercises.map((e) => {
+        const versus = comparison(e.name);
+        return h('p', {}, h('strong', {}, e.name), ` ${formatSetSummary(e.done)}`, versus && h('span', { className: 'muted small block' }, versus), e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`));
+      }),
+      groupedLines('Skipped', openGroups(steps, 'skipped', false)),
+      groupedLines('Not done', openGroups(steps, 'notDone', false)),
+      ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · ~${c.kcal} kcal` : ''}`)),
       state.summaryNote &&
         h(
           'p',
@@ -1533,6 +1622,9 @@ function summaryBody(): Child[] {
   ];
 }
 
+/** A heading and one line per exercise ("Pullups: 2 sets"); nothing when there are none. */
+const groupedLines = (title: string, lines: string[]) => lines.length > 0 && h('p', {}, h('strong', {}, title), ...lines.map((l) => h('span', { className: 'block' }, l)));
+
 function finishBody(): Child[] {
   const plan = state.plan!;
   if (state.finished) return summaryBody();
@@ -1541,68 +1633,40 @@ function finishBody(): Child[] {
   const fs = finishState(steps);
   const counts = workingCounts(steps);
   const first = firstOpenStep(steps);
+  const keepTraining = () => {
+    if (locked()) return;
+    lock();
+    state.confirmFinish = false;
+    render();
+    if (first !== -1) goTo(first + 1, { focus: true });
+  };
   return [
     h(
       'div',
       { className: 'body finish' },
       h('h1', { tabIndex: -1 }, 'End of workout'),
       h('p', { className: 'muted' }, h('span', { 'data-clock': 'elapsed' }, mmss(Date.now() - plan.startedAt)), ` elapsed · ${counts.closed} of ${counts.total} working sets`),
-      fs.notDone.length > 0 && h('p', {}, h('strong', {}, 'Not done'), ` ${fs.notDone.join(', ')}`),
-      fs.skipped.length > 0 && h('p', {}, h('strong', {}, 'Skipped'), ` ${fs.skipped.join(', ')}`),
-      fs.canFinishDirectly
-        ? h(
-            'button',
-            {
-              type: 'button',
-              className: 'primary',
-              'data-key': 'finish',
-              onclick: () => void finish(),
-            },
-            'Finish and send to Claude',
+      groupedLines('Not done', openGroups(steps, 'notDone', true)),
+      groupedLines('Skipped', openGroups(steps, 'skipped', true)),
+      h('p', { className: 'muted' }, sendPreview(steps)),
+      !fs.canFinishDirectly && state.confirmFinish && h('p', {}, h('strong', {}, 'End the workout now?'), ` ${fs.workingOpen} ${fs.workingOpen === 1 ? 'set is' : 'sets are'} not done.`),
+    ),
+    fs.canFinishDirectly
+      ? dock('', h('button', { type: 'button', className: 'primary', 'data-key': 'finish', onclick: () => void finish() }, 'Finish and send to Claude'))
+      : state.confirmFinish
+        ? // The confirm pair is stacked at full width: a thumb cannot hit the wrong one by a small miss.
+          h(
+            'div',
+            { className: 'dock stack', role: 'group', 'aria-label': 'End the workout?' },
+            h('button', { type: 'button', className: 'primary', 'data-key': 'end', onclick: () => void finish() }, 'End and send to Claude'),
+            h('button', { type: 'button', 'data-key': 'keep', onclick: keepTraining }, 'Keep training'),
           )
-        : state.confirmFinish
-          ? h(
-              'div',
-              {
-                className: 'confirm',
-                role: 'group',
-                'aria-label': 'End the workout?',
-              },
-              h('p', {}, h('strong', {}, 'End the workout now?'), ` ${fs.workingOpen} ${fs.workingOpen === 1 ? 'set is' : 'sets are'} not done.`),
-              h(
-                'div',
-                { className: 'actions' },
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    'data-key': 'keep',
-                    onclick: () => {
-                      if (locked()) return;
-                      lock();
-                      state.confirmFinish = false;
-                      render();
-                      if (first !== -1) goTo(first + 1, { focus: true });
-                    },
-                  },
-                  'Keep training',
-                ),
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'primary',
-                    onclick: () => void finish(),
-                  },
-                  'End and send to Claude',
-                ),
-              ),
-            )
-          : h(
+        : dock(
+            '',
+            h(
               'button',
               {
                 type: 'button',
-                className: 'finish-early',
                 'data-key': 'finish-early',
                 onclick: () => {
                   if (locked()) return;
@@ -1613,15 +1677,20 @@ function finishBody(): Child[] {
               },
               'Finish early',
             ),
-    ),
+          ),
   ];
 }
+
+/** The dock: pinned to the bottom of its card, the one fixed place for the card's main action. `split` is a secondary button (1/3) beside the primary (2/3). */
+const dock = (kind: '' | 'split' | 'stack', ...children: Child[]) => h('div', { className: `dock ${kind}`.trim() }, ...children);
+
+const stepsHint = (d: Draft) => `Weight moves in ${kg(d.weightStep)} kg steps. Tap the number to type another value.`;
 
 const cap = (t: string) => t.replace(/^./, (c) => c.toUpperCase());
 
 /** Reps (or seconds) and the load: a bodyweight exercise shows "Bodyweight" instead of the weight stepper. */
 function setSteppers(ex: PlannedExercise, d: Draft, scope: Scope): Node {
-  return h('div', { className: 'steppers' }, ex.timed ? stepper('seconds', d, scope) : stepper('reps', d, scope), ex.bodyweight ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', { className: 'bodyweight' }, 'Bodyweight')) : stepper('weight', d, scope));
+  return h('div', { className: 'steppers' }, ex.timed ? stepper('seconds', d, scope) : stepper('reps', d, scope), ex.bodyweight ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', { className: 'bodyweight' }, 'Bodyweight')) : stepper('weight', d, scope, ex.uid !== state.hintUid && d.weightStep !== WEIGHT_STEP ? stepsHint(d) : undefined));
 }
 
 function openEditor(i: number, ex: PlannedExercise, set: PlannedSet) {
@@ -1698,7 +1767,7 @@ function setRow(i: number, ex: PlannedExercise, set: PlannedSet, readOnly: boole
         'li',
         { className: 'srow skipped', 'data-set-id': set.id },
         h('span', { className: 'mark', 'aria-hidden': 'true' }, '–'),
-        h('span', { className: 'sname' }, `${name} · skipped`),
+        h('span', { className: 'sname' }, `${name} · skipped`, setUnsaved(ex, set) && h('span', { className: 'unsaved' }, ' · not saved')),
         !readOnly &&
           h(
             'button',
@@ -1716,7 +1785,9 @@ function setRow(i: number, ex: PlannedExercise, set: PlannedSet, readOnly: boole
   if (set.done) {
     const values = setValues(ex, set);
     const editing = state.edit?.setId === set.id && state.edit.uid === ex.uid;
-    const body = [h('span', { className: 'mark', 'aria-hidden': 'true' }, '✓'), h('span', { className: 'sname' }, name), h('span', { className: 'svalues' }, values)];
+    const unsaved = setUnsaved(ex, set);
+    // A set that did not reach the server says so in words, next to its ✓: it must not look like a saved row.
+    const body = [h('span', { className: 'mark', 'aria-hidden': 'true' }, '✓'), h('span', { className: 'sname' }, name, unsaved && h('span', { className: 'unsaved' }, ' · not saved')), h('span', { className: 'svalues' }, values)];
     if (readOnly) return [h('li', { className: 'srow logged', 'data-set-id': set.id }, ...body)];
     return [
       h(
@@ -1728,7 +1799,7 @@ function setRow(i: number, ex: PlannedExercise, set: PlannedSet, readOnly: boole
             type: 'button',
             className: 'rowbtn',
             'aria-expanded': String(editing),
-            'aria-label': `${name}, ${values}, done. Tap to edit.`,
+            'aria-label': `${name}, ${values}, done${unsaved ? ', not saved' : ''}. Tap to edit.`,
             'data-key': `row-${set.id}`,
             onclick: () => openEditor(i, ex, set),
           },
@@ -1746,65 +1817,99 @@ function setRow(i: number, ex: PlannedExercise, set: PlannedSet, readOnly: boole
   return [h('li', { className: 'srow open muted', 'data-set-id': set.id }, h('span', { className: 'mark', 'aria-hidden': 'true' }, '○'), h('span', { className: 'sname' }, name), h('span', { className: 'svalues' }, target))];
 }
 
-function holdControls(i: number, d: Draft): Node {
+/**
+ * The timer line of a timed set's zone: one slot of fixed height for every phase (the Start button, "Get ready 3", the time left,
+ * "Time"), so the zone never changes height. The buttons of a running timer are in the dock (timerDock).
+ */
+function holdSlot(i: number, d: Draft): Node {
   const mine = state.timerStep === i;
   const holding = mine && state.holdUntil > Date.now();
   const ready = mine && state.readyUntil > Date.now();
   return h(
     'div',
-    { className: 'hold' },
+    { className: 'holdslot' },
     ready && h('p', { className: 'time', role: 'timer', 'data-clock': 'ready' }, `Get ready ${Math.max(1, Math.ceil((state.readyUntil - Date.now()) / 1000))}`),
     holding && h('p', { className: 'time', role: 'timer', 'data-clock': 'hold' }, mmss(state.holdUntil - Date.now())),
-    ready
+    !ready && !holding && state.timerDone === i && h('p', { className: 'time' }, 'Time'),
+    !ready &&
+      !holding &&
+      state.timerDone !== i &&
+      h(
+        'button',
+        {
+          type: 'button',
+          onclick: () => {
+            if (locked()) return;
+            lock();
+            state.timerStep = i;
+            state.timerDone = -1;
+            state.readyUntil = Date.now() + 5000;
+            render();
+          },
+        },
+        `Start a ${d.seconds} s timer (5 s to get ready)`,
+      ),
+  );
+}
+
+/** The dock while a timer runs: Cancel (logs nothing) beside Start now (get-ready) or Stop · log m:ss (the seconds held so far, live). */
+function timerDock(i: number): Node {
+  const holding = state.holdUntil > Date.now();
+  return dock(
+    'split',
+    h(
+      'button',
+      {
+        type: 'button',
+        'data-key': 'timer-cancel',
+        onclick: () => {
+          if (locked()) return;
+          lock();
+          state.readyUntil = 0;
+          state.holdUntil = 0;
+          render();
+        },
+      },
+      'Cancel',
+    ),
+    holding
       ? h(
-          'div',
-          { className: 'actions' },
-          h(
-            'button',
-            {
-              type: 'button',
-              onclick: () => {
-                if (locked()) return;
+          'button',
+          {
+            type: 'button',
+            className: 'primary log',
+            'data-key': 'timer-go',
+            onclick: () => {
+              if (locked()) return;
+              const held = heldSeconds();
+              state.holdUntil = 0;
+              if (held < 1) {
                 lock();
-                state.readyUntil = 0;
-                startHold(i);
                 render();
-              },
+                return;
+              }
+              state.drafts[i]!.seconds = held; // stopped early: log the time actually held
+              logSet(i);
             },
-            'Start now',
-          ),
-          h(
-            'button',
-            {
-              type: 'button',
-              onclick: () => {
-                if (locked()) return;
-                lock();
-                state.readyUntil = 0;
-                render();
-              },
-            },
-            'Cancel',
-          ),
+          },
+          'Stop · log ',
+          h('span', { 'data-clock': 'held' }, mmss(heldSeconds() * 1000)),
         )
       : h(
           'button',
           {
             type: 'button',
+            className: 'primary log',
+            'data-key': 'timer-go',
             onclick: () => {
               if (locked()) return;
               lock();
-              if (holding) {
-                d.seconds = clamp(d.seconds - Math.ceil((state.holdUntil - Date.now()) / 1000), 0, 3600); // stopped early: log what was held
-                state.holdUntil = 0;
-              } else {
-                state.timerStep = i;
-                state.readyUntil = Date.now() + 5000;
-              }
+              state.readyUntil = 0;
+              startHold(i);
               render();
             },
           },
-          holding ? 'Stop the timer' : `Start a ${d.seconds} s timer (5 s to get ready)`,
+          'Start now',
         ),
   );
 }
@@ -1816,49 +1921,68 @@ function setZone(i: number, ex: PlannedExercise, set: PlannedSet, d: Draft): Nod
   const which = set.warmup ? `Warm-up ${warm.indexOf(set) + 1} of ${warm.length}` : `Set ${working.indexOf(set) + 1} of ${working.length}`;
   const target = ex.timed ? `target ${set.targetSec ?? 0} s` : `target ${set.targetReps} reps`;
   const plates = plateText(ex, d.weight);
+  const lastForSet = lastTimeForSet(ex, set);
   return h(
     'div',
     { className: set.warmup ? 'zone warmup' : 'zone', 'data-zone': '' },
+    // The cue for a partner reached with no rest: the zone's first line (its place is kept in a superset, so nothing moves when it goes).
+    ex.supersetId && h('p', { className: 'straight', ...(state.straight?.step === i ? { 'data-straight': '' } : {}) }, state.straight?.step === i ? 'Straight on · no rest' : ''),
     h('p', { className: 'setline' }, set.warmup && h('span', { className: 'pill' }, 'Warm-up'), set.warmup && ' ', `${which} · ${target}`),
     setSteppers(ex, d, 'zone'),
     plates && h('p', { className: 'muted small plates' }, plates),
-    ex.timed && holdControls(i, d),
+    lastForSet && h('p', { className: 'muted small' }, `Last time: ${lastForSet}`),
+    !set.warmup && ex.note && h('p', { className: 'muted small' }, ex.note),
+    ex.timed && holdSlot(i, d),
+  );
+}
+
+/** Log set, with the values being logged: the primary button of the dock. */
+function logButton(i: number, ex: PlannedExercise, d: Draft): Node {
+  return h(
+    'button',
+    {
+      type: 'button',
+      className: 'primary log',
+      'aria-label': 'Log set',
+      'data-key': 'log',
+      onclick: () => logSet(i),
+    },
+    `Log set · ${setValues(ex, { reps: d.reps, seconds: d.seconds, weightKg: d.weight })}`,
+  );
+}
+
+/** The dock of a card with a set open: Skip set beside Log set, always at the same place at the bottom of the card. */
+function setDock(i: number, ex: PlannedExercise, d: Draft): Node {
+  return dock(
+    'split',
     h(
       'button',
       {
         type: 'button',
-        className: 'primary log',
-        'aria-label': 'Log set',
-        'data-key': 'log',
-        onclick: () => logSet(i),
+        'data-key': 'skip',
+        onclick: () => logSet(i, true),
       },
-      `Log set · ${setValues(ex, { reps: d.reps, seconds: d.seconds, weightKg: d.weight })}`,
+      'Skip set',
     ),
-    h(
-      'div',
-      { className: 'more' },
-      h(
-        'button',
-        {
-          type: 'button',
-          className: 'link',
-          'data-key': 'skip',
-          onclick: () => logSet(i, true),
-        },
-        'Skip set',
-      ),
-    ),
+    logButton(i, ex, d),
   );
 }
 
-/** The rest in the zone: label, time, progress and the next set; Change shows its steppers without stopping the timer. */
-function restZone(i: number, ex: PlannedExercise, set: PlannedSet, d: Draft): Node {
-  const rest = state.rest!;
+/** The previous set's weight (the last one logged), for what changes on the bar. */
+const lastWeight = (ex: PlannedExercise) => [...ex.sets].reverse().find((x) => x.done && x.weightKg !== undefined)?.weightKg;
+
+/**
+ * The rest in the zone, the only clock of the rest: label, the time (or "Rest over" for 3 s once it ran out), the next set with its
+ * plates and what changes; Change shows its steppers without stopping the timer.
+ */
+function restZone(ex: PlannedExercise, set: PlannedSet, d: Draft, over: boolean): Node {
+  const rest = state.rest;
+  const plates = nextPlatesText(ex, d.weight, lastWeight(ex), state.plan?.gym);
   return h(
     'div',
     { className: 'zone rest', 'data-zone': '' },
-    h('p', { className: 'muted' }, 'Rest'),
-    h('p', { className: 'time', role: 'timer', 'data-clock': 'rest' }, mmss(rest.untilMs - Date.now())),
+    !over && h('p', { className: 'muted' }, 'Rest'), // "Rest over" says it all, so the small label goes
+    over || !rest ? h('p', { className: 'time over' }, 'Rest over') : h('p', { className: 'time', role: 'timer', 'data-clock': 'rest' }, mmss(rest.untilMs - Date.now())),
     h(
       'div',
       { className: 'next' },
@@ -1875,32 +1999,21 @@ function restZone(i: number, ex: PlannedExercise, set: PlannedSet, d: Draft): No
         state.restChange ? 'Done' : 'Change',
       ),
     ),
+    plates && h('p', { className: 'muted small plates' }, plates),
     state.restChange && setSteppers(ex, d, 'zone'),
-    state.restChange &&
-      h(
-        'button',
-        {
-          type: 'button',
-          className: 'primary log',
-          'aria-label': 'Log set',
-          'data-key': 'log',
-          onclick: () => logSet(i),
-        },
-        `Log set · ${setValues(ex, { reps: d.reps, seconds: d.seconds, weightKg: d.weight })}`,
-      ),
   );
 }
 
-/** Pinned to the bottom of the card while its rest runs: progress, time, -15 s, +15 s, Skip rest. */
-function restBar(): Node {
+/** The dock while the card's rest runs: the progress line, -15 s, +15 s, Skip rest (the time is the zone's); with Change open, Log set above them. */
+function restDock(i: number, ex: PlannedExercise, d: Draft): Node {
   return h(
     'div',
-    { className: 'restbar', role: 'group', 'aria-label': 'Rest controls' },
+    { className: 'dock resting', role: 'group', 'aria-label': 'Rest controls' },
+    state.restChange && logButton(i, ex, d),
     h('div', { className: 'bar', 'aria-hidden': 'true' }, h('span', { 'data-restbar': '' })),
     h(
       'div',
       { className: 'restbtns' },
-      h('span', { className: 'restclock', 'data-clock': 'rest' }, mmss(state.rest!.untilMs - Date.now())),
       h(
         'button',
         {
@@ -1933,17 +2046,60 @@ function restBar(): Node {
   );
 }
 
-/** Nothing left to do on this exercise: where it stands and the way to the next step. */
-function doneZone(i: number, ex: PlannedExercise): Node {
-  const steps = stepsOf(state.plan!);
+/** The dock for the 3 s after a rest ran out: "Start set 2" goes to the set at once (the set zone comes by itself after 3 s). */
+function restOverDock(set: PlannedSet, ex: PlannedExercise): Node {
+  const n = ex.sets.filter((x) => !!x.warmup === !!set.warmup).indexOf(set) + 1;
+  return dock(
+    '',
+    h(
+      'button',
+      {
+        type: 'button',
+        className: 'primary log',
+        'data-key': 'rest-start',
+        onclick: () => {
+          if (locked()) return;
+          lock();
+          state.restOver = null;
+          render();
+          ui?.cards[state.pos]?.querySelector<HTMLElement>('[data-key="log"]')?.focus({ preventScroll: true });
+        },
+      },
+      `Start ${set.warmup ? 'warm-up' : 'set'} ${n}`,
+    ),
+  );
+}
+
+/** Nothing left to do on this exercise: where it stands (the way on is in the dock). */
+function doneZone(ex: PlannedExercise): Node {
   const working = ex.sets.filter((x) => !x.warmup);
+  return h('div', { className: 'zone auto', 'data-zone': '' }, h('p', { className: 'setline' }, `${ex.name} done · ${working.filter(closed).length} of ${working.length} sets`));
+}
+
+/** The dock of a finished exercise: the way to the next step. */
+function doneDock(i: number): Node {
+  const steps = stepsOf(state.plan!);
   const target = nextTarget(steps, i);
   const label = target.kind === 'step' ? `Go to ${stepName(steps[target.index]!)}` : 'Go to the end of the workout';
   const pos = target.kind === 'step' ? target.index + 1 : steps.length + 1;
-  return h(
-    'div',
-    { className: 'zone auto', 'data-zone': '' },
-    h('p', { className: 'setline' }, `${ex.name} done · ${working.filter(closed).length} of ${working.length} sets`),
+  // An earlier step with sets still open: a way back above the forward button.
+  const back = backTarget(steps, i);
+  return dock(
+    back ? 'stack' : '',
+    back &&
+      h(
+        'button',
+        {
+          type: 'button',
+          'data-key': 'go-back',
+          onclick: () => {
+            if (locked()) return;
+            lock();
+            goTo(back.index + 1, { focus: true });
+          },
+        },
+        `Back to ${back.name} · ${back.left}`,
+      ),
     h(
       'button',
       {
@@ -1970,21 +2126,25 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const first = nextSet(ex);
   const started = ex.sets.some(closed);
   const canSwap = !started && !readOnly;
+  // The steps hint is shown once per session, on the first card the person opens; on the others the weight value carries it.
+  if (current && !state.hintUid && !started && !readOnly && !ex.bodyweight && !ex.timed && d.weightStep !== WEIGHT_STEP) state.hintUid = ex.uid;
+  const showHint = state.hintUid === ex.uid && !started && !readOnly;
   const swappedFrom = state.swappedFrom.get(ex.uid);
   const resting = !!first && !readOnly && restRunning() && state.rest!.stepIndex === i;
-  const zone = readOnly ? null : first ? (resting ? restZone(i, ex, first, d) : setZone(i, ex, first, d)) : doneZone(i, ex);
+  const over = !!first && !readOnly && !resting && state.restOver?.stepIndex === i && state.restOver.until > Date.now();
+  const zone = readOnly ? null : first ? (resting || over ? restZone(ex, first, d, over) : setZone(i, ex, first, d)) : doneZone(ex);
+  const bottom = readOnly ? null : first ? (resting ? restDock(i, ex, d) : over ? restOverDock(first, ex) : timerRunning(i) ? timerDock(i) : setDock(i, ex, d)) : doneDock(i);
   const rows = [...ex.sets.filter((x) => x.warmup), ...ex.sets.filter((x) => !x.warmup)].flatMap((set) => (set === first && zone ? [h('li', { className: 'zonerow' }, zone)] : setRow(i, ex, set, readOnly)));
   return [
     h(
       'div',
       { className: 'body exercise' },
-      h('div', { className: 'exhead' }, h('h1', { tabIndex: -1 }, ex.name), h('span', { className: 'muted' }, `${plan.exercises.indexOf(ex) + 1} of ${plan.exercises.length}`)),
-      ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex), state.straight?.step === i && h('span', { 'data-straight': '' }, ' · Straight on, no rest')),
+      h('h1', { tabIndex: -1 }, ex.name),
+      ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex)),
       h('p', { className: 'muted small' }, [equipmentName(ex.equipment), ex.lastTime ? formatLastTime(ex.lastTime) : ''].filter(Boolean).join(' · ')),
       h('ol', { className: 'sets', 'aria-label': 'Sets' }, ...rows, !first && zone && h('li', { className: 'zonerow' }, zone)),
-      !started && !readOnly && !ex.bodyweight && !ex.timed && d.weightStep !== WEIGHT_STEP && h('p', { className: 'muted small' }, `Weight moves in ${kg(d.weightStep)} kg steps. Tap the number to type another value.`),
+      showHint && h('p', { className: 'muted small' }, stepsHint(d)),
       ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
-      ex.note && h('p', { className: 'muted small' }, ex.note),
       (ex.notes || state.noteSaved === ex.uid) && h('p', { className: 'small' }, ex.notes ? `Note: ${ex.notes}` : 'Note removed', state.noteSaved === ex.uid && h('span', { className: 'muted' }, ' · saved')),
       swappedFrom &&
         !started &&
@@ -2056,8 +2216,8 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
       current && !readOnly && notesPanel(ex),
       current && canSwap && swapPanel(ex),
       current && guidePanel(ex),
-      resting && restBar(),
     ),
+    bottom,
   ];
 }
 
@@ -2074,7 +2234,7 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
   const readOnly = !!state.plan!.finished;
   const isClosed = cardioClosed(c);
   const editing = state.cardioEdit?.id === c.id;
-  const heading = [h('div', { className: 'exhead' }, h('h1', { tabIndex: -1 }, c.name), h('span', { className: 'muted' }, c.when === 'before' ? 'Warm-up' : 'Finisher'))];
+  const heading = [h('h1', { tabIndex: -1 }, c.name), h('p', { className: 'muted small' }, c.when === 'before' ? 'Warm-up' : 'Finisher')];
   const planned = h('p', {}, `Planned ${c.plannedMin} min${c.plannedKm ? ` · ${kg(c.plannedKm)} km` : ''}`);
   if (readOnly || (isClosed && !editing && c.done)) {
     return [
@@ -2082,7 +2242,7 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
         'div',
         { className: 'body' },
         ...heading,
-        c.done ? h('p', {}, `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}`) : h('p', { className: 'muted' }, 'Skipped'),
+        c.done ? h('p', {}, `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}`, failed.has(`cardio:${c.id}`) && h('span', { className: 'unsaved' }, ' · not saved')) : h('p', { className: 'muted' }, 'Skipped'),
         c.done &&
           !readOnly &&
           h(
@@ -2105,23 +2265,38 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
     ];
   }
   const asking = state.cardioAsk === c.id;
-  return [
-    h(
-      'div',
-      { className: 'body' },
-      ...heading,
-      isClosed && !editing && h('p', { className: 'muted' }, 'Skipped'),
-      planned,
-      h('div', { className: 'zone auto' }, h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone')), h('button', { type: 'button', className: 'primary log', 'data-key': 'log', onclick: () => logCardio(i) }, editing ? 'Save' : 'Log cardio')),
-      editing &&
+  // The dock: Skip beside Log cardio; Cancel beside Save while a logged block is edited; a skipped block offers Log cardio alone.
+  const logCardioButton = h('button', { type: 'button', className: 'primary log', 'data-key': 'log', onclick: () => logCardio(i) }, editing ? 'Save' : 'Log cardio');
+  const bottom = asking
+    ? h(
+        'div',
+        { className: 'dock stack', role: 'group', 'aria-label': 'Skip cardio?' },
+        h('p', { className: 'center-text' }, 'Skip cardio?'),
         h(
           'div',
-          { className: 'more' },
+          { className: 'actions' },
           h(
             'button',
             {
               type: 'button',
-              className: 'link',
+              'data-key': 'skip-keep',
+              onclick: () => {
+                state.cardioAsk = '';
+                render();
+              },
+            },
+            'Keep',
+          ),
+          h('button', { type: 'button', 'data-key': 'skip-yes', onclick: () => logCardio(i, true) }, 'Skip'),
+        ),
+      )
+    : editing
+      ? dock(
+          'split',
+          h(
+            'button',
+            {
+              type: 'button',
               'data-key': 'cancel-edit',
               onclick: () => {
                 state.cardioEdit = null;
@@ -2130,46 +2305,36 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
             },
             'Cancel',
           ),
-        ),
-      !isClosed &&
-        (asking
-          ? h(
-              'div',
-              { className: 'more', role: 'group', 'aria-label': 'Skip cardio?' },
-              h('span', {}, 'Skip cardio?'),
-              h('button', { type: 'button', className: 'link', 'data-key': 'skip-yes', onclick: () => logCardio(i, true) }, 'Skip'),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'link',
-                  'data-key': 'skip-keep',
-                  onclick: () => {
-                    state.cardioAsk = '';
-                    render();
-                  },
+          logCardioButton,
+        )
+      : isClosed
+        ? dock('', logCardioButton)
+        : dock(
+            'split',
+            h(
+              'button',
+              {
+                type: 'button',
+                'data-key': 'skip',
+                onclick: () => {
+                  state.cardioAsk = c.id;
+                  render();
                 },
-                'Keep',
-              ),
-            )
-          : h(
-              'div',
-              { className: 'more' },
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'link',
-                  'data-key': 'skip',
-                  onclick: () => {
-                    state.cardioAsk = c.id;
-                    render();
-                  },
-                },
-                'Skip this',
-              ),
-            )),
+              },
+              'Skip this',
+            ),
+            logCardioButton,
+          );
+  return [
+    h(
+      'div',
+      { className: 'body' },
+      ...heading,
+      isClosed && !editing && h('p', { className: 'muted' }, 'Skipped'),
+      planned,
+      h('div', { className: 'zone auto' }, h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone'))),
     ),
+    bottom,
   ];
 }
 
@@ -2189,7 +2354,14 @@ function render() {
     card.inert = pos !== state.pos;
     card.replaceChildren(...clean(body));
     card.scrollTop = top;
+    card.toggleAttribute('data-scrolled', top > 0);
   });
+  // Focus and scrolling into view must stop above the dock, which covers the bottom of the card.
+  const shown = ui.cards[state.pos];
+  if (shown) {
+    shown.style.scrollPaddingBottom = `${shown.querySelector<HTMLElement>('.dock')?.offsetHeight ?? 0}px`;
+    shown.style.scrollPaddingTop = `${shown.querySelector<HTMLElement>('.exercise > h1')?.offsetHeight ?? 0}px`;
+  }
   // The cards were redrawn: put the focus back on the same control, so a keyboard or switch user keeps their place.
   if (focusKey) {
     const sel = `[data-key="${focusKey}"]`;
@@ -2234,6 +2406,9 @@ function updateClocks() {
       case 'hold':
         el.textContent = mmss(state.holdUntil - now);
         break;
+      case 'held':
+        el.textContent = mmss(heldSeconds() * 1000);
+        break;
       case 'elapsed':
         el.textContent = mmss(now - state.plan.startedAt);
         break;
@@ -2256,6 +2431,11 @@ function tick() {
     render();
   }
   if (state.rest && state.rest.untilMs <= now) return endRest();
+  if (state.restOver && state.restOver.until <= now) {
+    state.restOver = null;
+    render();
+    return;
+  }
   if (state.readyUntil && state.readyUntil <= now) {
     state.readyUntil = 0;
     startHold(state.timerStep);
@@ -2266,6 +2446,7 @@ function tick() {
   }
   if (state.holdUntil && state.holdUntil <= now) {
     state.holdUntil = 0;
+    state.timerDone = state.timerStep;
     announce('Time.');
     beep(3);
     try {

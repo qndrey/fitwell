@@ -1,8 +1,9 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { Progress } from '../../src/analytics/types';
+import { buildPager, type PagerCard } from '../shared/pager';
 
 const RANGES = [30, 90, 365] as const;
-const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '', measure: '', habit: 'sleep' as 'sleep' | 'steps' | 'water' };
+const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '', card: 0, measure: '', habit: 'sleep' as 'sleep' | 'steps' | 'water' };
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell dashboard', version: '0.1.0' }, {}, { autoResize: true });
@@ -296,12 +297,13 @@ function draw() {
     return;
   }
   const ctx = app.getHostContext();
-  const cards = [weightCard(p), nutritionCard(p), trainingCard(p), recordsCard(p), habitsCard(p), measurementsCard(p)].filter((c): c is HTMLElement => c !== null);
+  const pagerCards: PagerCard[] = [];
+  for (const [title, el] of [['Weight', weightCard(p)], ['Nutrition', nutritionCard(p)], ['Training', trainingCard(p)], ['Strength', recordsCard(p)], ['Habits', habitsCard(p)], ['Measures', measurementsCard(p)]] as [string, HTMLElement | null][]) if (el) pagerCards.push({ title, el });
   root.replaceChildren(
     controls,
     h('p', { className: 'muted small' }, `${fmtDay(p.from)} to ${fmtDay(p.to)}${state.loading ? ' · updating…' : ''}`),
     state.error && h('p', { className: 'error small' }, state.error),
-    ...cards,
+    ...buildPager(pagerCards, state.card, (i) => (state.card = i)),
     h('footer', {}, `${ctx?.platform ?? 'unknown platform'} · trends use the 7-day average; a single weigh-in swings with water and food.`),
   );
 }

@@ -1,5 +1,5 @@
 // Charts for the dashboard and the weekly review: small SVGs that scale with the card, each with a visually hidden data table as its text alternative.
-import { crossesYear, dayNum, fmtDay, num, weekdayShort, WORKOUT_LETTER, WORKOUT_NAME, type WorkoutKind } from './chartMath';
+import { calendarRows, crossesYear, dayNum, fmtDay, num, weekdayShort, WORKOUT_LETTER, WORKOUT_NAME, type WorkoutKind } from './chartMath';
 import { h, svg as s } from './dom';
 
 export { crossesYear, fmtDay, num, rangeLabel } from './chartMath';
@@ -202,4 +202,41 @@ export function weekStrip(o: WeekStripOptions): HTMLElement {
   });
   const rows = o.days.map((d) => [`${weekdayShort(d.day)} ${fmtDay(d.day)}`, d.kcal === null ? 'not logged' : num(d.kcal, 0), d.proteinG === null ? 'not logged' : num(d.proteinG, 0), d.workout ? WORKOUT_NAME[d.workout] : 'none', d.weighIn === null ? 'none' : num(d.weighIn, 1)]);
   return box(el, dataTable(o.label, ['Day', 'Calories (kcal)', 'Protein (g)', 'Workout', 'Weigh-in (kg)'], rows));
+}
+
+export interface CalendarOptions {
+  /** Mondays of the weeks in the period, oldest first; the last 12 are drawn. */
+  weeks: string[];
+  days: { day: string; type: WorkoutKind }[];
+  to: string;
+  /** Workouts a week the person aims for; shown as "3/3" per row. */
+  goal?: number | null;
+}
+
+/** Trained days as a grid, a row per week (Monday to Sunday): a filled square with the workout's letter, an outline for a rest day, the week's count at the end. */
+export function consistencyCalendar(o: CalendarOptions): HTMLElement {
+  const rows = calendarRows(o.weeks, o.days, o.to);
+  const L = 44;
+  const size = 20;
+  const step = 28;
+  const top = 16;
+  const H = top + rows.length * 26;
+  const total = rows.reduce((n, r) => n + r.trained, 0);
+  const label = `Trained days over the last ${rows.length} weeks: ${total} of ${rows.length * 7}.`;
+  const el = frame(H, label);
+  'MTWTFSS'.split('').forEach((c, k) => el.append(s('text', { x: L + k * step + size / 2, y: 10, 'text-anchor': 'middle' }, c)));
+  rows.forEach((r, i) => {
+    const y = top + i * 26;
+    el.append(s('text', { x: 0, y: y + 14 }, fmtDay(r.week)));
+    r.cells.forEach((c, k) => {
+      if (c.future) return;
+      const x = L + k * step;
+      const name = c.kind ? `${fmtDay(c.day)}: ${WORKOUT_NAME[c.kind]}` : `${fmtDay(c.day)}: rest day`;
+      el.append(s('rect', { class: c.kind ? 'cal-on' : 'cal-off', x, y, width: size, height: size, rx: 4, 'aria-label': name }));
+      if (c.kind) el.append(s('text', { class: 'cal-letter', x: x + size / 2, y: y + 14, 'text-anchor': 'middle' }, WORKOUT_LETTER[c.kind]));
+    });
+    el.append(s('text', { class: 'letter', x: W - M.r, y: y + 14, 'text-anchor': 'end' }, o.goal ? `${r.trained}/${o.goal}` : String(r.trained)));
+  });
+  const headers = ['Week of', ...'Mon Tue Wed Thu Fri Sat Sun'.split(' ')];
+  return box(el, dataTable(label, headers, rows.map((r) => [fmtDay(r.week), ...r.cells.map((c) => (c.future ? '' : c.kind ? WORKOUT_NAME[c.kind] : 'rest'))])));
 }

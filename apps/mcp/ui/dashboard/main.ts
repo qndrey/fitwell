@@ -1,6 +1,6 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { Progress } from '../../src/analytics/types';
-import { barChart, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
+import { barChart, consistencyCalendar, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
 import { h } from '../shared/dom';
 import { energyView } from './energy';
 import { buildPager, type PagerCard } from '../shared/pager';
@@ -139,6 +139,9 @@ function trainingCard(p: Progress) {
       : h('p', { className: 'headline' }, `${num(total / Math.max(1, t.weeks.length))} `, h('small', {}, `workouts a week${t.goalWorkoutsPerWeek ? ` (goal ${t.goalWorkoutsPerWeek})` : ''}${t.averageStrengthMin ? ` · strength sessions about ${t.averageStrengthMin} min` : ''}`)),
     chart,
     chart && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw1' }), `strength ${t.sessions.strength}`), h('span', {}, h('i', { className: 'sw2' }), `cardio & classes ${t.sessions.cardio + t.sessions.session}`)),
+    total > 0 && h('h2', { className: 'small muted' }, 'Days trained, by week'),
+    total > 0 && consistencyCalendar({ weeks: t.weeks.map((w) => w.week), days: t.days, to: p.to, goal: t.goalWorkoutsPerWeek }),
+    total > 0 && h('p', { className: 'muted small' }, 'S strength · C cardio · P class · outline: no workout'),
     t.setsPerWeekByMuscle.length > 0 && h('h2', { className: 'small muted' }, 'Working sets per week, by muscle'),
     t.setsPerWeekByMuscle.length > 0 &&
       h('div', { className: 'rows' }, ...t.setsPerWeekByMuscle.slice(0, 8).map((m) => h('div', { className: 'row' }, h('span', { className: 'name' }, m.muscle), h('span', { className: 'val' }, num(m.sets)), h('div', { className: 'meter', 'aria-hidden': 'true' }, h('span', { css: { width: `${Math.round((m.sets / maxSets) * 100)}%` } }))))),

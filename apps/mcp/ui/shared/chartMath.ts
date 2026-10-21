@@ -31,3 +31,36 @@ export const WORKOUT_KEY = 'S strength · C cardio · P class';
 export const WORKOUT_NAME: Record<WorkoutKind, string> = { strength: 'Strength', cardio: 'Cardio', session: 'Class' };
 /** "Mon", "Tue", ... */
 export const weekdayShort = (d: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
+
+export interface CalendarCell {
+  day: string;
+  /** The heaviest workout of the day; null on a rest day. */
+  kind: WorkoutKind | null;
+  /** After the last day shown: not a rest day yet. */
+  future: boolean;
+}
+export interface CalendarRow {
+  /** Monday of the week. */
+  week: string;
+  cells: CalendarCell[];
+  /** Days with a workout. */
+  trained: number;
+}
+
+const RANK: Record<WorkoutKind, number> = { strength: 0, session: 1, cardio: 2 };
+
+/** Rows of seven days (Monday first), one per week, the last `maxWeeks` of the given Mondays. */
+export function calendarRows(weeks: string[], days: { day: string; type: WorkoutKind }[], to: string, maxWeeks = 12): CalendarRow[] {
+  const byDay = new Map<string, WorkoutKind>();
+  for (const d of days) {
+    const have = byDay.get(d.day);
+    if (!have || RANK[d.type] < RANK[have]) byDay.set(d.day, d.type);
+  }
+  return weeks.slice(-maxWeeks).map((week) => {
+    const cells = Array.from({ length: 7 }, (_, k) => {
+      const day = new Date(Date.parse(`${week}T00:00:00Z`) + k * 86_400_000).toISOString().slice(0, 10);
+      return { day, kind: byDay.get(day) ?? null, future: day > to };
+    });
+    return { week, cells, trained: cells.filter((c) => c.kind).length };
+  });
+}

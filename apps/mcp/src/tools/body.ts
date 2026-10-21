@@ -1,5 +1,6 @@
 import { PRESETS } from '@fitwell/core/data/measurements';
 import { isDay } from '@fitwell/core/domain/dates';
+import { movingAverage, trendChange } from '@fitwell/core/domain/stats';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { loadProgress, type ProgressDeps } from '../analytics/load';
@@ -22,7 +23,7 @@ export function registerBodyTools(server: McpServer, deps: ProgressDeps) {
         'weight_kg: a weigh-in in kg (convert pounds first), one per day, logging again replaces it. ' +
         `measurements: tape measurements in cm and body fat in %, keyed by type: ${PRESETS.map((p) => `${p.key} (${p.label}, ${p.kind === 'percent' ? '%' : 'cm'})`).join(', ')}; Fitwell never estimates body fat, it stores the number from the person's scale or scan. ` +
         'sleep_hours, steps, water_ml (replaces the day\'s total) or add_water_ml (adds a glass to what is logged). ' +
-        'With a weigh-in the reply has the 7-day average and its change, which is the number to talk about (single weigh-ins swing by water and food); the latest weigh-in also updates the profile weight that calorie estimates use.',
+        'With body fat the reply has its 14-day average and trend (talk about that, not one reading; devices differ). With a weigh-in the reply has the 7-day average and its change, which is the number to talk about (single weigh-ins swing by water and food); the latest weigh-in also updates the profile weight that calorie estimates use.',
       inputSchema: z.object({
         day: day.optional(),
         weight_kg: z.number().min(30).max(300).optional(),
@@ -53,6 +54,18 @@ export function registerBodyTools(server: McpServer, deps: ProgressDeps) {
         Object.assign(out, { weightKg: weight_kg, sevenDayAverageKg: avg?.kg ?? null, trendChangeKg90d: p.weight.trendChangeKg, fromGoalKg: p.weight.fromGoalKg, ...(avg ? {} : { note: 'The 7-day average appears after 3 weigh-ins within a week.' }) });
       }
       if (Object.keys(values).length) out.measurements = (await body.setMeasurements(when, values)).values;
+      if (values['body-fat'] !== undefined) {
+        // Readings are rarer than weigh-ins and differ by device, so smooth over 14 days from two readings.
+        const pts = (await loadProgress(deps, 90)).measurements.types.find((t) => t.key === 'body-fat')?.points ?? [];
+        const avg = movingAverage(pts.map((x) => ({ day: x.day, value: x.value })), 14, 2);
+        const trend = trendChange(avg);
+        out.bodyFat = {
+          percent: values['body-fat'],
+          fourteenDayAveragePct: avg.length ? Math.round(avg[avg.length - 1]!.value * 10) / 10 : null,
+          trendChangePct90d: trend ? Math.round(trend.change * 10) / 10 : null,
+          ...(avg.length ? {} : { note: 'The 14-day average appears after 2 readings within two weeks. Use the same device each time.' }),
+        };
+      }
       if (hasMetrics) {
         const m = await body.setMetrics(when, { sleepH: sleep_hours, steps, waterMl: water_ml, addWaterMl: add_water_ml });
         Object.assign(out, { sleepHours: m.sleepH ?? null, steps: m.steps ?? null, waterMl: m.waterMl ?? null });

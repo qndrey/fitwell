@@ -890,6 +890,7 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
 
   it('at 0:00 the zone reads "Rest over" and the dock offers "Start set 2"; the zone height does not change; one announcement', async () => {
     const { v, card } = await onStep(short(), 0, { clock: true });
+    await freeze(v);
     await logBtn(card).click();
     await pwExpect(zoneOf(card).getByText('Rest', { exact: true })).toHaveCount(1); // the label stays above the clock while counting down
     const rest = (await zoneOf(card).boundingBox())!.height;
@@ -906,6 +907,7 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
 
   it('after 3 s the zone shows the set by itself, with Skip set and Log set in the dock', async () => {
     const { v, card } = await onStep(short(), 0, { clock: true });
+    await freeze(v);
     await logBtn(card).click();
     await v.page.clock.runFor(5600);
     await pwExpect(zoneOf(card)).toContainText('Rest over');
@@ -918,8 +920,8 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
 
   it('tapping "Start set 2" goes to the set zone at once (the tap lock applies), with the focus on Log set', async () => {
     const { v, card } = await onStep(short(), 0, { clock: true });
+    await freeze(v); // only runFor moves the page's time, so the rest and its 3 s of "Rest over" cannot run out while the test (or a slow CI machine) is busy
     await logBtn(card).click();
-    await freeze(v); // only runFor moves the page's time, so the 3 s of "Rest over" cannot run out while the test is slow
     await v.page.clock.runFor(5600);
     await pwExpect(btn(card, 'Start set 2')).toBeVisible();
     await btn(card, 'Start set 2').evaluate((el) => (el as unknown as DomNode).click()); // inside the 600 ms lock after the rest ended: ignored
@@ -935,6 +937,7 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
   it('a warm-up rest that ends offers "Start warm-up 2"', async () => {
     const e = ex('Squat', [set('w1', { warmup: true, weightKg: 40 }), set('w2', { warmup: true, weightKg: 60 }), set('1')], { restSec: 5 });
     const { v, card } = await onStep(plan([e, bench()]), 0, { clock: true });
+    await freeze(v);
     await logBtn(card).click();
     await v.page.clock.runFor(5600);
     await pwExpect(btn(card, 'Start warm-up 2')).toBeVisible();

@@ -127,7 +127,7 @@ export function buildProgress(i: ProgressInput): Progress {
   const dataFrom = logged.length ? logged.reduce((a, b) => (a < b ? a : b)) : null;
   const start = dataFrom ?? i.from;
   const weekStarts = weeksIn(start, i.to);
-  const weeks = weekStarts.map((week) => ({ week, partial: week < start || addDays(week, 6) > i.to, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number> }));
+  const weeks = weekStarts.map((week) => ({ week, partial: week < start || addDays(week, 6) > i.to, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number>, tonnageKg: 0 }));
   const weekOf = (d: Day) => weeks[Math.max(0, Math.floor((dayNumber(d) - dayNumber(weekStarts[0]!)) / 7))];
   for (const w of strength) {
     const wk = weekOf(w.day);
@@ -136,8 +136,10 @@ export function buildProgress(i: ProgressInput): Progress {
     // Warm-ups and finishers count as cardio minutes without making the session a second workout.
     for (const b of w.cardioBlocks) if (b.done) wk.cardioMin += b.durationMin ?? b.plannedMin;
     for (const e of w.exercises) {
-      const done = e.sets.filter((s) => s.type === 'working' && s.done !== false).length;
+      const working = e.sets.filter((s) => s.type === 'working' && s.done !== false);
+      const done = working.length;
       if (!done) continue;
+      if (e.mode !== 'time') wk.tonnageKg += working.reduce((n, s) => n + s.reps * (s.weightKg ?? 0), 0);
       const { primary, secondary } = i.musclesOf(e.exerciseRef);
       for (const [m, k] of muscleCredit(primary, secondary)) wk.sets[m] = (wk.sets[m] ?? 0) + done * k;
     }
@@ -155,6 +157,7 @@ export function buildProgress(i: ProgressInput): Progress {
     wk.sessionMin += w.session!.durationMin;
     for (const [m, credit] of Object.entries(sessionMuscleCredit(w.session!.category, w.session!.durationMin))) wk.sets[m] = (wk.sets[m] ?? 0) + credit;
   }
+  for (const wk of weeks) wk.tonnageKg = r0(wk.tonnageKg);
   const full = weeks.filter((x) => !x.partial);
   const counted = full.length ? full : weeks;
   const weekCount = Math.max(1, full.length);

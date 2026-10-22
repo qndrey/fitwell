@@ -166,6 +166,66 @@ export function weekBars(o: WeekBarsOptions): HTMLElement {
   return box(el, dataTable(o.label, [...o.columns], wk.map((w) => [`Week of ${fmtDay(w.week, withYear)}${w.partial ? ' (partial week)' : ''}`, w.a, w.b])));
 }
 
+export interface StackedWeek {
+  week: string;
+  /** One value per series, bottom first. */
+  values: number[];
+  /** The week is cut off at either end: drawn as an outline, not a filled bar. */
+  partial?: boolean;
+}
+
+export interface StackedWeekBarsOptions {
+  weeks: StackedWeek[];
+  to: string;
+  label: string;
+  /** Names the columns of the hidden table: [week, ...one per series]. */
+  columns: string[];
+  /** Dashed horizontal lines (a usual range); the caller's legend says what they mean. */
+  lines?: number[];
+  /** How a tick value is written on the axis; the hidden table always has the exact numbers. */
+  tick?: (v: number) => string;
+  digits?: number;
+  height?: number;
+}
+
+let patternIds = 0;
+
+/**
+ * Weekly bars stacked from up to three series, told apart by fill pattern as well as grey (solid, diagonal stripes, dots),
+ * with a partial week as an outline. The legend swatches are `.sw-s0`, `.sw-s1` and `.sw-s2` in chart.css.
+ */
+export function stackedWeekBars(o: StackedWeekBarsOptions): HTMLElement {
+  const H = o.height ?? 130;
+  const wk = o.weeks;
+  const digits = o.digits ?? 0;
+  const top = Math.max(1, ...wk.map((w) => w.values.reduce((a, b) => a + b, 0)), ...(o.lines ?? [])) * 1.08;
+  const y = scale(0, top, H - M.b, M.t);
+  const slot = (W - M.l - M.r) / wk.length;
+  const bw = Math.max(2, Math.min(24, slot * 0.7));
+  const el = frame(H, o.label);
+  const id = `hatch${++patternIds}`;
+  el.append(
+    s('defs', {}, s('pattern', { id: `${id}-1`, width: 4, height: 4, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, s('rect', { class: 'pat-bg1', width: 4, height: 4 }), s('line', { class: 'pat-fg1', x1: 0, y1: 0, x2: 0, y2: 4 })), s('pattern', { id: `${id}-2`, width: 4, height: 4, patternUnits: 'userSpaceOnUse' }, s('rect', { class: 'pat-bg2', width: 4, height: 4 }), s('circle', { class: 'pat-fg2', cx: 2, cy: 2, r: 0.9 }))),
+    s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }),
+  );
+  const fmt = o.tick ?? ((v: number) => num(v, digits));
+  for (const v of niceTicks(0, top, 3).filter((t) => t > 0)) el.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, fmt(v)));
+  wk.forEach((w, i) => {
+    const cx = M.l + slot * (i + 0.5);
+    const inset = w.partial ? 0.75 : 0;
+    let base = 0;
+    w.values.forEach((v, k) => {
+      const attrs = { x: cx - bw / 2 + inset, y: y(base + v), width: bw - 2 * inset, height: Math.max(0, y(base) - y(base + v)), rx: 1.5 };
+      el.append(s('rect', { ...attrs, class: w.partial ? `vs${k}-partial` : `vs${k}`, ...(w.partial || k === 0 ? {} : { fill: `url(#${id}-${k})` }) }));
+      base += v;
+    });
+  });
+  for (const v of o.lines ?? []) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) })); // the legend names the values: a label here would sit on the bars
+  axisLabels(el, wk[0]!.week, o.to, H);
+  const withYear = crossesYear(wk[0]!.week, o.to);
+  return box(el, dataTable(o.label, o.columns, wk.map((w) => [`Week of ${fmtDay(w.week, withYear)}${w.partial ? ' (partial week)' : ''}`, ...w.values.map((v) => num(v, digits))])));
+}
+
 /** A tiny trend line with no axes; decorative (the numbers beside it say the same), so it has no table. */
 export function sparkline(points: Point[]): SVGElement {
   const el = s('svg', { viewBox: '0 0 90 28', width: 90, height: 28, 'aria-hidden': 'true' });

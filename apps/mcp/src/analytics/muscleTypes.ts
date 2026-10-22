@@ -35,3 +35,18 @@ export interface MuscleMap {
   /** Every muscle group, in `MUSCLE_GROUPS` order. */
   muscles: MuscleLoad[];
 }
+
+export type MuscleRegion = 'upper' | 'lower' | 'core';
+export const MUSCLE_REGIONS: MuscleRegion[] = ['upper', 'lower', 'core'];
+/** Which part of the body a muscle group belongs to, for charts that stack weekly sets in three. */
+export const REGION_OF: Record<(typeof MUSCLE_GROUPS)[number], MuscleRegion> = {
+  abdominals: 'core', 'lower back': 'core',
+  abductors: 'lower', adductors: 'lower', calves: 'lower', glutes: 'lower', hamstrings: 'lower', quadriceps: 'lower',
+  biceps: 'upper', chest: 'upper', forearms: 'upper', lats: 'upper', 'middle back': 'upper', neck: 'upper', shoulders: 'upper', traps: 'upper', triceps: 'upper',
+};
+/** Weekly sets (a muscle name to sets) added up per region; an unknown muscle counts as upper. */
+export function setsByRegion(sets: Record<string, number>): Record<MuscleRegion, number> {
+  const out: Record<MuscleRegion, number> = { upper: 0, lower: 0, core: 0 };
+  for (const [m, n] of Object.entries(sets)) out[(REGION_OF as Record<string, MuscleRegion>)[m] ?? 'upper'] += n;
+  return out;
+}

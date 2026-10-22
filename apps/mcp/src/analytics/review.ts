@@ -1,12 +1,15 @@
 // The weekly review: one week against the one before it, plus what to look at next. Pure: no I/O.
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import type { Progress } from './types';
-import type { WeekReview } from './reviewTypes';
+import type { ReviewPeriod, WeekReview } from './reviewTypes';
 
-export type { WeekReview } from './reviewTypes';
+export type { ReviewPeriod, WeekReview } from './reviewTypes';
 
 export interface ReviewInput {
+  /** First day of the period: a Monday; for a month, the Monday three weeks before its last week. */
   weekStart: Day;
+  /** 'week' (default) is one week; 'month' is four weeks, week-aligned. */
+  period?: ReviewPeriod;
   /** Today in the person's time zone; the week ends there if it has not finished. */
   today: Day;
   /** Progress over exactly the days counted this week, and the same number of days before it. */
@@ -24,14 +27,20 @@ const dayLabel = (d: Day, year: string) => new Intl.DateTimeFormat('en-GB', { da
 /** Signed with a real minus sign, like the tiles. */
 const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)}`;
 
-export function weekEndOf(weekStart: Day, today: Day): { end: Day; inProgress: boolean } {
-  const sunday = addDays(weekStart, 6);
+export const weeksIn = (period: ReviewPeriod = 'week') => (period === 'month' ? 4 : 1);
+
+/** The last day counted for a period that starts on `weekStart`: its last Sunday, or today while that week is still running. */
+export function weekEndOf(weekStart: Day, today: Day, period: ReviewPeriod = 'week'): { end: Day; inProgress: boolean } {
+  const sunday = addDays(weekStart, 7 * weeksIn(period) - 1);
   return today < sunday ? { end: today, inProgress: true } : { end: sunday, inProgress: false };
 }
 
 export function buildWeeklyReview(i: ReviewInput): WeekReview {
   const { week: w, previous: pv, history: h } = i;
-  const { end, inProgress } = weekEndOf(i.weekStart, i.today);
+  const period = i.period ?? 'week';
+  const weeks = weeksIn(period);
+  const noun = period === 'month' ? 'month' : 'week';
+  const { end, inProgress } = weekEndOf(i.weekStart, i.today, period);
   const daysCounted = dayNumber(end) - dayNumber(i.weekStart) + 1;
   const goals = w.nutrition.goals;
 
@@ -60,6 +69,7 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
   });
 
   const review: WeekReview = {
+    period,
     weekStart: i.weekStart,
     weekEnd: end,
     inProgress,
@@ -106,7 +116,7 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
 
   // ---- highlights: what went well, said plainly
   const sessions = review.training.strength + review.training.cardio + review.training.session;
-  if (review.training.goalPerWeek && sessions >= review.training.goalPerWeek && !inProgress) review.highlights.push(`Trained ${sessions} times, on or above the goal of ${review.training.goalPerWeek}.`);
+  if (review.training.goalPerWeek && sessions >= review.training.goalPerWeek * weeks && !inProgress) review.highlights.push(`Trained ${sessions} times, on or above the goal of ${review.training.goalPerWeek * weeks}.`);
   if (goals.proteinG && review.nutrition.proteinReached !== null && review.nutrition.daysLogged >= 3 && review.nutrition.proteinReached >= review.nutrition.daysLogged * 0.8) review.highlights.push(`Protein goal reached on ${review.nutrition.proteinReached} of ${review.nutrition.daysLogged} logged days.`);
   if (review.nutrition.daysLogged === daysCounted && daysCounted >= 5) review.highlights.push(`Food logged every day (${daysCounted} of ${daysCounted}).`);
   const en = review.energy;
@@ -121,14 +131,14 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
     const diff = n.average.kcal - goals.kcal;
     if (Math.abs(diff) > goals.kcal * 0.1) review.suggestions.push(`Calories averaged ${r0(n.average.kcal)} kcal, ${r0(Math.abs(diff))} ${diff < 0 ? 'under' : 'over'} the ${goals.kcal} kcal goal. Either the goal or the eating pattern could be adjusted; ask which fits.`);
   }
-  if (!inProgress && review.training.goalPerWeek && sessions < review.training.goalPerWeek) review.suggestions.push(`${sessions} of ${review.training.goalPerWeek} planned workouts were done. Putting next week's sessions on fixed days, or planning shorter ones, can help.`);
+  if (!inProgress && review.training.goalPerWeek && sessions < review.training.goalPerWeek * weeks) review.suggestions.push(`${sessions} of ${review.training.goalPerWeek * weeks} planned workouts were done. Putting the next ${noun}'s sessions on fixed days, or planning shorter ones, can help.`);
   const gw = review.weight;
-  if (gw.weighIns < 3 && !inProgress) review.suggestions.push(`Only ${gw.weighIns} weigh-in${gw.weighIns === 1 ? '' : 's'} this week. Three or more per week make the 7-day average meaningful.`);
+  if (gw.weighIns < 3 * weeks && !inProgress) review.suggestions.push(`Only ${gw.weighIns} weigh-in${gw.weighIns === 1 ? '' : 's'} this ${noun}. Three or more per week make the 7-day average meaningful.`);
   if (gw.changeKg !== null && gw.goalKg !== null && gw.averageKg !== null && gw.previousAverageKg !== null) {
     const wantsDown = gw.goalKg < gw.previousAverageKg - 0.5;
     const wantsUp = gw.goalKg > gw.previousAverageKg + 0.5;
-    if (wantsDown && gw.changeKg >= 0.2) review.suggestions.push(`The 7-day average is up ${gw.changeKg} kg while the goal weight is lower. One week is a short time, so it is worth watching a second week before changing anything.`);
-    if (wantsUp && gw.changeKg <= -0.2) review.suggestions.push(`The 7-day average is down ${Math.abs(gw.changeKg)} kg while the goal weight is higher. Watch one more week before changing anything.`);
+    if (wantsDown && gw.changeKg >= 0.2) review.suggestions.push(`The 7-day average is up ${gw.changeKg} kg while the goal weight is lower. ${period === 'month' ? 'A few weeks is a short time, so it is worth watching another month before changing anything.' : 'One week is a short time, so it is worth watching a second week before changing anything.'}`);
+    if (wantsUp && gw.changeKg <= -0.2) review.suggestions.push(`The 7-day average is down ${Math.abs(gw.changeKg)} kg while the goal weight is higher. ${period === 'month' ? 'Watch another month' : 'Watch one more week'} before changing anything.`);
   }
   // The check-in: the measured burn against the calorie goal. Only once the estimate is more than an early guess.
   if (en.expenditureKcal !== null && en.confidence !== 'low' && en.suggestedKcal !== null && goals.kcal && Math.abs(en.suggestedKcal - goals.kcal) >= 100) {

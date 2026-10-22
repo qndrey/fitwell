@@ -274,6 +274,45 @@ export function weekStrip(o: WeekStripOptions): HTMLElement {
   return box(el, dataTable(o.label, ['Day', 'Calories (kcal)', 'Protein (g)', 'Workout', 'Weigh-in (kg)'], rows));
 }
 
+export interface MonthStripOptions {
+  /** The days of the period, oldest first, starting on a Monday; grouped by seven into rows. */
+  days: StripDay[];
+  goalKcal?: number | null;
+  label: string;
+}
+
+/** Four weeks at a glance: a row per week (Monday to Sunday) of calorie bars (goal dashed) with the workout letter under each, and the week's average calories at the end. */
+export function monthStrip(o: MonthStripOptions): HTMLElement {
+  const L = 52;
+  const R = 44;
+  const slot = (W - L - R) / 7;
+  const bw = Math.min(22, slot * 0.6);
+  const rowH = 46;
+  const top = Math.max(...o.days.map((d) => d.kcal ?? 0), o.goalKcal ?? 0, 1) * 1.05;
+  const weeks: StripDay[][] = [];
+  for (let i = 0; i < o.days.length; i += 7) weeks.push(o.days.slice(i, i + 7));
+  const H = 16 + weeks.length * rowH;
+  const el = frame(H, o.label);
+  'MTWTFSS'.split('').forEach((c, k) => el.append(s('text', { x: L + slot * (k + 0.5), y: 10, 'text-anchor': 'middle' }, c)));
+  el.append(s('text', { x: W - M.r, y: 10, 'text-anchor': 'end' }, 'avg kcal'));
+  weeks.forEach((wk, i) => {
+    const y0 = 16 + i * rowH;
+    const base = y0 + 26;
+    const y = scale(0, top, base, y0 + 2);
+    el.append(s('line', { class: 'axis', x1: L, x2: W - R, y1: base, y2: base }), s('text', { x: 0, y: base - 2 }, fmtDay(wk[0]!.day)));
+    if (o.goalKcal) el.append(s('line', { class: 'goal', x1: L, x2: W - R, y1: y(o.goalKcal), y2: y(o.goalKcal) }));
+    wk.forEach((d, k) => {
+      const cx = L + slot * (k + 0.5);
+      if (d.kcal !== null) el.append(s('rect', { class: 'bar', x: cx - bw / 2, y: y(d.kcal), width: bw, height: Math.max(0, base - y(d.kcal)), rx: 1.5 }));
+      el.append(s('text', { class: 'letter', x: cx, y: base + 12, 'text-anchor': 'middle' }, d.workout ? WORKOUT_LETTER[d.workout] : '–'));
+    });
+    const logged = wk.filter((d) => d.kcal !== null);
+    el.append(s('text', { x: W - M.r, y: base - 2, 'text-anchor': 'end' }, logged.length ? num(logged.reduce((n, d) => n + d.kcal!, 0) / logged.length, 0) : '–'));
+  });
+  const rows = o.days.map((d) => [`${weekdayShort(d.day)} ${fmtDay(d.day)}`, d.kcal === null ? 'not logged' : num(d.kcal, 0), d.proteinG === null ? 'not logged' : num(d.proteinG, 0), d.workout ? WORKOUT_NAME[d.workout] : 'none', d.weighIn === null ? 'none' : num(d.weighIn, 1)]);
+  return box(el, dataTable(o.label, ['Day', 'Calories (kcal)', 'Protein (g)', 'Workout', 'Weigh-in (kg)'], rows));
+}
+
 export interface CalendarOptions {
   /** Mondays of the weeks in the period, oldest first; the last 12 are drawn. */
   weeks: string[];

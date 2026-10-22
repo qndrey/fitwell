@@ -3,14 +3,19 @@ import type { Day } from '@fitwell/core/domain/dates';
 import type { Extras } from '@fitwell/core/domain/nutrition';
 import type { EnergyProgress } from './types';
 
+/** A week, or a month: the last four weeks, week-aligned. The review type keeps its name; `period` says which it is. */
+export type ReviewPeriod = 'week' | 'month';
+
 export interface WeekReview {
+  period: ReviewPeriod;
+  /** First day: a Monday; for a month, three weeks before its last week. */
   weekStart: Day;
-  /** Last day counted: the Sunday, or today while the week is still running. */
+  /** Last day counted: the last Sunday, or today while the last week is still running. */
   weekEnd: Day;
   /** The week is not over yet, so averages cover the days so far. */
   inProgress: boolean;
   daysCounted: number;
-  /** One entry per day counted, for the week strip: null where nothing was logged. */
+  /** One entry per day counted (up to 28 for a month), for the week strip: null where nothing was logged. */
   days: { day: Day; kcal: number | null; proteinG: number | null; workout: 'strength' | 'cardio' | 'session' | null; weighIn: number | null }[];
   nutrition: {
     daysLogged: number;

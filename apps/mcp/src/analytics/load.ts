@@ -6,7 +6,7 @@ import type { WorkoutData } from '../data/workoutData';
 import { addDays, dayDiff, dayNumber, weekStart as mondayOf } from '@fitwell/core/domain/dates';
 import { bmr } from '@fitwell/core/domain/energy';
 import { buildProgress, rangeStart, type Progress } from './progress';
-import { buildWeeklyReview, weekEndOf, type WeekReview } from './review';
+import { buildWeeklyReview, weekEndOf, weeksIn, type ReviewPeriod, type WeekReview } from './review';
 
 export interface ProgressDeps {
   data: UserData;
@@ -38,18 +38,23 @@ export interface ReviewDeps extends ProgressDeps {
   plans: import('../data/planData').PlanData;
 }
 
-/** The weekly review for the week starting on `weekStart` (a Monday); the default is the most useful week to look at now. */
-export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string): Promise<WeekReview> {
+/**
+ * The weekly review for the week starting on `weekStart` (a Monday); the default is the most useful week to look at now.
+ * For `period: 'month'` it is the four weeks that end with that week, compared with the same days four weeks earlier.
+ */
+export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string, period: ReviewPeriod = 'week'): Promise<WeekReview> {
   const today = todayIn((await deps.data.profile()).timeZone);
   // Early in the week (Monday, Tuesday) there is hardly anything to review yet, so look at the week that just ended.
   const monday = mondayOf(today);
-  const start = weekStart ?? (dayDiff(monday, today) < 2 ? addDays(monday, -7) : monday);
-  if (start > today) throw new Error(`The week of ${start} has not started yet.`);
-  const { end } = weekEndOf(start, today);
+  const last = weekStart ?? (dayDiff(monday, today) < 2 ? addDays(monday, -7) : monday);
+  if (last > today) throw new Error(`The week of ${last} has not started yet.`);
+  const start = addDays(last, -7 * (weeksIn(period) - 1));
+  const { end } = weekEndOf(start, today, period);
   const counted = dayNumber(end) - dayNumber(start) + 1;
-  const [week, previous, history, plan] = await Promise.all([loadProgress(deps, counted, end), loadProgress(deps, counted, addDays(start, counted - 8)), loadProgress(deps, 120, end), deps.plans.plan(start)]);
+  const [week, previous, history, plan] = await Promise.all([loadProgress(deps, counted, end), loadProgress(deps, counted, addDays(end, -7 * weeksIn(period))), loadProgress(deps, 120, end), period === 'week' ? deps.plans.plan(start) : null]);
   return buildWeeklyReview({
     weekStart: start,
+    period,
     today,
     week,
     previous,

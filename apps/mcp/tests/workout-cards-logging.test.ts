@@ -702,13 +702,22 @@ describe('Swipe effect while the track is dragged', () => {
   it('the card leaving tilts, shrinks and fades, the card coming in straightens up, and a card at rest has no transform', async () => {
     const { v } = await onStep(plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')])]), 0);
     await expect.poll(async () => (await tilt(v, 1)).transform).toBe('');
-    await dragTo(v, 1.4);
-    await expect.poll(async () => (await tilt(v, 1)).transform).toMatch(/rotate\(-?[\d.]+deg\) scale\(/);
-    expect(Number((await tilt(v, 1)).opacity)).toBeLessThan(1);
-    expect(Number((await tilt(v, 2)).opacity)).toBeLessThan(1);
+    // Read the cards in the same page turn as the drag: the tilt is cleared a moment after the scrolling stops, and a slow runner can pass that moment between two round trips.
+    const dragged = await trackOf(v).evaluate(async (el) => {
+      const dom = globalThis as unknown as { requestAnimationFrame: (cb: () => void) => void; document: { querySelectorAll: (s: string) => ArrayLike<{ style: { transform: string; opacity: string } }> } };
+      const t = el as unknown as { scrollLeft: number; clientWidth: number; style: { scrollSnapType: string } };
+      t.style.scrollSnapType = 'none';
+      t.scrollLeft = t.clientWidth * 1.4;
+      await new Promise<void>((done) => dom.requestAnimationFrame(() => dom.requestAnimationFrame(() => done())));
+      const cards = dom.document.querySelectorAll('[aria-roledescription="card"]');
+      return [1, 2].map((k) => ({ transform: cards[k]!.style.transform, opacity: cards[k]!.style.opacity }));
+    });
+    expect(dragged[0]!.transform).toMatch(/rotate\(-?[\d.]+deg\) scale\(/);
+    expect(Number(dragged[0]!.opacity)).toBeLessThan(1);
+    expect(Number(dragged[1]!.opacity)).toBeLessThan(1);
     await dragTo(v, 2);
-    await expect.poll(async () => (await tilt(v, 2)).transform).toBe('');
-    expect((await tilt(v, 2)).opacity).toBe('');
+    await expect.poll(async () => (await tilt(v, 2)).transform, { timeout: 5000 }).toBe('');
+    await expect.poll(async () => (await tilt(v, 2)).opacity, { timeout: 5000 }).toBe('');
   });
 
   it('a track left between two cards comes back to the middle of the nearest one, and the tilt never moves the snapping box', async () => {

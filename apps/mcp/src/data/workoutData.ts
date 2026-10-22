@@ -3,7 +3,7 @@ import type { SessionDetails } from '../workout/sessions';
 import type { CardioDetails, WorkoutExercise, WorkoutSet } from '@fitwell/core/schema';
 
 /** A set as the server stores it: the web shape plus the target the plan asked for. */
-export type StoredSet = WorkoutSet & { targetReps?: number; targetSec?: number; skipped?: boolean };
+export type StoredSet = WorkoutSet & { targetReps?: number; targetSec?: number; skipped?: boolean; /** How hard the set felt, 1 (easy) to 4 (max); working sets only. */ effort?: number };
 /** The web shape plus plan details shown in the player (the web backup format ignores the extras). */
 export type StoredExercise = Omit<WorkoutExercise, 'sets'> & {
   sets: StoredSet[];

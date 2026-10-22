@@ -14,7 +14,12 @@ export interface PlannedSet {
   skipped?: boolean;
   /** What was actually done, once logged. */
   reps?: number;
+  /** How hard the set felt, 1 (easy) to 4 (max), when the person said so. */
+  effort?: number;
 }
+
+/** The four effort taps of a logged working set, easiest first: effort n is `EFFORT_LABELS[n - 1]`. */
+export const EFFORT_LABELS = ['Easy', 'Solid', 'Hard', 'Max'] as const;
 
 export interface PlannedExercise {
   /** Identifies this entry inside the workout (the same exercise can appear twice); notes are saved under it. */

@@ -278,4 +278,51 @@ describe('cardio blocks and notes', () => {
     expect((await call(bo, 'log_cardio_block', { workoutId: plan.workoutId, blockId: 'c1' })).isError).toBe(true);
     expect((await call(bo, 'set_exercise_note', { workoutId: plan.workoutId, exerciseId: 'e1', notes: 'x' })).isError).toBe(true);
   });
+
+  it('stores an optional effort on working sets and shows it in the plan, history and finish summary', async () => {
+    const plan = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 80, warmup: true }] });
+    const warm = plan.exercises[0]!.sets.find((s) => s.warmup)!;
+    const [first, second] = work(plan.exercises[0]!);
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: warm.id, reps: warm.targetReps, weightKg: warm.weightKg, effort: 4 }); // not for warm-ups
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: first!.id, reps: 5, weightKg: 80, effort: 2 });
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: second!.id, reps: 5, weightKg: 80 }); // ignoring the tap logs nothing extra
+    const stored = ((await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan).exercises[0]!.sets;
+    expect(stored.find((s) => s.id === warm.id)!.effort).toBeUndefined();
+    expect(stored.find((s) => s.id === first!.id)!.effort).toBe(2);
+    expect(stored.find((s) => s.id === second!.id)!.effort).toBeUndefined();
+
+    // Re-logging the same set without an effort keeps it; edit_workout_set changes it; reopening or skipping drops it.
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: first!.id, reps: 6, weightKg: 80 });
+    expect(((await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan).exercises[0]!.sets.find((s) => s.id === first!.id)!.effort).toBe(2);
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 2, effort: 3 })).isError).toBe(false);
+    const finished = (await call(client, 'finish_workout', { workoutId: plan.workoutId })).data;
+    expect((finished.exercises as { effort?: string }[])[0]!.effort).toBe('set 1 Solid, set 2 Hard');
+    const history = (await call(client, 'get_workout_history', { days: 7 })).data.workouts as { exercises: { effort?: string }[] }[];
+    expect(history[0]!.exercises[0]!.effort).toBe('set 1 Solid, set 2 Hard');
+    const byExercise = (await call(client, 'get_workout_history', { days: 7, exercise_id: SQUAT })).data.sessions as { effort?: string }[];
+    expect(byExercise[0]!.effort).toBe('set 1 Solid, set 2 Hard');
+
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: first!.id, reps: 0, reopen: true });
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: second!.id, reps: 0, skip: true });
+    const reopened = ((await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan).exercises[0]!.sets;
+    expect(reopened.filter((s) => s.effort !== undefined)).toEqual([]);
+  });
+
+  it('refuses an effort outside 1–4, an effort on a warm-up edit, and an edit with nothing to change', async () => {
+    const plan = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 80, warmup: true }] });
+    const setId = work(plan.exercises[0]!)[0]!.id;
+    expect((await call(client, 'log_set', { workoutId: plan.workoutId, setId, reps: 5, weightKg: 80, effort: 5 })).isError).toBe(true);
+    expect((await call(client, 'log_set', { workoutId: plan.workoutId, setId, reps: 5, weightKg: 80, effort: 0 })).isError).toBe(true);
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId, reps: 5, weightKg: 80 });
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 1, effort: 7 })).isError).toBe(true);
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 1, warmup: true, effort: 2 })).isError).toBe(true);
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 1 })).isError).toBe(true);
+  });
+
+  it('export_my_data carries the effort of each set', async () => {
+    const plan = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 80, warmup: false }] });
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: 's1.1', reps: 5, weightKg: 80, effort: 4 });
+    const { text } = await call(client, 'export_my_data', {});
+    expect(text).toContain('"effort":4');
+  });
 });

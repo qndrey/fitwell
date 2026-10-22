@@ -116,6 +116,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .primary.log { min-height: var(--h-log); }
 button.link { border: 0; background: transparent; padding: 0 10px; min-height: var(--h-link); text-decoration: underline; text-underline-offset: 2px; }
 .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+.effort { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); }
+.effort > span { flex: none; }
+.effort > button { flex: 1 1 0; min-width: 0; min-height: var(--h-secondary); padding: 0 var(--s1); }
+.effort > button[aria-pressed="true"] { border-color: var(--accent); background: var(--surface); font-weight: 600; box-shadow: inset 0 0 0 1px var(--accent); }
 .more { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0 var(--s1); border-top: 1px solid var(--border); padding-top: var(--s1); }
 .more > button.link:first-child { padding-left: 0; }
 

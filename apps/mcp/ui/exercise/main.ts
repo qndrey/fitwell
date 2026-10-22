@@ -4,7 +4,7 @@ import type { ExerciseGuide } from '../../src/exercises/guide';
 import { h } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, isDarkTheme } from '../shared/motionView';
-import { heatColours, renderMuscleMap } from '../shared/muscleMap';
+import { heatColours, renderMuscleMap, type MapMode } from '../shared/muscleMap';
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell exercise guide', version: '0.1.0' }, {}, { autoResize: true });
@@ -12,6 +12,10 @@ let guide: ExerciseGuide | null = null;
 /** This view also draws the muscle map (show_muscle_map), on the same body. */
 let map: MuscleMap | null = null;
 let mapShown: MuscleMap | null = null;
+let mapShownMode: MapMode | null = null;
+let mode: MapMode = 'sets';
+/** The second figure control of the map: colour by days since each muscle was trained. It stays one element so focus survives a redraw. */
+const recoveryButton = h('button', { type: 'button', className: 'motion-recovery', 'aria-pressed': 'false', onclick: () => { mode = mode === 'recovery' ? 'sets' : 'recovery'; render(); } }, 'Days since trained');
 let loading = false;
 let error = '';
 /** One WebGL player for the life of the view; null when the device cannot do WebGL (the guide then has no animation). */
@@ -49,11 +53,14 @@ function render() {
   try {
     if (map) {
       const dark = isDarkTheme();
-      if (map !== mapShown) {
-        motion?.showHeat(heatColours(map, dark), 'A body with each muscle group coloured by how much it was trained');
+      recoveryButton.setAttribute('aria-pressed', String(mode === 'recovery'));
+      if (map !== mapShown || mode !== mapShownMode) {
+        motion?.setMapControls([recoveryButton]);
+        motion?.showHeat(heatColours(map, dark, mode), mode === 'recovery' ? 'A body with each muscle group shaded by how many days ago it was trained' : 'A body with each muscle group coloured by how much it was trained');
         mapShown = map;
+        mapShownMode = mode;
       }
-      root.replaceChildren(h('section', { className: 'card single' }, renderMuscleMap(map, dark, motion?.element ?? null, (w) => void changeWeeks(w), loading)), error ? h('p', { className: 'error small center' }, error) : '');
+      root.replaceChildren(h('section', { className: 'card single' }, renderMuscleMap(map, dark, motion?.element ?? null, (w) => void changeWeeks(w), loading, mode), motion ? null : h('div', { className: 'motion-controls' }, recoveryButton)), error ? h('p', { className: 'error small center' }, error) : '');
       return;
     }
     if (guide && guide !== shown) {

@@ -22,6 +22,8 @@ export interface MotionPlayer {
   show(spec: MotionSpec | null, label: string, muscles?: { primary: string[]; secondary: string[] }): void;
   /** The standing figure with each muscle group in its own colour (hex by group name); groups not listed keep the skin colour. */
   showHeat(colours: Map<string, number>, label: string): void;
+  /** Extra buttons for the muscle map, shown beside "Colours" while the heat map is on and dropped when an exercise is shown. */
+  setMapControls(buttons: HTMLElement[]): void;
   /** Stop animating (the panel is closed or the exercise changed). */
   stop(): void;
   /** Re-read the colours after the host theme changed. */
@@ -156,11 +158,17 @@ export function createMotionPlayer(): MotionPlayer | null {
   const muscleButton = h('button', { type: 'button', className: 'motion-muscles', 'aria-pressed': 'true', onclick: () => setMuscles(!musclesOn) }, 'Highlight');
   const resetButton = h('button', { type: 'button', className: 'motion-reset', onclick: () => turnTo(defaultView()) }, 'Reset view');
   const hint = h('p', { className: 'muted small' });
+  const controls = h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Figure controls' }, play, muscleButton, resetButton);
+  let mapControls: HTMLElement[] = [];
+  const placeMapControls = (on: boolean) => {
+    for (const b of mapControls) b.remove();
+    if (on) muscleButton.after(...mapControls);
+  };
   const element = h(
     'div',
     { className: 'motion', hidden: true },
     canvas,
-    h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Figure controls' }, play, muscleButton, resetButton),
+    controls,
     hint,
   );
 
@@ -297,6 +305,10 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   const player: MotionPlayer = {
     element,
+    setMapControls(buttons) {
+      mapControls = buttons;
+      placeMapControls(heat !== null && !current);
+    },
     showHeat(colours, name) {
       // A new period on the map only recolours: the figure keeps the angle the person turned it to.
       if (heat && !current && !element.hidden) {
@@ -309,6 +321,8 @@ export function createMotionPlayer(): MotionPlayer | null {
       heat = colours;
       human?.setHeat(heat);
       muscleButton.textContent = 'Colours';
+      hint.textContent = 'Drag to turn the figure. Colours shows or hides the colour of each muscle group.';
+      placeMapControls(true);
       frame();
       draw(currentP());
     },
@@ -323,6 +337,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       heat = null;
       human?.setHeat(null);
       muscleButton.textContent = 'Highlight';
+      placeMapControls(false);
       worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
       human?.setHighlight(worked.primary, worked.secondary);
       human?.setHighlightVisible(musclesOn);

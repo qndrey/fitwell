@@ -17,8 +17,10 @@ export interface MuscleLoad {
   muscle: string;
   /** Working sets a week, averaged over the period: 1 for a set where the muscle is a main one, 0.5 where it helps. */
   setsPerWeek: number;
+  /** The same average over the period of equal length just before this one; null when nothing was logged in it. */
+  previousSetsPerWeek: number | null;
   level: MuscleLevel;
-  /** The last day with a working set where this muscle is a main one. */
+  /** The last day in the period with a working set where this muscle is a main one. */
   lastTrained: Day | null;
   /** The exercises that gave it the most sets in the period. */
   topExercises: { name: string; sets: number }[];
@@ -29,6 +31,8 @@ export interface MuscleMap {
   to: Day;
   weeks: number;
   sessions: number;
+  /** Workouts and whole-body sessions in the period before; 0 means `previousSetsPerWeek` is null for every muscle. */
+  previousSessions?: number;
   /** Whole-body sessions (Pilates, HIIT, ...) that also gave credit. */
   otherSessions?: number;
   range: { low: number; high: number };

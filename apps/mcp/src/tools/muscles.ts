@@ -18,7 +18,7 @@ export async function loadMuscleMap(deps: Pick<ProgressDeps, 'data' | 'workouts'
   const end = to ?? todayIn((await deps.data.profile()).timeZone);
   const lib = await loadExercises();
   const muscles = new Map(lib.exercises.map((e) => [e.ref, { primary: e.primary, secondary: e.secondary }]));
-  const from = addDays(end, -(weeks * 7 - 1));
+  const from = addDays(end, -(weeks * 14 - 1)); // twice the period: the one before it gives the comparison
   const workouts = await deps.workouts.between(from, end);
   return buildMuscleMap({ workouts, to: end, weeks, musclesOf: (ref) => muscles.get(ref) ?? { primary: [], secondary: [] } });
 }

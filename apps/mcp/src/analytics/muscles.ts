@@ -20,12 +20,12 @@ export const muscleCredit = (primary: string[], secondary: string[]): (readonly 
 
 export const levelFor = (setsPerWeek: number): MuscleLevel => (setsPerWeek <= 0 ? 'none' : setsPerWeek < WEEKLY_SET_RANGE.low ? 'below' : setsPerWeek <= WEEKLY_SET_RANGE.high ? 'in_range' : 'high');
 
-export function buildMuscleMap(i: MuscleMapInput): MuscleMap {
-  const from = addDays(i.to, -(i.weeks * 7 - 1));
+/** Sets per muscle, the last main-muscle day and the exercises behind each, for the workouts between two days. */
+function tally(i: MuscleMapInput, from: Day, to: Day) {
   const sets = new Map<string, number>();
   const last = new Map<string, Day>();
   const byExercise = new Map<string, Map<string, number>>();
-  const strength = i.workouts.filter((w) => w.type === 'strength' && w.finishedAt !== null && w.day >= from && w.day <= i.to);
+  const strength = i.workouts.filter((w) => w.type === 'strength' && w.finishedAt !== null && w.day >= from && w.day <= to);
   for (const w of strength) {
     for (const e of w.exercises) {
       const done = e.sets.filter((s) => s.type === 'working' && s.done !== false).length;
@@ -41,7 +41,7 @@ export function buildMuscleMap(i: MuscleMapInput): MuscleMap {
     }
   }
   // Whole-body sessions give a rough credit per muscle, in proportion to their length.
-  const classes = i.workouts.filter((w) => w.type === 'session' && w.session && w.day >= from && w.day <= i.to);
+  const classes = i.workouts.filter((w) => w.type === 'session' && w.session && w.day >= from && w.day <= to);
   for (const w of classes) {
     const label = w.name ?? w.session!.activityName;
     for (const [m, credit] of Object.entries(sessionMuscleCredit(w.session!.category, w.session!.durationMin))) {
@@ -52,13 +52,21 @@ export function buildMuscleMap(i: MuscleMapInput): MuscleMap {
       if ((last.get(m) ?? '') < w.day) last.set(m, w.day as Day);
     }
   }
+  return { sets, last, byExercise, strength, classes };
+}
+
+export function buildMuscleMap(i: MuscleMapInput): MuscleMap {
+  const from = addDays(i.to, -(i.weeks * 7 - 1));
+  const { sets, last, byExercise, strength, classes } = tally(i, from, i.to);
+  const prev = tally(i, addDays(from, -(i.weeks * 7)), addDays(from, -1));
+  const previousSessions = prev.strength.length + prev.classes.length;
   const r1 = (n: number) => Math.round(n * 10) / 10;
   const muscles = MUSCLE_GROUPS.map((muscle): MuscleLoad => {
     const perWeek = r1((sets.get(muscle) ?? 0) / i.weeks);
     const top = [...(byExercise.get(muscle) ?? [])].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
-    return { muscle, setsPerWeek: perWeek, level: levelFor(perWeek), lastTrained: last.get(muscle) ?? null, topExercises: top.map(([name, n]) => ({ name, sets: r1(n) })) };
+    return { muscle, setsPerWeek: perWeek, previousSetsPerWeek: previousSessions ? r1((prev.sets.get(muscle) ?? 0) / i.weeks) : null, level: levelFor(perWeek), lastTrained: last.get(muscle) ?? null, topExercises: top.map(([name, n]) => ({ name, sets: r1(n) })) };
   });
-  return { from, to: i.to, weeks: i.weeks, sessions: strength.length, otherSessions: classes.length, range: { ...WEEKLY_SET_RANGE }, muscles };
+  return { from, to: i.to, weeks: i.weeks, sessions: strength.length, previousSessions, otherSessions: classes.length, range: { ...WEEKLY_SET_RANGE }, muscles };
 }
 
 /** The map in a few lines for the model: which muscles are under, in and over the range, with days since last trained. */

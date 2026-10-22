@@ -5,6 +5,8 @@
 .musclemap .legend { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.85rem; }
 .musclemap .group h3 { margin: 8px 0 4px; font-size: 0.95rem; }
 .musclemap .muscles { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.musclemap summary { display: flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.musclemap summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-height: 36px; cursor: pointer; }
+.musclemap summary .delta { flex-basis: 100%; margin: -4px 0 4px 20px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.guide .motion-controls button { min-height: 44px; }
 .musclemap summary .sets { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .musclemap details p { margin: 0 0 6px 20px; }

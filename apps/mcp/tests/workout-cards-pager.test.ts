@@ -248,7 +248,7 @@ describe('Specs: Pager and header rule 1 (track, snap, fixed height) and rule 5 
     expect(await cards.evaluateAll((els) => els.map((e) => e.getAttribute('role')))).toEqual(Array(5).fill('group'));
   });
 
-  it('the track snaps on x, contains horizontal overscroll and has one fixed height: 496 px under 600 px width, 560 px above', async () => {
+  it('the track snaps on x, contains horizontal overscroll and is as tall as the card in view, at least 496 px under 600 px width, 560 px above', async () => {
     const narrow = await openView(fresh3(), { width: 375 });
     const css = await trackOf(narrow).evaluate((el) => {
       const gcs = (globalThis as unknown as Dom).getComputedStyle;
@@ -260,16 +260,16 @@ describe('Specs: Pager and header rule 1 (track, snap, fixed height) and rule 5 
     expect(css.snap).toContain('x mandatory');
     expect(css.ox).toBe('auto');
     expect(css.over).toBe('contain');
-    expect(css.height).toBe('496px');
+    expect(Number.parseFloat(css.height ?? '0')).toBeGreaterThanOrEqual(496);
     expect(css.cardSnap).toBe('center');
     expect(css.stop).toBe('always');
-    expect(css.oy).toBe('auto');
+    expect(css.oy).toBe('visible');
     expect(css.minW).toBe('0px');
     expect(css.grow).toBe('0');
     expect(css.shrink).toBe('0');
     expect(css.basis).toMatch(/^(100%|\d+(\.\d+)?px)$/);
     const wide = await openView(fresh3(), { width: 800 });
-    expect(await trackOf(wide).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).height)).toBe('560px');
+    expect(await trackOf(wide).evaluate((el) => el.clientHeight)).toBeGreaterThanOrEqual(560);
   });
 
   it('every card except the current one is inert, and the inert card moves with the pager', async () => {
@@ -303,14 +303,14 @@ describe('Specs: Pager and header rule 2 (no horizontal page overflow from 320 p
     expect((await overflow()).body).toBeLessThanOrEqual(0);
   });
 
-  it('a card with more content than the track height scrolls inside itself while the page does not grow', async () => {
+  it('a card with more content than the minimum grows and the track follows, with no scroll inside the card', async () => {
     const many = Array.from({ length: 14 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
     const v = await openView(plan(many));
     const card = cardsOf(v).first();
     const m = await card.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight }));
-    expect(m.sh).toBeGreaterThan(m.ch);
-    const trackH = await trackOf(v).evaluate((el) => el.clientHeight);
-    expect(m.ch).toBeLessThanOrEqual(trackH);
+    expect(m.sh).toBe(m.ch);
+    expect(m.ch).toBeGreaterThan(496);
+    expect(Math.abs((await trackOf(v).evaluate((el) => el.clientHeight)) - m.ch)).toBeLessThanOrEqual(1);
   });
 });
 

@@ -2,7 +2,7 @@
 /* Host variables (MCP Apps) first, Fitwell's own calm defaults as fallbacks. */
 :root {
   color-scheme: light dark;
-  --track-h: 520px;
+  --track-h: 496px;
   /* The zone holds the set line, steppers, plates, last time and the progression reason; Log set and Skip set are in the dock. */
   --zone-h: calc(var(--track-h) * 0.42);
   --bg: var(--color-background-primary, #faf8f5);

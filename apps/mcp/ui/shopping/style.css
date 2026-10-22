@@ -106,3 +106,11 @@ ul.notes { margin: 0; padding-left: 1.1rem; display: grid; gap: 6px; }
 .tools { display: flex; gap: 8px; flex-wrap: wrap; }
 .tools button { min-height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .tools button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+/* The undo bar sits outside the list's live region, so only #notice announces it. */
+.undo { position: sticky; bottom: 0; max-width: 640px; margin: 0 auto; padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); }
+.undo[hidden] { display: none; }
+.undo > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 6px 6px 14px; }
+.undo button { min-height: 44px; min-width: 44px; padding: 0 18px; border: 1px solid var(--border); border-radius: 999px; background: var(--btn); color: var(--on-btn); font: inherit; font-weight: 600; cursor: pointer; }
+.undo button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }

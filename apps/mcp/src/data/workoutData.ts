@@ -3,7 +3,7 @@ import type { SessionDetails } from '../workout/sessions';
 import type { CardioDetails, WorkoutExercise, WorkoutSet } from '@fitwell/core/schema';
 
 /** A set as the server stores it: the web shape plus the target the plan asked for. */
-export type StoredSet = WorkoutSet & { targetReps?: number; targetSec?: number; skipped?: boolean };
+export type StoredSet = WorkoutSet & { targetReps?: number; targetSec?: number; skipped?: boolean; /** How hard the set felt, 1 (easy) to 4 (max); working sets only. */ effort?: number };
 /** The web shape plus plan details shown in the player (the web backup format ignores the extras). */
 export type StoredExercise = Omit<WorkoutExercise, 'sets'> & {
   sets: StoredSet[];
@@ -36,6 +36,13 @@ export interface CardioBlock {
   weightKgUsed?: number;
 }
 
+/** The one running rest of a strength workout, stamped by the server: epoch ms it ends, how long it was, and the exercise (uid) whose card holds it. */
+export interface StoredRest {
+  untilMs: number;
+  totalMs: number;
+  exerciseUid: string;
+}
+
 export interface Workout {
   id: string;
   day: string;
@@ -50,6 +57,8 @@ export interface Workout {
   /** Cardio blocks of a strength workout. */
   cardioBlocks: CardioBlock[];
   templateId: string | null;
+  /** The running rest, if any; absent from workouts that never had one. */
+  rest?: StoredRest;
   createdAt: number;
   updatedAt: number;
 }
@@ -106,6 +115,7 @@ const toWorkout = (r: Row): Workout => ({
   session: parse<SessionDetails | null>(r.session, null),
   cardioBlocks: parse<CardioBlock[]>(r.cardio_blocks, []),
   templateId: (r.template_id as string | null) ?? null,
+  ...(typeof r.rest_until === 'number' && typeof r.rest_ex === 'string' ? { rest: { untilMs: r.rest_until, totalMs: (r.rest_total_ms as number | null) ?? 0, exerciseUid: r.rest_ex } } : {}),
   createdAt: r.created_at as number,
   updatedAt: r.updated_at as number,
 });
@@ -134,11 +144,19 @@ export class WorkoutData {
     return r ? toWorkout(r) : null;
   }
 
-  /** Saves the exercises (and optionally the finish time) of a strength workout. */
-  async saveExercises(id: string, exercises: StoredExercise[], finishedAt?: number): Promise<void> {
+  /** Saves the exercises (and optionally the finish time) of a strength workout. `rest` replaces the running rest (null clears it); undefined leaves it alone. */
+  async saveExercises(id: string, exercises: StoredExercise[], finishedAt?: number, rest?: StoredRest | null): Promise<void> {
     await this.db
-      .prepare('UPDATE workouts SET exercises = ?, finished_at = COALESCE(?, finished_at), updated_at = ? WHERE user_id = ? AND id = ?')
-      .bind(JSON.stringify(exercises), finishedAt ?? null, this.now(), this.userId, id)
+      .prepare(`UPDATE workouts SET exercises = ?, finished_at = COALESCE(?, finished_at), updated_at = ?${rest === undefined ? '' : ', rest_until = ?, rest_total_ms = ?, rest_ex = ?'} WHERE user_id = ? AND id = ?`)
+      .bind(JSON.stringify(exercises), finishedAt ?? null, this.now(), ...(rest === undefined ? [] : [rest?.untilMs ?? null, rest?.totalMs ?? null, rest?.exerciseUid ?? null]), this.userId, id)
+      .run();
+  }
+
+  /** Replaces the running rest (null clears it) without touching the sets. */
+  async saveRest(id: string, rest: StoredRest | null): Promise<void> {
+    await this.db
+      .prepare('UPDATE workouts SET rest_until = ?, rest_total_ms = ?, rest_ex = ?, updated_at = ? WHERE user_id = ? AND id = ?')
+      .bind(rest?.untilMs ?? null, rest?.totalMs ?? null, rest?.exerciseUid ?? null, this.now(), this.userId, id)
       .run();
   }
 

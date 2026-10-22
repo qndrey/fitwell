@@ -14,6 +14,21 @@ export interface PlannedSet {
   skipped?: boolean;
   /** What was actually done, once logged. */
   reps?: number;
+  /** How hard the set felt, 1 (easy) to 4 (max), when the person said so. */
+  effort?: number;
+}
+
+/** The four effort taps of a logged working set, easiest first: effort n is `EFFORT_LABELS[n - 1]`. */
+export const EFFORT_LABELS = ['Easy', 'Solid', 'Hard', 'Max'] as const;
+
+/** What earlier sessions did with an exercise, so the player can say a logged set beats them (compared the way the finish summary does). */
+export interface ExerciseBests {
+  /** Best estimated 1RM (Epley) of any earlier working set. */
+  e1rm: number;
+  /** [reps, heaviest kg] for each rep count seen, at most 12 pairs. */
+  byReps: [number, number][];
+  /** [kg, most reps] for the heaviest weights seen, at most 12 pairs. */
+  atWeight: [number, number][];
 }
 
 export interface PlannedExercise {
@@ -29,6 +44,8 @@ export interface PlannedExercise {
   /** Neighbouring exercises with the same id are done back to back, round by round. */
   supersetId?: string;
   sets: PlannedSet[];
+  /** Absent for bodyweight and timed exercises and when there is nothing earlier to compare with: no record cue then. */
+  bests?: ExerciseBests;
   /** "3×5 @ 80 kg" from the last session with this exercise. */
   lastTime?: string;
   /** Why the planned weight is what it is (progression rule), when the server chose it. */
@@ -53,6 +70,13 @@ export interface PlannedCardio {
   skipped?: boolean;
 }
 
+/** The rest that was running when the plan was read: time left by the server's clock (negative once it ran out, down to -3 s), the whole length, and the exercise whose card holds it. */
+export interface PlannedRest {
+  exerciseUid: string;
+  remainingMs: number;
+  totalMs: number;
+}
+
 export interface WorkoutPlan {
   workoutId: string;
   name: string;
@@ -61,6 +85,8 @@ export interface WorkoutPlan {
   exercises: PlannedExercise[];
   /** Empty for a workout without cardio. */
   cardio: PlannedCardio[];
+  /** A rest between sets that was still running (or ended under 3 s ago) when the plan was read. */
+  rest?: PlannedRest;
   /** The person's bar and plates, for the plate calculator. */
   gym?: { barKg: number; platesKg: number[] };
 }

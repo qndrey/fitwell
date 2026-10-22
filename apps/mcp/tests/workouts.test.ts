@@ -1,5 +1,5 @@
 import type { Client } from '@modelcontextprotocol/client';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '../src/data/users';
 import type { WorkoutPlan } from '../src/workout/plan';
 import { createTestEnv } from './support/env';
@@ -277,5 +277,153 @@ describe('cardio blocks and notes', () => {
     const bo = await connectAs(env, await signedInUser(env, 'bo@example.com'));
     expect((await call(bo, 'log_cardio_block', { workoutId: plan.workoutId, blockId: 'c1' })).isError).toBe(true);
     expect((await call(bo, 'set_exercise_note', { workoutId: plan.workoutId, exerciseId: 'e1', notes: 'x' })).isError).toBe(true);
+  });
+
+  it('stores an optional effort on working sets and shows it in the plan, history and finish summary', async () => {
+    const plan = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 80, warmup: true }] });
+    const warm = plan.exercises[0]!.sets.find((s) => s.warmup)!;
+    const [first, second] = work(plan.exercises[0]!);
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: warm.id, reps: warm.targetReps, weightKg: warm.weightKg, effort: 4 }); // not for warm-ups
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: first!.id, reps: 5, weightKg: 80, effort: 2 });
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: second!.id, reps: 5, weightKg: 80 }); // ignoring the tap logs nothing extra
+    const stored = ((await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan).exercises[0]!.sets;
+    expect(stored.find((s) => s.id === warm.id)!.effort).toBeUndefined();
+    expect(stored.find((s) => s.id === first!.id)!.effort).toBe(2);
+    expect(stored.find((s) => s.id === second!.id)!.effort).toBeUndefined();
+
+    // Re-logging the same set without an effort keeps it; edit_workout_set changes it; reopening or skipping drops it.
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: first!.id, reps: 6, weightKg: 80 });
+    expect(((await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan).exercises[0]!.sets.find((s) => s.id === first!.id)!.effort).toBe(2);
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 2, effort: 3 })).isError).toBe(false);
+    const finished = (await call(client, 'finish_workout', { workoutId: plan.workoutId })).data;
+    expect((finished.exercises as { effort?: string }[])[0]!.effort).toBe('set 1 Solid, set 2 Hard');
+    const history = (await call(client, 'get_workout_history', { days: 7 })).data.workouts as { exercises: { effort?: string }[] }[];
+    expect(history[0]!.exercises[0]!.effort).toBe('set 1 Solid, set 2 Hard');
+    const byExercise = (await call(client, 'get_workout_history', { days: 7, exercise_id: SQUAT })).data.sessions as { effort?: string }[];
+    expect(byExercise[0]!.effort).toBe('set 1 Solid, set 2 Hard');
+
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: first!.id, reps: 0, reopen: true });
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: second!.id, reps: 0, skip: true });
+    const reopened = ((await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan).exercises[0]!.sets;
+    expect(reopened.filter((s) => s.effort !== undefined)).toEqual([]);
+  });
+
+  it('refuses an effort outside 1–4, an effort on a warm-up edit, and an edit with nothing to change', async () => {
+    const plan = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 80, warmup: true }] });
+    const setId = work(plan.exercises[0]!)[0]!.id;
+    expect((await call(client, 'log_set', { workoutId: plan.workoutId, setId, reps: 5, weightKg: 80, effort: 5 })).isError).toBe(true);
+    expect((await call(client, 'log_set', { workoutId: plan.workoutId, setId, reps: 5, weightKg: 80, effort: 0 })).isError).toBe(true);
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId, reps: 5, weightKg: 80 });
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 1, effort: 7 })).isError).toBe(true);
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 1, warmup: true, effort: 2 })).isError).toBe(true);
+    expect((await call(client, 'edit_workout_set', { workout_id: plan.workoutId, exercise: 'squat', set: 1 })).isError).toBe(true);
+  });
+
+  it('export_my_data carries the effort of each set', async () => {
+    const plan = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 80, warmup: false }] });
+    await call(client, 'log_set', { workoutId: plan.workoutId, setId: 's1.1', reps: 5, weightKg: 80, effort: 4 });
+    const { text } = await call(client, 'export_my_data', {});
+    expect(text).toContain('"effort":4');
+  });
+
+  describe('stored rest', () => {
+    const restOf = async (id: string) => ((await call(client, 'get_workout', { workoutId: id })).data.workout as WorkoutPlan).rest;
+    const started = async () => {
+      const plan = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 80, warmup: false }] });
+      return { id: plan.workoutId, uid: plan.exercises[0]!.uid };
+    };
+    afterEach(() => vi.useRealTimers());
+
+    it('log_set with restSec stores it and returns the time left by the server clock; get_workout resumes it', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: 1_000_000 });
+      const { id, uid } = await started();
+      expect(await restOf(id)).toBeUndefined();
+      const logged = await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 5, weightKg: 80, restSec: 90 });
+      expect(logged.data.restRemainingMs).toBe(90_000);
+      vi.setSystemTime(1_030_000);
+      expect(await restOf(id)).toEqual({ exerciseUid: uid, remainingMs: 60_000, totalMs: 90_000 });
+    });
+
+    it('an expired rest is not reported, except for 3 s after it ended (negative time left)', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: 1_000_000 });
+      const { id } = await started();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 5, weightKg: 80, restSec: 60 });
+      vi.setSystemTime(1_061_000);
+      expect((await restOf(id))?.remainingMs).toBe(-1000);
+      vi.setSystemTime(1_063_500);
+      expect(await restOf(id)).toBeUndefined();
+    });
+
+    it('a new rest replaces the running one; a log without restSec keeps it; restSec 0, reopen, set_rest 0 and finishing clear it', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: 1_000_000 });
+      const { id } = await started();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 5, weightKg: 80, restSec: 90 });
+      vi.setSystemTime(1_010_000);
+      await call(client, 'log_set', { workoutId: id, setId: 's1.2', reps: 5, weightKg: 80, restSec: 120 });
+      expect(await restOf(id)).toMatchObject({ remainingMs: 120_000, totalMs: 120_000 });
+      await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 6, weightKg: 80 }); // an edit of a row
+      expect((await restOf(id))?.remainingMs).toBe(120_000);
+
+      const shorter = await call(client, 'set_rest', { workoutId: id, restSec: 30, totalSec: 120 });
+      expect(shorter.data).toMatchObject({ saved: true, restRemainingMs: 30_000 });
+      expect(await restOf(id)).toMatchObject({ remainingMs: 30_000, totalMs: 120_000 });
+      await call(client, 'set_rest', { workoutId: id, restSec: 0 });
+      expect(await restOf(id)).toBeUndefined();
+      expect((await call(client, 'set_rest', { workoutId: id, restSec: 20 })).data.saved).toBe(false); // never starts one
+
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 5, weightKg: 80, restSec: 90 });
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 0, reopen: true });
+      expect(await restOf(id)).toBeUndefined();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 5, weightKg: 80, restSec: 90 });
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 5, weightKg: 80, restSec: 0 });
+      expect(await restOf(id)).toBeUndefined();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.2', reps: 5, weightKg: 80, restSec: 90 });
+      await call(client, 'finish_workout', { workoutId: id });
+      expect(await restOf(id)).toBeUndefined();
+    });
+  });
+
+  describe('bests for the record cue', () => {
+    const log = (id: string, setId: string, reps: number, weightKg?: number) => call(client, 'log_set', { workoutId: id, setId, reps, ...(weightKg !== undefined ? { weightKg } : {}) });
+    const first = async () => {
+      const a = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 100, warmup: false }] });
+      await log(a.workoutId, 's1.1', 5, 100);
+      await log(a.workoutId, 's1.2', 5, 100);
+      await log(a.workoutId, 's1.3', 3, 105);
+      await call(client, 'finish_workout', { workoutId: a.workoutId });
+    };
+
+    it('start_workout and get_workout send what earlier sessions did, and none for a first session', async () => {
+      const none = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 100, warmup: false }] });
+      expect(none.exercises[0]!.bests).toBeUndefined();
+      await first();
+      const next = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 100, warmup: false }] });
+      const bests = next.exercises[0]!.bests!;
+      expect(bests.byReps).toEqual([[3, 105], [5, 100]]);
+      expect(bests.atWeight).toEqual([[105, 3], [100, 5]]);
+      expect(bests.e1rm).toBeCloseTo(100 * (1 + 5 / 30), 6);
+      expect(((await call(client, 'get_workout', { workoutId: next.workoutId })).data.workout as WorkoutPlan).exercises[0]!.bests).toEqual(bests);
+    });
+
+    it('is the same basis as the finish summary: its e1rm is the "was" of a new best, and a tie is no record', async () => {
+      await first();
+      const b = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 100, warmup: false }] });
+      const best = b.exercises[0]!.bests!.e1rm;
+      await log(b.workoutId, 's1.1', 3, 105); // a tie
+      await log(b.workoutId, 's1.2', 6, 105); // beats it
+      const summary = (await call(client, 'finish_workout', { workoutId: b.workoutId })).data.exercises as { personalRecord?: string }[];
+      expect(summary[0]!.personalRecord).toContain(`(was ${Math.round(best * 10) / 10} kg)`);
+    });
+
+    it('leaves out bodyweight and timed exercises, and keeps each list within the cap', async () => {
+      const a = await start({ exercises: [{ id: SQUAT, sets: 10, reps: 5, weight_kg: 60, warmup: false }, { id: PULLUP, sets: 1, reps: 8 }] });
+      for (let k = 0; k < 10; k++) await log(a.workoutId, `s1.${k + 1}`, k + 1, 60 + 5 * k);
+      await log(a.workoutId, 's2.1', 8);
+      await call(client, 'finish_workout', { workoutId: a.workoutId });
+      const b = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 60, warmup: false }, { id: PULLUP, sets: 1, reps: 8 }] });
+      expect(b.exercises[0]!.bests!.byReps.length).toBeLessThanOrEqual(12);
+      expect(b.exercises[0]!.bests!.atWeight.length).toBeLessThanOrEqual(12);
+      expect(b.exercises[1]!.bests).toBeUndefined();
+    });
   });
 });

@@ -10,10 +10,11 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
-import type { CardioBlock, StoredExercise, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
+import type { CardioBlock, StoredExercise, StoredRest, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
 import workoutHtml from '../ui/generated/workout';
+import { exerciseBests, sessionBest } from '../workout/bests';
 import { SESSION_PROFILES } from '../workout/sessions';
-import { WORKOUT_VIEW_URI, type PlannedCardio, type PlannedExercise, type WorkoutPlan } from '../workout/plan';
+import { EFFORT_LABELS, WORKOUT_VIEW_URI, type ExerciseBests, type PlannedCardio, type PlannedExercise, type PlannedRest, type WorkoutPlan } from '../workout/plan';
 import { json, toolError } from './result';
 
 export interface WorkoutDeps {
@@ -66,6 +67,12 @@ const isBodyweight = (ex: Exercise) => ex.equipment === 'body only';
 const heavyLift = (ex: Exercise) => ex.equipment === 'barbell' && ex.mechanic === 'compound';
 /** Warm-up steps for equipment without a bar: whole 2.5 kg steps. */
 const NO_BAR: Gym = { barKg: 0, platesKg: [1.25] };
+const effortSchema = z.number().int().min(1).max(4).describe('How hard the set felt: 1 Easy, 2 Solid, 3 Hard, 4 Max');
+/** "set 1 Solid, set 2 Hard": the effort of the working sets that have one, numbered as edit_workout_set numbers them. Empty when none. */
+function effortText(e: StoredExercise): string {
+  const working = e.sets.filter((s) => s.type === 'working');
+  return working.flatMap((s, i) => (s.done !== false && s.effort ? [`set ${i + 1} ${EFFORT_LABELS[s.effort - 1]}`] : [])).join(', ');
+}
 const sessionOf = (d: string, e: StoredExercise): SessionSets => ({ day: d, sets: e.sets });
 
 /** "3×5 @ 80 kg", "8, 8, 6 @ BW", or one line for a cardio session. */
@@ -95,13 +102,22 @@ function summarizeWorkout(w: Workout) {
     name: w.name,
     finished: w.finishedAt !== null,
     ...(minutes !== undefined ? { minutes } : {}),
-    exercises: w.exercises.map((e) => ({ id: e.exerciseRef, name: e.exerciseName, done: summarizeExercise(e) || 'nothing logged', ...(e.notes ? { notes: e.notes } : {}) })),
+    exercises: w.exercises.map((e) => ({ id: e.exerciseRef, name: e.exerciseName, done: summarizeExercise(e) || 'nothing logged', ...(effortText(e) ? { effort: effortText(e) } : {}), ...(e.notes ? { notes: e.notes } : {}) })),
     ...(w.cardioBlocks.some((b) => b.done) ? { cardio: w.cardioBlocks.filter((b) => b.done).map(cardioLine) } : {}),
   };
 }
 
+/** How long after it ran out a rest is still reported, so a reload right then can show "Rest over". */
+const REST_GRACE_MS = 3000;
+/** The rest to resume, by the server's clock: none once finished or when it ended more than the grace period ago. */
+function restOf(w: Workout): PlannedRest | undefined {
+  if (!w.rest || w.finishedAt !== null) return undefined;
+  const remainingMs = w.rest.untilMs - Date.now();
+  return remainingMs > -REST_GRACE_MS ? { exerciseUid: w.rest.exerciseUid, remainingMs, totalMs: w.rest.totalMs } : undefined;
+}
+
 /** The player's view of a stored workout (also used to resume one). */
-function toPlan(w: Workout, gym?: Gym): WorkoutPlan {
+function toPlan(w: Workout, gym?: Gym, bests?: Map<string, ExerciseBests>): WorkoutPlan {
   return {
     workoutId: w.id,
     name: w.name ?? 'Workout',
@@ -126,13 +142,16 @@ function toPlan(w: Workout, gym?: Gym): WorkoutPlan {
           done: s.done !== false,
           ...(s.done !== false ? { reps: s.reps, ...(e.mode === 'time' ? { seconds: s.durationSec ?? 0 } : {}) } : {}),
           ...(s.skipped ? { skipped: true } : {}),
+          ...(s.effort && s.done !== false ? { effort: s.effort } : {}),
         })),
+        ...(bests?.get(e.uid ?? `e${i + 1}`) ? { bests: bests.get(e.uid ?? `e${i + 1}`) } : {}),
         ...(e.lastTime ? { lastTime: e.lastTime } : {}),
         ...(e.note ? { note: e.note } : {}),
         ...(e.notes ? { notes: e.notes } : {}),
         ...(e.lastNotes ? { lastNotes: e.lastNotes } : {}),
       }),
     ),
+    ...(restOf(w) ? { rest: restOf(w) } : {}),
     ...(gym ? { gym } : {}),
     cardio: w.cardioBlocks.map(
       (b): PlannedCardio => ({
@@ -265,10 +284,25 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     });
   }
 
+  /** Earlier sessions of the workout's exercises (the same ones the finish summary compares with). */
+  const priorSessions = (w: Workout) => workouts.recentSessions(w.exercises.map((e) => e.exerciseRef), 20, w.id);
+
+  /** The record cue's side of the comparison, per exercise uid: weighted, rep-based exercises with an earlier working set only. */
+  async function bestsFor(w: Workout): Promise<Map<string, ExerciseBests>> {
+    const prior = await priorSessions(w);
+    const out = new Map<string, ExerciseBests>();
+    w.exercises.forEach((e, i) => {
+      if (e.load === 'bodyweight' || e.mode === 'time') return;
+      const b = exerciseBests(prior.get(e.exerciseRef) ?? [], w.day);
+      if (b) out.set(e.uid ?? `e${i + 1}`, b);
+    });
+    return out;
+  }
+
   /** Time, volume and personal records of a strength workout. Records compare with sessions up to that workout's day. */
   async function finishSummary(w: Workout) {
-    const prior = await workouts.recentSessions(w.exercises.map((e) => e.exerciseRef), 20, w.id);
-    const best = (sets: StoredSet[]) => Math.max(0, ...sets.filter((s) => s.done !== false && s.type === 'working').map((s) => estimatedOneRepMax(s.weightKg, s.reps) ?? 0));
+    const prior = await priorSessions(w);
+    const best = sessionBest;
     let volumeKg = 0;
     const exercises = w.exercises.map((e) => {
       const done = e.sets.filter((s) => s.done !== false && s.type === 'working');
@@ -278,6 +312,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       return {
         name: e.exerciseName,
         done: summarizeExercise(e) || 'skipped',
+        ...(effortText(e) ? { effort: effortText(e) } : {}),
         ...(e.notes ? { notes: e.notes } : {}),
         ...(e.load !== 'bodyweight' && now > 0 ? { estimated1rmKg: r1(now) } : {}),
         ...(e.load !== 'bodyweight' && now > 0 && before > 0 && now > before + 0.01 ? { personalRecord: `New best estimated 1RM: ${r1(now)} kg (was ${r1(before)} kg)` } : {}),
@@ -360,7 +395,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         const what = e.mode === 'time' ? `${work.length}×${work[0]!.durationSec} s` : `${work.length}×${work[0]!.targetReps}${e.load === 'bodyweight' ? '' : ` @ ${work[0]!.weightKg} kg`}`;
         return `${e.supersetId ? '[superset] ' : ''}${e.exerciseName} ${what}${warm ? ` after ${warm} warm-up sets` : ''}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`;
       });
-      const result = json({ workout: toPlan(w, profile.gym), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
+      const result = json({ workout: toPlan(w, profile.gym, await bestsFor(w)), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
       const cardioText = cardioBlocks.length ? ` Cardio: ${cardioBlocks.map((b) => `${b.plannedMin} min ${b.activityName} (${b.when === 'before' ? 'warm-up' : 'finisher'})`).join('; ')}.` : '';
       result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText}` }];
       return result;
@@ -379,7 +414,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     },
     async ({ workoutId }) => {
       const w = await workouts.get(workoutId);
-      return w && w.type === 'strength' ? json({ workout: toPlan(w, (await data.profile()).gym) }) : toolError('No such workout.');
+      return w && w.type === 'strength' ? json({ workout: toPlan(w, (await data.profile()).gym, w.finishedAt === null ? await bestsFor(w) : undefined) }) : toolError('No such workout.');
     },
   );
 
@@ -397,34 +432,66 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         seconds: z.number().int().min(0).max(3600).optional().describe('For a timed set'),
         skip: z.boolean().default(false),
         reopen: z.boolean().default(false).describe('Undo: the set is open again, as if it had not been logged or skipped'),
+        effort: effortSchema.optional().describe('Optional, working sets only: how hard it felt, 1 Easy, 2 Solid, 3 Hard, 4 Max'),
+        restSec: z.number().int().min(0).max(900).optional().describe('A rest of this many seconds starts now and replaces the running one; 0 clears it; leave out to keep it. Stored so the player can resume it.'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
-    async ({ workoutId, setId, reps, weightKg, seconds, skip, reopen }) => {
+    async ({ workoutId, setId, reps, weightKg, seconds, skip, reopen, effort, restSec }) => {
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       let found = false;
+      let exerciseUid = '';
       const exercises = w.exercises.map((e) => ({
         ...e,
         sets: e.sets.map((s) => {
           if (s.id !== setId) return s;
           found = true;
+          exerciseUid = e.uid ?? '';
           if (reopen) {
             const open: StoredSet = { ...s, done: false };
             delete open.skipped;
+            delete open.effort;
             return open;
           }
-          if (skip) return { ...s, done: false, skipped: true };
+          if (skip) {
+            const left: StoredSet = { ...s, done: false, skipped: true };
+            delete left.effort;
+            return left;
+          }
           const bodyweight = e.load === 'bodyweight';
-          const next: StoredSet = { ...s, reps, weightKg: bodyweight ? s.weightKg : (weightKg ?? s.weightKg), ...(seconds !== undefined ? { durationSec: seconds } : {}), done: true };
+          const next: StoredSet = { ...s, reps, weightKg: bodyweight ? s.weightKg : (weightKg ?? s.weightKg), ...(seconds !== undefined ? { durationSec: seconds } : {}), ...(effort !== undefined && s.type === 'working' ? { effort } : {}), done: true };
           delete next.skipped;
           return next;
         }),
       }));
       if (!found) return toolError('No such set in this workout.');
-      await workouts.saveExercises(workoutId, exercises);
-      return json({ saved: true, setId });
+      // One rest at a time: a new one replaces the running one, 0 (or undoing a set) clears it, and leaving it out keeps it.
+      const startedAt = Date.now();
+      const rest: StoredRest | null | undefined = reopen || restSec === 0 ? null : restSec !== undefined && exerciseUid ? { untilMs: startedAt + restSec * 1000, totalMs: restSec * 1000, exerciseUid } : undefined;
+      await workouts.saveExercises(workoutId, exercises, undefined, rest);
+      return json({ saved: true, setId, ...(rest ? { restRemainingMs: rest.untilMs - Date.now() } : {}) });
+    },
+  );
+
+  registerAppTool(
+    server,
+    'set_rest',
+    {
+      title: 'Change the running rest',
+      description: 'Called by the workout player when the person shortens or lengthens the rest (restSec = time left) or skips it (0). Only changes a rest that log_set started; it never starts one.',
+      inputSchema: z.object({ workoutId: z.uuid(), restSec: z.number().int().min(0).max(900), totalSec: z.number().int().min(1).max(900).optional().describe('The length the progress bar counts against') }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
+    },
+    async ({ workoutId, restSec, totalSec }) => {
+      const w = await workouts.get(workoutId);
+      if (!w || w.type !== 'strength') return toolError('No such workout.');
+      if (!w.rest) return json({ saved: false });
+      if (restSec === 0) await workouts.saveRest(workoutId, null);
+      else await workouts.saveRest(workoutId, { untilMs: Date.now() + restSec * 1000, totalMs: Math.max((totalSec ?? 0) * 1000, restSec * 1000), exerciseUid: w.rest.exerciseUid });
+      return json({ saved: true, ...(restSec > 0 ? { restRemainingMs: restSec * 1000 } : {}) });
     },
   );
 
@@ -544,7 +611,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const next: StoredExercise = { ...buildExercise(item, i, past.get(newId)!, profile.weightKg, ramp, profile.gym), uid: old.uid, ...(old.supersetId ? { supersetId: old.supersetId } : {}) };
       const exercises = w.exercises.map((x, k) => (k === i ? next : x));
       await workouts.saveExercises(workoutId, exercises);
-      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: toPlan({ ...w, exercises }, profile.gym) });
+      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: toPlan({ ...w, exercises }, profile.gym, await bestsFor({ ...w, exercises })) });
     },
   );
 
@@ -562,7 +629,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       const finishedAt = w.finishedAt ?? Date.now();
-      if (!w.finishedAt) await workouts.saveExercises(workoutId, w.exercises, finishedAt);
+      if (!w.finishedAt) await workouts.saveExercises(workoutId, w.exercises, finishedAt, null);
       return json(await finishSummary({ ...w, finishedAt }));
     },
   );
@@ -574,7 +641,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       description:
         'Correct one set of a stored strength workout, e.g. "the second squat set was 6 reps, not 5". Find the workout id with get_workout_history; its exercise lines list the sets in order ("5 @ 82.5, 5 @ 82.5"). ' +
         'exercise is a library id ("ex:Barbell_Squat") or part of the exercise name as it appears in the workout; set is the position among its working sets, 1 for the first (warmup: true counts warm-up sets instead). ' +
-        'Give the reps, weight_kg (not for bodyweight exercises) and/or seconds (timed sets) that should change. A set that was skipped or never logged becomes done with the values given. Works on finished workouts too; ask before changing history.',
+        'Give the reps, weight_kg (not for bodyweight exercises), seconds (timed sets) and/or effort (how hard it felt, 1 Easy to 4 Max; working sets) that should change. A set that was skipped or never logged becomes done with the values given. Works on finished workouts too; ask before changing history.',
       inputSchema: z.object({
         workout_id: z.uuid(),
         exercise: z.string().min(1).max(80),
@@ -583,11 +650,13 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         reps: z.number().int().min(0).max(100).optional(),
         weight_kg: z.number().min(0).max(500).optional(),
         seconds: z.number().int().min(0).max(3600).optional(),
+        effort: effortSchema.optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
-    async ({ workout_id, exercise, set, warmup, reps, weight_kg, seconds }) => {
-      if (reps === undefined && weight_kg === undefined && seconds === undefined) return toolError('Give at least one of reps, weight_kg or seconds to change.');
+    async ({ workout_id, exercise, set, warmup, reps, weight_kg, seconds, effort }) => {
+      if (reps === undefined && weight_kg === undefined && seconds === undefined && effort === undefined) return toolError('Give at least one of reps, weight_kg, seconds or effort to change.');
+      if (effort !== undefined && warmup) return toolError('Effort is for working sets; leave out warmup.');
       const w = await workouts.get(workout_id);
       if (!w || w.type !== 'strength') return toolError('No such strength workout. Find the id with get_workout_history.');
       const wanted = exercise.trim().toLowerCase();
@@ -600,7 +669,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const chosen = sets[set - 1];
       if (!chosen) return toolError(`${target.exerciseName} has ${sets.length} ${warmup ? 'warm-up' : 'working'} set${sets.length === 1 ? '' : 's'}; there is no set ${set}.`);
       if (weight_kg !== undefined && target.load === 'bodyweight') return toolError(`${target.exerciseName} is a bodyweight exercise; leave out weight_kg.`);
-      const next: StoredSet = { ...chosen, done: true, ...(reps !== undefined ? { reps } : {}), ...(weight_kg !== undefined ? { weightKg: weight_kg } : {}), ...(seconds !== undefined ? { durationSec: seconds } : {}) };
+      const next: StoredSet = { ...chosen, done: true, ...(reps !== undefined ? { reps } : {}), ...(weight_kg !== undefined ? { weightKg: weight_kg } : {}), ...(seconds !== undefined ? { durationSec: seconds } : {}), ...(effort !== undefined ? { effort } : {}) };
       delete next.skipped;
       const exercises = w.exercises.map((e) => (e === target ? { ...e, sets: e.sets.map((s) => (s === chosen ? next : s)) } : e));
       await workouts.saveExercises(workout_id, exercises);
@@ -679,7 +748,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
           .map((e) => {
             const working = e.sets.filter((s) => s.done !== false && s.type === 'working' && s.reps > 0);
             const top = working.reduce<StoredSet | null>((b, s) => ((estimatedOneRepMax(s.weightKg, s.reps) ?? 0) > (b ? (estimatedOneRepMax(b.weightKg, b.reps) ?? 0) : -1) ? s : b), null);
-            return { day: w.day, done: summarizeExercise(e), ...(top && e.load !== 'bodyweight' ? { bestSet: `${top.reps} @ ${top.weightKg} kg`, estimated1rmKg: r1(estimatedOneRepMax(top.weightKg, top.reps) ?? 0) } : {}) };
+            return { day: w.day, done: summarizeExercise(e), ...(effortText(e) ? { effort: effortText(e) } : {}), ...(top && e.load !== 'bodyweight' ? { bestSet: `${top.reps} @ ${top.weightKg} kg`, estimated1rmKg: r1(estimatedOneRepMax(top.weightKg, top.reps) ?? 0) } : {}) };
           }),
       );
       return json({ exercise: byId.get(exercise_id)?.name ?? exercise_id, sessions });

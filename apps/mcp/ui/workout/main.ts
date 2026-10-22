@@ -1,7 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
-import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
-import { backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
+import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
+import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -13,6 +13,7 @@ interface FinishSummary {
     name: string;
     done: string;
     personalRecord?: string;
+    effort?: string;
     notes?: string;
   }[];
   cardio?: {
@@ -53,6 +54,8 @@ const state = {
   timerStep: -1,
   /** The step whose hold ran to zero and has not been logged yet ("Time" shows in its zone). */
   timerDone: -1,
+  /** The working set just logged that offers the "How hard?" tap (one at a time; ignoring it logs nothing). */
+  effortOffer: null as { uid: string; setId: string; cue: string | null } | null,
   /** The one running rest of the workout. */
   rest: null as Rest | null,
   /** The next set's steppers are shown in the rest zone. */
@@ -239,6 +242,7 @@ function load(plan: WorkoutPlan) {
   state.sendFailed = false;
   state.note = '';
   state.swappedFrom.clear();
+  state.effortOffer = null;
   state.rest = null;
   state.restOver = null;
   state.restChange = false;
@@ -253,6 +257,7 @@ function load(plan: WorkoutPlan) {
   const card = openingCard(plan);
   const steps = stepsOf(plan);
   state.pos = cardPosition(card, steps.length);
+  resumeRest(plan, steps);
   state.drafts = steps.map((step) => draftFor(step, plan.gym));
   resetSecondary();
   buildShell();
@@ -265,6 +270,25 @@ function load(plan: WorkoutPlan) {
     render();
     void finish();
   }
+}
+
+/**
+ * A rest the server still had running when the plan was read: the time left is the server's (relative to now, so this clock's offset
+ * does not matter), the card is the one that held it, and a rest that ended under 3 s ago shows "Rest over" for what is left of the 3 s.
+ */
+function resumeRest(plan: WorkoutPlan, steps: Step[]) {
+  const r = plan.rest;
+  if (!r || plan.finished) return;
+  const i = steps.findIndex((s) => s.kind === 'ex' && s.ex.uid === r.exerciseUid);
+  const step = steps[i];
+  if (!step || step.kind !== 'ex' || !nextSet(step.ex)) return;
+  const now = Date.now();
+  if (r.remainingMs > 0) state.rest = { stepIndex: i, untilMs: now + r.remainingMs, totalMs: Math.max(r.totalMs, r.remainingMs) };
+  else state.restOver = { stepIndex: i, until: now + 3000 + r.remainingMs };
+  const handoff = step.ex.supersetId ? supersetHandoff(steps, i) : null;
+  // Inside a superset the rest follows the round and the pager stays on the exercise that is next; otherwise it opens on the card that holds the rest.
+  if (handoff?.kind === 'rest') state.intent = { target: { kind: 'step', index: handoff.returnTo }, cancelled: false };
+  else state.pos = i + 1;
 }
 
 /** The notes editor, swap list and guide belong to the card in view; they close when another card comes in. */
@@ -305,8 +329,20 @@ function supersetSteps(ex: PlannedExercise): number[] {
 
 const restRunning = () => !!state.rest && state.rest.untilMs > Date.now();
 
-/** Queues the save of one set; the arguments are read when it runs, so the latest values go out. */
-function enqueueSet(ex: PlannedExercise, set: PlannedSet, skip: boolean) {
+/** Whole seconds of the running rest of this step for the server (0 when there is none: the new set clears the stored one). */
+const restSecFor = (i: number) => (state.rest?.stepIndex === i && restRunning() ? Math.ceil((state.rest.untilMs - Date.now()) / 1000) : 0);
+
+/** Tells the server how the running rest stands (changed, skipped, over); the server stamps its own end time from the seconds left. */
+function syncRest() {
+  enqueue('rest', () => {
+    const r = state.rest;
+    const left = r && restRunning() ? Math.ceil((r.untilMs - Date.now()) / 1000) : 0;
+    return call('set_rest', { workoutId: state.plan!.workoutId, restSec: left, ...(r && left > 0 ? { totalSec: Math.ceil(r.totalMs / 1000) } : {}) });
+  });
+}
+
+/** Queues the save of one set; the arguments are read when it runs, so the latest values go out. `rest`: the set was just logged, so the rest it starts goes with it (and a rest that was running and is not any more is cleared). */
+function enqueueSet(ex: PlannedExercise, set: PlannedSet, skip: boolean, rest?: { step: number; hadRest: boolean }) {
   enqueue(`set:${set.id}:${ex.uid}`, () => {
     const args = {
       workoutId: state.plan!.workoutId,
@@ -315,6 +351,8 @@ function enqueueSet(ex: PlannedExercise, set: PlannedSet, skip: boolean) {
       skip,
       ...(ex.bodyweight || skip ? {} : { weightKg: set.weightKg }),
       ...(ex.timed && !skip ? { seconds: set.seconds ?? 0 } : {}),
+      ...(set.effort && !skip && !set.warmup ? { effort: set.effort } : {}),
+      ...(rest && !skip && (rest.hadRest || restSecFor(rest.step) > 0) ? { restSec: restSecFor(rest.step) } : {}),
     };
     return call('log_set', args);
   });
@@ -336,6 +374,7 @@ function logSet(i: number, skip = false) {
   const set = nextSet(ex);
   if (!set) return;
   const d = state.drafts[i]!;
+  const hadRest = restRunning();
   if (state.timerStep === i) {
     state.holdUntil = 0;
     state.readyUntil = 0;
@@ -355,6 +394,7 @@ function logSet(i: number, skip = false) {
     delete set.skipped;
     writeValues(ex, set, d);
   }
+  state.effortOffer = !skip && !set.warmup ? { uid: ex.uid, setId: set.id, cue: recordCue(ex, set) } : null;
   const handoff = ex.supersetId ? supersetHandoff(stepsOf(plan), i) : null;
   const partner = handoff?.kind === 'partner' ? handoff.index : -1;
   if (partner !== -1) state.rest = null;
@@ -370,8 +410,8 @@ function logSet(i: number, skip = false) {
     if (state.rest?.stepIndex === i && handoff?.kind === 'rest') state.intent = { target: { kind: 'step', index: handoff.returnTo }, cancelled: false };
   }
   state.drafts[i] = draftFor(stepsOf(plan)[i]!, plan.gym);
-  announce(skip ? `Skipped ${setName(ex, set)}.` : `Logged ${setValues(ex, set)}.${restRunning() ? ` Rest ${mmss(state.rest!.untilMs - Date.now())}.` : ''}`);
-  enqueueSet(ex, set, skip);
+  announce(skip ? `Skipped ${setName(ex, set)}.` : `Logged ${setValues(ex, set)}.${state.effortOffer?.cue ? ` New best: ${state.effortOffer.cue}.` : ''}${restRunning() ? ` Rest ${mmss(state.rest!.untilMs - Date.now())}.` : ''}`);
+  enqueueSet(ex, set, skip, { step: i, hadRest });
   void shareProgress();
   if (partner !== -1) {
     state.straight = { step: partner, until: Date.now() + 5000 };
@@ -384,6 +424,15 @@ function logSet(i: number, skip = false) {
     state.intent = { target: nextTarget(stepsOf(plan), i), cancelled: false };
     followIntent();
   }
+  render();
+}
+
+/** The "How hard?" tap: saved at once with the set, nothing else changes (no rest, no move). */
+function setEffort(ex: PlannedExercise, set: PlannedSet, effort: number) {
+  if (state.plan?.finished || !set.done || set.warmup) return;
+  set.effort = effort;
+  enqueueSet(ex, set, false);
+  announce(`${EFFORT_LABELS[effort - 1]} noted for ${setName(ex, set)}.`);
   render();
 }
 
@@ -415,6 +464,8 @@ function reopenSet(i: number, set: PlannedSet) {
   d.seconds = set.seconds ?? set.targetSec ?? d.seconds;
   set.done = false;
   delete set.skipped;
+  delete set.effort;
+  if (state.effortOffer?.setId === set.id) state.effortOffer = null;
   state.rest = null;
   state.restOver = null;
   state.intent = null;
@@ -487,6 +538,7 @@ function adjustRest(delta: number) {
     r.untilMs += delta;
     r.totalMs += delta;
   }
+  syncRest();
   render();
 }
 
@@ -495,6 +547,7 @@ function skipRest() {
   lock();
   state.rest = null;
   state.restChange = false;
+  syncRest();
   followIntent();
   render();
 }
@@ -603,7 +656,7 @@ async function sendSummary(summary: FinishSummary | null) {
   const prs = summary?.exercises.filter((e) => e.personalRecord).map((e) => `${e.name}: ${e.personalRecord}`) ?? [];
   const unsaved = failed.size > 0 ? ` ${failed.size} change${failed.size === 1 ? ' was' : 's were'} not saved to Fitwell.` : '';
   const text = summary
-    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}${e.notes ? ` (note: ${e.notes})` : ''}`).join('; ')}.${summary.cardio?.length ? ` Cardio: ${summary.cardio.map((c) => `${c.minutes} min ${c.activity}${c.distanceKm ? ` ${kg(c.distanceKm)} km` : ''}`).join('; ')}.` : ''}${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}${unsaved}`
+    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}${e.effort ? ` (effort: ${e.effort})` : ''}${e.notes ? ` (note: ${e.notes})` : ''}`).join('; ')}.${summary.cardio?.length ? ` Cardio: ${summary.cardio.map((c) => `${c.minutes} min ${c.activity}${c.distanceKm ? ` ${kg(c.distanceKm)} km` : ''}`).join('; ')}.` : ''}${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}${unsaved}`
     : `I finished my workout. ${progressText()}${unsaved}`;
   try {
     const res = await app.sendMessage({
@@ -1693,6 +1746,37 @@ function setSteppers(ex: PlannedExercise, d: Draft, scope: Scope): Node {
   return h('div', { className: 'steppers' }, ex.timed ? stepper('seconds', d, scope) : stepper('reps', d, scope), ex.bodyweight ? h('div', { className: 'stepper' }, h('span', { className: 'muted small' }, 'Load'), h('p', { className: 'bodyweight' }, 'Bodyweight')) : stepper('weight', d, scope, ex.uid !== state.hintUid && d.weightStep !== WEIGHT_STEP ? stepsHint(d) : undefined));
 }
 
+/** "How hard? Easy · Solid · Hard · Max": four text buttons for a logged working set; the chosen one is pressed. */
+function effortGroup(ex: PlannedExercise, set: PlannedSet): Node {
+  return h(
+    'div',
+    { className: 'effort', role: 'group', 'aria-label': `How hard was ${setName(ex, set)}?` },
+    h('span', { className: 'muted small' }, 'How hard?'),
+    ...EFFORT_LABELS.map((label, k) =>
+      h(
+        'button',
+        {
+          type: 'button',
+          'aria-pressed': String(set.effort === k + 1),
+          'data-key': `effort-${k + 1}`,
+          onclick: () => setEffort(ex, set, k + 1),
+        },
+        label,
+      ),
+    ),
+  );
+}
+
+/** The offer under the set list: the set just logged, until the next set is logged or this one is being edited. */
+function effortRow(ex: PlannedExercise): Node | null {
+  const offer = state.effortOffer;
+  const set = offer?.uid === ex.uid ? ex.sets.find((x) => x.id === offer.setId) : undefined;
+  if (!offer || !set || !set.done || set.warmup) return null;
+  const editing = state.edit?.uid === ex.uid && state.edit.setId === set.id;
+  // The record cue is plain text (announced once, with the log); it stays with the set until the next one is logged.
+  return h('div', { className: 'afterset' }, offer.cue && h('p', { className: 'cue', 'data-cue': '' }, `New best: ${offer.cue}`), !editing && effortGroup(ex, set));
+}
+
 function openEditor(i: number, ex: PlannedExercise, set: PlannedSet) {
   if (state.edit?.setId === set.id && state.edit.uid === ex.uid) state.edit = null;
   else {
@@ -1723,6 +1807,7 @@ function editorRow(i: number, ex: PlannedExercise, set: PlannedSet): Node {
       'aria-label': `Edit ${setName(ex, set)}`,
     },
     setSteppers(ex, draft, 'edit'),
+    !set.warmup && effortGroup(ex, set),
     h(
       'div',
       { className: 'actions' },
@@ -2061,6 +2146,7 @@ function restOverDock(set: PlannedSet, ex: PlannedExercise): Node {
           if (locked()) return;
           lock();
           state.restOver = null;
+          syncRest();
           render();
           ui?.cards[state.pos]?.querySelector<HTMLElement>('[data-key="log"]')?.focus({ preventScroll: true });
         },
@@ -2143,6 +2229,7 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
       ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex)),
       h('p', { className: 'muted small' }, [equipmentName(ex.equipment), ex.lastTime ? formatLastTime(ex.lastTime) : ''].filter(Boolean).join(' · ')),
       h('ol', { className: 'sets', 'aria-label': 'Sets' }, ...rows, !first && zone && h('li', { className: 'zonerow' }, zone)),
+      !readOnly && effortRow(ex),
       showHint && h('p', { className: 'muted small' }, stepsHint(d)),
       ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
       (ex.notes || state.noteSaved === ex.uid) && h('p', { className: 'small' }, ex.notes ? `Note: ${ex.notes}` : 'Note removed', state.noteSaved === ex.uid && h('span', { className: 'muted' }, ' · saved')),

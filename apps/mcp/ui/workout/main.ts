@@ -1,7 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
-import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
+import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -498,10 +498,13 @@ function logCardio(i: number, skip = false) {
   const km = Math.max(d.km, floor);
   state.cardioEdit = null;
   state.cardioAsk = '';
+  // The server's estimate is linear in minutes: carry its rate over to the new minutes until the stored figure comes back.
+  const kcalPerMin = c.estKcal ? c.estKcal / c.plannedMin : c.kcal && c.minutes ? c.kcal / c.minutes : 0;
   if (skip) c.skipped = true;
   else {
     c.done = true;
     c.minutes = clamp(d.minutes, 1, 240);
+    if (kcalPerMin) c.kcal = Math.round(kcalPerMin * c.minutes);
     if (km > 0) c.distanceKm = km;
     delete c.skipped;
   }
@@ -2329,14 +2332,14 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
         'div',
         { className: 'body' },
         ...heading,
-        c.done ? h('p', {}, `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}`, failed.has(`cardio:${c.id}`) && h('span', { className: 'unsaved' }, ' · not saved')) : h('p', { className: 'muted' }, 'Skipped'),
+        c.done ? h('p', { className: 'cardio-done' }, `✓ Logged ${cardioText(c)}${c.kcal ? ` · ~${c.kcal} kcal` : ''}`, failed.has(`cardio:${c.id}`) && h('span', { className: 'unsaved' }, ' · not saved')) : h('p', { className: 'muted' }, 'Skipped'),
         c.done &&
           !readOnly &&
           h(
             'button',
             {
               type: 'button',
-              
+              className: 'link',
               'data-key': 'cardio-edit',
               onclick: () => {
                 if (locked()) return;
@@ -2419,6 +2422,8 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
       ...heading,
       isClosed && !editing && h('p', { className: 'muted' }, 'Skipped'),
       planned,
+      c.last && h('p', { className: 'muted small' }, `Last time: ${c.last}`),
+      !!c.estKcal && h('p', { className: 'muted small' }, `~${c.estKcal} kcal`),
       h('div', { className: 'zone auto' }, h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone'))),
     ),
     bottom,

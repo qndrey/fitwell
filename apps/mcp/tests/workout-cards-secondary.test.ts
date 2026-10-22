@@ -586,12 +586,41 @@ describe('Specs: Cardio card (P7.5; FR13, AC15, NG3)', () => {
 
   it('a logged block without distance shows "m min"', async () => {
     const { card } = await onStep(cardioPlan(cardio('c1', 'before', { done: true, minutes: 12 })), 0);
-    await pwExpect(card.getByText('12 min', { exact: true })).toBeVisible();
+    await pwExpect(card.getByText('✓ Logged 12 min', { exact: true })).toBeVisible();
+  });
+
+  it('a logged block reads "✓ Logged 10 min · 1.5 km · ~130 kcal" with Edit as a 44 px text link', async () => {
+    const { card } = await onStep(cardioPlan(cardio('c1', 'before', { done: true, minutes: 10, distanceKm: 1.5, kcal: 130 })), 0);
+    await pwExpect(card.getByText('✓ Logged 10 min · 1.5 km · ~130 kcal', { exact: true })).toBeVisible();
+    const edit = btn(card, 'Edit');
+    await pwExpect(edit).toHaveClass(/link/);
+    expect((await edit.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  });
+
+  it('an open block shows last time and the kcal estimate for the planned minutes', async () => {
+    const { card } = await onStep(cardioPlan(cardio('c1', 'before', { plannedMin: 10, plannedKm: 1.5, last: '10 min · 1.5 km', estKcal: 46 })), 0);
+    await pwExpect(card.getByText('Last time: 10 min · 1.5 km', { exact: true })).toBeVisible();
+    await pwExpect(card.getByText('~46 kcal', { exact: true })).toBeVisible();
+  });
+
+  it('an open block without last time or estimate shows neither', async () => {
+    const { card } = await onStep(cardioPlan(cardio('c1', 'before', { plannedMin: 10 })), 0);
+    await pwExpect(card.getByText(/Last time|kcal/)).toHaveCount(0);
+  });
+
+  it('logging a block with an estimate shows its kcal for the logged minutes straight away', async () => {
+    const { v, card } = await onStep(cardioPlan(cardio('c1', 'before', { plannedMin: 10, estKcal: 50 })), 0);
+    await incBtn(card, 'minutes').click();
+    const minutes = await valueOf(card, 'Minutes');
+    await logBtn(card).click();
+    await expect.poll(() => cardioCalls(v).length).toBe(1);
+    await pwExpect(card.getByText(`✓ Logged ${minutes} min · ~${Math.round(5 * minutes)} kcal`, { exact: true })).toBeVisible();
   });
 
   it('Edit reopens the steppers and Save enqueues log_cardio_block again with the new minutes', async () => {
     const { v, card } = await onStep(cardioPlan(warm({ done: true, minutes: 18, distanceKm: 2 })), 0);
     await btn(card, 'Edit').click();
+    await wait(v, LOCK);
     expect(await valueOf(card, 'Minutes')).toBe(18);
     await incBtn(card, 'minutes').click();
     const minutes = await valueOf(card, 'Minutes');

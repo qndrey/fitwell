@@ -199,6 +199,22 @@ export class WorkoutData {
   }
 
   // ---------- templates ----------
+  /**
+   * The newest finished cardio of each activity (a block of a strength workout or a logged cardio entry), from the last
+   * `scan` workouts of any type, excluding one. Reads at most `scan` rows.
+   */
+  async lastCardio(activityRefs: string[], exclude?: string, scan = 40): Promise<Map<string, { day: string; minutes: number; distanceKm?: number }>> {
+    const out = new Map<string, { day: string; minutes: number; distanceKm?: number }>();
+    if (!activityRefs.length) return out;
+    const { results } = await this.db.prepare('SELECT * FROM workouts WHERE user_id = ? ORDER BY day DESC, created_at DESC LIMIT ?').bind(this.userId, scan).all<Row>();
+    for (const w of results.map(toWorkout)) {
+      if (w.id === exclude) continue;
+      const done = [...(w.cardio ? [{ ref: w.cardio.activityRef, minutes: w.cardio.durationMin, distanceKm: w.cardio.distanceKm }] : []), ...w.cardioBlocks.filter((b) => b.done).map((b) => ({ ref: b.activityRef, minutes: b.durationMin ?? b.plannedMin, distanceKm: b.distanceKm }))];
+      for (const c of done) if (activityRefs.includes(c.ref) && !out.has(c.ref) && c.minutes > 0) out.set(c.ref, { day: w.day, minutes: c.minutes, ...(c.distanceKm ? { distanceKm: c.distanceKm } : {}) });
+    }
+    return out;
+  }
+
   async saveTemplate(name: string, exercises: TemplateExercise[], cardio: TemplateCardio[] = []): Promise<Template> {
     const now = this.now();
     const id = crypto.randomUUID();

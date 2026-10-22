@@ -487,6 +487,13 @@ function dotsFor(sets: PlannedSet[]): string {
   return sets.map((s) => (s.done ? '●' : s.skipped ? '–' : '○')).join('');
 }
 
+/** "10 min · 1.5 km": a cardio block's time and distance, as logged when done, else as planned. */
+export function cardioText(c: PlannedCardio): string {
+  const min = c.done ? (c.minutes ?? c.plannedMin) : c.plannedMin;
+  const km = c.done ? c.distanceKm : c.plannedKm;
+  return `${min} min${km ? ` · ${kg(km)} km` : ''}`;
+}
+
 export function buildOverview(plan: WorkoutPlan): Overview {
   const steps = stepsOf(plan);
   const counts = workingCounts(steps);
@@ -494,7 +501,7 @@ export function buildOverview(plan: WorkoutPlan): Overview {
   const rows = steps.map((step, index): OverviewRow => {
     if (step.kind === 'cardio') {
       const c = step.c;
-      return { index, name: c.name, progress: c.done ? 'done' : c.skipped ? 'skipped' : 'not done', dots: c.done ? '●' : c.skipped ? '–' : '○', superset: false, open: stepOpen(step) };
+      return { index, name: c.name, progress: c.done ? 'done' : c.skipped ? 'skipped' : 'not done', dots: c.done ? '●' : c.skipped ? '–' : '○', ...(c.skipped ? {} : { todayTarget: cardioText(c) }), superset: false, open: stepOpen(step) };
     }
     const ex = step.ex;
     const working = workingSets(ex);

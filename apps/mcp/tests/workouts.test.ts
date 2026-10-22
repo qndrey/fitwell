@@ -382,4 +382,48 @@ describe('cardio blocks and notes', () => {
       expect(await restOf(id)).toBeUndefined();
     });
   });
+
+  describe('bests for the record cue', () => {
+    const log = (id: string, setId: string, reps: number, weightKg?: number) => call(client, 'log_set', { workoutId: id, setId, reps, ...(weightKg !== undefined ? { weightKg } : {}) });
+    const first = async () => {
+      const a = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 100, warmup: false }] });
+      await log(a.workoutId, 's1.1', 5, 100);
+      await log(a.workoutId, 's1.2', 5, 100);
+      await log(a.workoutId, 's1.3', 3, 105);
+      await call(client, 'finish_workout', { workoutId: a.workoutId });
+    };
+
+    it('start_workout and get_workout send what earlier sessions did, and none for a first session', async () => {
+      const none = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 100, warmup: false }] });
+      expect(none.exercises[0]!.bests).toBeUndefined();
+      await first();
+      const next = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 100, warmup: false }] });
+      const bests = next.exercises[0]!.bests!;
+      expect(bests.byReps).toEqual([[3, 105], [5, 100]]);
+      expect(bests.atWeight).toEqual([[105, 3], [100, 5]]);
+      expect(bests.e1rm).toBeCloseTo(100 * (1 + 5 / 30), 6);
+      expect(((await call(client, 'get_workout', { workoutId: next.workoutId })).data.workout as WorkoutPlan).exercises[0]!.bests).toEqual(bests);
+    });
+
+    it('is the same basis as the finish summary: its e1rm is the "was" of a new best, and a tie is no record', async () => {
+      await first();
+      const b = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 100, warmup: false }] });
+      const best = b.exercises[0]!.bests!.e1rm;
+      await log(b.workoutId, 's1.1', 3, 105); // a tie
+      await log(b.workoutId, 's1.2', 6, 105); // beats it
+      const summary = (await call(client, 'finish_workout', { workoutId: b.workoutId })).data.exercises as { personalRecord?: string }[];
+      expect(summary[0]!.personalRecord).toContain(`(was ${Math.round(best * 10) / 10} kg)`);
+    });
+
+    it('leaves out bodyweight and timed exercises, and keeps each list within the cap', async () => {
+      const a = await start({ exercises: [{ id: SQUAT, sets: 10, reps: 5, weight_kg: 60, warmup: false }, { id: PULLUP, sets: 1, reps: 8 }] });
+      for (let k = 0; k < 10; k++) await log(a.workoutId, `s1.${k + 1}`, k + 1, 60 + 5 * k);
+      await log(a.workoutId, 's2.1', 8);
+      await call(client, 'finish_workout', { workoutId: a.workoutId });
+      const b = await start({ exercises: [{ id: SQUAT, sets: 1, reps: 5, weight_kg: 60, warmup: false }, { id: PULLUP, sets: 1, reps: 8 }] });
+      expect(b.exercises[0]!.bests!.byReps.length).toBeLessThanOrEqual(12);
+      expect(b.exercises[0]!.bests!.atWeight.length).toBeLessThanOrEqual(12);
+      expect(b.exercises[1]!.bests).toBeUndefined();
+    });
+  });
 });

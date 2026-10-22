@@ -99,6 +99,10 @@ export const SHOTS: Shot[] = [
   { name: 'player-rest', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); } },
   // There is no rest after an exercise's last set (the pager moves on), so the rest zone with its "Next:" line needs a second set to come.
   { name: 'rest-next', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 3 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); } },
+  // The "How hard?" line under the set list after a logged working set, with Hard tapped.
+  { name: 'effort', view: 'workout', args: { name: 'Squat', exercises: [squat({ sets: 3 })] }, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); await click(f, 'Hard'); await page.waitForTimeout(300); } },
+  // A set that beats last time's best estimate (12 reps): "New best: ..." under the set list.
+  { name: 'record-cue', view: 'workout', args: { name: 'Squat', exercises: [squat({ sets: 3 })] }, steps: async (f, page) => { await start(f, page); for (let k = 0; k < 7; k++) await card(f).getByRole('button', { name: /^Increase reps/i }).first().evaluate((el) => (el as unknown as { click(): void }).click()); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); } },
   // The 3 s after a rest ran out (a 3 s rest): "Rest over" in the zone, "Start set 2" in the dock.
   { name: 'rest-over', view: 'workout', args: { ...FULL, exercises: [squat({ sets: 3, rest_sec: 3 }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(4200); } },
   // A finished exercise (pullups) with the squat still open behind it: "Back to Barbell Squat · 2 sets left" above "Go to ...".

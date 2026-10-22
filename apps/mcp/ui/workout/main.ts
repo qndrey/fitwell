@@ -1,7 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
-import { backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
+import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -55,7 +55,7 @@ const state = {
   /** The step whose hold ran to zero and has not been logged yet ("Time" shows in its zone). */
   timerDone: -1,
   /** The working set just logged that offers the "How hard?" tap (one at a time; ignoring it logs nothing). */
-  effortOffer: null as { uid: string; setId: string } | null,
+  effortOffer: null as { uid: string; setId: string; cue: string | null } | null,
   /** The one running rest of the workout. */
   rest: null as Rest | null,
   /** The next set's steppers are shown in the rest zone. */
@@ -394,7 +394,7 @@ function logSet(i: number, skip = false) {
     delete set.skipped;
     writeValues(ex, set, d);
   }
-  state.effortOffer = !skip && !set.warmup ? { uid: ex.uid, setId: set.id } : null;
+  state.effortOffer = !skip && !set.warmup ? { uid: ex.uid, setId: set.id, cue: recordCue(ex, set) } : null;
   const handoff = ex.supersetId ? supersetHandoff(stepsOf(plan), i) : null;
   const partner = handoff?.kind === 'partner' ? handoff.index : -1;
   if (partner !== -1) state.rest = null;
@@ -410,7 +410,7 @@ function logSet(i: number, skip = false) {
     if (state.rest?.stepIndex === i && handoff?.kind === 'rest') state.intent = { target: { kind: 'step', index: handoff.returnTo }, cancelled: false };
   }
   state.drafts[i] = draftFor(stepsOf(plan)[i]!, plan.gym);
-  announce(skip ? `Skipped ${setName(ex, set)}.` : `Logged ${setValues(ex, set)}.${restRunning() ? ` Rest ${mmss(state.rest!.untilMs - Date.now())}.` : ''}`);
+  announce(skip ? `Skipped ${setName(ex, set)}.` : `Logged ${setValues(ex, set)}.${state.effortOffer?.cue ? ` New best: ${state.effortOffer.cue}.` : ''}${restRunning() ? ` Rest ${mmss(state.rest!.untilMs - Date.now())}.` : ''}`);
   enqueueSet(ex, set, skip, { step: i, hadRest });
   void shareProgress();
   if (partner !== -1) {
@@ -1771,8 +1771,10 @@ function effortGroup(ex: PlannedExercise, set: PlannedSet): Node {
 function effortRow(ex: PlannedExercise): Node | null {
   const offer = state.effortOffer;
   const set = offer?.uid === ex.uid ? ex.sets.find((x) => x.id === offer.setId) : undefined;
-  if (!set || !set.done || set.warmup || (state.edit?.uid === ex.uid && state.edit.setId === set.id)) return null;
-  return effortGroup(ex, set);
+  if (!offer || !set || !set.done || set.warmup) return null;
+  const editing = state.edit?.uid === ex.uid && state.edit.setId === set.id;
+  // The record cue is plain text (announced once, with the log); it stays with the set until the next one is logged.
+  return h('div', { className: 'afterset' }, offer.cue && h('p', { className: 'cue', 'data-cue': '' }, `New best: ${offer.cue}`), !editing && effortGroup(ex, set));
 }
 
 function openEditor(i: number, ex: PlannedExercise, set: PlannedSet) {

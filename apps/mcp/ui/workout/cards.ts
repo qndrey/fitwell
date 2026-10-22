@@ -1,4 +1,5 @@
 import { platesFor, STANDARD_GYM, type Gym } from '@fitwell/core/domain/plates';
+import { estimatedOneRepMax } from '@fitwell/core/domain/workouts';
 import type { PlannedCardio, PlannedExercise, PlannedSet, WorkoutPlan } from '../../src/workout/plan';
 
 /** One step of the workout in plan order: cardio "before", exercises, cardio "after". */
@@ -559,4 +560,26 @@ export async function drainQueue(pending: Map<string, () => Promise<boolean>>, f
       failed.delete(key);
     } else if (!ok) failed.add(key);
   }
+}
+
+/**
+ * The live record cue for a working set that was just logged, or null. It speaks only when the set beats the best estimated 1RM of
+ * every earlier session AND of the sets already logged in this workout (the comparison finishSummary makes on the server, with the
+ * same Epley estimate and the same 0.01 margin), so the finish card's "New best" always agrees. The wording says which kind of best
+ * it is: heaviest for that rep count, most reps at that weight, or just the estimate. No cue without earlier sessions to compare with,
+ * for warm-ups, bodyweight or timed exercises, or a tie.
+ */
+export function recordCue(ex: PlannedExercise, set: PlannedSet): string | null {
+  const bests = ex.bests;
+  if (!bests || set.warmup || ex.bodyweight || ex.timed || !set.done || set.reps === undefined || set.weightKg === undefined) return null;
+  const e1rm = estimatedOneRepMax(set.weightKg, set.reps);
+  if (e1rm === undefined) return null;
+  const others = ex.sets.filter((s) => s !== set && s.done && !s.warmup && s.reps !== undefined && s.weightKg !== undefined);
+  const before = Math.max(bests.e1rm, ...others.map((s) => estimatedOneRepMax(s.weightKg!, s.reps!) ?? 0));
+  if (!(before > 0) || !(e1rm > before + 0.01)) return null;
+  const heaviest = Math.max(0, bests.byReps.find(([r]) => r === set.reps)?.[1] ?? 0, ...others.filter((s) => s.reps === set.reps).map((s) => s.weightKg!));
+  if (heaviest > 0 && set.weightKg > heaviest) return `Heaviest ${set.reps}-rep set`;
+  const mostReps = Math.max(0, bests.atWeight.find(([w]) => w === set.weightKg)?.[1] ?? 0, ...others.filter((s) => s.weightKg === set.weightKg).map((s) => s.reps!));
+  if (mostReps > 0 && set.reps > mostReps) return `Most reps at ${kg(set.weightKg)} kg`;
+  return `Estimated 1RM ${Math.round(e1rm * 10) / 10} kg`;
 }

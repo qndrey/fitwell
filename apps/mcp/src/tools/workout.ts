@@ -12,8 +12,9 @@ import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
 import type { CardioBlock, StoredExercise, StoredRest, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
 import workoutHtml from '../ui/generated/workout';
+import { exerciseBests, sessionBest } from '../workout/bests';
 import { SESSION_PROFILES } from '../workout/sessions';
-import { EFFORT_LABELS, WORKOUT_VIEW_URI, type PlannedCardio, type PlannedExercise, type PlannedRest, type WorkoutPlan } from '../workout/plan';
+import { EFFORT_LABELS, WORKOUT_VIEW_URI, type ExerciseBests, type PlannedCardio, type PlannedExercise, type PlannedRest, type WorkoutPlan } from '../workout/plan';
 import { json, toolError } from './result';
 
 export interface WorkoutDeps {
@@ -116,7 +117,7 @@ function restOf(w: Workout): PlannedRest | undefined {
 }
 
 /** The player's view of a stored workout (also used to resume one). */
-function toPlan(w: Workout, gym?: Gym): WorkoutPlan {
+function toPlan(w: Workout, gym?: Gym, bests?: Map<string, ExerciseBests>): WorkoutPlan {
   return {
     workoutId: w.id,
     name: w.name ?? 'Workout',
@@ -143,6 +144,7 @@ function toPlan(w: Workout, gym?: Gym): WorkoutPlan {
           ...(s.skipped ? { skipped: true } : {}),
           ...(s.effort && s.done !== false ? { effort: s.effort } : {}),
         })),
+        ...(bests?.get(e.uid ?? `e${i + 1}`) ? { bests: bests.get(e.uid ?? `e${i + 1}`) } : {}),
         ...(e.lastTime ? { lastTime: e.lastTime } : {}),
         ...(e.note ? { note: e.note } : {}),
         ...(e.notes ? { notes: e.notes } : {}),
@@ -282,10 +284,25 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     });
   }
 
+  /** Earlier sessions of the workout's exercises (the same ones the finish summary compares with). */
+  const priorSessions = (w: Workout) => workouts.recentSessions(w.exercises.map((e) => e.exerciseRef), 20, w.id);
+
+  /** The record cue's side of the comparison, per exercise uid: weighted, rep-based exercises with an earlier working set only. */
+  async function bestsFor(w: Workout): Promise<Map<string, ExerciseBests>> {
+    const prior = await priorSessions(w);
+    const out = new Map<string, ExerciseBests>();
+    w.exercises.forEach((e, i) => {
+      if (e.load === 'bodyweight' || e.mode === 'time') return;
+      const b = exerciseBests(prior.get(e.exerciseRef) ?? [], w.day);
+      if (b) out.set(e.uid ?? `e${i + 1}`, b);
+    });
+    return out;
+  }
+
   /** Time, volume and personal records of a strength workout. Records compare with sessions up to that workout's day. */
   async function finishSummary(w: Workout) {
-    const prior = await workouts.recentSessions(w.exercises.map((e) => e.exerciseRef), 20, w.id);
-    const best = (sets: StoredSet[]) => Math.max(0, ...sets.filter((s) => s.done !== false && s.type === 'working').map((s) => estimatedOneRepMax(s.weightKg, s.reps) ?? 0));
+    const prior = await priorSessions(w);
+    const best = sessionBest;
     let volumeKg = 0;
     const exercises = w.exercises.map((e) => {
       const done = e.sets.filter((s) => s.done !== false && s.type === 'working');
@@ -378,7 +395,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         const what = e.mode === 'time' ? `${work.length}×${work[0]!.durationSec} s` : `${work.length}×${work[0]!.targetReps}${e.load === 'bodyweight' ? '' : ` @ ${work[0]!.weightKg} kg`}`;
         return `${e.supersetId ? '[superset] ' : ''}${e.exerciseName} ${what}${warm ? ` after ${warm} warm-up sets` : ''}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`;
       });
-      const result = json({ workout: toPlan(w, profile.gym), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
+      const result = json({ workout: toPlan(w, profile.gym, await bestsFor(w)), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
       const cardioText = cardioBlocks.length ? ` Cardio: ${cardioBlocks.map((b) => `${b.plannedMin} min ${b.activityName} (${b.when === 'before' ? 'warm-up' : 'finisher'})`).join('; ')}.` : '';
       result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText}` }];
       return result;
@@ -397,7 +414,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     },
     async ({ workoutId }) => {
       const w = await workouts.get(workoutId);
-      return w && w.type === 'strength' ? json({ workout: toPlan(w, (await data.profile()).gym) }) : toolError('No such workout.');
+      return w && w.type === 'strength' ? json({ workout: toPlan(w, (await data.profile()).gym, w.finishedAt === null ? await bestsFor(w) : undefined) }) : toolError('No such workout.');
     },
   );
 
@@ -594,7 +611,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const next: StoredExercise = { ...buildExercise(item, i, past.get(newId)!, profile.weightKg, ramp, profile.gym), uid: old.uid, ...(old.supersetId ? { supersetId: old.supersetId } : {}) };
       const exercises = w.exercises.map((x, k) => (k === i ? next : x));
       await workouts.saveExercises(workoutId, exercises);
-      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: toPlan({ ...w, exercises }, profile.gym) });
+      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: toPlan({ ...w, exercises }, profile.gym, await bestsFor({ ...w, exercises })) });
     },
   );
 

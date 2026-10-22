@@ -21,6 +21,16 @@ export interface PlannedSet {
 /** The four effort taps of a logged working set, easiest first: effort n is `EFFORT_LABELS[n - 1]`. */
 export const EFFORT_LABELS = ['Easy', 'Solid', 'Hard', 'Max'] as const;
 
+/** What earlier sessions did with an exercise, so the player can say a logged set beats them (compared the way the finish summary does). */
+export interface ExerciseBests {
+  /** Best estimated 1RM (Epley) of any earlier working set. */
+  e1rm: number;
+  /** [reps, heaviest kg] for each rep count seen, at most 12 pairs. */
+  byReps: [number, number][];
+  /** [kg, most reps] for the heaviest weights seen, at most 12 pairs. */
+  atWeight: [number, number][];
+}
+
 export interface PlannedExercise {
   /** Identifies this entry inside the workout (the same exercise can appear twice); notes are saved under it. */
   uid: string;
@@ -34,6 +44,8 @@ export interface PlannedExercise {
   /** Neighbouring exercises with the same id are done back to back, round by round. */
   supersetId?: string;
   sets: PlannedSet[];
+  /** Absent for bodyweight and timed exercises and when there is nothing earlier to compare with: no record cue then. */
+  bests?: ExerciseBests;
   /** "3×5 @ 80 kg" from the last session with this exercise. */
   lastTime?: string;
   /** Why the planned weight is what it is (progression rule), when the server chose it. */

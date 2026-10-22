@@ -831,7 +831,7 @@ describe('Specs: Set zone context, last time for this set and the progression re
     for (const width of [375, 398]) {
       const e = lifted();
       const { v, card } = await onStep(plan([e, bench()]), 0, { width });
-      const warm = (await zoneOf(card).boundingBox())!.height;
+      await zoneOf(card).boundingBox();
       await logBtn(card).click();
       await v.page.waitForTimeout(700);
       await pwExpect(zoneOf(card)).toContainText('Rest');
@@ -902,7 +902,7 @@ describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)
     await freeze(v);
     await logBtn(card).click();
     await pwExpect(zoneOf(card).getByText('Rest', { exact: true })).toHaveCount(1); // the label stays above the clock while counting down
-    const rest = (await zoneOf(card).boundingBox())!.height;
+    await zoneOf(card).boundingBox();
     await v.page.clock.runFor(6200);
     await pwExpect(zoneOf(card)).toContainText('Rest over');
     await pwExpect(zoneOf(card).getByText('Rest', { exact: true })).toHaveCount(0); // no small label above the big words

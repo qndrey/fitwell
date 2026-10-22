@@ -1329,6 +1329,10 @@ function buildShell() {
   );
   ui = { header, prev, next, clock, save, strip, counter, chip, track, cards };
   root.replaceChildren(header, track);
+  if ('ResizeObserver' in window) {
+    const ro = new ResizeObserver(fitTrack);
+    for (const card of cards) ro.observe(card);
+  }
 }
 
 window.addEventListener('pointerup', () => (pointerDown = false), {
@@ -2509,6 +2513,12 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
   ];
 }
 
+/** The track is as tall as the card in view, so the other cards (longer or shorter) leave no gap or scroll under it. */
+function fitTrack() {
+  const slide = ui?.cards[state.pos]?.parentElement;
+  if (ui && slide) ui.track.style.height = `${slide.offsetHeight}px`;
+}
+
 function render() {
   const plan = state.plan;
   if (!plan || !ui) return;
@@ -2538,6 +2548,7 @@ function render() {
     const sel = `[data-key="${focusKey}"]`;
     (ui.cards[state.pos]?.querySelector<HTMLElement>(sel) ?? ui.header.querySelector<HTMLElement>(sel))?.focus({ preventScroll: true });
   }
+  fitTrack();
   updateClocks();
 }
 

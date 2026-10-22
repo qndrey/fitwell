@@ -626,6 +626,6 @@ describe('Specs: Timed and bodyweight sets, bodyweight (P6.5; FR10, AC13)', () =
     const { v, card } = await onStep(plan([pushUps(), bench()]), 0);
     await inc(card, 'reps').click();
     await logBtn(card).click();
-    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 13, skip: false }]);
+    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 13, skip: false, restSec: 90 }]);
   });
 });

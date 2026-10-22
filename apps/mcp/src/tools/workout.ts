@@ -10,10 +10,10 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
-import type { CardioBlock, StoredExercise, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
+import type { CardioBlock, StoredExercise, StoredRest, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
 import workoutHtml from '../ui/generated/workout';
 import { SESSION_PROFILES } from '../workout/sessions';
-import { EFFORT_LABELS, WORKOUT_VIEW_URI, type PlannedCardio, type PlannedExercise, type WorkoutPlan } from '../workout/plan';
+import { EFFORT_LABELS, WORKOUT_VIEW_URI, type PlannedCardio, type PlannedExercise, type PlannedRest, type WorkoutPlan } from '../workout/plan';
 import { json, toolError } from './result';
 
 export interface WorkoutDeps {
@@ -106,6 +106,15 @@ function summarizeWorkout(w: Workout) {
   };
 }
 
+/** How long after it ran out a rest is still reported, so a reload right then can show "Rest over". */
+const REST_GRACE_MS = 3000;
+/** The rest to resume, by the server's clock: none once finished or when it ended more than the grace period ago. */
+function restOf(w: Workout): PlannedRest | undefined {
+  if (!w.rest || w.finishedAt !== null) return undefined;
+  const remainingMs = w.rest.untilMs - Date.now();
+  return remainingMs > -REST_GRACE_MS ? { exerciseUid: w.rest.exerciseUid, remainingMs, totalMs: w.rest.totalMs } : undefined;
+}
+
 /** The player's view of a stored workout (also used to resume one). */
 function toPlan(w: Workout, gym?: Gym): WorkoutPlan {
   return {
@@ -140,6 +149,7 @@ function toPlan(w: Workout, gym?: Gym): WorkoutPlan {
         ...(e.lastNotes ? { lastNotes: e.lastNotes } : {}),
       }),
     ),
+    ...(restOf(w) ? { rest: restOf(w) } : {}),
     ...(gym ? { gym } : {}),
     cardio: w.cardioBlocks.map(
       (b): PlannedCardio => ({
@@ -406,19 +416,22 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         skip: z.boolean().default(false),
         reopen: z.boolean().default(false).describe('Undo: the set is open again, as if it had not been logged or skipped'),
         effort: effortSchema.optional().describe('Optional, working sets only: how hard it felt, 1 Easy, 2 Solid, 3 Hard, 4 Max'),
+        restSec: z.number().int().min(0).max(900).optional().describe('A rest of this many seconds starts now and replaces the running one; 0 clears it; leave out to keep it. Stored so the player can resume it.'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
-    async ({ workoutId, setId, reps, weightKg, seconds, skip, reopen, effort }) => {
+    async ({ workoutId, setId, reps, weightKg, seconds, skip, reopen, effort, restSec }) => {
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       let found = false;
+      let exerciseUid = '';
       const exercises = w.exercises.map((e) => ({
         ...e,
         sets: e.sets.map((s) => {
           if (s.id !== setId) return s;
           found = true;
+          exerciseUid = e.uid ?? '';
           if (reopen) {
             const open: StoredSet = { ...s, done: false };
             delete open.skipped;
@@ -437,8 +450,31 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         }),
       }));
       if (!found) return toolError('No such set in this workout.');
-      await workouts.saveExercises(workoutId, exercises);
-      return json({ saved: true, setId });
+      // One rest at a time: a new one replaces the running one, 0 (or undoing a set) clears it, and leaving it out keeps it.
+      const startedAt = Date.now();
+      const rest: StoredRest | null | undefined = reopen || restSec === 0 ? null : restSec !== undefined && exerciseUid ? { untilMs: startedAt + restSec * 1000, totalMs: restSec * 1000, exerciseUid } : undefined;
+      await workouts.saveExercises(workoutId, exercises, undefined, rest);
+      return json({ saved: true, setId, ...(rest ? { restRemainingMs: rest.untilMs - Date.now() } : {}) });
+    },
+  );
+
+  registerAppTool(
+    server,
+    'set_rest',
+    {
+      title: 'Change the running rest',
+      description: 'Called by the workout player when the person shortens or lengthens the rest (restSec = time left) or skips it (0). Only changes a rest that log_set started; it never starts one.',
+      inputSchema: z.object({ workoutId: z.uuid(), restSec: z.number().int().min(0).max(900), totalSec: z.number().int().min(1).max(900).optional().describe('The length the progress bar counts against') }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
+    },
+    async ({ workoutId, restSec, totalSec }) => {
+      const w = await workouts.get(workoutId);
+      if (!w || w.type !== 'strength') return toolError('No such workout.');
+      if (!w.rest) return json({ saved: false });
+      if (restSec === 0) await workouts.saveRest(workoutId, null);
+      else await workouts.saveRest(workoutId, { untilMs: Date.now() + restSec * 1000, totalMs: Math.max((totalSec ?? 0) * 1000, restSec * 1000), exerciseUid: w.rest.exerciseUid });
+      return json({ saved: true, ...(restSec > 0 ? { restRemainingMs: restSec * 1000 } : {}) });
     },
   );
 
@@ -576,7 +612,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       const finishedAt = w.finishedAt ?? Date.now();
-      if (!w.finishedAt) await workouts.saveExercises(workoutId, w.exercises, finishedAt);
+      if (!w.finishedAt) await workouts.saveExercises(workoutId, w.exercises, finishedAt, null);
       return json(await finishSummary({ ...w, finishedAt }));
     },
   );

@@ -58,6 +58,13 @@ export interface PlannedCardio {
   skipped?: boolean;
 }
 
+/** The rest that was running when the plan was read: time left by the server's clock (negative once it ran out, down to -3 s), the whole length, and the exercise whose card holds it. */
+export interface PlannedRest {
+  exerciseUid: string;
+  remainingMs: number;
+  totalMs: number;
+}
+
 export interface WorkoutPlan {
   workoutId: string;
   name: string;
@@ -66,6 +73,8 @@ export interface WorkoutPlan {
   exercises: PlannedExercise[];
   /** Empty for a workout without cardio. */
   cardio: PlannedCardio[];
+  /** A rest between sets that was still running (or ended under 3 s ago) when the plan was read. */
+  rest?: PlannedRest;
   /** The person's bar and plates, for the plate calculator. */
   gym?: { barKg: number; platesKg: number[] };
 }

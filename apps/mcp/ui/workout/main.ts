@@ -257,6 +257,7 @@ function load(plan: WorkoutPlan) {
   const card = openingCard(plan);
   const steps = stepsOf(plan);
   state.pos = cardPosition(card, steps.length);
+  resumeRest(plan, steps);
   state.drafts = steps.map((step) => draftFor(step, plan.gym));
   resetSecondary();
   buildShell();
@@ -269,6 +270,25 @@ function load(plan: WorkoutPlan) {
     render();
     void finish();
   }
+}
+
+/**
+ * A rest the server still had running when the plan was read: the time left is the server's (relative to now, so this clock's offset
+ * does not matter), the card is the one that held it, and a rest that ended under 3 s ago shows "Rest over" for what is left of the 3 s.
+ */
+function resumeRest(plan: WorkoutPlan, steps: Step[]) {
+  const r = plan.rest;
+  if (!r || plan.finished) return;
+  const i = steps.findIndex((s) => s.kind === 'ex' && s.ex.uid === r.exerciseUid);
+  const step = steps[i];
+  if (!step || step.kind !== 'ex' || !nextSet(step.ex)) return;
+  const now = Date.now();
+  if (r.remainingMs > 0) state.rest = { stepIndex: i, untilMs: now + r.remainingMs, totalMs: Math.max(r.totalMs, r.remainingMs) };
+  else state.restOver = { stepIndex: i, until: now + 3000 + r.remainingMs };
+  const handoff = step.ex.supersetId ? supersetHandoff(steps, i) : null;
+  // Inside a superset the rest follows the round and the pager stays on the exercise that is next; otherwise it opens on the card that holds the rest.
+  if (handoff?.kind === 'rest') state.intent = { target: { kind: 'step', index: handoff.returnTo }, cancelled: false };
+  else state.pos = i + 1;
 }
 
 /** The notes editor, swap list and guide belong to the card in view; they close when another card comes in. */
@@ -309,8 +329,20 @@ function supersetSteps(ex: PlannedExercise): number[] {
 
 const restRunning = () => !!state.rest && state.rest.untilMs > Date.now();
 
-/** Queues the save of one set; the arguments are read when it runs, so the latest values go out. */
-function enqueueSet(ex: PlannedExercise, set: PlannedSet, skip: boolean) {
+/** Whole seconds of the running rest of this step for the server (0 when there is none: the new set clears the stored one). */
+const restSecFor = (i: number) => (state.rest?.stepIndex === i && restRunning() ? Math.ceil((state.rest.untilMs - Date.now()) / 1000) : 0);
+
+/** Tells the server how the running rest stands (changed, skipped, over); the server stamps its own end time from the seconds left. */
+function syncRest() {
+  enqueue('rest', () => {
+    const r = state.rest;
+    const left = r && restRunning() ? Math.ceil((r.untilMs - Date.now()) / 1000) : 0;
+    return call('set_rest', { workoutId: state.plan!.workoutId, restSec: left, ...(r && left > 0 ? { totalSec: Math.ceil(r.totalMs / 1000) } : {}) });
+  });
+}
+
+/** Queues the save of one set; the arguments are read when it runs, so the latest values go out. `rest`: the set was just logged, so the rest it starts goes with it (and a rest that was running and is not any more is cleared). */
+function enqueueSet(ex: PlannedExercise, set: PlannedSet, skip: boolean, rest?: { step: number; hadRest: boolean }) {
   enqueue(`set:${set.id}:${ex.uid}`, () => {
     const args = {
       workoutId: state.plan!.workoutId,
@@ -320,6 +352,7 @@ function enqueueSet(ex: PlannedExercise, set: PlannedSet, skip: boolean) {
       ...(ex.bodyweight || skip ? {} : { weightKg: set.weightKg }),
       ...(ex.timed && !skip ? { seconds: set.seconds ?? 0 } : {}),
       ...(set.effort && !skip && !set.warmup ? { effort: set.effort } : {}),
+      ...(rest && !skip && (rest.hadRest || restSecFor(rest.step) > 0) ? { restSec: restSecFor(rest.step) } : {}),
     };
     return call('log_set', args);
   });
@@ -341,6 +374,7 @@ function logSet(i: number, skip = false) {
   const set = nextSet(ex);
   if (!set) return;
   const d = state.drafts[i]!;
+  const hadRest = restRunning();
   if (state.timerStep === i) {
     state.holdUntil = 0;
     state.readyUntil = 0;
@@ -377,7 +411,7 @@ function logSet(i: number, skip = false) {
   }
   state.drafts[i] = draftFor(stepsOf(plan)[i]!, plan.gym);
   announce(skip ? `Skipped ${setName(ex, set)}.` : `Logged ${setValues(ex, set)}.${restRunning() ? ` Rest ${mmss(state.rest!.untilMs - Date.now())}.` : ''}`);
-  enqueueSet(ex, set, skip);
+  enqueueSet(ex, set, skip, { step: i, hadRest });
   void shareProgress();
   if (partner !== -1) {
     state.straight = { step: partner, until: Date.now() + 5000 };
@@ -504,6 +538,7 @@ function adjustRest(delta: number) {
     r.untilMs += delta;
     r.totalMs += delta;
   }
+  syncRest();
   render();
 }
 
@@ -512,6 +547,7 @@ function skipRest() {
   lock();
   state.rest = null;
   state.restChange = false;
+  syncRest();
   followIntent();
   render();
 }
@@ -2108,6 +2144,7 @@ function restOverDock(set: PlannedSet, ex: PlannedExercise): Node {
           if (locked()) return;
           lock();
           state.restOver = null;
+          syncRest();
           render();
           ui?.cards[state.pos]?.querySelector<HTMLElement>('[data-key="log"]')?.focus({ preventScroll: true });
         },

@@ -1,5 +1,5 @@
 import type { Client } from '@modelcontextprotocol/client';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '../src/data/users';
 import type { WorkoutPlan } from '../src/workout/plan';
 import { createTestEnv } from './support/env';
@@ -324,5 +324,62 @@ describe('cardio blocks and notes', () => {
     await call(client, 'log_set', { workoutId: plan.workoutId, setId: 's1.1', reps: 5, weightKg: 80, effort: 4 });
     const { text } = await call(client, 'export_my_data', {});
     expect(text).toContain('"effort":4');
+  });
+
+  describe('stored rest', () => {
+    const restOf = async (id: string) => ((await call(client, 'get_workout', { workoutId: id })).data.workout as WorkoutPlan).rest;
+    const started = async () => {
+      const plan = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 80, warmup: false }] });
+      return { id: plan.workoutId, uid: plan.exercises[0]!.uid };
+    };
+    afterEach(() => vi.useRealTimers());
+
+    it('log_set with restSec stores it and returns the time left by the server clock; get_workout resumes it', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: 1_000_000 });
+      const { id, uid } = await started();
+      expect(await restOf(id)).toBeUndefined();
+      const logged = await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 5, weightKg: 80, restSec: 90 });
+      expect(logged.data.restRemainingMs).toBe(90_000);
+      vi.setSystemTime(1_030_000);
+      expect(await restOf(id)).toEqual({ exerciseUid: uid, remainingMs: 60_000, totalMs: 90_000 });
+    });
+
+    it('an expired rest is not reported, except for 3 s after it ended (negative time left)', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: 1_000_000 });
+      const { id } = await started();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 5, weightKg: 80, restSec: 60 });
+      vi.setSystemTime(1_061_000);
+      expect((await restOf(id))?.remainingMs).toBe(-1000);
+      vi.setSystemTime(1_063_500);
+      expect(await restOf(id)).toBeUndefined();
+    });
+
+    it('a new rest replaces the running one; a log without restSec keeps it; restSec 0, reopen, set_rest 0 and finishing clear it', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: 1_000_000 });
+      const { id } = await started();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 5, weightKg: 80, restSec: 90 });
+      vi.setSystemTime(1_010_000);
+      await call(client, 'log_set', { workoutId: id, setId: 's1.2', reps: 5, weightKg: 80, restSec: 120 });
+      expect(await restOf(id)).toMatchObject({ remainingMs: 120_000, totalMs: 120_000 });
+      await call(client, 'log_set', { workoutId: id, setId: 's1.1', reps: 6, weightKg: 80 }); // an edit of a row
+      expect((await restOf(id))?.remainingMs).toBe(120_000);
+
+      const shorter = await call(client, 'set_rest', { workoutId: id, restSec: 30, totalSec: 120 });
+      expect(shorter.data).toMatchObject({ saved: true, restRemainingMs: 30_000 });
+      expect(await restOf(id)).toMatchObject({ remainingMs: 30_000, totalMs: 120_000 });
+      await call(client, 'set_rest', { workoutId: id, restSec: 0 });
+      expect(await restOf(id)).toBeUndefined();
+      expect((await call(client, 'set_rest', { workoutId: id, restSec: 20 })).data.saved).toBe(false); // never starts one
+
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 5, weightKg: 80, restSec: 90 });
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 0, reopen: true });
+      expect(await restOf(id)).toBeUndefined();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 5, weightKg: 80, restSec: 90 });
+      await call(client, 'log_set', { workoutId: id, setId: 's1.3', reps: 5, weightKg: 80, restSec: 0 });
+      expect(await restOf(id)).toBeUndefined();
+      await call(client, 'log_set', { workoutId: id, setId: 's1.2', reps: 5, weightKg: 80, restSec: 90 });
+      await call(client, 'finish_workout', { workoutId: id });
+      expect(await restOf(id)).toBeUndefined();
+    });
   });
 });

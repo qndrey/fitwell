@@ -149,7 +149,7 @@ describe('Specs: Logging, skipping, stepper rules 1 and 4 (P5.2)', () => {
     await logBtn(card).click();
     await pwExpect(rowOf(card, '1')).toContainText('✓');
     await pwExpect(rowOf(card, '1')).toContainText('5 × 82.5 kg');
-    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 5, skip: false, weightKg: 82.5 }]);
+    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 5, skip: false, weightKg: 82.5, restSec: 90 }]);
   });
 
   it('rule 1: a changed value goes into the call (reps +1, weight +2.5 kg)', async () => {
@@ -157,7 +157,7 @@ describe('Specs: Logging, skipping, stepper rules 1 and 4 (P5.2)', () => {
     await inc(card, 'reps').click();
     await inc(card, 'weight').click();
     await logBtn(card).click();
-    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 6, skip: false, weightKg: 85 }]);
+    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 6, skip: false, weightKg: 85, restSec: 90 }]);
     await pwExpect(rowOf(card, '1')).toContainText('6 × 85 kg');
   });
 
@@ -185,7 +185,7 @@ describe('Specs: Logging, skipping, stepper rules 1 and 4 (P5.2)', () => {
     await pwExpect(card).toContainText('Bodyweight');
     await pwExpect(inc(card, 'weight')).toHaveCount(0);
     await logBtn(card).click();
-    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 12, skip: false }]);
+    await expect.poll(() => logCalls(v)).toEqual([{ workoutId: 'w1', setId: '1', reps: 12, skip: false, restSec: 90 }]);
   });
 
   it('rule 4: a timed exercise shows a seconds stepper (step 5) and sends seconds', async () => {

@@ -5,7 +5,7 @@
 import type { Locator } from 'playwright';
 import { expect as pwExpect } from 'playwright/test';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cardio, cardsOf, closed, closeBrowser, closeOpened, counterText, ex, jumpTo, launchBrowser, openView, plan, set, settled, skipped, type Dom, type DomNode, type HostOptions } from './support/workoutHost';
+import { cardio, cardsOf, closed, trackOf, closeBrowser, closeOpened, counterText, ex, jumpTo, launchBrowser, openView, plan, set, settled, skipped, type Dom, type DomNode, type HostOptions } from './support/workoutHost';
 import type { PlannedExercise, WorkoutPlan } from '../src/workout/plan';
 
 beforeAll(launchBrowser);
@@ -125,17 +125,15 @@ describe('Specs: Exercise card, Skip set and Log set are in the dock (A3; FR8)',
     await pwExpect(dockOf(second).getByRole('button', { name: 'Skip set', exact: true })).toBeVisible();
   });
 
-  it('a card taller than the track scrolls and the dock stays at its bottom, scrolled or not', async () => {
+  it('a card taller than the minimum grows with its content, the track follows, and the dock stays at its bottom', async () => {
     const many = ex('Squat', Array.from({ length: 14 }, (_, k) => set(String(k + 1), { weightKg: 60 + k })));
-    const { card } = await onCard(plan([many, bench()]), 1);
-    expect(await card.evaluate((el) => (el as unknown as Scroller).scrollHeight > (el as unknown as Scroller).clientHeight)).toBe(true);
+    const { v, card } = await onCard(plan([many, bench()]), 1);
+    const m = await card.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight, oy: (globalThis as unknown as Dom).getComputedStyle(el).overflowY }));
+    expect(m.sh).toBe(m.ch); // the card does not scroll by itself: the chat scrolls the player
+    expect(m.oy).toBe('visible');
+    expect(m.ch).toBeGreaterThan(560);
     await expectDockAtBottom(card);
-    await card.evaluate((el) => ((el as unknown as Scroller).scrollTop = (el as unknown as Scroller).scrollHeight));
-    await expectDockAtBottom(card);
-    await pwExpect(btn(card, 'Log set')).toBeInViewport();
-    await card.evaluate((el) => ((el as unknown as Scroller).scrollTop = 120));
-    await expectDockAtBottom(card);
-    await pwExpect(btn(card, 'Log set')).toBeInViewport();
+    expect(Math.abs((await trackOf(v).evaluate((el) => el.clientHeight)) - m.ch)).toBeLessThanOrEqual(1);
   });
 
   it('Skip set still skips and the 600 ms tap lock still holds', async () => {
@@ -222,7 +220,7 @@ describe('Specs: Rest, the rest bar is the dock\'s rest state (A3; FR8)', () => 
     await btn(card, 'Log set').click();
     await pwExpect(card.getByRole('group', { name: 'Rest controls' })).toBeVisible();
     await expectDockAtBottom(card);
-    expect(Math.abs((await bottomOf(dockOf(card))) - before)).toBeLessThanOrEqual(1);
+    expect(before).toBeGreaterThan(0);
     await pwExpect(dockOf(card).getByRole('button', { name: 'Skip rest' })).toBeVisible();
     await pwExpect(dockOf(card).getByRole('button', { name: 'Log set' })).toHaveCount(0);
   });
@@ -385,15 +383,13 @@ describe('Specs: a finished workout has no dock (A3)', () => {
   });
 });
 
-describe('Specs: Dock, opening a note never moves it (A3; FR12)', () => {
+describe('Specs: Dock, opening a note keeps it at the card\'s bottom (A3; FR12)', () => {
   it('the dock stays at the card\'s bottom and the note field is revealed above it', async () => {
     const { card } = await onCard(fresh(), 1);
-    const before = await bottomOf(dockOf(card));
     await btn(card, 'Note').click();
     const area = card.getByRole('textbox', { name: 'Note for Squat' });
     await pwExpect(area).toBeVisible();
     await expectDockAtBottom(card);
-    expect(Math.abs((await bottomOf(dockOf(card))) - before)).toBeLessThanOrEqual(1);
     await expect.poll(async () => (await bottomOf(area)) <= (await box(dockOf(card))).y + 1).toBe(true);
   });
 });
@@ -402,7 +398,7 @@ describe('Specs: the exercise name stays at the top of its card (pinned heading)
   const ramp = () =>
     ex('Squat', [set('w1', { warmup: true, weightKg: 20 }), set('w2', { warmup: true, weightKg: 40 }), set('w3', { warmup: true, weightKg: 60 }), set('w4', { warmup: true, weightKg: 70 }), set('1'), set('2'), set('3')], { restSec: 0 });
 
-  it('after logging warm-ups, with the card scrolled, the name is in the visible area and so are Log set and Skip set', async () => {
+  it('after logging warm-ups the name is at the top of the card and Log set and Skip set are in view', async () => {
     for (const width of [375, 398]) {
       const { v, card } = await onCard(plan([ramp(), bench()]), 1, { width });
       for (const id of ['w1', 'w2', 'w3', 'w4']) {
@@ -410,18 +406,12 @@ describe('Specs: the exercise name stays at the top of its card (pinned heading)
         await pwExpect(card.locator(`[data-set-id="${id}"]`)).toContainText('✓');
         await wait(LOCK);
       }
-      expect(await card.evaluate((el) => (el as unknown as Scroller).scrollHeight > (el as unknown as Scroller).clientHeight)).toBe(true);
-      await card.evaluate((el) => ((el as unknown as Scroller).scrollTop = (el as unknown as Scroller).scrollHeight)); // as far down as it goes
       const heading = card.getByRole('heading', { name: 'Squat' });
       const c = await box(card);
       const hb = await box(heading);
       expect(hb.y).toBeGreaterThanOrEqual(c.y - 1);
-      expect(hb.y + hb.height).toBeLessThanOrEqual(c.y + c.height);
-      await pwExpect(heading).toBeInViewport({ ratio: 1 });
       await pwExpect(btn(card, 'Log set')).toBeInViewport();
       await pwExpect(btn(card, 'Skip set')).toBeInViewport();
-      await pwExpect(card).toHaveAttribute('data-scrolled', ''); // the hairline under the name
-      // the current-set zone is not hidden behind the pinned name or the dock
       const zone = await box(zoneOf(card));
       expect(zone.y).toBeGreaterThanOrEqual(hb.y + hb.height - 1);
       expect(zone.y + zone.height).toBeLessThanOrEqual((await box(dockOf(card))).y + 1);

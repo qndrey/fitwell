@@ -38,6 +38,45 @@ const avgExtras = (days: DayTotal[]) => {
 };
 const r0 = (n: number) => Math.round(n);
 
+/** The best working set of one day of a lift (highest Epley estimate) and the reps of every working set at its weight. */
+export type LiftDay = { e1rm: number; kg: number; reps: number; repsAtKg: number[] };
+
+/** Weighted lifts of finished strength workouts: for each exercise, the best set of each day (sets of 12 reps or fewer). */
+export function collectLifts(strength: Workout[]): Map<string, { name: string; days: Map<Day, LiftDay> }> {
+  const byExercise = new Map<string, { name: string; days: Map<Day, LiftDay> }>();
+  for (const w of strength) {
+    for (const e of w.exercises) {
+      if (e.load === 'bodyweight' || e.mode === 'time') continue;
+      let best: LiftDay | null = null;
+      for (const s of e.sets) {
+        if (s.type !== 'working' || s.done === false) continue;
+        const est = estimatedOneRepMax(s.weightKg, s.reps) ?? 0;
+        if (est > (best?.e1rm ?? 0)) best = { e1rm: est, kg: s.weightKg ?? 0, reps: s.reps, repsAtKg: [] };
+      }
+      if (!best) continue;
+      best.repsAtKg = e.sets.filter((s) => s.type === 'working' && s.done !== false && s.weightKg === best!.kg).map((s) => s.reps);
+      const x = byExercise.get(e.exerciseRef) ?? { name: e.exerciseName, days: new Map<Day, LiftDay>() };
+      const have = x.days.get(w.day);
+      if (!have || best.e1rm > have.e1rm) x.days.set(w.day, best);
+      byExercise.set(e.exerciseRef, x);
+    }
+  }
+  return byExercise;
+}
+
+/** One lift's days as chart points and sessions (oldest first); a session is a new best when it beats every earlier day. */
+export function liftSessions(daysMap: Map<Day, LiftDay>) {
+  const days = [...daysMap].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  const points = days.map(([day, t]) => ({ day, e1rmKg: r1(t.e1rm) }));
+  let running = 0;
+  const sessions = days.map(([day, t], k) => {
+    const isBest = k > 0 && t.e1rm > running;
+    running = Math.max(running, t.e1rm);
+    return { day, topSet: { kg: r1(t.kg), reps: t.reps }, reps: t.repsAtKg, e1rm: r1(t.e1rm), isBest };
+  });
+  return { points, sessions };
+}
+
 export function buildProgress(i: ProgressInput): Progress {
   const days = dayNumber(i.to) - dayNumber(i.from) + 1;
 
@@ -88,7 +127,7 @@ export function buildProgress(i: ProgressInput): Progress {
   const dataFrom = logged.length ? logged.reduce((a, b) => (a < b ? a : b)) : null;
   const start = dataFrom ?? i.from;
   const weekStarts = weeksIn(start, i.to);
-  const weeks = weekStarts.map((week) => ({ week, partial: week < start || addDays(week, 6) > i.to, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number> }));
+  const weeks = weekStarts.map((week) => ({ week, partial: week < start || addDays(week, 6) > i.to, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number>, tonnageKg: 0 }));
   const weekOf = (d: Day) => weeks[Math.max(0, Math.floor((dayNumber(d) - dayNumber(weekStarts[0]!)) / 7))];
   for (const w of strength) {
     const wk = weekOf(w.day);
@@ -97,8 +136,10 @@ export function buildProgress(i: ProgressInput): Progress {
     // Warm-ups and finishers count as cardio minutes without making the session a second workout.
     for (const b of w.cardioBlocks) if (b.done) wk.cardioMin += b.durationMin ?? b.plannedMin;
     for (const e of w.exercises) {
-      const done = e.sets.filter((s) => s.type === 'working' && s.done !== false).length;
+      const working = e.sets.filter((s) => s.type === 'working' && s.done !== false);
+      const done = working.length;
       if (!done) continue;
+      if (e.mode !== 'time') wk.tonnageKg += working.reduce((n, s) => n + s.reps * (s.weightKg ?? 0), 0);
       const { primary, secondary } = i.musclesOf(e.exerciseRef);
       for (const [m, k] of muscleCredit(primary, secondary)) wk.sets[m] = (wk.sets[m] ?? 0) + done * k;
     }
@@ -116,6 +157,7 @@ export function buildProgress(i: ProgressInput): Progress {
     wk.sessionMin += w.session!.durationMin;
     for (const [m, credit] of Object.entries(sessionMuscleCredit(w.session!.category, w.session!.durationMin))) wk.sets[m] = (wk.sets[m] ?? 0) + credit;
   }
+  for (const wk of weeks) wk.tonnageKg = r0(wk.tonnageKg);
   const full = weeks.filter((x) => !x.partial);
   const counted = full.length ? full : weeks;
   const weekCount = Math.max(1, full.length);
@@ -134,37 +176,12 @@ export function buildProgress(i: ProgressInput): Progress {
   };
 
   // ---- records: best estimated 1RM per day for each exercise with weighted working sets
-  type Top = { e1rm: number; kg: number; reps: number };
-  const byExercise = new Map<string, { name: string; days: Map<Day, Top> }>();
-  for (const w of strength) {
-    for (const e of w.exercises) {
-      if (e.load === 'bodyweight' || e.mode === 'time') continue;
-      let best: Top | null = null;
-      for (const s of e.sets) {
-        if (s.type !== 'working' || s.done === false) continue;
-        const est = estimatedOneRepMax(s.weightKg, s.reps) ?? 0;
-        if (est > (best?.e1rm ?? 0)) best = { e1rm: est, kg: s.weightKg ?? 0, reps: s.reps };
-      }
-      if (!best) continue;
-      const x = byExercise.get(e.exerciseRef) ?? { name: e.exerciseName, days: new Map<Day, Top>() };
-      const have = x.days.get(w.day);
-      if (!have || best.e1rm > have.e1rm) x.days.set(w.day, best);
-      byExercise.set(e.exerciseRef, x);
-    }
-  }
   const records: RecordsProgress = {
-    exercises: [...byExercise]
+    exercises: [...collectLifts(strength)]
       .map(([id, x]) => {
-        const days = [...x.days].sort((a, b) => (a[0] < b[0] ? -1 : 1));
-        const points = days.map(([day, t]) => ({ day, e1rmKg: r1(t.e1rm) }));
+        const { points, sessions } = liftSessions(x.days);
         const best = points.reduce((b, p) => (p.e1rmKg > b.e1rmKg ? p : b), points[0]!);
-        let running = 0;
-        const sessions = days.map(([day, t], k) => {
-          const isBest = k > 0 && t.e1rm > running;
-          running = Math.max(running, t.e1rm);
-          return { day, topSet: { kg: r1(t.kg), reps: t.reps }, e1rm: r1(t.e1rm), isBest };
-        });
-        return { id, name: x.name, firstE1rmKg: points[0]!.e1rmKg, latestE1rmKg: points[points.length - 1]!.e1rmKg, bestE1rmKg: best.e1rmKg, bestDay: best.day, points, sessions };
+        return { id, name: x.name, firstE1rmKg: points[0]!.e1rmKg, latestE1rmKg: points[points.length - 1]!.e1rmKg, bestE1rmKg: best.e1rmKg, bestDay: best.day, points, sessions: sessions.map((s) => ({ day: s.day, topSet: s.topSet, e1rm: s.e1rm, isBest: s.isBest })) };
       })
       .sort((a, b) => b.sessions.length - a.sessions.length || a.name.localeCompare(b.name))
       .slice(0, 12),

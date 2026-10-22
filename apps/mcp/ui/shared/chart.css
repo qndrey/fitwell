@@ -20,3 +20,14 @@ svg .spark { fill: none; stroke: var(--accent); stroke-width: 2; }
 
 .chartbox { position: relative; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+svg .vs0 { fill: var(--accent); }
+svg .vs0-partial { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+svg .vs1-partial, svg .vs2-partial { fill: none; stroke: var(--series-2); stroke-width: 1.5; stroke-dasharray: 3 2; }
+svg .pat-bg1 { fill: var(--surface); }
+svg .pat-fg1 { stroke: var(--series-2); stroke-width: 2.2; }
+svg .pat-bg2 { fill: var(--surface); stroke: var(--series-2); stroke-width: 0.8; }
+svg .pat-fg2 { fill: var(--series-2); }
+/* Legend swatches for stacked series: the same solid, stripes and dots as the bars. */
+.legend i.sw-s0 { background: var(--accent); }
+.legend i.sw-s1 { background: repeating-linear-gradient(45deg, var(--series-2) 0 2px, var(--surface) 2px 4px); border: 1px solid var(--series-2); }
+.legend i.sw-s2 { background: radial-gradient(var(--series-2) 1px, var(--surface) 1.5px) 0 0 / 4px 4px; border: 1px solid var(--series-2); }

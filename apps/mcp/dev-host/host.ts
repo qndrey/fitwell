@@ -337,7 +337,7 @@ function pickSample(): Record<string, unknown> {
   return SAMPLES[name]?.plan ?? SAMPLE;
 }
 
-// ?view=dashboard, review, shopping, exercise or muscles shows that view instead of the workout player.
+// ?view=dashboard, review, shopping, exercise, muscles or lift shows that view instead of the workout player.
 const VIEWS: Record<
   string,
   { tool: string; args: Record<string, unknown>; uri: string }
@@ -380,6 +380,11 @@ const VIEWS: Record<
       query: new URLSearchParams(loc.search).get("q") ?? "leg press",
     },
     uri: "ui://fitwell/exercise.html",
+  },
+  lift: {
+    tool: "show_lift_progress",
+    args: { query: new URLSearchParams(loc.search).get("q") ?? "bench press" },
+    uri: "ui://fitwell/lift.html",
   },
   workout: {
     tool: "start_workout",

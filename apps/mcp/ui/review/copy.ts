@@ -21,3 +21,9 @@ export function weekTitle(weekStart: string, today: string): string | null {
 
 /** A change in kg for a record: "+3.2 kg". */
 export const gain = (now: number, before: number) => `+${(Math.round((now - before) * 10) / 10).toLocaleString('en-GB', { maximumFractionDigits: 1 })} kg`;
+
+/** "This month" or "Last month" for a four-week review that ends with the week starting `lastWeek`, else null. */
+export function monthTitle(lastWeek: string, today: string): string | null {
+  const diff = (dayNumber(mondayOf(today)) - dayNumber(lastWeek)) / 7;
+  return diff === 0 ? 'This month' : diff === 4 ? 'Last month' : null;
+}

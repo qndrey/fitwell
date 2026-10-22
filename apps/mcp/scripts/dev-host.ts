@@ -3,6 +3,7 @@
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
 
+const PORT = Number(process.env.PORT ?? 8788);
 const UPSTREAM = process.env.MCP_UPSTREAM ?? 'http://127.0.0.1:8787';
 const js = (await build({ entryPoints: ['dev-host/host.ts'], bundle: true, format: 'esm', target: 'es2022', write: false })).outputFiles[0]!.text;
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -41,4 +42,4 @@ createServer(async (req, res) => {
     return;
   }
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(page);
-}).listen(8788, '127.0.0.1', () => console.log('Dev host on http://127.0.0.1:8788 (proxying /mcp to ' + UPSTREAM + ')'));
+}).listen(PORT, '127.0.0.1', () => console.log(`Dev host on http://127.0.0.1:${PORT} (proxying /mcp to ${UPSTREAM})`));

@@ -61,6 +61,8 @@ describe('strength card', () => {
     await bench.locator('summary').click();
     expect(await bench.locator('polygon.pr').count()).toBe(p.records.exercises.find((e) => e.id === BENCH)!.sessions.filter((s) => s.isBest).length);
     await pwExpect(bench.getByText('◆ new best estimate')).toBeVisible();
+    await pwExpect(bench.getByText('Open full lift page: ask Claude to show your Barbell Bench Press progress.')).toBeVisible(); // a hint, not a button
+    await pwExpect(bench.getByRole('button')).toHaveCount(0);
     const rows = bench.locator('table.sessions tbody tr');
     await pwExpect(rows).toHaveCount(5);
     await pwExpect(rows.first()).toContainText('3 × 80 kg'); // the newest session first

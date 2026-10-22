@@ -1,15 +1,15 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { Progress } from '../../src/analytics/types';
-import { barChart, consistencyCalendar, crossesYear, fmtDay, lineChart, num, rangeLabel, sparkline, weekBars } from '../shared/chart';
+import { barChart, consistencyCalendar, crossesYear, fmtDay, lineChart, num, rangeLabel, sparkline, stackedWeekBars, weekBars } from '../shared/chart';
 import { weekMidpoint } from '../shared/chartMath';
 import { shortName } from '../shared/names';
-import { WEEKLY_SET_RANGE } from '../../src/analytics/muscleTypes';
+import { MUSCLE_REGIONS, setsByRegion, WEEKLY_SET_RANGE } from '../../src/analytics/muscleTypes';
 import { h } from '../shared/dom';
 import { energyView } from './energy';
 import { buildPager, type PagerCard } from '../shared/pager';
 
 const RANGES = [30, 90, 365] as const;
-const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '', card: 0, allLifts: false, measure: '', habit: 'sleep' as 'sleep' | 'steps' | 'water' };
+const state = { progress: null as Progress | null, days: 90 as number, loading: false, error: '', card: 0, allLifts: false, measure: '', habit: 'sleep' as 'sleep' | 'steps' | 'water', volume: 'sets' as 'sets' | 'volume' };
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell dashboard', version: '0.1.0' }, {}, { autoResize: true });
@@ -91,6 +91,38 @@ function trainingChart(p: Progress) {
     columns: ['Week', 'Strength workouts', 'Cardio and class workouts'],
     goal: p.training.goalWorkoutsPerWeek,
   });
+}
+
+const REGION_NAME = { upper: 'Upper body', lower: 'Lower body', core: 'Core' } as const;
+const tonnes = (v: number) => (v >= 1000 ? `${num(v / 1000, 1)}k` : num(v, 0));
+
+/** Weekly volume of finished strength workouts: hard sets stacked by body region (Sets) or tonnage (Volume). */
+function volumeChart(p: Progress) {
+  const wk = p.training.weeks;
+  const { low, high } = WEEKLY_SET_RANGE;
+  if (state.volume === 'volume') {
+    if (!wk.some((w) => w.tonnageKg > 0)) return null;
+    return stackedWeekBars({ weeks: wk.map((w) => ({ week: w.week, values: [w.tonnageKg], partial: w.partial })), to: p.to, label: `Weekly training volume over ${wk.length} weeks: reps times weight of the working sets, from ${tonnes(Math.min(...wk.map((w) => w.tonnageKg)))} to ${tonnes(Math.max(...wk.map((w) => w.tonnageKg)))} kg.`, columns: ['Week', 'Volume (kg)'], tick: tonnes });
+  }
+  if (!wk.some((w) => Object.keys(w.sets).length > 0)) return null;
+  const rows = wk.map((w) => ({ w, r: setsByRegion(w.sets) }));
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  return stackedWeekBars({ weeks: rows.map(({ w, r }) => ({ week: w.week, values: MUSCLE_REGIONS.map((k) => r1(r[k])), partial: w.partial })), to: p.to, label: `Weekly hard sets over ${wk.length} weeks, stacked by upper body, lower body and core.`, columns: ['Week', ...MUSCLE_REGIONS.map((k) => `${REGION_NAME[k]} (sets)`)], lines: [low, high], digits: 0 });
+}
+
+function volumeBlock(p: Progress) {
+  const chart = volumeChart(p);
+  const t = p.training;
+  const { low, high } = WEEKLY_SET_RANGE;
+  return [
+    h('h2', { className: 'small muted' }, 'Training volume, by week'),
+    h('div', { className: 'seg big', role: 'group', 'aria-label': 'Volume measure' }, ...([['sets', 'Sets'], ['volume', 'Volume']] as const).map(([k, label]) => h('button', { type: 'button', 'aria-pressed': String(state.volume === k), onclick: () => { state.volume = k; render(); } }, label))),
+    chart ?? empty(state.volume === 'sets' ? 'No finished strength sets in this period.' : 'No weighted sets in this period.'),
+    chart && state.volume === 'sets' && h('div', { className: 'legend' }, ...MUSCLE_REGIONS.map((k, i) => h('span', {}, h('i', { className: `sw-s${i}` }), REGION_NAME[k].toLowerCase())), h('span', {}, h('i', { className: 'goalsw' }), `${low} and ${high}`)),
+    chart && state.volume === 'sets' && h('p', { className: 'muted small' }, `Each bar adds up the hard sets credited to every muscle (1 for a main muscle, 0.5 for a helping one). The dashed lines mark ${low} and ${high}, the usual weekly range for one muscle.`),
+    chart && state.volume === 'volume' && h('div', { className: 'legend' }, h('span', {}, h('i', { className: 'sw-s0' }), 'kg lifted: reps × weight of working sets')),
+    chart && t.weeks.some((w) => w.partial) && h('p', { className: 'muted small' }, 'Outline: week not complete.'),
+  ];
 }
 
 // ---------- cards ----------
@@ -184,6 +216,7 @@ function trainingCard(p: Progress) {
     total > 0 && h('h2', { className: 'small muted' }, 'Days trained, by week'),
     total > 0 && consistencyCalendar({ weeks: t.weeks.map((w) => w.week), days: t.days, to: p.to, goal: t.goalWorkoutsPerWeek }),
     total > 0 && h('p', { className: 'muted small' }, 'S strength · C cardio · P class · outline: no workout'),
+    ...(total > 0 ? volumeBlock(p) : []),
     t.setsPerWeekByMuscle.length > 0 && h('h2', { className: 'small muted' }, 'Hard sets a week, by muscle'),
     t.setsPerWeekByMuscle.length > 0 &&
       h(
@@ -218,6 +251,7 @@ function liftRow(p: Progress, e: Progress['records']['exercises'][number]) {
       h('thead', {}, h('tr', {}, ...['Date', 'Top set', 'Est. 1RM', ''].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', {}, ...recent.map((x) => h('tr', {}, h('td', {}, dayLabel(p, x.day)), h('td', {}, `${x.topSet.reps} × ${num(x.topSet.kg)} kg`), h('td', {}, `${num(x.e1rm)} kg`), h('td', {}, x.isBest ? '◆ best' : '')))),
     ),
+    h('p', { className: 'muted small' }, `Open full lift page: ask Claude to show your ${name} progress.`),
   );
 }
 

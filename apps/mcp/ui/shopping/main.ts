@@ -4,6 +4,11 @@ import type { ShoppingData } from '../../src/planning/shoppingTypes';
 const state = { data: null as ShoppingData | null, hideDone: false, error: '' };
 
 const root = document.getElementById('app')!;
+const undoBar = document.getElementById('undo')!;
+const notice = document.getElementById('notice')!;
+/** How long "Ticks cleared. Undo" stays up. */
+const UNDO_MS = 8000;
+let undo: { weekStart: string; keys: string[]; timer: ReturnType<typeof setTimeout> } | null = null;
 const app = new App({ name: 'Fitwell shopping list', version: '0.1.0' }, {}, { autoResize: true });
 
 // textContent only: item names come from data and are never parsed as HTML
@@ -87,14 +92,55 @@ async function toggle(d: ShoppingData, item: { key: string; checked: boolean }) 
   }
 }
 
+function hideUndo() {
+  if (undo) clearTimeout(undo.timer);
+  undo = null;
+  undoBar.hidden = true;
+  undoBar.replaceChildren();
+}
+
+/** "Ticks cleared. Undo" for a few seconds; the announcement is made once, by the status region, not by the bar. */
+function showUndo(weekStart: string, keys: string[]) {
+  hideUndo();
+  undo = { weekStart, keys, timer: setTimeout(() => { hideUndo(); notice.textContent = ''; }, UNDO_MS) };
+  undoBar.replaceChildren(h('div', {}, h('span', {}, 'Ticks cleared.'), h('button', { type: 'button', onclick: () => void undoClear() }, 'Undo')));
+  undoBar.hidden = false;
+  notice.textContent = 'Ticks cleared. Undo is available for a few seconds.';
+}
+
+/** Puts the ticks back in the view at once and saves them the way a tick is saved; if saving fails the list goes back to cleared. */
+async function undoClear() {
+  const d = state.data;
+  const u = undo;
+  if (!d || !u || d.weekStart !== u.weekStart) return;
+  hideUndo();
+  const items = d.sections.flatMap((s) => s.items).filter((i) => u.keys.includes(i.key) && !i.checked);
+  for (const i of items) i.checked = true;
+  state.error = '';
+  notice.textContent = 'Ticks restored.';
+  render();
+  try {
+    const results = await Promise.all(items.map((i) => app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, key: i.key, checked: true } })));
+    if (results.some((r) => r.isError)) throw new Error('rejected');
+  } catch {
+    for (const i of items) i.checked = false;
+    state.error = 'Could not restore the ticks. Try again.';
+    notice.textContent = '';
+    render();
+  }
+}
+
 async function clearAll(d: ShoppingData) {
   const before = d.sections.map((s) => s.items.map((i) => i.checked));
+  const cleared = d.sections.flatMap((s) => s.items).filter((i) => i.checked).map((i) => i.key);
   for (const s of d.sections) for (const i of s.items) i.checked = false;
   state.error = '';
+  hideUndo();
   render();
   try {
     const res = await app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, clear: true } });
     if (res.isError) throw new Error('rejected');
+    showUndo(d.weekStart, cleared);
   } catch {
     d.sections.forEach((s, si) => s.items.forEach((i, ii) => (i.checked = before[si]![ii]!)));
     state.error = 'Could not clear the ticks. Try again.';
@@ -112,6 +158,7 @@ function applyHost(ctx: McpUiHostContext | undefined) {
 app.ontoolresult = (result) => {
   const data = (result.structuredContent as { shopping?: ShoppingData } | undefined)?.shopping;
   if (data) {
+    hideUndo();
     state.data = data;
     render();
   } else if (result.isError) {

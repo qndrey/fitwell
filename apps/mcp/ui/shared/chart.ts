@@ -166,6 +166,66 @@ export function weekBars(o: WeekBarsOptions): HTMLElement {
   return box(el, dataTable(o.label, [...o.columns], wk.map((w) => [`Week of ${fmtDay(w.week, withYear)}${w.partial ? ' (partial week)' : ''}`, w.a, w.b])));
 }
 
+export interface StackedWeek {
+  week: string;
+  /** One value per series, bottom first. */
+  values: number[];
+  /** The week is cut off at either end: drawn as an outline, not a filled bar. */
+  partial?: boolean;
+}
+
+export interface StackedWeekBarsOptions {
+  weeks: StackedWeek[];
+  to: string;
+  label: string;
+  /** Names the columns of the hidden table: [week, ...one per series]. */
+  columns: string[];
+  /** Dashed horizontal lines (a usual range); the caller's legend says what they mean. */
+  lines?: number[];
+  /** How a tick value is written on the axis; the hidden table always has the exact numbers. */
+  tick?: (v: number) => string;
+  digits?: number;
+  height?: number;
+}
+
+let patternIds = 0;
+
+/**
+ * Weekly bars stacked from up to three series, told apart by fill pattern as well as grey (solid, diagonal stripes, dots),
+ * with a partial week as an outline. The legend swatches are `.sw-s0`, `.sw-s1` and `.sw-s2` in chart.css.
+ */
+export function stackedWeekBars(o: StackedWeekBarsOptions): HTMLElement {
+  const H = o.height ?? 130;
+  const wk = o.weeks;
+  const digits = o.digits ?? 0;
+  const top = Math.max(1, ...wk.map((w) => w.values.reduce((a, b) => a + b, 0)), ...(o.lines ?? [])) * 1.08;
+  const y = scale(0, top, H - M.b, M.t);
+  const slot = (W - M.l - M.r) / wk.length;
+  const bw = Math.max(2, Math.min(24, slot * 0.7));
+  const el = frame(H, o.label);
+  const id = `hatch${++patternIds}`;
+  el.append(
+    s('defs', {}, s('pattern', { id: `${id}-1`, width: 4, height: 4, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, s('rect', { class: 'pat-bg1', width: 4, height: 4 }), s('line', { class: 'pat-fg1', x1: 0, y1: 0, x2: 0, y2: 4 })), s('pattern', { id: `${id}-2`, width: 4, height: 4, patternUnits: 'userSpaceOnUse' }, s('rect', { class: 'pat-bg2', width: 4, height: 4 }), s('circle', { class: 'pat-fg2', cx: 2, cy: 2, r: 0.9 }))),
+    s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }),
+  );
+  const fmt = o.tick ?? ((v: number) => num(v, digits));
+  for (const v of niceTicks(0, top, 3).filter((t) => t > 0)) el.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, fmt(v)));
+  wk.forEach((w, i) => {
+    const cx = M.l + slot * (i + 0.5);
+    const inset = w.partial ? 0.75 : 0;
+    let base = 0;
+    w.values.forEach((v, k) => {
+      const attrs = { x: cx - bw / 2 + inset, y: y(base + v), width: bw - 2 * inset, height: Math.max(0, y(base) - y(base + v)), rx: 1.5 };
+      el.append(s('rect', { ...attrs, class: w.partial ? `vs${k}-partial` : `vs${k}`, ...(w.partial || k === 0 ? {} : { fill: `url(#${id}-${k})` }) }));
+      base += v;
+    });
+  });
+  for (const v of o.lines ?? []) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) })); // the legend names the values: a label here would sit on the bars
+  axisLabels(el, wk[0]!.week, o.to, H);
+  const withYear = crossesYear(wk[0]!.week, o.to);
+  return box(el, dataTable(o.label, o.columns, wk.map((w) => [`Week of ${fmtDay(w.week, withYear)}${w.partial ? ' (partial week)' : ''}`, ...w.values.map((v) => num(v, digits))])));
+}
+
 /** A tiny trend line with no axes; decorative (the numbers beside it say the same), so it has no table. */
 export function sparkline(points: Point[]): SVGElement {
   const el = s('svg', { viewBox: '0 0 90 28', width: 90, height: 28, 'aria-hidden': 'true' });
@@ -209,6 +269,45 @@ export function weekStrip(o: WeekStripOptions): HTMLElement {
     const mid = { x: cx, 'text-anchor': 'middle' };
     if (d.kcal !== null) el.append(s('rect', { class: 'bar', x: cx - bw / 2, y: y(d.kcal), width: bw, height: Math.max(0, base - y(d.kcal)), rx: 1.5 }));
     el.append(s('text', { ...mid, y: row.kcal }, d.kcal === null ? '–' : num(d.kcal, 0)), s('text', { ...mid, y: row.day }, weekdayShort(d.day)), s('text', { class: 'letter', ...mid, y: row.trained }, d.workout ? WORKOUT_LETTER[d.workout] : '–'), s('text', { ...mid, y: row.weight }, d.weighIn === null ? '–' : num(d.weighIn, 1)));
+  });
+  const rows = o.days.map((d) => [`${weekdayShort(d.day)} ${fmtDay(d.day)}`, d.kcal === null ? 'not logged' : num(d.kcal, 0), d.proteinG === null ? 'not logged' : num(d.proteinG, 0), d.workout ? WORKOUT_NAME[d.workout] : 'none', d.weighIn === null ? 'none' : num(d.weighIn, 1)]);
+  return box(el, dataTable(o.label, ['Day', 'Calories (kcal)', 'Protein (g)', 'Workout', 'Weigh-in (kg)'], rows));
+}
+
+export interface MonthStripOptions {
+  /** The days of the period, oldest first, starting on a Monday; grouped by seven into rows. */
+  days: StripDay[];
+  goalKcal?: number | null;
+  label: string;
+}
+
+/** Four weeks at a glance: a row per week (Monday to Sunday) of calorie bars (goal dashed) with the workout letter under each, and the week's average calories at the end. */
+export function monthStrip(o: MonthStripOptions): HTMLElement {
+  const L = 52;
+  const R = 44;
+  const slot = (W - L - R) / 7;
+  const bw = Math.min(22, slot * 0.6);
+  const rowH = 46;
+  const top = Math.max(...o.days.map((d) => d.kcal ?? 0), o.goalKcal ?? 0, 1) * 1.05;
+  const weeks: StripDay[][] = [];
+  for (let i = 0; i < o.days.length; i += 7) weeks.push(o.days.slice(i, i + 7));
+  const H = 16 + weeks.length * rowH;
+  const el = frame(H, o.label);
+  'MTWTFSS'.split('').forEach((c, k) => el.append(s('text', { x: L + slot * (k + 0.5), y: 10, 'text-anchor': 'middle' }, c)));
+  el.append(s('text', { x: W - M.r, y: 10, 'text-anchor': 'end' }, 'avg kcal'));
+  weeks.forEach((wk, i) => {
+    const y0 = 16 + i * rowH;
+    const base = y0 + 26;
+    const y = scale(0, top, base, y0 + 2);
+    el.append(s('line', { class: 'axis', x1: L, x2: W - R, y1: base, y2: base }), s('text', { x: 0, y: base - 2 }, fmtDay(wk[0]!.day)));
+    if (o.goalKcal) el.append(s('line', { class: 'goal', x1: L, x2: W - R, y1: y(o.goalKcal), y2: y(o.goalKcal) }));
+    wk.forEach((d, k) => {
+      const cx = L + slot * (k + 0.5);
+      if (d.kcal !== null) el.append(s('rect', { class: 'bar', x: cx - bw / 2, y: y(d.kcal), width: bw, height: Math.max(0, base - y(d.kcal)), rx: 1.5 }));
+      el.append(s('text', { class: 'letter', x: cx, y: base + 12, 'text-anchor': 'middle' }, d.workout ? WORKOUT_LETTER[d.workout] : '–'));
+    });
+    const logged = wk.filter((d) => d.kcal !== null);
+    el.append(s('text', { x: W - M.r, y: base - 2, 'text-anchor': 'end' }, logged.length ? num(logged.reduce((n, d) => n + d.kcal!, 0) / logged.length, 0) : '–'));
   });
   const rows = o.days.map((d) => [`${weekdayShort(d.day)} ${fmtDay(d.day)}`, d.kcal === null ? 'not logged' : num(d.kcal, 0), d.proteinG === null ? 'not logged' : num(d.proteinG, 0), d.workout ? WORKOUT_NAME[d.workout] : 'none', d.weighIn === null ? 'none' : num(d.weighIn, 1)]);
   return box(el, dataTable(o.label, ['Day', 'Calories (kcal)', 'Protein (g)', 'Workout', 'Weigh-in (kg)'], rows));

@@ -34,7 +34,9 @@ export interface NutritionProgress {
 }
 
 export interface TrainingProgress {
-  weeks: { week: Day; /** The week is cut off: it starts before the data (or the period) does, or ends after the period. Left out of averages. */ partial: boolean; strength: number; cardio: number; cardioMin: number; session: number; sessionMin: number; sets: Record<string, number> }[];
+  weeks: { week: Day; /** The week is cut off: it starts before the data (or the period) does, or ends after the period. Left out of averages. */ partial: boolean; strength: number; cardio: number; cardioMin: number; session: number; sessionMin: number; sets: Record<string, number>;
+    /** Tonnage of finished strength workouts: reps × weight of the working sets, in kg (bodyweight and timed sets add nothing). */
+    tonnageKg: number }[];
   sessions: { strength: number; cardio: number; session: number };
   /** Workouts a week over the full weeks only; the whole period's workouts over one week when there is no full week yet. */
   perWeek: number;
@@ -51,6 +53,28 @@ export interface RecordsProgress {
     /** One entry per day trained, oldest first: the set with the highest estimate, and whether the day set a new best (beat every earlier day in the period). */
     sessions: { day: Day; topSet: { kg: number; reps: number }; e1rm: number; isBest: boolean }[];
   }[];
+}
+
+/** One lift's page (`show_lift_progress`). */
+export interface LiftSession {
+  day: Day;
+  /** The working set with the highest estimate. */
+  topSet: { kg: number; reps: number };
+  /** Reps of every working set at the top set's weight, in order. */
+  reps: number[];
+  e1rm: number;
+  /** Beat every earlier session in the history. */
+  isBest: boolean;
+}
+
+export interface LiftProgress {
+  id: string;
+  name: string;
+  to: Day;
+  /** Oldest first. */
+  sessions: LiftSession[];
+  /** Heaviest weight lifted for at least that many reps over the whole history; null when never. */
+  repRecords: { reps: 1 | 3 | 5 | 8; kg: number | null; day: Day | null }[];
 }
 
 export interface MeasurementProgress {

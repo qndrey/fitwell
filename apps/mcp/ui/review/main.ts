@@ -1,12 +1,16 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { WeekReview } from '../../src/analytics/reviewTypes';
 import { h, type Child } from '../shared/dom';
-import { fmtDay, weekStrip } from '../shared/chart';
+import { fmtDay, monthStrip, weekStrip } from '../shared/chart';
 import { WORKOUT_KEY } from '../shared/chartMath';
 import { buildPager } from '../shared/pager';
-import { addDays, CONFIDENCE_WORD, gain, mondayOf, shortName, weekTitle } from './copy';
+import { addDays, CONFIDENCE_WORD, gain, mondayOf, monthTitle, shortName, weekTitle } from './copy';
 
 const state = { review: null as WeekReview | null, card: 0, loading: false, error: '' };
+/** What the numbers are compared with, in the review's own words. */
+const against = () => (state.review?.period === 'month' ? 'the 4 weeks before' : 'last week');
+/** The Monday of the review's last week (the week itself, or the end of a month). */
+const lastWeekOf = (r: WeekReview) => (r.period === 'month' ? addDays(r.weekStart, 21) : r.weekStart);
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell weekly review', version: '0.1.0' }, {}, { autoResize: true });
@@ -21,7 +25,7 @@ function delta(cur: number | null, prev: number | null, unit: string, digits = 0
   const d = cur - prev;
   const same = Math.abs(d) < 0.5 * 10 ** -digits; // would show as 0
   const sign = d > 0 ? '+' : d < 0 ? '−' : '';
-  return h('span', { className: 'delta' }, same ? 'same as last week' : `${sign}${num(Math.abs(d), digits)} ${unit} vs last week`.replace(/ +/g, ' '));
+  return h('span', { className: 'delta' }, same ? `same as ${against()}` : `${sign}${num(Math.abs(d), digits)} ${unit} vs ${against()}`.replace(/ +/g, ' '));
 }
 
 function tile(label: string, value: string | null, ...extra: Child[]) {
@@ -32,17 +36,20 @@ const card = (title: string, ...children: Child[]) => h('section', { className: 
 
 function draw() {
   const r = state.review;
-  const title = r && (r.inProgress ? 'This week' : weekTitle(r.weekStart, today()));
+  const month = r?.period === 'month';
+  const title = r && (month ? monthTitle(lastWeekOf(r), today()) : r.inProgress ? 'This week' : weekTitle(r.weekStart, today()));
+  const step = month ? 28 : 7;
   const header = h(
     'header',
     {},
-    h('h1', {}, 'Weekly review'),
+    h('h1', {}, month ? 'Monthly review' : 'Weekly review'),
+    r && h('div', { className: 'seg', role: 'group', 'aria-label': 'Period' }, ...(['week', 'month'] as const).map((k) => h('button', { type: 'button', 'aria-pressed': String(r.period === k), disabled: state.loading, onclick: () => { if (r.period !== k) void go(0, lastWeekOf(r), k); } }, k === 'week' ? 'Week' : 'Month'))),
     h(
       'div',
       { className: 'nav' },
-      r && title !== 'This week' && h('button', { type: 'button', disabled: state.loading, onclick: () => void go(0, mondayOf(today())) }, 'This week'),
-      h('button', { type: 'button', 'aria-label': 'Previous week', disabled: state.loading || !r, onclick: () => void go(-7) }, '‹'),
-      h('button', { type: 'button', 'aria-label': 'Next week', disabled: state.loading || !r || r.inProgress, onclick: () => void go(7) }, '›'),
+      r && title !== (month ? 'This month' : 'This week') && h('button', { type: 'button', disabled: state.loading, onclick: () => void go(0, mondayOf(today())) }, month ? 'This month' : 'This week'),
+      h('button', { type: 'button', 'aria-label': month ? 'Previous month' : 'Previous week', disabled: state.loading || !r, onclick: () => void go(-step) }, '‹'),
+      h('button', { type: 'button', 'aria-label': month ? 'Next month' : 'Next week', disabled: state.loading || !r || (month ? addDays(lastWeekOf(r), step) > mondayOf(today()) : r.inProgress), onclick: () => void go(step) }, '›'),
     ),
   );
   if (!r) {
@@ -55,7 +62,7 @@ function draw() {
   const hb = r.habits;
   const sessions = t.strength + t.cardio + t.session;
   const cards: HTMLElement[] = [];
-  const strip = card('The week', weekStrip({ days: r.days, goalKcal: n.goals.kcal, label: `Each day of the week: calories, workout and weigh-in.` }), h('div', { className: 'legend' }, n.goals.kcal ? h('span', {}, h('i', { className: 'goalsw' }), `calorie goal ${num(n.goals.kcal)} kcal`) : null, h('span', {}, WORKOUT_KEY)));
+  const strip = card(month ? 'The 4 weeks' : 'The week', month ? monthStrip({ days: r.days, goalKcal: n.goals.kcal, label: `Each day of the last 4 weeks: calories and workout, with the average calories of each week.` }) : weekStrip({ days: r.days, goalKcal: n.goals.kcal, label: `Each day of the week: calories, workout and weigh-in.` }), h('div', { className: 'legend' }, n.goals.kcal ? h('span', {}, h('i', { className: 'goalsw' }), `calorie goal ${num(n.goals.kcal)} kcal`) : null, h('span', {}, WORKOUT_KEY)));
 
   if (r.highlights.length) cards.push(card('Went well', h('ul', { className: 'notes' }, ...r.highlights.map((x) => h('li', {}, x)))));
 
@@ -74,7 +81,7 @@ function draw() {
         tile('Days logged', `${n.daysLogged} of ${r.daysCounted}`, n.kcalWithin10Pct !== null ? h('span', { className: 'delta' }, `${n.kcalWithin10Pct} within 10 % of the calorie goal`) : null),
       ),
       n.goals.proteinG !== null && n.proteinReached !== null && n.daysLogged > 0 && h('p', { className: 'small' }, `Protein goal: ${n.proteinReached} of ${n.daysLogged} logged days`),
-      !n.average && h('p', { className: 'muted small' }, 'No food logged this week.'),
+      !n.average && h('p', { className: 'muted small' }, `No food logged this ${month ? 'month' : 'week'}.`),
     ),
   );
 
@@ -144,7 +151,7 @@ function draw() {
     state.error && h('p', { className: 'error small' }, state.error),
     strip,
     ...buildPager(cards.map((el) => ({ title: el.getAttribute('aria-label') ?? '', el })), state.card, (i) => (state.card = i)),
-    h('footer', {}, 'Compared with the same days of the week before. Weight uses the 7-day average.'),
+    h('footer', {}, month ? 'Compared with the same days of the 4 weeks before. Weight uses the 7-day average.' : 'Compared with the same days of the week before. Weight uses the 7-day average.'),
   );
 }
 
@@ -158,19 +165,20 @@ function render() {
   }
 }
 
-async function go(deltaDays: number, weekStart?: string) {
+async function go(deltaDays: number, weekStart?: string, period?: 'week' | 'month') {
   const r = state.review;
   if (!r) return;
+  const shown = period ?? r.period;
   state.loading = true;
   state.error = '';
   render();
   try {
-    const res = await app.callServerTool({ name: 'get_review_data', arguments: { week_start: weekStart ?? addDays(r.weekStart, deltaDays) } });
+    const res = await app.callServerTool({ name: 'get_review_data', arguments: { week_start: weekStart ?? addDays(lastWeekOf(r), deltaDays), period: shown } });
     const review = (res.structuredContent as { review?: WeekReview } | undefined)?.review;
     if (res.isError || !review) throw new Error('no data');
     state.review = review;
   } catch {
-    state.error = 'Could not load that week. Try again.';
+    state.error = `Could not load that ${shown}. Try again.`;
   }
   state.loading = false;
   render();

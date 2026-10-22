@@ -82,3 +82,4 @@ table.sessions td { padding: 3px 6px 3px 0; border-top: 1px solid var(--border);
 button.more { min-height: 44px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 button.more:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .meter > i.tick { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--bg); }
+.seg.big button { min-height: 44px; }

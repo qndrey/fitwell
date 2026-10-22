@@ -17,8 +17,10 @@ export interface MuscleLoad {
   muscle: string;
   /** Working sets a week, averaged over the period: 1 for a set where the muscle is a main one, 0.5 where it helps. */
   setsPerWeek: number;
+  /** The same average over the period of equal length just before this one; null when nothing was logged in it. */
+  previousSetsPerWeek: number | null;
   level: MuscleLevel;
-  /** The last day with a working set where this muscle is a main one. */
+  /** The last day in the period with a working set where this muscle is a main one. */
   lastTrained: Day | null;
   /** The exercises that gave it the most sets in the period. */
   topExercises: { name: string; sets: number }[];
@@ -29,9 +31,26 @@ export interface MuscleMap {
   to: Day;
   weeks: number;
   sessions: number;
+  /** Workouts and whole-body sessions in the period before; 0 means `previousSetsPerWeek` is null for every muscle. */
+  previousSessions?: number;
   /** Whole-body sessions (Pilates, HIIT, ...) that also gave credit. */
   otherSessions?: number;
   range: { low: number; high: number };
   /** Every muscle group, in `MUSCLE_GROUPS` order. */
   muscles: MuscleLoad[];
+}
+
+export type MuscleRegion = 'upper' | 'lower' | 'core';
+export const MUSCLE_REGIONS: MuscleRegion[] = ['upper', 'lower', 'core'];
+/** Which part of the body a muscle group belongs to, for charts that stack weekly sets in three. */
+export const REGION_OF: Record<(typeof MUSCLE_GROUPS)[number], MuscleRegion> = {
+  abdominals: 'core', 'lower back': 'core',
+  abductors: 'lower', adductors: 'lower', calves: 'lower', glutes: 'lower', hamstrings: 'lower', quadriceps: 'lower',
+  biceps: 'upper', chest: 'upper', forearms: 'upper', lats: 'upper', 'middle back': 'upper', neck: 'upper', shoulders: 'upper', traps: 'upper', triceps: 'upper',
+};
+/** Weekly sets (a muscle name to sets) added up per region; an unknown muscle counts as upper. */
+export function setsByRegion(sets: Record<string, number>): Record<MuscleRegion, number> {
+  const out: Record<MuscleRegion, number> = { upper: 0, lower: 0, core: 0 };
+  for (const [m, n] of Object.entries(sets)) out[(REGION_OF as Record<string, MuscleRegion>)[m] ?? 'upper'] += n;
+  return out;
 }

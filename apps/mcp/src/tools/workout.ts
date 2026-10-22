@@ -302,6 +302,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         '(ids from search_exercises) with sets, target reps, weight in kg and rest. Leave weight_kg out to let Fitwell fill it from past sessions ' +
         '(progression rule: add a step when every set hit its reps, repeat after a miss, deload after two). Bodyweight exercises need no weight. ' +
         'Each exercise shows "last time" in the player. The person logs sets there; at the end the player sends you a summary. ' +
+        'The player is the last thing in your reply: put any planning notes before calling this tool and write nothing after it, because text under the player makes the chat scroll away from it. ' +
         'cardio adds cardio blocks to the workout: when "before" is a warm-up ahead of the lifting, "after" a finisher; the player runs them as steps and they count toward cardio minutes. ' +
         'Each exercise can carry a note, and the note from the last session shows as a reminder. save_as_template stores the plan (with cardio and notes) under a name for next time. ' +
         'seconds instead of reps makes a timed exercise (plank, hold) with a countdown in the player. Neighbouring exercises with the same superset letter are done back to back with rest after the round. ' +
@@ -362,7 +363,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       });
       const result = json({ workout: toPlan(w, profile.gym), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
       const cardioText = cardioBlocks.length ? ` Cardio: ${cardioBlocks.map((b) => `${b.plannedMin} min ${b.activityName} (${b.when === 'before' ? 'warm-up' : 'finisher'})`).join('; ')}.` : '';
-      result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText}` }];
+      result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText} The player shows all of this: reply with nothing more, no summary or recap.` }];
       return result;
     },
   );

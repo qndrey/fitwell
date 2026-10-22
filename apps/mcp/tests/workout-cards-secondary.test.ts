@@ -447,6 +447,7 @@ describe('Specs: Secondary content, rule 3 (P7.3; FR12, AC14)', () => {
     await showAnimation(card);
     await pwExpect(card.locator('canvas')).toHaveCount(1);
     await pwExpect(canvases(v)).toHaveCount(1);
+    await card.locator('canvas').scrollIntoViewIfNeeded(); // the cards no longer scroll: the figure sits below the steps and runs once it is on screen
     expect(await frames(v, 400)).toBeGreaterThan(2);
   });
 

@@ -1504,9 +1504,9 @@ function stripSegments(): Node[] {
     const closedCount = s.ex.sets.filter(closed).length;
     return closedCount === s.ex.sets.length ? 'full' : closedCount > 0 ? 'half' : 'empty';
   };
-  if (count > 12) {
+  if (count > 8) {
     const closedSteps = steps.filter((s) => !stepOpen(s)).length;
-    const bar = h('span', { className: 'cbar', 'aria-hidden': 'true' }, h('span', { className: 'cfill' }), h('span', { className: 'cmark' }));
+    const bar = h('span', { className: 'cbar', 'aria-hidden': 'true' }, h('span', { className: 'cfill' }), h('span', { className: 'cmark', 'data-marker': '' }));
     bar.style.setProperty('--fill', String((closedSteps / Math.max(1, steps.length)) * 100));
     bar.style.setProperty('--pos', String((stripAt() / (count - 1)) * 100));
     return [bar];

@@ -407,19 +407,45 @@ describe('Specs: Pager and header rules 6 and 7 (strip, prev/next, keys)', () =>
     await pwExpect(counterOf(v)).toHaveText('1 of 5');
   });
 
-  it('above 12 cards the strip is one continuous bar with a marker instead of segments', async () => {
-    const many = Array.from({ length: 12 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
+  it('above 8 cards the strip is one continuous bar with a marker instead of segments', async () => {
+    const many = Array.from({ length: 7 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
     const v = await openView(plan(many));
-    await expectCounter(v, '1 of 14');
+    await expectCounter(v, '1 of 9');
     expect(await stripOf(v).locator('[data-seg]').count()).toBe(0);
     await pwExpect(stripOf(v)).toBeVisible();
   });
 
-  it('exactly 12 cards still show segments', async () => {
-    const ten = Array.from({ length: 10 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
-    const v = await openView(plan(ten));
-    await expectCounter(v, '1 of 12');
-    expect(await stripOf(v).locator('[data-seg]').count()).toBe(12);
+  it('exactly 8 cards still show segments', async () => {
+    const six = Array.from({ length: 6 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
+    const v = await openView(plan(six));
+    await expectCounter(v, '1 of 8');
+    expect(await stripOf(v).locator('[data-seg]').count()).toBe(8);
+  });
+
+  it('with 15 cards the marker is an 8 px block, inside the bar at the first and the last card and moving with the counter', async () => {
+    const many = Array.from({ length: 13 }, (_, i) => ex(`Exercise ${i + 1}`, [set('1')]));
+    const v = await openView(plan(many));
+    const bar = stripOf(v).locator('.cbar');
+    const mark = stripOf(v).locator('[data-marker]');
+    const inside = async () => {
+      const [b, m] = [(await bar.boundingBox())!, (await mark.boundingBox())!];
+      expect(m.width).toBeGreaterThanOrEqual(8);
+      expect(m.x).toBeGreaterThanOrEqual(b.x - 0.5);
+      expect(m.x + m.width).toBeLessThanOrEqual(b.x + b.width + 0.5);
+      return m.x;
+    };
+    await expectCounter(v, '1 of 15');
+    const first = await inside();
+    await jumpTo(v, 1);
+    await expectCounter(v, '2 of 15');
+    const second = await inside();
+    expect(second).toBeGreaterThan(first);
+    await jumpTo(v, 14);
+    await expectCounter(v, '15 of 15');
+    const last = await inside();
+    expect(last).toBeGreaterThan(second);
+    const b = (await bar.boundingBox())!;
+    expect(last + 8).toBeCloseTo(b.x + b.width, 0);
   });
 
   it('tapping the strip scrolls to the Overview', async () => {

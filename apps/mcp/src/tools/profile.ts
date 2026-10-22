@@ -103,7 +103,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
     'set_goals',
     {
       title: 'Set goals',
-      description: 'Save daily calorie and macro targets, a fibre target, limits for saturated fat and added sugar, workouts per week and goal weight; only the ones given change. Use null to clear one.',
+      description: 'Save daily calorie and macro targets, a fibre target, limits for saturated fat and added sugar, hours of sleep a night, workouts per week and goal weight; only the ones given change. Use null to clear one.',
       inputSchema: z.object({
         kcal: z.number().min(800).max(6000).nullable().optional(),
         protein_g: z.number().min(0).max(500).nullable().optional(),
@@ -114,6 +114,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         fiber_g: z.number().min(0).max(150).nullable().optional().describe('Daily fibre target (a minimum)'),
         sat_fat_g: z.number().min(0).max(100).nullable().optional().describe('Daily limit for saturated fat'),
         added_sugar_g: z.number().min(0).max(200).nullable().optional().describe('Daily limit for added sugar'),
+        sleep_h: z.number().min(4).max(12).nullable().optional().describe('Hours of sleep to aim for a night (4 to 12); the dashboard draws it as a line. Only set it when the person asks for a sleep goal.'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
@@ -128,6 +129,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         ...(a.fiber_g !== undefined && { fiberG: a.fiber_g }),
         ...(a.sat_fat_g !== undefined && { satFatG: a.sat_fat_g }),
         ...(a.added_sugar_g !== undefined && { addedSugarG: a.added_sugar_g }),
+        ...(a.sleep_h !== undefined && { sleepH: a.sleep_h }),
       };
       const goals = await data.setGoals(patch);
       // Deterministic sanity check: do the macros add up to the calorie target?

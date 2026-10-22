@@ -1,5 +1,6 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import { h, svg } from '../shared/dom';
+import { extrasLine, macroText, NO_LIMITS, subline, type ExtraKey } from './copy';
 
 interface Totals {
   kcal: number;
@@ -15,7 +16,6 @@ interface Entry extends Totals {
   grams: number;
   estimated?: boolean;
 }
-type ExtraKey = 'fiber' | 'sugar' | 'addedSugar' | 'satFat' | 'transFat' | 'salt';
 /** What log_food returns as structured content. */
 interface Logged {
   day: string;
@@ -57,7 +57,7 @@ function macro(name: string, value: number, goal: number | null, colour: string)
   return h(
     'div',
     { className: 'macro' },
-    h('div', { className: 'head' }, h('span', { className: 'name' }, name), h('span', { className: 'val' }, num(value), goal !== null && h('small', {}, `/${num(goal)}`))),
+    h('div', { className: 'head' }, h('span', { className: 'name' }, name), h('span', { className: 'val' }, macroText(value, goal).value, h('small', {}, macroText(value, goal).unit))),
     h('div', { className: 'bar' }, fill),
   );
 }
@@ -91,8 +91,8 @@ function draw() {
   const slots = [...new Set(logged.map((e) => e.slot))];
   const goal = goals?.kcal ?? null;
   const left = goal !== null ? Math.round(goal - totals.kcal) : null;
-  const names = logged.map((e) => e.food);
-  const sub = [fmtDay(state.day), names.length <= 2 ? names.join(', ') : `${names.length} foods`, slots.join(', ')].join(' · ');
+  const sub = subline(fmtDay(state.day), slots, logged.length);
+  const noExtraGoals = goals?.satFatG == null && goals?.addedSugarG == null && goals?.fiberG == null;
 
   root.replaceChildren(
     h(
@@ -113,16 +113,18 @@ function draw() {
         ),
       ),
       h('div', { className: 'macros' }, macro('Protein', totals.protein, goals?.proteinG ?? null, '--protein'), macro('Carbs', totals.carbs, goals?.carbsG ?? null, '--carbs'), macro('Fat', totals.fat, goals?.fatG ?? null, '--fat')),
-      h(
-        'div',
-        { className: 'stats', 'aria-label': 'More nutrients' },
-        stat('Sat. fat', extras.satFat, some('satFat'), goals?.satFatG, 'limit', '--fat'),
-        stat('Trans fat', extras.transFat, some('transFat'), null, 'limit', '--fat'),
-        stat('Sugar', extras.sugar, some('sugar'), null, 'limit', '--carbs'),
-        stat('Added sugar', extras.addedSugar, some('addedSugar'), goals?.addedSugarG, 'limit', '--carbs'),
-        stat('Fiber', extras.fiber, some('fiber'), goals?.fiberG, 'target', '--accent'),
-        stat('Salt', extras.salt, some('salt'), null, 'limit', '--protein'),
-      ),
+            noExtraGoals
+        ? h('div', { className: 'stats-line', 'aria-label': 'More nutrients' }, h('p', {}, extrasLine(extras, state.extrasIncomplete ?? [])), h('p', { className: 'note' }, NO_LIMITS))
+        : h(
+          'div',
+          { className: 'stats', 'aria-label': 'More nutrients' },
+          stat('Sat. fat', extras.satFat, some('satFat'), goals?.satFatG, 'limit', '--fat'),
+          stat('Trans fat', extras.transFat, some('transFat'), null, 'limit', '--fat'),
+          stat('Sugar', extras.sugar, some('sugar'), null, 'limit', '--carbs'),
+          stat('Added sugar', extras.addedSugar, some('addedSugar'), goals?.addedSugarG, 'limit', '--carbs'),
+          stat('Fiber', extras.fiber, some('fiber'), goals?.fiberG, 'target', '--accent'),
+          stat('Salt', extras.salt, some('salt'), null, 'limit', '--protein'),
+        ),
       (state.extrasIncomplete?.length ?? 0) > 0 && h('p', { className: 'min-note' }, '≥ means some logged food has no value for it, so the real total is at least this.'),
       h(
         'ul',

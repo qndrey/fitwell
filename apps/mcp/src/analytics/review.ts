@@ -19,6 +19,10 @@ export interface ReviewInput {
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const r0 = (n: number) => Math.round(n);
+/** "19 Nov", the way the view's tiles show dates; the year is added when it differs from the review's. */
+const dayLabel = (d: Day, year: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', ...(d.slice(0, 4) !== year ? { year: 'numeric' } : {}), timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
+/** Signed with a real minus sign, like the tiles. */
+const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)}`;
 
 export function weekEndOf(weekStart: Day, today: Day): { end: Day; inProgress: boolean } {
   const sunday = addDays(weekStart, 6);
@@ -46,11 +50,21 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
   const averageKg = avgAt(h, end);
   const previousAverageKg = avgAt(h, addDays(i.weekStart, -1));
 
+  // The week strip: one row per counted day. A day with two kinds of workout shows the heaviest one.
+  const rank = { strength: 0, session: 1, cardio: 2 } as const;
+  const days: WeekReview['days'] = Array.from({ length: daysCounted }, (_, k) => {
+    const day = addDays(i.weekStart, k);
+    const food = w.nutrition.daily.find((d) => d.day === day);
+    const workout = w.training.days.filter((d) => d.day === day).sort((a, b) => rank[a.type] - rank[b.type])[0]?.type ?? null;
+    return { day, kcal: food?.kcal ?? null, proteinG: food?.protein ?? null, workout, weighIn: w.weight.daily.find((d) => d.day === day)?.kg ?? null };
+  });
+
   const review: WeekReview = {
     weekStart: i.weekStart,
     weekEnd: end,
     inProgress,
     daysCounted,
+    days,
     nutrition: {
       daysLogged: w.nutrition.daysLogged,
       average: w.nutrition.averagePerLoggedDay,
@@ -92,12 +106,11 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
 
   // ---- highlights: what went well, said plainly
   const sessions = review.training.strength + review.training.cardio + review.training.session;
-  for (const r of records) review.highlights.push(`New estimated 1RM on ${r.name}: ${r.e1rmKg} kg (was ${r.previousKg} kg).`);
   if (review.training.goalPerWeek && sessions >= review.training.goalPerWeek && !inProgress) review.highlights.push(`Trained ${sessions} times, on or above the goal of ${review.training.goalPerWeek}.`);
   if (goals.proteinG && review.nutrition.proteinReached !== null && review.nutrition.daysLogged >= 3 && review.nutrition.proteinReached >= review.nutrition.daysLogged * 0.8) review.highlights.push(`Protein goal reached on ${review.nutrition.proteinReached} of ${review.nutrition.daysLogged} logged days.`);
   if (review.nutrition.daysLogged === daysCounted && daysCounted >= 5) review.highlights.push(`Food logged every day (${daysCounted} of ${daysCounted}).`);
   const en = review.energy;
-  if (en.goalDate && en.trendKgPerWeek !== null && w.weight.goalKg !== null) review.highlights.push(`At the current trend (${en.trendKgPerWeek > 0 ? '+' : ''}${en.trendKgPerWeek} kg a week) the goal weight of ${w.weight.goalKg} kg is reached around ${en.goalDate}.`);
+  if (en.goalDate && en.trendKgPerWeek !== null && w.weight.goalKg !== null) review.highlights.push(`At the current trend (${signed(en.trendKgPerWeek)} kg a week) the goal weight of ${w.weight.goalKg} kg is reached around ${dayLabel(en.goalDate, end.slice(0, 4))}.`);
   if (review.plan && review.plan.meals > 0 && review.plan.logged / review.plan.meals >= 0.75) review.highlights.push(`Stuck to the meal plan: ${review.plan.logged} of ${review.plan.meals} planned meals logged.`);
 
   // ---- suggestions: observations with a possible next step

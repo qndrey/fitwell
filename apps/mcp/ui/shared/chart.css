@@ -1,0 +1,22 @@
+/* Charts drawn by ui/shared/chart.ts: the svg rules, and the data table that is their text alternative. */
+svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+svg .axis { stroke: var(--border); stroke-width: 1; }
+svg .grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 3; }
+svg text { fill: var(--muted); font-size: 10px; font-family: var(--font); }
+svg .dot { fill: var(--accent); opacity: 0.35; }
+svg .dotfull { fill: var(--accent); }
+svg .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+svg .goal { stroke: var(--text); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.7; }
+svg .bar { fill: var(--accent); }
+svg .bar2 { fill: var(--series-2); }
+svg .letter { font-weight: 700; fill: var(--text); }
+svg .cal-on { fill: var(--accent); }
+svg .cal-off { fill: none; stroke: var(--border); stroke-width: 1.5; }
+svg .cal-letter { fill: var(--on-accent); font-weight: 700; }
+svg .bar-partial { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+svg .bar2-partial { fill: none; stroke: var(--series-2); stroke-width: 1.5; }
+svg .pr { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
+svg .spark { fill: none; stroke: var(--accent); stroke-width: 2; }
+
+.chartbox { position: relative; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

@@ -128,6 +128,43 @@ describe('weekly review', () => {
     expect(res.text).toContain('The weekly review is open.');
   });
 
+  it('lists a new record in Training only, not again under what went well', async () => {
+    const bench = 'ex:Barbell_Bench_Press_-_Medium_Grip';
+    await call(client, 'log_past_workout', { day: '2026-09-22', exercises: [{ id: bench, sets: [{ reps: 5, weight_kg: 60 }] }] });
+    await call(client, 'log_past_workout', { day: '2026-09-30', exercises: [{ id: bench, sets: [{ reps: 5, weight_kg: 65 }] }] });
+    const r = ((await call(client, 'show_weekly_review', { week_start: WEEK })).data as unknown as { review: import('../src/analytics/reviewTypes').WeekReview }).review;
+    expect(r.training.records).toHaveLength(1);
+    expect(r.training.records[0]).toMatchObject({ name: 'Barbell Bench Press - Medium Grip' });
+    expect(r.highlights.join('\n')).not.toMatch(/1RM|Bench/);
+  });
+
+  it('lists every counted day for the week strip', async () => {
+    await seed();
+    const r = ((await call(client, 'show_weekly_review', { week_start: WEEK })).data as unknown as { review: import('../src/analytics/reviewTypes').WeekReview }).review;
+    expect(r.days.map((d) => d.day)).toEqual(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
+    expect(r.days[0]).toEqual({ day: '2026-09-28', kcal: 2006, proteinG: 55.7, workout: null, weighIn: 83.6 });
+    expect(r.days[2]).toMatchObject({ workout: 'cardio', weighIn: 83.2 });
+    expect(r.days[5]).toEqual({ day: '2026-10-03', kcal: null, proteinG: null, workout: null, weighIn: null });
+  });
+
+  it('shows the heaviest workout of a day, and every workout in the progress days', async () => {
+    const bench = 'ex:Barbell_Bench_Press_-_Medium_Grip';
+    await call(client, 'log_cardio', { activity_id: 'act:run-10', duration_min: 20, day: '2026-09-29' });
+    await call(client, 'log_past_workout', { day: '2026-09-29', exercises: [{ id: bench, sets: [{ reps: 5, weight_kg: 60 }] }] });
+    const r = ((await call(client, 'show_weekly_review', { week_start: WEEK })).data as unknown as { review: import('../src/analytics/reviewTypes').WeekReview }).review;
+    expect(r.days[1]!.workout).toBe('strength');
+    const p = ((await call(client, 'get_dashboard_data', { days: 90 })).data as unknown as { progress: { training: { days: { day: string; type: string }[] } } }).progress;
+    expect(p.training.days.filter((d) => d.day === '2026-09-29').map((d) => d.type).sort()).toEqual(['cardio', 'strength']);
+  });
+
+  it('counts the days the protein goal was reached', async () => {
+    await seed();
+    const r = ((await call(client, 'show_weekly_review', { week_start: WEEK })).data as unknown as { review: import('../src/analytics/reviewTypes').WeekReview }).review;
+    expect(r.nutrition.goals.proteinG).toBe(120);
+    expect(r.nutrition.proteinReached).toBe(0); // 55 g a day against 120 g
+    expect(r.nutrition.daysLogged).toBe(5);
+  });
+
   it('navigates weeks for the view, and rejects non-Mondays and weeks that have not started', async () => {
     const hidden = (await client.listTools()).tools.find((t) => t.name === 'get_review_data')!;
     expect((hidden._meta as { ui?: { visibility?: string[] } }).ui?.visibility).toEqual(['app']);

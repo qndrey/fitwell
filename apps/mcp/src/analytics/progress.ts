@@ -1,5 +1,6 @@
 // Progress numbers for Claude and for the dashboard, from a person's stored rows. Pure: no I/O.
 import { sessionMuscleCredit } from '../workout/sessions';
+import { muscleCredit } from './muscles';
 import { PRESETS } from '@fitwell/core/data/measurements';
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import { distanceFromGoal } from '@fitwell/core/domain/body';
@@ -23,8 +24,8 @@ export interface ProgressInput {
   nutrition: DayTotal[];
   workouts: Workout[];
   goals: Goals | null;
-  /** Primary muscles of a library exercise id. */
-  musclesOf: (exerciseRef: string) => string[];
+  /** Main and helping muscles of a library exercise id. */
+  musclesOf: (exerciseRef: string) => { primary: string[]; secondary: string[] };
   /** Basal metabolic rate when the profile allows it: suggested calories never go below it. */
   bmrKcal?: number;
 }
@@ -51,9 +52,10 @@ export function buildProgress(i: ProgressInput): Progress {
     average: avg.map((p) => ({ day: p.day, kg: r1(p.value) })),
     latestKg: latest ? r1(latest.kg) : null,
     latestDay: latest?.day ?? null,
+    trendKg: avg.length ? r1(avg[avg.length - 1]!.value) : null,
     trendChangeKg: trend ? r1(trend.change) : null,
     goalKg,
-    fromGoalKg: latest && goalKg !== null ? r1(distanceFromGoal(latest.kg, goalKg)) : null,
+    fromGoalKg: goalKg !== null && (avg.length || latest) ? r1(distanceFromGoal(avg.length ? avg[avg.length - 1]!.value : latest!.kg, goalKg)) : null,
   };
 
   // ---- nutrition
@@ -63,6 +65,11 @@ export function buildProgress(i: ProgressInput): Progress {
   const nutrition: NutritionProgress = {
     daily: n.map((d) => ({ day: d.day, kcal: r0(d.kcal), protein: r1(d.protein), carbs: r1(d.carbs), fat: r1(d.fat), ...(d.extras ? { extras: round1Extras(d.extras) } : {}) })),
     daysLogged: n.length,
+    weeks: weeksIn(i.from, i.to).flatMap((week) => {
+      const inWeek = n.filter((d) => d.day >= week && d.day <= addDays(week, 6));
+      return inWeek.length ? [{ week, kcal: r0(inWeek.reduce((x, d) => x + d.kcal, 0) / inWeek.length), protein: r1(inWeek.reduce((x, d) => x + d.protein, 0) / inWeek.length), daysLogged: inWeek.length }] : [];
+    }),
+    proteinPerKg: n.length && avg.length ? Math.round((avgOf('protein') / avg[avg.length - 1]!.value) * 10) / 10 : null,
     averagePerLoggedDay: n.length ? { kcal: r0(avgOf('kcal')), protein: r1(avgOf('protein')), carbs: r1(avgOf('carbs')), fat: r1(avgOf('fat')), ...avgExtras(n) } : null,
     goals: { kcal: g?.kcal ?? null, proteinG: g?.proteinG ?? null, carbsG: g?.carbsG ?? null, fatG: g?.fatG ?? null, fiberG: g?.fiberG ?? null, satFatG: g?.satFatG ?? null, addedSugarG: g?.addedSugarG ?? null },
     adherence: {
@@ -76,8 +83,12 @@ export function buildProgress(i: ProgressInput): Progress {
   const strength = i.workouts.filter((w) => w.type === 'strength' && w.finishedAt !== null);
   const cardio = i.workouts.filter((w) => w.type === 'cardio');
   const sessions = i.workouts.filter((w) => w.type === 'session' && w.session);
-  const weekStarts = weeksIn(i.from, i.to);
-  const weeks = weekStarts.map((week) => ({ week, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number> }));
+  // The period starts where the data does: weeks before the first log would only drag the averages down.
+  const logged: Day[] = [...i.weights.map((x) => x.day), ...i.nutrition.map((x) => x.day), ...strength.map((x) => x.day), ...cardio.map((x) => x.day), ...sessions.map((x) => x.day), ...i.measurements.map((x) => x.day), ...(i.metrics ?? []).map((x) => x.day)].filter((d) => d >= i.from && d <= i.to);
+  const dataFrom = logged.length ? logged.reduce((a, b) => (a < b ? a : b)) : null;
+  const start = dataFrom ?? i.from;
+  const weekStarts = weeksIn(start, i.to);
+  const weeks = weekStarts.map((week) => ({ week, partial: week < start || addDays(week, 6) > i.to, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number> }));
   const weekOf = (d: Day) => weeks[Math.max(0, Math.floor((dayNumber(d) - dayNumber(weekStarts[0]!)) / 7))];
   for (const w of strength) {
     const wk = weekOf(w.day);
@@ -88,7 +99,8 @@ export function buildProgress(i: ProgressInput): Progress {
     for (const e of w.exercises) {
       const done = e.sets.filter((s) => s.type === 'working' && s.done !== false).length;
       if (!done) continue;
-      for (const m of i.musclesOf(e.exerciseRef)) wk.sets[m] = (wk.sets[m] ?? 0) + done;
+      const { primary, secondary } = i.musclesOf(e.exerciseRef);
+      for (const [m, k] of muscleCredit(primary, secondary)) wk.sets[m] = (wk.sets[m] ?? 0) + done * k;
     }
   }
   for (const w of cardio) {
@@ -104,39 +116,58 @@ export function buildProgress(i: ProgressInput): Progress {
     wk.sessionMin += w.session!.durationMin;
     for (const [m, credit] of Object.entries(sessionMuscleCredit(w.session!.category, w.session!.durationMin))) wk.sets[m] = (wk.sets[m] ?? 0) + credit;
   }
+  const full = weeks.filter((x) => !x.partial);
+  const counted = full.length ? full : weeks;
+  const weekCount = Math.max(1, full.length);
+  const workoutsIn = (wk: (typeof weeks)[number]) => wk.strength + wk.cardio + wk.session;
   const muscleTotals = new Map<string, number>();
-  for (const wk of weeks) for (const [m, s] of Object.entries(wk.sets)) muscleTotals.set(m, (muscleTotals.get(m) ?? 0) + s);
+  for (const wk of counted) for (const [m, s] of Object.entries(wk.sets)) muscleTotals.set(m, (muscleTotals.get(m) ?? 0) + s);
   const timed = strength.filter((w) => w.startedAt && w.finishedAt && w.finishedAt > w.startedAt).map((w) => (w.finishedAt! - w.startedAt!) / 60000);
   const training: TrainingProgress = {
     weeks,
     sessions: { strength: strength.length, cardio: cardio.length, session: sessions.length },
+    perWeek: r1(counted.reduce((n, x) => n + workoutsIn(x), 0) / weekCount),
+    days: [...strength.map((w) => ({ day: w.day, type: 'strength' as const })), ...cardio.map((w) => ({ day: w.day, type: 'cardio' as const })), ...sessions.map((w) => ({ day: w.day, type: 'session' as const }))].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0)),
     averageStrengthMin: timed.length ? r0(timed.reduce((a, b) => a + b, 0) / timed.length) : null,
-    setsPerWeekByMuscle: [...muscleTotals].map(([muscle, sets]) => ({ muscle, sets: r1(sets / Math.max(1, weeks.length)) })).sort((a, b) => b.sets - a.sets),
+    setsPerWeekByMuscle: [...muscleTotals].map(([muscle, sets]) => ({ muscle, sets: r1(sets / weekCount) })).sort((a, b) => b.sets - a.sets),
     goalWorkoutsPerWeek: g?.workoutsPerWeek ?? null,
   };
 
   // ---- records: best estimated 1RM per day for each exercise with weighted working sets
-  const byExercise = new Map<string, { name: string; days: Map<Day, number> }>();
+  type Top = { e1rm: number; kg: number; reps: number };
+  const byExercise = new Map<string, { name: string; days: Map<Day, Top> }>();
   for (const w of strength) {
     for (const e of w.exercises) {
       if (e.load === 'bodyweight' || e.mode === 'time') continue;
-      let best = 0;
-      for (const s of e.sets) if (s.type === 'working' && s.done !== false) best = Math.max(best, estimatedOneRepMax(s.weightKg, s.reps) ?? 0);
-      if (best <= 0) continue;
-      const x = byExercise.get(e.exerciseRef) ?? { name: e.exerciseName, days: new Map<Day, number>() };
-      x.days.set(w.day, Math.max(x.days.get(w.day) ?? 0, best));
+      let best: Top | null = null;
+      for (const s of e.sets) {
+        if (s.type !== 'working' || s.done === false) continue;
+        const est = estimatedOneRepMax(s.weightKg, s.reps) ?? 0;
+        if (est > (best?.e1rm ?? 0)) best = { e1rm: est, kg: s.weightKg ?? 0, reps: s.reps };
+      }
+      if (!best) continue;
+      const x = byExercise.get(e.exerciseRef) ?? { name: e.exerciseName, days: new Map<Day, Top>() };
+      const have = x.days.get(w.day);
+      if (!have || best.e1rm > have.e1rm) x.days.set(w.day, best);
       byExercise.set(e.exerciseRef, x);
     }
   }
   const records: RecordsProgress = {
     exercises: [...byExercise]
       .map(([id, x]) => {
-        const points = [...x.days].map(([day, e1rmKg]) => ({ day, e1rmKg: r1(e1rmKg) })).sort((a, b) => (a.day < b.day ? -1 : 1));
+        const days = [...x.days].sort((a, b) => (a[0] < b[0] ? -1 : 1));
+        const points = days.map(([day, t]) => ({ day, e1rmKg: r1(t.e1rm) }));
         const best = points.reduce((b, p) => (p.e1rmKg > b.e1rmKg ? p : b), points[0]!);
-        return { id, name: x.name, sessions: points.length, firstE1rmKg: points[0]!.e1rmKg, latestE1rmKg: points[points.length - 1]!.e1rmKg, bestE1rmKg: best.e1rmKg, bestDay: best.day, points };
+        let running = 0;
+        const sessions = days.map(([day, t], k) => {
+          const isBest = k > 0 && t.e1rm > running;
+          running = Math.max(running, t.e1rm);
+          return { day, topSet: { kg: r1(t.kg), reps: t.reps }, e1rm: r1(t.e1rm), isBest };
+        });
+        return { id, name: x.name, firstE1rmKg: points[0]!.e1rmKg, latestE1rmKg: points[points.length - 1]!.e1rmKg, bestE1rmKg: best.e1rmKg, bestDay: best.day, points, sessions };
       })
-      .sort((a, b) => b.sessions - a.sessions || a.name.localeCompare(b.name))
-      .slice(0, 6),
+      .sort((a, b) => b.sessions.length - a.sessions.length || a.name.localeCompare(b.name))
+      .slice(0, 12),
   };
 
   // ---- measurements: first and latest value per type in the period
@@ -156,12 +187,12 @@ export function buildProgress(i: ProgressInput): Progress {
   const steps = m.filter((x) => x.steps !== undefined).map((x) => ({ day: x.day, steps: x.steps! }));
   const water = m.filter((x) => x.waterMl !== undefined).map((x) => ({ day: x.day, ml: x.waterMl! }));
   const metrics: MetricsProgress = {
-    sleep: { daily: sleep, averageHours: mean(sleep.map((x) => x.hours), 1) },
+    sleep: { daily: sleep, averageHours: mean(sleep.map((x) => x.hours), 1), goalHours: g?.sleepH ?? null },
     steps: { daily: steps, average: mean(steps.map((x) => x.steps), 0) },
     water: { daily: water, averageMl: mean(water.map((x) => x.ml), 0) },
   };
 
-  return { from: i.from, to: i.to, days, weight, nutrition, training, records, measurements: { types }, metrics, energy: buildEnergy(i, days) };
+  return { from: i.from, to: i.to, days, dataFrom, weight, nutrition, training, records, measurements: { types }, metrics, energy: buildEnergy(i, days) };
 }
 
 /** Expenditure from the last (up to) 28 days of the period, what it means for the goal weight, and when it is reached. */
@@ -196,14 +227,14 @@ function buildEnergy(i: ProgressInput, days: number): EnergyProgress {
 export function summarize(p: Progress) {
   const { weight: w, nutrition: n, training: t, records: r, measurements: m, metrics: x } = p;
   return {
-    period: { from: p.from, to: p.to, days: p.days },
+    period: { from: p.from, to: p.to, days: p.days, dataFrom: p.dataFrom },
     weight: { latestKg: w.latestKg, latestDay: w.latestDay, weighIns: w.daily.length, trendChangeKg: w.trendChangeKg, trendNote: w.trendChangeKg === null ? 'Needs at least 3 weigh-ins within a week to show a trend.' : 'Change of the 7-day average over the period.', goalKg: w.goalKg, fromGoalKg: w.fromGoalKg },
-    nutrition: { daysLogged: n.daysLogged, averagePerLoggedDay: n.averagePerLoggedDay, goals: n.goals, adherence: n.adherence },
-    training: { sessions: t.sessions, perWeek: r1((t.sessions.strength + t.sessions.cardio + t.sessions.session) / Math.max(1, t.weeks.length)), goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
-    records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
+    nutrition: { daysLogged: n.daysLogged, averagePerLoggedDay: n.averagePerLoggedDay, proteinPerKg: n.proteinPerKg, goals: n.goals, adherence: n.adherence },
+    training: { sessions: t.sessions, perWeek: t.perWeek, goalWorkoutsPerWeek: t.goalWorkoutsPerWeek, averageStrengthMin: t.averageStrengthMin, setsPerWeekByMuscle: t.setsPerWeekByMuscle.slice(0, 10) },
+    records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions.length, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
     measurements: m.types.map((t) => ({ key: t.key, label: t.label, unit: t.unit, firstDay: t.firstDay, first: t.first, latestDay: t.latestDay, latest: t.latest, change: t.change })),
     energy: { ...p.energy, method: 'Average intake on fully logged days minus the weight trend (least squares) × 7700 kcal/kg; each 0.1 kg a week is about 110 kcal a day. suggest_targets with expenditure_kcal gives macros for any rate.' },
-    dailyMetrics: { sleepAverageHours: x.sleep.averageHours, nightsLogged: x.sleep.daily.length, stepsAverage: x.steps.average, stepsDaysLogged: x.steps.daily.length, waterAverageMl: x.water.averageMl, waterDaysLogged: x.water.daily.length },
+    dailyMetrics: { sleepAverageHours: x.sleep.averageHours, sleepGoalHours: x.sleep.goalHours, nightsLogged: x.sleep.daily.length, stepsAverage: x.steps.average, stepsDaysLogged: x.steps.daily.length, waterAverageMl: x.water.averageMl, waterDaysLogged: x.water.daily.length },
   };
 }
 

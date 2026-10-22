@@ -10,6 +10,8 @@ export interface WeekReview {
   /** The week is not over yet, so averages cover the days so far. */
   inProgress: boolean;
   daysCounted: number;
+  /** One entry per day counted, for the week strip: null where nothing was logged. */
+  days: { day: Day; kcal: number | null; proteinG: number | null; workout: 'strength' | 'cardio' | 'session' | null; weighIn: number | null }[];
   nutrition: {
     daysLogged: number;
     average: { kcal: number; protein: number; carbs: number; fat: number; extras?: Extras } | null;

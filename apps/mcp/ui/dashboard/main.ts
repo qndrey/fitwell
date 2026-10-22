@@ -218,6 +218,7 @@ function liftRow(p: Progress, e: Progress['records']['exercises'][number]) {
       h('thead', {}, h('tr', {}, ...['Date', 'Top set', 'Est. 1RM', ''].map((c) => h('th', { scope: 'col' }, c)))),
       h('tbody', {}, ...recent.map((x) => h('tr', {}, h('td', {}, dayLabel(p, x.day)), h('td', {}, `${x.topSet.reps} × ${num(x.topSet.kg)} kg`), h('td', {}, `${num(x.e1rm)} kg`), h('td', {}, x.isBest ? '◆ best' : '')))),
     ),
+    h('p', { className: 'muted small' }, `Open full lift page: ask Claude to show your ${name} progress.`),
   );
 }
 

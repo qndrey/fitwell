@@ -53,6 +53,28 @@ export interface RecordsProgress {
   }[];
 }
 
+/** One lift's page (`show_lift_progress`). */
+export interface LiftSession {
+  day: Day;
+  /** The working set with the highest estimate. */
+  topSet: { kg: number; reps: number };
+  /** Reps of every working set at the top set's weight, in order. */
+  reps: number[];
+  e1rm: number;
+  /** Beat every earlier session in the history. */
+  isBest: boolean;
+}
+
+export interface LiftProgress {
+  id: string;
+  name: string;
+  to: Day;
+  /** Oldest first. */
+  sessions: LiftSession[];
+  /** Heaviest weight lifted for at least that many reps over the whole history; null when never. */
+  repRecords: { reps: 1 | 3 | 5 | 8; kg: number | null; day: Day | null }[];
+}
+
 export interface MeasurementProgress {
   types: { key: string; label: string; unit: 'cm' | '%'; firstDay: Day; first: number; latestDay: Day; latest: number; change: number; points: { day: Day; value: number }[] }[];
 }

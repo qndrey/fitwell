@@ -15,6 +15,7 @@ import { registerShoppingTools } from './tools/shopping';
 import { registerBodyTools } from './tools/body';
 import { registerDashboardTools } from './tools/dashboard';
 import { registerMuscleTools } from './tools/muscles';
+import { registerLiftTools } from './tools/lift';
 import { registerExerciseTools } from './tools/exercises';
 import { registerFoodLogTools } from './tools/foodLog';
 import { registerFoodTools } from './tools/foods';
@@ -65,6 +66,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerImportTools(server, { db: deps.db, userId: deps.user.id, publicUrl: deps.publicUrl });
   registerDashboardTools(server, { data, workouts, body });
   registerMuscleTools(server, { data, workouts });
+  await registerLiftTools(server, { data, workouts });
   registerReviewTools(server, { data, workouts, body, plans });
   registerDeleteTool(server, { data, workouts, body, plans });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email });

@@ -46,6 +46,8 @@ export interface PlannedExercise {
   sets: PlannedSet[];
   /** Absent for bodyweight and timed exercises and when there is nothing earlier to compare with: no record cue then. */
   bests?: ExerciseBests;
+  /** What a working set of this exercise counts for, per muscle (1 for a main muscle, 0.5 for a helping one; the muscle map's credit), at most 7 entries: the finish summary's sets per muscle. */
+  muscles?: [string, number][];
   /** "3×5 @ 80 kg" from the last session with this exercise. */
   lastTime?: string;
   /** Why the planned weight is what it is (progression rule), when the server chose it. */

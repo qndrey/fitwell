@@ -250,6 +250,17 @@ describe('cardio blocks and notes', () => {
     expect(second.cardio[1]!.last).toBeUndefined();
   });
 
+  it('lists what a working set counts for per muscle, a main muscle 1 and a helping one 0.5, at most 7 entries', async () => {
+    const plan = await start({ name: 'Push', exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }] });
+    const muscles = plan.exercises[0]!.muscles!;
+    expect(muscles[0]).toEqual(['chest', 1]);
+    expect(muscles.filter(([, k]) => k === 0.5).length).toBeGreaterThan(0);
+    expect(muscles.every(([, k]) => k === 1 || k === 0.5)).toBe(true);
+    expect(muscles.length).toBeLessThanOrEqual(7);
+    const again = (await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan;
+    expect(again.exercises[0]!.muscles).toEqual(muscles);
+  });
+
   it('gives no kcal estimate without a body weight', async () => {
     const plan = await start({ name: 'Push', exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }], cardio: [{ activity_id: RUN, minutes: 10, when: 'before' }] });
     expect(plan.cardio[0]!.estKcal).toBeUndefined();

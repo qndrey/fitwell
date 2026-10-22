@@ -487,6 +487,33 @@ function dotsFor(sets: PlannedSet[]): string {
   return sets.map((s) => (s.done ? '●' : s.skipped ? '–' : '○')).join('');
 }
 
+const MUSCLE_LABELS: Record<string, string> = { quadriceps: 'Quads', abdominals: 'Abs', lats: 'Lats', 'lower back': 'Lower back', 'middle back': 'Mid back' };
+const muscleLabel = (m: string) => MUSCLE_LABELS[m] ?? m.charAt(0).toUpperCase() + m.slice(1);
+
+/** Working sets per muscle, most first: each logged working set gives the plan's credit per muscle (1 for a main muscle, 0.5 for a helping one, as the muscle map counts), at most `max` muscles. */
+export function setsPerMuscle(plan: WorkoutPlan, max = 6): { muscle: string; sets: number }[] {
+  const sets = new Map<string, number>();
+  for (const ex of plan.exercises) {
+    const done = ex.sets.filter((x) => x.done && !x.warmup).length;
+    if (!done || !ex.muscles) continue;
+    for (const [m, k] of ex.muscles) sets.set(m, (sets.get(m) ?? 0) + done * k);
+  }
+  return [...sets].map(([m, n]) => ({ muscle: muscleLabel(m), sets: n })).sort((a, b) => b.sets - a.sets || a.muscle.localeCompare(b.muscle)).slice(0, max);
+}
+
+/** "Quads 2 · Back 1.5 working sets", or '' when no logged exercise has muscles. */
+export function muscleSetsText(plan: WorkoutPlan): string {
+  const list = setsPerMuscle(plan);
+  return list.length ? `${list.map((x) => `${x.muscle} ${kg(x.sets)}`).join(' · ')} working sets` : '';
+}
+
+/** "10 min · 1.5 km": a cardio block's time and distance, as logged when done, else as planned. */
+export function cardioText(c: PlannedCardio): string {
+  const min = c.done ? (c.minutes ?? c.plannedMin) : c.plannedMin;
+  const km = c.done ? c.distanceKm : c.plannedKm;
+  return `${min} min${km ? ` · ${kg(km)} km` : ''}`;
+}
+
 export function buildOverview(plan: WorkoutPlan): Overview {
   const steps = stepsOf(plan);
   const counts = workingCounts(steps);
@@ -494,7 +521,7 @@ export function buildOverview(plan: WorkoutPlan): Overview {
   const rows = steps.map((step, index): OverviewRow => {
     if (step.kind === 'cardio') {
       const c = step.c;
-      return { index, name: c.name, progress: c.done ? 'done' : c.skipped ? 'skipped' : 'not done', dots: c.done ? '●' : c.skipped ? '–' : '○', superset: false, open: stepOpen(step) };
+      return { index, name: c.name, progress: c.done ? 'done' : c.skipped ? 'skipped' : 'not done', dots: c.done ? '●' : c.skipped ? '–' : '○', ...(c.skipped ? {} : { todayTarget: cardioText(c) }), superset: false, open: stepOpen(step) };
     }
     const ex = step.ex;
     const working = workingSets(ex);

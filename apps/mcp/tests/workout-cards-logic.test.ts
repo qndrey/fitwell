@@ -262,6 +262,11 @@ describe('Specs: Overview (FR4, FR15, AC1)', () => {
     expect(o.exerciseCount).toBe(2);
   });
 
+  it('a cardio row says what is planned, or what was logged once done, and nothing when skipped', () => {
+    const o = buildOverview(plan([ex('Squat', [set('1')])], [cardio('a', 'before', { plannedMin: 10, plannedKm: 1.5 }), cardio('b', 'after', { done: true, minutes: 12, distanceKm: 2 }), cardio('c', 'after', { skipped: true }), cardio('d', 'after', { plannedMin: 8 })]));
+    expect(o.rows.filter((r) => r.name.startsWith('Cardio')).map((r) => r.todayTarget)).toEqual(['10 min · 1.5 km', '12 min · 2 km', undefined, '8 min']);
+  });
+
   it('exerciseCount excludes cardio blocks and rows cover every step in order', () => {
     const p = plan([ex('Squat', [set('1')]), ex('Bench', [set('1')])], [cardio('c', 'after')]);
     const o = buildOverview(p);

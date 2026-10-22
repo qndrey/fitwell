@@ -132,6 +132,12 @@ export const SHOTS: Shot[] = [
   { name: 'swap', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, 'Swap'); await page.waitForTimeout(1500); } },
   { name: 'note', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, 'Note'); await f.locator('textarea').fill('seat 4'); await click(f, 'Save note'); await page.waitForTimeout(300); } },
   { name: 'guide-in-player', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, 'How to do it'); await page.waitForTimeout(3500); } },
+  // The guide with its animation asked for (the shot above shows the written part first).
+  { name: 'guide-animation', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, 'How to do it'); await page.waitForTimeout(800); await click(f, 'Show the animation'); await page.waitForTimeout(3500); } },
+  // All four warm-ups logged: one "Warm-ups ✓✓✓✓ 4 done" row above the first working set.
+  { name: 'warmups-folded', view: 'workout', args: { name: 'Squat', exercises: [squat({ weight_kg: 140, warmup: true })] }, steps: async (f, page) => { await work(f, page, /Warm-ups\s*[✓–]+/, 12); await page.waitForTimeout(PAUSE); } },
+  // More than 8 cards: the strip is one bar with a block marker (second card of the 'many' sample).
+  { name: 'many-cards', view: 'workout', sample: 'many', steps: async (f, page) => { await start(f, page); await page.waitForTimeout(PAUSE); } },
   // The cardio finisher card, after the squat's only set.
   { name: 'cardio', view: 'workout', args: { name: 'Squat and run', exercises: [squat({ sets: 1 })], cardio: [{ activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /\bMinutes\b/, 6); } },
   { name: 'summary-cardio', view: 'workout', args: { ...FULL, cardio: [{ activity_id: 'act:row-machine', minutes: 5, when: 'before' }, { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/, 60); await page.clock.fastForward(52 * 60_000); backdate(52); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },

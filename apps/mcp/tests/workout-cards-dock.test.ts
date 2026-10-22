@@ -403,7 +403,7 @@ describe('Specs: the exercise name stays at the top of its card (pinned heading)
       const { v, card } = await onCard(plan([ramp(), bench()]), 1, { width });
       for (const id of ['w1', 'w2', 'w3', 'w4']) {
         await btn(card, 'Log set').click();
-        await pwExpect(card.locator(`[data-set-id="${id}"]`)).toContainText('✓');
+        await pwExpect(id === 'w4' ? card.locator('[data-key="warmups-toggle"]') : card.locator(`[data-set-id="${id}"]`)).toContainText('✓');
         await wait(LOCK);
       }
       const heading = card.getByRole('heading', { name: 'Squat' });

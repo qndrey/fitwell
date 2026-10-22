@@ -234,6 +234,38 @@ describe('cardio blocks and notes', () => {
     expect(history[0]!.cardio).toHaveLength(1);
   });
 
+  it('tells the player the kcal estimate and the last time of each cardio block', async () => {
+    await call(client, 'update_profile', { weight_kg: 80 });
+    const first = await start({ name: 'Push', exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }], cardio: [{ activity_id: RUN, minutes: 10, when: 'before' }] });
+    expect(first.cardio[0]).toMatchObject({ estKcal: Math.round(9.8 * 80 * (10 / 60)) });
+    expect(first.cardio[0]!.last).toBeUndefined(); // nothing earlier to compare with
+    await call(client, 'log_cardio_block', { workoutId: first.workoutId, blockId: 'c1', minutes: 12, distanceKm: 2 });
+    await call(client, 'finish_workout', { workoutId: first.workoutId });
+    const logged = (await call(client, 'get_workout', { workoutId: first.workoutId })).data.workout as WorkoutPlan;
+    expect(logged.cardio[0]).toMatchObject({ done: true, minutes: 12, kcal: Math.round(9.8 * 80 * (12 / 60)) });
+    expect(logged.cardio[0]!.estKcal).toBeUndefined();
+
+    const second = await start({ name: 'Push 2', exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }], cardio: [{ activity_id: RUN, minutes: 15, when: 'after' }, { activity_id: 'act:row-machine', minutes: 5, when: 'after' }] });
+    expect(second.cardio[0]).toMatchObject({ last: '12 min · 2 km', estKcal: Math.round(9.8 * 80 * (15 / 60)) });
+    expect(second.cardio[1]!.last).toBeUndefined();
+  });
+
+  it('lists what a working set counts for per muscle, a main muscle 1 and a helping one 0.5, at most 7 entries', async () => {
+    const plan = await start({ name: 'Push', exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }] });
+    const muscles = plan.exercises[0]!.muscles!;
+    expect(muscles[0]).toEqual(['chest', 1]);
+    expect(muscles.filter(([, k]) => k === 0.5).length).toBeGreaterThan(0);
+    expect(muscles.every(([, k]) => k === 1 || k === 0.5)).toBe(true);
+    expect(muscles.length).toBeLessThanOrEqual(7);
+    const again = (await call(client, 'get_workout', { workoutId: plan.workoutId })).data.workout as WorkoutPlan;
+    expect(again.exercises[0]!.muscles).toEqual(muscles);
+  });
+
+  it('gives no kcal estimate without a body weight', async () => {
+    const plan = await start({ name: 'Push', exercises: [{ id: CHEST, sets: 1, reps: 8, weight_kg: 60 }], cardio: [{ activity_id: RUN, minutes: 10, when: 'before' }] });
+    expect(plan.cardio[0]!.estKcal).toBeUndefined();
+  });
+
   it('keeps cardio and notes in templates', async () => {
     const saved = await call(client, 'save_workout_template', { name: 'Push day', exercises: [{ id: CHEST, sets: 3, reps: 8, notes: 'pause on the chest' }], cardio: [{ activity_id: RUN, minutes: 5, when: 'before' }] });
     expect(saved.isError, saved.text).toBe(false);

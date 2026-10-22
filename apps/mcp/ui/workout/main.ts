@@ -1,7 +1,7 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
-import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
+import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, muscleSetsText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
@@ -68,6 +68,10 @@ const state = {
   noteEditing: '',
   noteSaved: '',
   guideOpen: false,
+  /** The guide shows its animation only after "Show the animation". */
+  animationOpen: false,
+  /** Exercises (uid) whose finished warm-ups are shown row by row instead of folded into one. */
+  warmupsOpen: new Set<string>(),
   guides: new Map<string, ExerciseGuide>(),
   guideFailed: false,
   /** Swapping the current exercise: substitutes per exercise uid (fetched when the panel opens). */
@@ -296,6 +300,7 @@ function resetSecondary() {
   state.noteEditing = '';
   state.noteSaved = '';
   state.guideOpen = false;
+  state.animationOpen = false;
   state.swapOpen = false;
   state.swapAll = false;
   state.swapNote = '';
@@ -498,10 +503,13 @@ function logCardio(i: number, skip = false) {
   const km = Math.max(d.km, floor);
   state.cardioEdit = null;
   state.cardioAsk = '';
+  // The server's estimate is linear in minutes: carry its rate over to the new minutes until the stored figure comes back.
+  const kcalPerMin = c.estKcal ? c.estKcal / c.plannedMin : c.kcal && c.minutes ? c.kcal / c.minutes : 0;
   if (skip) c.skipped = true;
   else {
     c.done = true;
     c.minutes = clamp(d.minutes, 1, 240);
+    if (kcalPerMin) c.kcal = Math.round(kcalPerMin * c.minutes);
     if (km > 0) c.distanceKm = km;
     delete c.skipped;
   }
@@ -656,7 +664,7 @@ async function sendSummary(summary: FinishSummary | null) {
   const prs = summary?.exercises.filter((e) => e.personalRecord).map((e) => `${e.name}: ${e.personalRecord}`) ?? [];
   const unsaved = failed.size > 0 ? ` ${failed.size} change${failed.size === 1 ? ' was' : 's were'} not saved to Fitwell.` : '';
   const text = summary
-    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}${e.effort ? ` (effort: ${e.effort})` : ''}${e.notes ? ` (note: ${e.notes})` : ''}`).join('; ')}.${summary.cardio?.length ? ` Cardio: ${summary.cardio.map((c) => `${c.minutes} min ${c.activity}${c.distanceKm ? ` ${kg(c.distanceKm)} km` : ''}`).join('; ')}.` : ''}${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}${unsaved}`
+    ? `I finished my workout "${state.plan!.name}" in ${summary.minutes} min (volume ${summary.volumeKg} kg). ${summary.exercises.map((e) => `${e.name}: ${e.done}${e.effort ? ` (effort: ${e.effort})` : ''}${e.notes ? ` (note: ${e.notes})` : ''}`).join('; ')}.${summary.cardio?.length ? ` Cardio: ${summary.cardio.map((c) => `${c.minutes} min ${c.activity}${c.distanceKm ? ` ${kg(c.distanceKm)} km` : ''}`).join('; ')}.` : ''}${prs.length ? ` Personal records: ${prs.join('; ')}.` : ''}${muscleSetsText(state.plan!) ? ` Muscles: ${muscleSetsText(state.plan!)}.` : ''}${unsaved}`
     : `I finished my workout. ${progressText()}${unsaved}`;
   try {
     const res = await app.sendMessage({
@@ -1001,7 +1009,7 @@ async function loadGuide(id: string) {
 
 /** The animation element for an open guide, created on first use and started once per exercise. */
 function animation(g: ExerciseGuide): HTMLElement | null {
-  if (!state.guideOpen) return null;
+  if (!state.guideOpen || !state.animationOpen) return null;
   if (motion === undefined) motion = createMotionPlayer();
   if (!motion) return null;
   if (motionFor !== g.ref) {
@@ -1022,7 +1030,7 @@ function guidePanel(ex: PlannedExercise) {
     'div',
     { className: 'panel guidebox' },
     g
-      ? renderGuide(g, openLink, animation(g))
+      ? renderGuide(g, openLink, null, animationSlot(g))
       : state.guideFailed
         ? h(
             'p',
@@ -1040,11 +1048,51 @@ function guidePanel(ex: PlannedExercise) {
           )
         : h('p', { className: 'muted small' }, 'Loading…'),
     h('button', { type: 'button', className: 'link', onclick: () => toggleGuide(ex) }, 'Close the guide'),
+    h('button', { type: 'button', className: 'link', 'data-key': 'guide-chat', onclick: () => void askGuide(ex) }, 'Open the full guide in the chat'),
   );
+}
+
+/** Where the animation goes in the player's guide: a button first, the figure (and a way to hide it) once asked for. */
+function animationSlot(g: ExerciseGuide): Node {
+  const figure = animation(g);
+  return h(
+    'div',
+    { className: 'animation' },
+    figure,
+    h(
+      'button',
+      {
+        type: 'button',
+        'data-key': 'guide-animation',
+        'aria-expanded': String(!!figure),
+        onclick: () => {
+          state.animationOpen = !state.animationOpen;
+          if (!state.animationOpen) {
+            motion?.stop();
+            motionFor = '';
+          }
+          render();
+          if (state.animationOpen) reveal('.guide .animation');
+        },
+      },
+      figure ? 'Hide the animation' : 'Show the animation',
+    ),
+  );
+}
+
+/** Asks Claude to open the full guide (`show_exercise`) in the chat; the player stays as it is. */
+async function askGuide(ex: PlannedExercise) {
+  try {
+    const res = await app.sendMessage({ role: 'user', content: [{ type: 'text', text: `Show me the full guide for ${ex.name} (show_exercise, id ${ex.id}).` }] });
+    announce(res.isError ? 'Could not ask Claude.' : `Asked Claude for the ${ex.name} guide. It will reply below.`);
+  } catch {
+    announce('Could not ask Claude.');
+  }
 }
 
 function toggleGuide(ex: PlannedExercise) {
   state.guideOpen = !state.guideOpen;
+  state.animationOpen = false;
   if (state.guideOpen && !state.guides.has(ex.id)) void loadGuide(ex.id);
   if (!state.guideOpen) {
     motion?.stop();
@@ -1107,6 +1155,7 @@ async function swap(ex: PlannedExercise, to: { id: string; name: string }) {
     motion?.stop();
     motionFor = '';
     state.guideOpen = false;
+    state.animationOpen = false;
     const step = items().findIndex((it) => it.kind === 'ex' && it.ex.uid === ex.uid);
     state.drafts[step] = draftFor(stepsOf(local)[step]!, local.gym);
     announce(`Swapped to ${to.name}.`);
@@ -1459,9 +1508,9 @@ function stripSegments(): Node[] {
     const closedCount = s.ex.sets.filter(closed).length;
     return closedCount === s.ex.sets.length ? 'full' : closedCount > 0 ? 'half' : 'empty';
   };
-  if (count > 12) {
+  if (count > 8) {
     const closedSteps = steps.filter((s) => !stepOpen(s)).length;
-    const bar = h('span', { className: 'cbar', 'aria-hidden': 'true' }, h('span', { className: 'cfill' }), h('span', { className: 'cmark' }));
+    const bar = h('span', { className: 'cbar', 'aria-hidden': 'true' }, h('span', { className: 'cfill' }), h('span', { className: 'cmark', 'data-marker': '' }));
     bar.style.setProperty('--fill', String((closedSteps / Math.max(1, steps.length)) * 100));
     bar.style.setProperty('--pos', String((stripAt() / (count - 1)) * 100));
     return [bar];
@@ -1649,6 +1698,7 @@ function summaryBody(): Child[] {
       groupedLines('Skipped', openGroups(steps, 'skipped', false)),
       groupedLines('Not done', openGroups(steps, 'notDone', false)),
       ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · ~${c.kcal} kcal` : ''}`)),
+      muscleSetsText(plan) && h('p', { className: 'muscles' }, h('strong', {}, 'Muscles'), h('span', { className: 'block' }, muscleSetsText(plan)), h('span', { className: 'muted small block' }, 'Ask Claude to show your muscle map.')),
       state.summaryNote &&
         h(
           'p',
@@ -2207,6 +2257,34 @@ function doneDock(i: number): Node {
   );
 }
 
+/** Finished warm-ups in one row ("Warm-ups ✓✓✓✓ 4 done"); a tap shows or hides the individual rows. */
+function warmupsRow(ex: PlannedExercise, warmups: PlannedSet[]): Node {
+  const open = state.warmupsOpen.has(ex.uid);
+  const done = warmups.filter((x) => x.done).length;
+  const skipped = warmups.length - done;
+  const text = [`${done} done`, skipped ? `${skipped} skipped` : ''].filter(Boolean).join(', ');
+  return h(
+    'li',
+    { className: 'srow logged', 'data-key': 'warmups' },
+    h(
+      'button',
+      {
+        type: 'button',
+        className: 'rowbtn',
+        'aria-expanded': String(open),
+        'data-key': 'warmups-toggle',
+        onclick: () => {
+          if (open) state.warmupsOpen.delete(ex.uid);
+          else state.warmupsOpen.add(ex.uid);
+          render();
+        },
+      },
+      h('span', { className: 'sname wsum' }, 'Warm-ups ', h('span', { className: 'wdots', 'aria-hidden': 'true' }, warmups.map((x) => (x.done ? '✓' : '–')).join('')), ` ${text}`),
+      h('span', { className: 'mark', 'aria-hidden': 'true' }, open ? '▴' : '▾'),
+    ),
+  );
+}
+
 function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const plan = state.plan!;
   const d = state.drafts[i]!;
@@ -2224,7 +2302,11 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const over = !!first && !readOnly && !resting && state.restOver?.stepIndex === i && state.restOver.until > Date.now();
   const zone = readOnly ? null : first ? (resting || over ? restZone(ex, first, d, over) : setZone(i, ex, first, d)) : doneZone(ex);
   const bottom = readOnly ? null : first ? (resting ? restDock(i, ex, d) : over ? restOverDock(first, ex) : timerRunning(i) ? timerDock(i) : setDock(i, ex, d)) : doneDock(i);
-  const rows = [...ex.sets.filter((x) => x.warmup), ...ex.sets.filter((x) => !x.warmup)].flatMap((set) => (set === first && zone ? [h('li', { className: 'zonerow' }, zone)] : setRow(i, ex, set, readOnly)));
+  const warmups = ex.sets.filter((x) => x.warmup);
+  const folded = warmups.length > 0 && warmups.every(closed);
+  const warmupsShown = !folded || state.warmupsOpen.has(ex.uid);
+  const shown = [...(warmupsShown ? warmups : []), ...ex.sets.filter((x) => !x.warmup)];
+  const rows = [...(folded ? [warmupsRow(ex, warmups)] : []), ...shown.flatMap((set) => (set === first && zone ? [h('li', { className: 'zonerow' }, zone)] : setRow(i, ex, set, readOnly)))];
   return [
     h(
       'div',
@@ -2333,14 +2415,14 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
         'div',
         { className: 'body' },
         ...heading,
-        c.done ? h('p', {}, `${c.minutes ?? c.plannedMin} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}`, failed.has(`cardio:${c.id}`) && h('span', { className: 'unsaved' }, ' · not saved')) : h('p', { className: 'muted' }, 'Skipped'),
+        c.done ? h('p', { className: 'cardio-done' }, `✓ Logged ${cardioText(c)}${c.kcal ? ` · ~${c.kcal} kcal` : ''}`, failed.has(`cardio:${c.id}`) && h('span', { className: 'unsaved' }, ' · not saved')) : h('p', { className: 'muted' }, 'Skipped'),
         c.done &&
           !readOnly &&
           h(
             'button',
             {
               type: 'button',
-              
+              className: 'link',
               'data-key': 'cardio-edit',
               onclick: () => {
                 if (locked()) return;
@@ -2423,6 +2505,8 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
       ...heading,
       isClosed && !editing && h('p', { className: 'muted' }, 'Skipped'),
       planned,
+      c.last && h('p', { className: 'muted small' }, `Last time: ${c.last}`),
+      !!c.estKcal && h('p', { className: 'muted small' }, `~${c.estKcal} kcal`),
       h('div', { className: 'zone auto' }, h('div', { className: 'steppers' }, stepper('minutes', d, 'zone'), stepper('km', d, 'zone'))),
     ),
     bottom,

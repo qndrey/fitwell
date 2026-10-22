@@ -6,9 +6,10 @@ const list = (items: string[]) => h('ul', { className: 'bullets' }, ...items.map
 
 /**
  * The guide card: the figure (animated when the exercise has a movement) with its muscles lit, steps, machine setup and a demo link. `openLink` asks the host to open the demo search;
- * if the host refuses, the address is shown to copy.
+ * if the host refuses, the address is shown to copy. With `textFirst` the written part comes first and `textFirst` (a button that brings the animation, or the animation itself)
+ * stands after it, so the card does not jump or load the figure unasked.
  */
-export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise<boolean>, motion?: HTMLElement | null): HTMLElement {
+export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise<boolean>, motion?: HTMLElement | null, textFirst?: Node | null): HTMLElement {
   const primary = new Set(g.primary);
   const secondary = new Set(g.secondary.filter((m) => !primary.has(m)));
   const fallback = h('p', { className: 'muted small', hidden: true }, 'Could not open the link here. Search for: ', h('code', {}, `${g.name} exercise how to`));
@@ -27,7 +28,7 @@ export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise
     { className: 'guide', 'aria-label': `How to do ${g.name}` },
     h('h2', {}, g.name),
     h('p', { className: 'muted small' }, facts.join(' · ')),
-    motion ?? null,
+    textFirst === undefined ? (motion ?? null) : null,
     h(
       'p',
       { className: 'worked' },
@@ -48,6 +49,7 @@ export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise
         list(g.machine.mistakes),
         h('p', { className: 'muted small' }, MACHINE_FOOTNOTE),
       ),
+    textFirst ?? null,
     demo,
     fallback,
   );

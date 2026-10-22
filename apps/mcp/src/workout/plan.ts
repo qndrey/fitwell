@@ -46,6 +46,8 @@ export interface PlannedExercise {
   sets: PlannedSet[];
   /** Absent for bodyweight and timed exercises and when there is nothing earlier to compare with: no record cue then. */
   bests?: ExerciseBests;
+  /** What a working set of this exercise counts for, per muscle (1 for a main muscle, 0.5 for a helping one; the muscle map's credit), at most 7 entries: the finish summary's sets per muscle. */
+  muscles?: [string, number][];
   /** "3×5 @ 80 kg" from the last session with this exercise. */
   lastTime?: string;
   /** Why the planned weight is what it is (progression rule), when the server chose it. */
@@ -68,6 +70,12 @@ export interface PlannedCardio {
   distanceKm?: number;
   done: boolean;
   skipped?: boolean;
+  /** Energy estimate of what was logged (the server's MET × body weight × hours), when the profile has a weight. */
+  kcal?: number;
+  /** The same estimate for the planned minutes, while the block is open. */
+  estKcal?: number;
+  /** "10 min · 1.5 km" from the last time this activity was done. */
+  last?: string;
 }
 
 /** The rest that was running when the plan was read: time left by the server's clock (negative once it ran out, down to -3 s), the whole length, and the exercise whose card holds it. */

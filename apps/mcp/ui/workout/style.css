@@ -88,7 +88,7 @@ header.head { display: grid; gap: var(--s1); }
 .seg.current.half { background: linear-gradient(90deg, var(--text) 50%, var(--muted) 50%); }
 .cbar { position: relative; flex: 1 1 auto; min-width: 0; height: 4px; border: 0; border-radius: 2px; background: var(--seg-off); }
 .cfill { position: absolute; inset: 0 auto 0 0; width: calc(var(--fill, 0) * 1%); background: var(--text); border-radius: 2px; }
-.cmark { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; left: calc(var(--pos, 0) * 1%); background: var(--accent); border-radius: 1px; }
+.cmark { position: absolute; top: -3px; bottom: -3px; width: 8px; left: calc((100% - 8px) * var(--pos, 0) / 100); background: var(--accent); border-radius: 2px; }
 
 /* one banner style: save failed, rest chip, Overview rest row */
 .status-line, .chip, .restrow { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: var(--h-secondary); padding: 0 0 0 10px; border: 0; border-radius: var(--radius-sm); background: var(--surface); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
@@ -168,6 +168,7 @@ ol.list li.ss button.ovrow { box-shadow: inset 3px 0 0 var(--muted); padding-lef
 .rowtext .sub { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: var(--fs-small); line-height: 17px; color: var(--muted); }
 .dots { flex: none; font-size: var(--fs-label); letter-spacing: 2px; white-space: nowrap; color: var(--muted); }
 .wdots { font-size: 0.8em; margin-right: 6px; }
+.wsum .wdots { margin-right: 0; }
 .done { color: var(--ok); }
 .error, .unsaved { color: var(--danger); }
 .hint { display: none; }
@@ -219,3 +220,5 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .swaps { display: grid; gap: 0; }
 .swaps button { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); text-align: left; width: 100%; min-height: var(--h-primary); padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
 .pill { display: inline-block; padding: 0 8px; border-radius: 999px; border: 1px solid var(--border, currentColor); font-size: var(--fs-label); }
+.guide .animation { display: grid; gap: var(--s2); justify-items: start; }
+.guide .animation button { min-height: var(--h-secondary); border-radius: 999px; padding: 0 16px; }

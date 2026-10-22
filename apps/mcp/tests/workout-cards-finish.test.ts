@@ -267,6 +267,47 @@ describe('Specs: Summary (A11)', () => {
   });
 });
 
+describe('Specs: Sets per muscle on the summary', () => {
+  const finishWithSummary = (tool: string): Record<string, unknown> | undefined => (tool === 'finish_workout' ? { content: [{ type: 'text', text: 'Finished.' }], structuredContent: { minutes: 34, volumeKg: 825, exercises: [{ name: 'Squat', done: '2×5 @ 82.5 kg' }] } } : undefined);
+  const squat: [string, number][] = [['quadriceps', 1], ['glutes', 0.5]];
+  const row: [string, number][] = [['lats', 1], ['biceps', 0.5], ['quadriceps', 0.5]];
+  const lifted = () => plan([ex('Squat', [closed('w', { warmup: true }), closed('1'), closed('2'), skipped('3')], { muscles: squat }), ex('Row', [closed('1'), closed('2'), closed('3')], { muscles: row }), ex('Plank', [closed('1')])]);
+  const finishOn = async (p: WorkoutPlan) => {
+    const { v, card } = await onFinish(p, { tools: finishWithSummary });
+    await btn(card, 'Finish and send to Claude').click();
+    await pwExpect(card.getByRole('heading', { name: 'Workout finished' })).toBeVisible();
+    return { v, card };
+  };
+
+  it('lists the working sets per muscle, a main muscle 1 and a helping one 0.5, most first, with the muscle map hint and no button for it', async () => {
+    const { card } = await finishOn(lifted());
+    await pwExpect(card).toContainText('Quads 3.5 · Lats 3 · Biceps 1.5 · Glutes 1 working sets');
+    await pwExpect(card).toContainText('Ask Claude to show your muscle map.');
+    await pwExpect(btn(card, /muscle map/i)).toHaveCount(0);
+  });
+
+  it('puts the same list in the message to Claude', async () => {
+    const { v } = await finishOn(lifted());
+    await expect.poll(() => v.messages.length).toBe(1);
+    expect(v.messages[0]).toContain('Muscles: Quads 3.5 · Lats 3 · Biceps 1.5 · Glutes 1 working sets.');
+  });
+
+  it('shows no muscle block when no logged exercise has muscles', async () => {
+    const none = await finishOn(plan([ex('Squat', [closed('1'), closed('2')])]));
+    await pwExpect(none.card).not.toContainText('muscle map');
+    await pwExpect(none.card.locator('.muscles')).toHaveCount(0);
+  });
+
+  it('keeps the list on the fallback summary of a reopened workout and caps it at 6 muscles', async () => {
+    const many: [string, number][] = ['quadriceps', 'glutes', 'hamstrings', 'calves', 'lats', 'chest', 'neck'].map((m) => [m, 1]);
+    const p = plan([ex('Everything', [closed('1')], { muscles: many })], [], { finished: true });
+    const v = await openView(p, { finish: 'error' });
+    const list = (await finishCard(v).locator('.muscles .block').first().textContent()) ?? '';
+    expect(list.endsWith(' working sets')).toBe(true);
+    expect(list.replace(' working sets', '').split(' · ')).toHaveLength(6);
+  });
+});
+
 describe('Specs: Reopening a finished workout (A11)', () => {
   it('shows the summary at once with "Loading the summary…", never "End of workout" or "Saving…", then fills it in', async () => {
     const p = plan([ex('Squat', [closed('1', { weightKg: 80 }), closed('2', { weightKg: 80 })])], [], { finished: true });

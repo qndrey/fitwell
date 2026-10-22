@@ -167,6 +167,7 @@ ol.list li.ss button.ovrow { box-shadow: inset 3px 0 0 var(--muted); padding-lef
 .rowtext .sub { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: var(--fs-small); line-height: 17px; color: var(--muted); }
 .dots { flex: none; font-size: var(--fs-label); letter-spacing: 2px; white-space: nowrap; color: var(--muted); }
 .wdots { font-size: 0.8em; margin-right: 6px; }
+.wsum .wdots { margin-right: 0; }
 .done { color: var(--ok); }
 .error, .unsaved { color: var(--danger); }
 .hint { display: none; }

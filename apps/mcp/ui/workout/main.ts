@@ -68,6 +68,8 @@ const state = {
   noteEditing: '',
   noteSaved: '',
   guideOpen: false,
+  /** Exercises (uid) whose finished warm-ups are shown row by row instead of folded into one. */
+  warmupsOpen: new Set<string>(),
   guides: new Map<string, ExerciseGuide>(),
   guideFailed: false,
   /** Swapping the current exercise: substitutes per exercise uid (fetched when the panel opens). */
@@ -2206,6 +2208,34 @@ function doneDock(i: number): Node {
   );
 }
 
+/** Finished warm-ups in one row ("Warm-ups ✓✓✓✓ 4 done"); a tap shows or hides the individual rows. */
+function warmupsRow(ex: PlannedExercise, warmups: PlannedSet[]): Node {
+  const open = state.warmupsOpen.has(ex.uid);
+  const done = warmups.filter((x) => x.done).length;
+  const skipped = warmups.length - done;
+  const text = [`${done} done`, skipped ? `${skipped} skipped` : ''].filter(Boolean).join(', ');
+  return h(
+    'li',
+    { className: 'srow logged', 'data-key': 'warmups' },
+    h(
+      'button',
+      {
+        type: 'button',
+        className: 'rowbtn',
+        'aria-expanded': String(open),
+        'data-key': 'warmups-toggle',
+        onclick: () => {
+          if (open) state.warmupsOpen.delete(ex.uid);
+          else state.warmupsOpen.add(ex.uid);
+          render();
+        },
+      },
+      h('span', { className: 'sname wsum' }, 'Warm-ups ', h('span', { className: 'wdots', 'aria-hidden': 'true' }, warmups.map((x) => (x.done ? '✓' : '–')).join('')), ` ${text}`),
+      h('span', { className: 'mark', 'aria-hidden': 'true' }, open ? '▴' : '▾'),
+    ),
+  );
+}
+
 function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const plan = state.plan!;
   const d = state.drafts[i]!;
@@ -2223,7 +2253,11 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const over = !!first && !readOnly && !resting && state.restOver?.stepIndex === i && state.restOver.until > Date.now();
   const zone = readOnly ? null : first ? (resting || over ? restZone(ex, first, d, over) : setZone(i, ex, first, d)) : doneZone(ex);
   const bottom = readOnly ? null : first ? (resting ? restDock(i, ex, d) : over ? restOverDock(first, ex) : timerRunning(i) ? timerDock(i) : setDock(i, ex, d)) : doneDock(i);
-  const rows = [...ex.sets.filter((x) => x.warmup), ...ex.sets.filter((x) => !x.warmup)].flatMap((set) => (set === first && zone ? [h('li', { className: 'zonerow' }, zone)] : setRow(i, ex, set, readOnly)));
+  const warmups = ex.sets.filter((x) => x.warmup);
+  const folded = warmups.length > 0 && warmups.every(closed);
+  const warmupsShown = !folded || state.warmupsOpen.has(ex.uid);
+  const shown = [...(warmupsShown ? warmups : []), ...ex.sets.filter((x) => !x.warmup)];
+  const rows = [...(folded ? [warmupsRow(ex, warmups)] : []), ...shown.flatMap((set) => (set === first && zone ? [h('li', { className: 'zonerow' }, zone)] : setRow(i, ex, set, readOnly)))];
   return [
     h(
       'div',

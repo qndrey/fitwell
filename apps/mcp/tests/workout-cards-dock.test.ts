@@ -407,9 +407,11 @@ describe('Specs: the exercise name stays at the top of its card (pinned heading)
       const { v, card } = await onCard(plan([ramp(), bench()]), 1, { width });
       for (const id of ['w1', 'w2', 'w3', 'w4']) {
         await btn(card, 'Log set').click();
-        await pwExpect(card.locator(`[data-set-id="${id}"]`)).toContainText('✓');
+        await pwExpect(id === 'w4' ? card.locator('[data-key="warmups-toggle"]') : card.locator(`[data-set-id="${id}"]`)).toContainText('✓');
         await wait(LOCK);
       }
+      // The four finished warm-ups are one row now; showing them again makes the card long enough to scroll.
+      await card.locator('[data-key="warmups-toggle"]').click();
       expect(await card.evaluate((el) => (el as unknown as Scroller).scrollHeight > (el as unknown as Scroller).clientHeight)).toBe(true);
       await card.evaluate((el) => ((el as unknown as Scroller).scrollTop = (el as unknown as Scroller).scrollHeight)); // as far down as it goes
       const heading = card.getByRole('heading', { name: 'Squat' });

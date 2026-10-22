@@ -99,8 +99,9 @@ header.head { display: grid; gap: var(--s1); }
 /* track and cards: a card is only the scroll area, there is no box around the content */
 .track { display: flex; height: var(--track-h); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; min-width: 0; }
 .track::-webkit-scrollbar { display: none; }
-.slide { flex: 0 0 100%; min-width: 0; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
-.pcard { display: flex; flex-direction: column; min-width: 0; height: 100%; overflow-y: auto; overscroll-behavior-y: auto; }
+/* The card fills the slide by position, not by a percentage height: WebKit can treat a percentage inside a flex item as auto, and then the card grows to its content, never overflows, and the track clips it with nothing to scroll. */
+.slide { position: relative; flex: 0 0 100%; min-width: 0; height: 100%; scroll-snap-align: center; scroll-snap-stop: always; }
+.pcard { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; }
 .pcard :focus-visible { outline-offset: -2px; }
 /* the exercise name stays at the top of its card while the card scrolls; a hairline shows under it once it has */
 .exercise > h1 { position: sticky; top: 0; z-index: 1; padding: var(--s1) 0; background: var(--bg); }

@@ -219,3 +219,5 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .swaps { display: grid; gap: 0; }
 .swaps button { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); text-align: left; width: 100%; min-height: var(--h-primary); padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
 .pill { display: inline-block; padding: 0 8px; border-radius: 999px; border: 1px solid var(--border, currentColor); font-size: var(--fs-label); }
+.guide .animation { display: grid; gap: var(--s2); justify-items: start; }
+.guide .animation button { min-height: var(--h-secondary); border-radius: 999px; padding: 0 16px; }

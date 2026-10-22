@@ -398,11 +398,53 @@ describe('Specs: Secondary content, rule 3 (P7.3; FR12, AC14)', () => {
     expect(callsOf(v, 'get_exercise_guide')).toHaveLength(2);
   });
 
+  const showAnimation = (card: Locator) => btn(card, 'Show the animation').click();
+
+  it('opens with the written steps and no animation: no canvas is created until "Show the animation" is tapped', async () => {
+    const { tools } = guideHost();
+    const { v, card } = await onStep(plan([squat(), bench()]), 0, { tools });
+    await guideBtn(card).click();
+    const region = card.getByRole('region', { name: 'How to do Squat' });
+    await pwExpect(region.getByText('Do the ex:Squat carefully')).toBeVisible();
+    await pwExpect(card.locator('canvas')).toHaveCount(0);
+    await pwExpect(canvases(v)).toHaveCount(0);
+    const show = btn(card, 'Show the animation');
+    await pwExpect(show).toHaveAttribute('aria-expanded', 'false');
+    expect((await show.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const steps = (await region.getByText('Do the ex:Squat carefully').boundingBox())!.y;
+    expect((await show.boundingBox())!.y).toBeGreaterThan(steps);
+  });
+
+  it('"Show the animation" brings the figure and turns into "Hide the animation", which removes it again', async (ctx) => {
+    const { tools } = guideHost();
+    const { v, card } = await onStep(plan([squat(), bench()]), 0, { tools });
+    if (!(await hasWebGl(v))) ctx.skip();
+    await guideBtn(card).click();
+    await showAnimation(card);
+    await pwExpect(card.locator('canvas')).toHaveCount(1);
+    await pwExpect(btn(card, 'Hide the animation')).toHaveAttribute('aria-expanded', 'true');
+    await btn(card, 'Hide the animation').click();
+    await pwExpect(card.locator('canvas')).toHaveCount(0);
+    await pwExpect(btn(card, 'Show the animation')).toBeVisible();
+  });
+
+  it('"Open the full guide in the chat" asks Claude for show_exercise and leaves the player as it is', async () => {
+    const { tools } = guideHost();
+    const { v, card } = await onStep(plan([squat(), bench()]), 0, { tools });
+    await guideBtn(card).click();
+    await btn(card, 'Open the full guide in the chat').click();
+    await expect.poll(() => v.messages.length).toBe(1);
+    expect(v.messages[0]).toContain('show_exercise');
+    expect(v.messages[0]).toContain('Squat');
+    await pwExpect(card.getByRole('region', { name: 'How to do Squat' })).toBeVisible();
+  });
+
   it('opening the guide puts the one animation in that card and it runs', async (ctx) => {
     const { tools } = guideHost();
     const { v, card } = await onStep(plan([squat(), bench()]), 0, { tools });
     if (!(await hasWebGl(v))) ctx.skip();
     await guideBtn(card).click();
+    await showAnimation(card);
     await pwExpect(card.locator('canvas')).toHaveCount(1);
     await pwExpect(canvases(v)).toHaveCount(1);
     expect(await frames(v, 400)).toBeGreaterThan(2);
@@ -413,6 +455,7 @@ describe('Specs: Secondary content, rule 3 (P7.3; FR12, AC14)', () => {
     const { v, card } = await onStep(plan([squat(), bench()]), 0, { tools });
     if (!(await hasWebGl(v))) ctx.skip();
     await guideBtn(card).click();
+    await showAnimation(card);
     await pwExpect(card.locator('canvas')).toHaveCount(1);
     await btn(card, /^Close the guide/).click();
     await pwExpect(card.locator('canvas')).toHaveCount(0);
@@ -426,6 +469,7 @@ describe('Specs: Secondary content, rule 3 (P7.3; FR12, AC14)', () => {
     const { v, card } = await onStep(p, 0, { tools });
     if (!(await hasWebGl(v))) ctx.skip();
     await guideBtn(card).click();
+    await showAnimation(card);
     await pwExpect(card.locator('canvas')).toHaveCount(1);
     await jumpTo(v, 2);
     await expectAt(v, p, 2);
@@ -439,10 +483,12 @@ describe('Specs: Secondary content, rule 3 (P7.3; FR12, AC14)', () => {
     const { v, card } = await onStep(p, 0, { tools });
     if (!(await hasWebGl(v))) ctx.skip();
     await guideBtn(card).click();
+    await showAnimation(card);
     await pwExpect(card.locator('canvas')).toHaveCount(1);
     await backTo(v, p, 1);
     const second = cardOf(v, 1);
     await guideBtn(second).click();
+    await showAnimation(second);
     await pwExpect(second.locator('canvas')).toHaveCount(1);
     await pwExpect(canvases(v)).toHaveCount(1);
     await pwExpect(card.locator('canvas')).toHaveCount(0);

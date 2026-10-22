@@ -68,6 +68,8 @@ const state = {
   noteEditing: '',
   noteSaved: '',
   guideOpen: false,
+  /** The guide shows its animation only after "Show the animation". */
+  animationOpen: false,
   /** Exercises (uid) whose finished warm-ups are shown row by row instead of folded into one. */
   warmupsOpen: new Set<string>(),
   guides: new Map<string, ExerciseGuide>(),
@@ -298,6 +300,7 @@ function resetSecondary() {
   state.noteEditing = '';
   state.noteSaved = '';
   state.guideOpen = false;
+  state.animationOpen = false;
   state.swapOpen = false;
   state.swapAll = false;
   state.swapNote = '';
@@ -1006,7 +1009,7 @@ async function loadGuide(id: string) {
 
 /** The animation element for an open guide, created on first use and started once per exercise. */
 function animation(g: ExerciseGuide): HTMLElement | null {
-  if (!state.guideOpen) return null;
+  if (!state.guideOpen || !state.animationOpen) return null;
   if (motion === undefined) motion = createMotionPlayer();
   if (!motion) return null;
   if (motionFor !== g.ref) {
@@ -1027,7 +1030,7 @@ function guidePanel(ex: PlannedExercise) {
     'div',
     { className: 'panel guidebox' },
     g
-      ? renderGuide(g, openLink, animation(g))
+      ? renderGuide(g, openLink, null, animationSlot(g))
       : state.guideFailed
         ? h(
             'p',
@@ -1045,11 +1048,51 @@ function guidePanel(ex: PlannedExercise) {
           )
         : h('p', { className: 'muted small' }, 'Loading…'),
     h('button', { type: 'button', className: 'link', onclick: () => toggleGuide(ex) }, 'Close the guide'),
+    h('button', { type: 'button', className: 'link', 'data-key': 'guide-chat', onclick: () => void askGuide(ex) }, 'Open the full guide in the chat'),
   );
+}
+
+/** Where the animation goes in the player's guide: a button first, the figure (and a way to hide it) once asked for. */
+function animationSlot(g: ExerciseGuide): Node {
+  const figure = animation(g);
+  return h(
+    'div',
+    { className: 'animation' },
+    figure,
+    h(
+      'button',
+      {
+        type: 'button',
+        'data-key': 'guide-animation',
+        'aria-expanded': String(!!figure),
+        onclick: () => {
+          state.animationOpen = !state.animationOpen;
+          if (!state.animationOpen) {
+            motion?.stop();
+            motionFor = '';
+          }
+          render();
+          if (state.animationOpen) reveal('.guide .animation');
+        },
+      },
+      figure ? 'Hide the animation' : 'Show the animation',
+    ),
+  );
+}
+
+/** Asks Claude to open the full guide (`show_exercise`) in the chat; the player stays as it is. */
+async function askGuide(ex: PlannedExercise) {
+  try {
+    const res = await app.sendMessage({ role: 'user', content: [{ type: 'text', text: `Show me the full guide for ${ex.name} (show_exercise, id ${ex.id}).` }] });
+    announce(res.isError ? 'Could not ask Claude.' : `Asked Claude for the ${ex.name} guide. It will reply below.`);
+  } catch {
+    announce('Could not ask Claude.');
+  }
 }
 
 function toggleGuide(ex: PlannedExercise) {
   state.guideOpen = !state.guideOpen;
+  state.animationOpen = false;
   if (state.guideOpen && !state.guides.has(ex.id)) void loadGuide(ex.id);
   if (!state.guideOpen) {
     motion?.stop();
@@ -1112,6 +1155,7 @@ async function swap(ex: PlannedExercise, to: { id: string; name: string }) {
     motion?.stop();
     motionFor = '';
     state.guideOpen = false;
+    state.animationOpen = false;
     const step = items().findIndex((it) => it.kind === 'ex' && it.ex.uid === ex.uid);
     state.drafts[step] = draftFor(stepsOf(local)[step]!, local.gym);
     announce(`Swapped to ${to.name}.`);

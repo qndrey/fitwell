@@ -88,6 +88,23 @@ const openCard = (name: string) => async (f: Frame, page: Page) => {
   await page.waitForTimeout(900);
 };
 const DASH_CARDS = [['weight', 'Weight'], ['nutrition', 'Nutrition'], ['energy', 'Energy'], ['training', 'Training'], ['volume', 'Volume'], ['strength', 'Strength'], ['habits', 'Sleep, steps, water'], ['measures', 'Measures']] as const;
+const REVIEW_CARDS = [['week', 'The week', 'The 4 weeks'], ['food', 'Food', 'Food'], ['training', 'Training', 'Training'], ['body', 'Body', 'Body'], ['energy', 'Energy', 'Energy'], ['consider', 'To consider', 'To consider']] as const;
+/** Every review card, for the week and for the four weeks (names review-<week|month>-<card>). */
+const reviewShots: Shot[] = (['week', 'month'] as const).flatMap((period) =>
+  REVIEW_CARDS.map(([key, weekName, monthName]): Shot => ({
+    name: `review-${period}-${key}`,
+    view: 'review',
+    args: { week_start: '2026-10-12', period },
+    kcalGoal: GOAL_2300,
+    steps: async (f, page) => {
+      if (period === 'month') {
+        await f.getByRole('button', { name: 'Month', exact: true }).click();
+        await page.waitForTimeout(900);
+      }
+      await openCard(period === 'week' ? weekName : monthName)(f, page);
+    },
+  })),
+);
 /** Every dashboard card at 30, 90 and 365 days (names dash<days>-<card>). */
 const dashShots: Shot[] = [30, 90, 365].flatMap((days) => DASH_CARDS.map(([key, name]): Shot => ({ name: `dash${days}-${key}`, view: 'dashboard', args: { days }, kcalGoal: GOAL_2300, steps: openCard(name) })));
 
@@ -95,8 +112,8 @@ export const SHOTS: Shot[] = [
   { name: 'dashboard', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300 },
   { name: 'nutrition', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300, steps: openCard('Nutrition') },
   { name: 'sleep', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300, steps: openCard('Sleep, steps, water') },
-  { name: 'review', fitTo: 780, view: 'review', args: week, kcalGoal: GOAL_2300 },
-  { name: 'energy', view: 'review', args: week, only: '[aria-label="Energy"]', kcalGoal: 1800 },
+  { name: 'review', view: 'review', args: week, kcalGoal: GOAL_2300 },
+  { name: 'energy', view: 'review', args: week, kcalGoal: 1800, steps: openCard('Energy') },
   { name: 'shopping', fitTo: 780, view: 'shopping', args: { people: 2 } },
   { name: 'muscles', clip: 535, view: 'muscles', args: { weeks: 4 } },
   { name: 'lift', view: 'lift', args: { id: 'ex:Barbell_Bench_Press_-_Medium_Grip' } },
@@ -105,7 +122,7 @@ export const SHOTS: Shot[] = [
   { name: 'training-90-volume', view: 'dashboard', args: { days: 90 }, steps: async (f, page) => { await openCard('Volume')(f, page); await f.getByRole('button', { name: 'Volume', exact: true }).click(); } },
   { name: 'training-365', view: 'dashboard', args: { days: 365 }, steps: openCard('Volume') },
   { name: 'training-365-volume', view: 'dashboard', args: { days: 365 }, steps: async (f, page) => { await openCard('Volume')(f, page); await f.getByRole('button', { name: 'Volume', exact: true }).click(); } },
-  { name: 'review-month', fitTo: 780, view: 'review', args: week, kcalGoal: GOAL_2300, steps: async (f, page) => { await f.getByRole('button', { name: 'Month', exact: true }).click(); await page.waitForTimeout(800); } },
+  { name: 'review-month', view: 'review', args: week, kcalGoal: GOAL_2300, steps: async (f, page) => { await f.getByRole('button', { name: 'Month', exact: true }).click(); await page.waitForTimeout(800); } },
   { name: 'muscles-recovery', clip: 700, view: 'muscles', args: { weeks: 4 }, steps: async (f, page) => { await f.getByRole('button', { name: 'Days since trained' }).click(); await page.waitForTimeout(800); } },
   { name: 'shopping-undo', view: 'shopping', args: { people: 2 }, steps: async (f, page) => { await f.getByRole('checkbox').first().click(); await f.getByRole('checkbox').nth(1).click(); await f.getByRole('button', { name: 'Clear ticks' }).click(); await page.waitForTimeout(500); } },
   { name: 'guide-legpress', view: 'exercise', args: { query: 'leg press' } },
@@ -150,6 +167,7 @@ export const SHOTS: Shot[] = [
   { name: 'cardio', view: 'workout', args: { name: 'Squat and run', exercises: [squat({ sets: 1 })], cardio: [{ activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /\bMinutes\b/, 6); } },
   { name: 'summary-cardio', view: 'workout', args: { ...FULL, cardio: [{ activity_id: 'act:row-machine', minutes: 5, when: 'before' }, { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/, 60); await page.clock.fastForward(52 * 60_000); backdate(52); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
   ...dashShots,
+  ...reviewShots,
   { name: 'food', view: 'food', args: { day: '2026-10-13', slot: 'lunch', items: [{ food_id: 'frida:59', grams: 80 }, { food_id: 'frida:413', grams: 120 }] }, kcalGoal: GOAL_2300 },
 ];
 

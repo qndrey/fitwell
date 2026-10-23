@@ -7,6 +7,7 @@ import { MUSCLE_REGIONS, setsByRegion, WEEKLY_SET_RANGE } from '../../src/analyt
 import { h, type Child } from '../shared/dom';
 import { energyView } from './energy';
 import { createCardPager, type CardPager } from '../shared/cardPager';
+import { caption, empty, heading, hrow, subhead, tint, toggle } from '../shared/blocks';
 
 const RANGES = [{ days: 30, short: '30d', long: '30 days' }, { days: 90, short: '90d', long: '90 days' }, { days: 365, short: '1y', long: '1 year' }] as const;
 type CardKey = 'weight' | 'nutrition' | 'energy' | 'training' | 'volume' | 'strength' | 'habits' | 'measures';
@@ -109,19 +110,6 @@ function volumeChart(p: Progress) {
   const r1 = (n: number) => Math.round(n * 10) / 10;
   return stackedWeekBars({ weeks: rows.map(({ w, r }) => ({ week: w.week, values: MUSCLE_REGIONS.map((k) => r1(r[k])), partial: w.partial })), to: p.to, label: `Weekly hard sets over ${wk.length} weeks, stacked by upper body, lower body and core.`, columns: ['Week', ...MUSCLE_REGIONS.map((k) => `${REGION_NAME[k]} (sets)`)], lines: [low, high], digits: 0 });
 }
-
-// ---------- building blocks ----------
-const empty = (text: string) => h('p', { className: 'muted small' }, text);
-const caption = (text: string) => h('p', { className: 'cap' }, text);
-/** The heading a screen reader lands on after the buttons; the label row names the card for everyone else. */
-const heading = (name: string) => h('h2', { className: 'sr-only', tabIndex: -1, 'data-focus': '' }, name);
-/** The one tinted block of a card: the big number, its sentence, a chart and a caption. */
-const tint = (number: string | null, sentence: string | null, ...rest: Child[]) => h('div', { className: 'tint' }, number && h('p', { className: 'big' }, number), sentence && h('p', { className: 'muted small' }, sentence), ...rest);
-const hrow = (label: string, value: string, note?: string | null) => h('div', { className: 'hrow' }, h('span', { className: 'name' }, label), h('span', { className: 'val' }, value, note && h('span', { className: 'muted' }, ` ${note}`)));
-const subhead = (text: string) => h('h3', { className: 'sub' }, text);
-/** Text buttons that pick one of a few views: the chosen one is semibold and underlined. */
-const toggle = (label: string, options: readonly (readonly [string, string])[], current: string, pick: (key: string) => void) =>
-  h('div', { className: 'toggle', role: 'group', 'aria-label': label }, ...options.map(([key, text]) => h('button', { type: 'button', className: 'link', 'data-key': `toggle-${label}-${key}`, 'aria-pressed': String(key === current), onclick: () => pick(key) }, text)));
 
 interface Built {
   key: CardKey;

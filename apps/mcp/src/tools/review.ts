@@ -85,7 +85,8 @@ export function registerReviewTools(server: McpServer, deps: ReviewDeps) {
         'Talk about it neutrally, offer the suggestions as options, and let the person decide. ' +
         NOTES_TEXT,
       inputSchema: showInput,
-      annotations: { readOnlyHint: true },
+      // It saves the optional notes, replacing the ones saved for that period; without notes it only reads.
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: REVIEW_VIEW_URI } },
     },
     async ({ week_start, period, ...notes }) => {

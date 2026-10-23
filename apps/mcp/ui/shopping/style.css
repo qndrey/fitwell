@@ -6,7 +6,9 @@
   :root:not([data-theme='light']) { --accent: var(--color-background-inverse, #d6d0c6); --on-accent: var(--color-text-inverse, #1b1a18); }
 }
 
-main { padding: var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; display: grid; gap: var(--s3); }
+main { padding: var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom)); max-width: 640px; min-height: var(--track-h); margin: 0 auto; display: grid; align-content: start; gap: var(--s3); }
+/* A message that is all there is (loading, an error) takes the free height and sits in the middle of it. */
+main > .center { min-height: calc(var(--track-h) - 120px); display: grid; align-content: center; }
 h1 { font-size: var(--fs-title); font-weight: 600; margin: 0; }
 h2 { font-size: var(--fs-small); font-weight: 600; color: var(--muted); margin: 0; }
 p { margin: 0; }

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
+import { DurationSequencer } from './tests/support/durationSequencer.ts';
 
 export default defineConfig({
   // Markdown imports are text, as the Wrangler rule makes them in the Worker (src/instructions).
@@ -16,6 +17,8 @@ export default defineConfig({
     hookTimeout: 60_000,
     // Each of those files starts its own Chromium; running all of them side by side starves the timing-sensitive ones.
     maxWorkers: 3,
+    // CI splits the files over runners by duration (--shard=i/n); see tests/support/durationSequencer.ts.
+    sequence: { sequencer: DurationSequencer },
     // Processed by Vite (not Node's loader) so the alias above applies inside the package.
     server: { deps: { inline: ['@cloudflare/workers-oauth-provider'] } },
   },

@@ -1,0 +1,32 @@
+/*
+ * The three controls of every view, on top of tokens.css (import it after tokens.css):
+ *   .btn     primary: filled, one per screen or dock.
+ *   .quiet   no fill, no border: an icon, a word, or both. Underlined only inside a sentence (.quiet.inline).
+ *   .step    stepper tile: flat fill, only inside a tinted zone, for the minus and plus of a value.
+ * Tabs, ranges and modes are a row of .quiet buttons in a .choices group; the chosen one is semibold and underlined, like the text toggles
+ * of blocks.css. A button with no class is plain text with no box: nothing is outlined.
+ */
+:root { --h-row-compact: 40px; }
+
+button { font: inherit; font-size: var(--fs-body); color: inherit; min-height: var(--h-secondary); padding: 0 var(--s2); border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; touch-action: manipulation; }
+button:disabled { cursor: default; opacity: 0.45; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); min-height: var(--h-primary); padding: 0 var(--s3); border-radius: var(--radius); background: var(--btn); color: var(--on-btn); font-size: var(--fs-body); font-weight: 600; }
+.btn.log { min-height: var(--h-log); }
+
+.quiet { display: inline-flex; align-items: center; justify-content: center; gap: var(--s1); min-width: var(--h-secondary); min-height: var(--h-secondary); padding: 0 var(--s2); color: var(--muted); white-space: nowrap; }
+.quiet:hover, .quiet[aria-pressed='true'] { color: var(--text); }
+/* A word inside a sentence ("Change", "Try again") reads as a link. */
+.quiet.inline { min-width: 0; text-decoration: underline; text-underline-offset: 2px; }
+
+.step { display: inline-flex; align-items: center; justify-content: center; width: var(--h-stepper); height: var(--h-stepper); min-height: 0; padding: 0; border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+
+/* Tabs, ranges, modes: quiet buttons in a row. The chosen one is ink, semibold and underlined, so colour is never the only sign. */
+.choices { display: inline-flex; flex-wrap: nowrap; align-items: center; }
+.choices.wrap { flex-wrap: wrap; }
+.choices > .quiet[aria-pressed='true'], .choices > .quiet[aria-current='true'], .choices > .quiet[aria-selected='true'] { color: var(--text); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+
+.icon { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.step .icon { width: 20px; height: 20px; }
+/* The diamond marks a new best in the charts, which draw it filled. */
+.icon[data-icon='diamond'] { fill: currentColor; }

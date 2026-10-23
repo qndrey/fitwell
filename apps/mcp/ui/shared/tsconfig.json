@@ -1,0 +1,17 @@
+{
+  // The view runs in a browser frame inside Claude: DOM types here, Workers types for the server.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": []
+  },
+  "include": ["dom.ts", "icons.ts", "iconShapes.ts"]
+}

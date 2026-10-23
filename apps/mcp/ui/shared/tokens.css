@@ -1,0 +1,76 @@
+/* Tokens and base shared by the card views (workout player, dashboard, review). Host variables (MCP Apps) first, Fitwell's own calm defaults as fallbacks. */
+:root {
+  color-scheme: light dark;
+  /* The height of every card in a fixed-height pager (see cards.css). */
+  --track-h: 440px;
+  --bg: var(--color-background-primary, #faf8f5);
+  --surface: var(--color-background-secondary, #f1ede7);
+  --text: var(--color-text-primary, #1f1d1a);
+  --muted: var(--color-text-secondary, #6b655d);
+  --border: var(--color-border-secondary, #ddd6cc);
+  --accent: var(--color-background-inverse, #1f1d1a);
+  --on-accent: var(--color-text-inverse, #faf8f5);
+  --series-2: #a39d94;
+  --ok: var(--color-text-success, var(--text));
+  --danger: var(--color-text-danger, #b3261e);
+  --btn: #5a5650;
+  --on-btn: #faf8f5;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --font: var(--font-sans, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  /* One compact scale: type, spacing and control heights. */
+  --fs-body: 15px;
+  --fs-small: 13px;
+  --fs-label: 12px;
+  --fs-title: 18px;
+  --fs-big: 22px;
+  --fs-time: 64px;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  /* Every control is at least 44 px high; Log set is the one that is hit most, 52 px. */
+  --h-log: 52px;
+  --h-primary: 44px;
+  --h-stepper: 44px;
+  --h-secondary: 44px;
+  --h-link: 44px;
+  --h-row: 44px;
+  --h-strip: 24px;
+  --seg-off: var(--border);
+}
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root { --seg-off: color-mix(in srgb, var(--muted) 40%, transparent); }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: var(--color-background-primary, #1b1a18);
+    --surface: var(--color-background-secondary, #262421);
+    --text: var(--color-text-primary, #f2efe9);
+    --muted: var(--color-text-secondary, #b2aba1);
+    --border: var(--color-border-secondary, #3a3733);
+    --accent: var(--color-background-inverse, #f2efe9);
+    --series-2: #8f897f;
+    --btn: #cfc9bf;
+    --on-btn: #1b1a18;
+    --on-accent: var(--color-text-inverse, #1b1a18);
+  }
+}
+@media (min-width: 600px) { :root { --track-h: 480px; } }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-size: var(--fs-body); line-height: 1.35; overflow-x: hidden; max-width: 100%; }
+main { padding: var(--s2) var(--s3) calc(var(--s3) + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s2); width: 100%; min-width: 0; }
+main > * { min-width: 0; }
+h1 { font-size: var(--fs-title); line-height: 1.25; font-weight: 600; margin: 0; }
+h2 { font-size: var(--fs-small); font-weight: 600; margin: 0; color: var(--muted); }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.center { text-align: center; padding: 24px 0; }
+.small { font-size: var(--fs-small); line-height: 1.3; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+[hidden] { display: none !important; }
+.error { color: var(--danger); }
+
+button { font: inherit; font-size: 14px; color: inherit; min-height: var(--h-secondary); padding: 0 var(--s3); border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; touch-action: manipulation; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.link { border: 0; background: transparent; padding: 0 10px; min-height: var(--h-link); text-decoration: underline; text-underline-offset: 2px; }

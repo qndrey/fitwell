@@ -3,6 +3,7 @@ import type { ExerciseGuide } from '../../src/exercises/guide';
 import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
 import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, muscleSetsText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
+import { createCardPager, type CardPager, type StripState } from '../shared/cardPager';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
 
@@ -266,7 +267,7 @@ function load(plan: WorkoutPlan) {
   resetSecondary();
   buildShell();
   render();
-  if (ui) ui.track.scrollLeft = state.pos * ui.track.clientWidth;
+  ui?.pager.snap(state.pos);
   if (plan.finished) {
     // A finished workout opens on its summary at once, from the stored plan; the server's summary fills it in.
     state.finished = summaryFromPlan();
@@ -1246,27 +1247,19 @@ function setDots(step: Item): { text: string; aria: string; node: Node } {
 }
 
 // ---------- pager ----------
+// The pager mechanics (swipe, strip, ‹ ›, keys, announcements) are shared/cardPager.ts; what a card holds and what the strip's fill means is here.
 interface Shell {
+  pager: CardPager;
   header: HTMLElement;
-  prev: HTMLButtonElement;
-  next: HTMLButtonElement;
   clock: HTMLElement;
   save: HTMLElement;
-  strip: HTMLButtonElement;
-  counter: HTMLElement;
   chip: HTMLElement;
   track: HTMLElement;
   cards: HTMLElement[];
 }
 
 let ui: Shell | null = null;
-let pointerDown = false;
-let pendingFocus = -1;
-/** The card an automatic move is heading for, so settling there is not mistaken for a manual move. */
-let autoPos = -1;
-let settleTimer: number | undefined;
 let saveShown = '';
-const hasScrollEnd = 'onscrollend' in window;
 
 const clean = (cs: Child[]) => cs.filter((c): c is Node | string => c !== null && c !== false && c !== undefined);
 const cardCount = () => items().length + 2;
@@ -1277,6 +1270,7 @@ const cardName = (pos: number) => {
 };
 
 function buildShell() {
+  ui?.pager.destroy();
   const plan = state.plan!;
   const clock = h('span', { className: 'clock' });
   const save = h('p', {
@@ -1284,175 +1278,46 @@ function buildShell() {
     role: 'status',
     hidden: true,
   });
-  const strip = h('button', {
-    type: 'button',
-    className: 'strip',
-    'data-strip': '',
-    'data-key': 'strip',
-    onclick: () => goTo(0, { focus: true }),
-  });
-  const counter = h('span', { className: 'counter' });
   const chip = h('div', { className: 'chip', hidden: true });
-  const prev = h('button', { type: 'button', className: 'navbtn', 'data-key': 'prev', onclick: () => stepBy(-1) }, '‹');
-  const next = h('button', { type: 'button', className: 'navbtn', 'data-key': 'next', onclick: () => stepBy(1) }, '›');
-  const header = h('header', { className: 'head' }, h('div', { className: 'titlebar' }, prev, h('strong', { title: plan.name }, plan.name), counter, clock, next), strip, save, chip);
-  const cards = Array.from({ length: cardCount() }, () =>
-    h('section', {
-      className: 'pcard',
-      role: 'group',
-      'aria-roledescription': 'card',
-      // The pinned exercise name gets a hairline under it once the card has scrolled.
-      onscroll: (e: Event) => (e.currentTarget as HTMLElement).toggleAttribute('data-scrolled', (e.currentTarget as HTMLElement).scrollTop > 0),
-    }),
-  );
-  const track = h(
-    'div',
-    {
-      className: 'track',
-      'aria-roledescription': 'carousel',
-      'aria-label': 'Workout cards',
-      'aria-keyshortcuts': 'ArrowLeft ArrowRight Home End',
-      onscroll: () => {
-        swipeEffect();
-        if (hasScrollEnd) return;
-        window.clearTimeout(settleTimer);
-        settleTimer = window.setTimeout(settle, 120);
-      },
-      onscrollend: () => settle(),
-      onpointerdown: () => {
-        scrollTarget = -1;
-        pointerDown = true;
-      },
+  const pager = createCardPager({
+    title: plan.name,
+    cards: Array.from({ length: cardCount() }, (_, pos) => ({ key: String(pos), name: cardName(pos) })),
+    fit: true,
+    trackLabel: 'Workout cards',
+    stripState,
+    bar: stripBar,
+    onStrip: () => goTo(0, { focus: true }),
+    stripLabel: (pos, count) => `Card ${pos + 1} of ${count}. Show the overview.`,
+    titleExtra: clock,
+    getPos: () => state.pos,
+    onSettle: (pos, auto) => {
+      if (!auto && state.intent) state.intent.cancelled = true;
+      enterCard(pos);
     },
-    // The slide is what snaps; the card inside it is what tilts while dragged, so the snap position never moves with the effect.
-    ...cards.map((card) => h('div', { className: 'slide' }, card)),
-  );
-  ui = { header, prev, next, clock, save, strip, counter, chip, track, cards };
-  root.replaceChildren(header, track);
-  if ('ResizeObserver' in window) {
-    const ro = new ResizeObserver(fitTrack);
-    for (const card of cards) ro.observe(card);
-  }
-}
-
-window.addEventListener('pointerup', () => (pointerDown = false), {
-  capture: true,
-});
-window.addEventListener('pointercancel', () => (pointerDown = false), {
-  capture: true,
-});
-window.addEventListener('blur', () => (pointerDown = false));
-
-/** The card the track is showing: nearest card to the scroll position, read from the track itself. */
-function trackPos(): number {
-  if (!ui) return 0;
-  const w = ui.track.clientWidth;
-  return w > 0 ? clamp(Math.round(ui.track.scrollLeft / w), 0, ui.cards.length - 1) : state.pos;
-}
-
-/** The scroll came to rest: the card in view is the current one. */
-/**
- * While the track is being dragged, each card tilts, shrinks and fades by how far it is from the middle, pivoting from below
- * like a card being thrown: the one leaving turns away, the one coming in straightens up. A card at rest has no transform at all.
- */
-let fxFrame = 0;
-/** The card the strip and the counter show while a scroll is under way: the one nearest the middle, or the one a jump is heading to. */
-let shownPos = -1;
-/** The card a button, key or tap is scrolling to; set until the scroll comes to rest. */
-let scrollTarget = -1;
-const stripAt = () => (shownPos >= 0 ? shownPos : state.pos);
-
-/** Moves the highlight in the strip and the counter now, without waiting for the scroll to settle. */
-function previewPos(pos: number) {
-  if (!ui || pos === stripAt()) return;
-  shownPos = pos;
-  const count = ui.cards.length;
-  ui.strip.replaceChildren(...stripSegments());
-  ui.strip.setAttribute('aria-label', `Card ${pos + 1} of ${count}. Show the overview.`);
-  ui.counter.textContent = `${pos + 1} of ${count}`;
-  updateNav(pos);
-}
-
-/** ‹ and ›: they name the card they go to; at either end they stay in place, `aria-disabled`, and do nothing. */
-function updateNav(pos: number) {
-  if (!ui) return;
-  const last = ui.cards.length - 1;
-  for (const [btn, to, word] of [[ui.prev, pos - 1, 'Previous'], [ui.next, pos + 1, 'Next']] as const) {
-    const end = to < 0 || to > last;
-    btn.setAttribute('aria-label', end ? `${word} card` : `${word} card: ${cardName(to)}`);
-    btn.setAttribute('aria-disabled', String(end));
-  }
-}
-
-/** The ‹ and › buttons: one card on from where the pager is heading (so two quick taps go two cards), focus on the new card's heading. */
-function stepBy(dir: -1 | 1) {
-  if (!ui) return;
-  const here = scrollTarget >= 0 ? scrollTarget : stripAt();
-  const to = here + dir;
-  if (to < 0 || to > ui.cards.length - 1) return;
-  goTo(to, { focus: true });
-}
-function swipeEffect() {
-  if (scrollTarget < 0) previewPos(trackPos());
-  if (fxFrame || !ui) return;
-  fxFrame = window.requestAnimationFrame(() => {
-    fxFrame = 0;
-    if (!ui) return;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const w = ui.track.clientWidth;
-    ui.cards.forEach((card, i) => {
-      const d = w > 0 && !reduced ? clamp((i * w - ui!.track.scrollLeft) / w, -1, 1) : 0;
-      const a = Math.abs(d);
-      if (a < 0.002 || a > 0.998) {
-        card.style.transform = '';
-        card.style.opacity = '';
-        return;
-      }
-      card.style.transformOrigin = '50% 140%';
-      card.style.transform = `rotate(${(d * 7).toFixed(2)}deg) scale(${(1 - 0.08 * a).toFixed(3)})`;
-      card.style.opacity = String((1 - 0.55 * a).toFixed(3));
-    });
+    onManualMove: () => {
+      if (state.intent) state.intent.cancelled = true;
+    },
+    onStale: updateHeader,
+    announceText: cardAnnouncement,
+    announce,
+    focusTarget: (card) => card.querySelector<HTMLElement>('h1'),
   });
+  pager.header.append(save, chip);
+  ui = { pager, header: pager.header, clock, save, chip, track: pager.track, cards: pager.cards() };
+  root.replaceChildren(pager.header, pager.track);
 }
 
-function settle() {
-  if (!ui) return;
-  const pos = trackPos();
-  const previewed = shownPos;
-  shownPos = -1;
-  scrollTarget = -1;
-  // A hard fling can come to rest between two snap points: bring the card to the middle.
-  const w = ui.track.clientWidth;
-  if (w > 0 && Math.abs(ui.track.scrollLeft - pos * w) > 2 && !pointerDown) ui.track.scrollTo({ left: pos * w, behavior: scrollBehavior() });
-  if (pos !== state.pos) {
-    if (pos !== autoPos && state.intent) state.intent.cancelled = true;
-    enterCard(pos);
-    queueCardAnnouncement(pos);
+/** What a screen reader hears 300 ms after a card settled, once per settled card. */
+function cardAnnouncement(pos: number): string {
+  const all = items();
+  const n = cardCount();
+  const step = all[pos - 1];
+  if (pos === 0) {
+    const ov = buildOverview(state.plan!);
+    return `Overview, card 1 of ${n}, ${ov.workingDone} of ${ov.workingTotal} sets done`;
   }
-  if (previewed >= 0 && previewed !== pos) updateHeader();
-  autoPos = -1;
-  if (pendingFocus === pos) ui.cards[pos]?.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
-  pendingFocus = -1;
-}
-
-let cardAnnounceTimer: number | undefined;
-let cardAnnounced = -1;
-
-/** Announces the card in view 300 ms after the scroll settled (after any log message), once per settled card. */
-function queueCardAnnouncement(pos: number) {
-  window.clearTimeout(cardAnnounceTimer);
-  cardAnnounceTimer = window.setTimeout(() => {
-    if (pos !== state.pos || pos === cardAnnounced) return;
-    cardAnnounced = pos;
-    const all = items();
-    const n = cardCount();
-    const step = all[pos - 1];
-    if (pos === 0) {
-      const ov = buildOverview(state.plan!);
-      announce(`Overview, card 1 of ${n}, ${ov.workingDone} of ${ov.workingTotal} sets done`);
-    } else if (!step) announce(`End of workout, card ${pos + 1} of ${n}`);
-    else announce(`${stepName(step)}, card ${pos + 1} of ${n}, ${setDots(step).aria}`);
-  }, 300);
+  if (!step) return `End of workout, card ${pos + 1} of ${n}`;
+  return `${stepName(step)}, card ${pos + 1} of ${n}, ${setDots(step).aria}`;
 }
 
 function enterCard(pos: number) {
@@ -1464,73 +1329,34 @@ function enterCard(pos: number) {
 
 /** Moves the pager; never while a finger is down on the track (it would fight the swipe). */
 function goTo(pos: number, opts: { focus?: boolean; auto?: boolean } = {}) {
-  if (!ui || pointerDown) return;
-  const target = clamp(pos, 0, ui.cards.length - 1);
-  if (opts.auto) autoPos = target;
-  else {
-    autoPos = -1;
-    if (state.intent) state.intent.cancelled = true;
-  }
-  pendingFocus = opts.focus ? target : -1;
-  if (trackPos() === target) {
-    settle();
-    return;
-  }
-  scrollTarget = target;
-  previewPos(target);
-  ui.cards[target]!.parentElement!.scrollIntoView({
-    inline: 'center',
-    block: 'nearest',
-    behavior: scrollBehavior(),
-  });
+  ui?.pager.goTo(pos, opts);
 }
-
-document.addEventListener('keydown', (e) => {
-  if (!ui || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
-  const t = e.target;
-  if (t instanceof HTMLElement && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
-  // From the card the pager is heading to, so two quick key presses go two cards.
-  const here = scrollTarget >= 0 ? scrollTarget : stripAt();
-  const to = e.key === 'ArrowLeft' ? here - 1 : e.key === 'ArrowRight' ? here + 1 : e.key === 'Home' ? 0 : e.key === 'End' ? ui.cards.length - 1 : null;
-  if (to === null) return;
-  e.preventDefault();
-  goTo(to);
-});
 
 const setNumber = (ex: PlannedExercise, set: PlannedSet) => (set.warmup ? `warm-up ${ex.sets.filter((x) => x.warmup).indexOf(set) + 1}` : `set ${ex.sets.filter((x) => !x.warmup).indexOf(set) + 1}`);
 
-function stripSegments(): Node[] {
+/** The fill of one strip segment: how many of the card's sets are closed. */
+function stripState(pos: number): StripState {
   const plan = state.plan!;
   const steps = stepsOf(plan);
   const count = steps.length + 2;
-  const stepState = (s: Step) => {
-    if (s.kind === 'cardio') return cardioClosed(s.c) ? 'full' : 'empty';
-    const closedCount = s.ex.sets.filter(closed).length;
-    return closedCount === s.ex.sets.length ? 'full' : closedCount > 0 ? 'half' : 'empty';
-  };
-  if (count > 8) {
-    const closedSteps = steps.filter((s) => !stepOpen(s)).length;
-    const bar = h('span', { className: 'cbar', 'aria-hidden': 'true' }, h('span', { className: 'cfill' }), h('span', { className: 'cmark', 'data-marker': '' }));
-    bar.style.setProperty('--fill', String((closedSteps / Math.max(1, steps.length)) * 100));
-    bar.style.setProperty('--pos', String((stripAt() / (count - 1)) * 100));
-    return [bar];
-  }
-  const overview = isFresh(steps) ? 'empty' : 'full';
-  const end = plan.finished || state.finished ? 'full' : steps.every((s) => !stepOpen(s)) ? 'half' : 'empty';
-  return Array.from({ length: count }, (_, pos) => {
-    const kind = pos === 0 ? overview : pos === count - 1 ? end : stepState(steps[pos - 1]!);
-    return h('span', {
-      className: `seg ${kind}${pos === stripAt() ? ' current' : ''}`,
-      'data-seg': kind,
-      'aria-hidden': 'true',
-    });
-  });
+  if (pos === 0) return isFresh(steps) ? 'empty' : 'full';
+  if (pos === count - 1) return plan.finished || state.finished ? 'full' : steps.every((s) => !stepOpen(s)) ? 'half' : 'empty';
+  const s = steps[pos - 1]!;
+  if (s.kind === 'cardio') return cardioClosed(s.c) ? 'full' : 'empty';
+  const closedCount = s.ex.sets.filter(closed).length;
+  return closedCount === s.ex.sets.length ? 'full' : closedCount > 0 ? 'half' : 'empty';
+}
+
+/** With many cards the strip is one continuous bar, filled by the steps that are closed. */
+function stripBar(): number | null {
+  const steps = stepsOf(state.plan!);
+  if (steps.length + 2 <= 8) return null;
+  return (steps.filter((s) => !stepOpen(s)).length / Math.max(1, steps.length)) * 100;
 }
 
 function updateHeader() {
   if (!ui || !state.plan) return;
   const plan = state.plan;
-  const count = ui.cards.length;
   ui.clock.replaceChildren(...(state.finished ? [`${state.finished.minutes} min`] : [h('span', { 'data-clock': 'elapsed' }, mmss(Date.now() - plan.startedAt))]));
   if (failed.size === 0 ? saveShown !== '' : saveShown !== unsavedText()) {
     saveShown = failed.size === 0 ? '' : unsavedText();
@@ -1555,10 +1381,7 @@ function updateHeader() {
       ),
     );
   }
-  ui.strip.setAttribute('aria-label', `Card ${stripAt() + 1} of ${count}. Show the overview.`);
-  ui.strip.replaceChildren(...stripSegments());
-  ui.counter.textContent = `${stripAt() + 1} of ${count}`;
-  updateNav(stripAt());
+  ui.pager.refreshHeader();
   const show = restRunning() && state.pos !== 0 && state.pos !== state.rest!.stepIndex + 1;
   ui.chip.hidden = !show;
   if (!show) {
@@ -2513,12 +2336,6 @@ function cardioBody(i: number, c: PlannedCardio): Child[] {
   ];
 }
 
-/** The track is as tall as the card in view, so the other cards (longer or shorter) leave no gap or scroll under it. */
-function fitTrack() {
-  const slide = ui?.cards[state.pos]?.parentElement;
-  if (ui && slide) ui.track.style.height = `${slide.offsetHeight}px`;
-}
-
 function render() {
   const plan = state.plan;
   if (!plan || !ui) return;
@@ -2526,21 +2343,19 @@ function render() {
   const typing = document.activeElement?.tagName;
   if (typing === 'TEXTAREA' || (typing === 'INPUT' && state.editing)) return;
   const focusKey = document.activeElement?.getAttribute('data-key');
+  ui.pager.setCards(ui.cards.map((_, pos) => ({ key: String(pos), name: cardName(pos) })));
   updateHeader();
   const last = ui.cards.length - 1;
   ui.cards.forEach((card, pos) => {
     const body = pos === 0 ? overviewBody() : pos === last ? finishBody() : stepCardBody(pos - 1);
     const top = card.scrollTop;
-    card.setAttribute('aria-label', `${pos + 1} of ${last + 1}: ${cardName(pos)}`);
-    card.inert = pos !== state.pos;
     card.replaceChildren(...clean(body));
     card.scrollTop = top;
-    card.toggleAttribute('data-scrolled', top > 0);
   });
-  // Focus and scrolling into view must stop above the dock, which covers the bottom of the card.
+  // Labels, inert, the scroll marks, the padding above the dock and the track height.
+  ui.pager.refreshCards();
   const shown = ui.cards[state.pos];
   if (shown) {
-    shown.style.scrollPaddingBottom = `${shown.querySelector<HTMLElement>('.dock')?.offsetHeight ?? 0}px`;
     shown.style.scrollPaddingTop = `${shown.querySelector<HTMLElement>('.exercise > h1')?.offsetHeight ?? 0}px`;
   }
   // The cards were redrawn: put the focus back on the same control, so a keyboard or switch user keeps their place.
@@ -2548,7 +2363,6 @@ function render() {
     const sel = `[data-key="${focusKey}"]`;
     (ui.cards[state.pos]?.querySelector<HTMLElement>(sel) ?? ui.header.querySelector<HTMLElement>(sel))?.focus({ preventScroll: true });
   }
-  fitTrack();
   updateClocks();
 }
 

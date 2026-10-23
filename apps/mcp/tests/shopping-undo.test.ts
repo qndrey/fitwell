@@ -73,3 +73,24 @@ describe('undo after Clear ticks', () => {
     await pwExpect(v.frame.getByRole('checkbox', { checked: true })).toHaveCount(0);
   }, 30_000);
 });
+
+describe('the list on the shared base', () => {
+  it('has a count row with a quiet hide toggle, 44 px rows with an SVG tick, and no cards', async () => {
+    const v = await open();
+    const f = v.frame;
+    await pwExpect(f.getByText('1 left')).toBeVisible();
+    const hide = f.getByRole('button', { name: 'Hide ticked items' });
+    await pwExpect(hide.locator('svg.icon')).toHaveCount(1);
+    expect(await hide.textContent()).toBe('');
+    await hide.click();
+    await pwExpect(f.getByRole('button', { name: 'Show ticked items' })).toBeVisible();
+    await pwExpect(f.getByRole('checkbox')).toHaveCount(1); // the two ticked ones are hidden
+    await f.getByRole('button', { name: 'Show ticked items' }).click();
+    for (const c of await f.getByRole('checkbox').all()) expect((await c.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await pwExpect(f.getByRole('checkbox', { checked: true }).first().locator('svg.icon')).toHaveCount(1);
+    await pwExpect(f.getByRole('checkbox', { checked: false }).first().locator('svg')).toHaveCount(0);
+    await pwExpect(f.locator('.card')).toHaveCount(0); // sections are a label over hairline rows
+    await pwExpect(f.getByRole('button', { name: 'Clear ticks' }).locator('svg.icon')).toHaveCount(1);
+  }, 60_000);
+});
+

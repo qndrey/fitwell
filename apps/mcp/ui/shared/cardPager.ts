@@ -2,7 +2,7 @@
 // an optional label row) over a horizontal scroll-snap track. The pager mechanics live here; what a card holds, and what the strip's
 // fill means, belongs to the view. Text goes through textContent only (names come from data).
 import { h } from './dom';
-import { iconButton, type IconName } from './icons';
+import { icon, iconButton, type IconName } from './icons';
 
 export type StripState = 'full' | 'half' | 'empty' | 'plain';
 
@@ -93,8 +93,8 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
   const stripAt = () => (shown >= 0 ? shown : pos());
   const count = () => infos.length;
 
-  const prev = h('button', { type: 'button', className: 'navbtn', 'data-key': 'prev', onclick: () => stepBy(-1) }, '‹');
-  const next = h('button', { type: 'button', className: 'navbtn', 'data-key': 'next', onclick: () => stepBy(1) }, '›');
+  const prev = h('button', { type: 'button', className: 'navbtn', 'data-key': 'prev', onclick: () => stepBy(-1) }, icon('chevron-left'));
+  const next = h('button', { type: 'button', className: 'navbtn', 'data-key': 'next', onclick: () => stepBy(1) }, icon('chevron-right'));
   const counter = h('span', { className: 'counter' });
   const title = h('strong', { title: opts.title }, opts.title);
   const titlebar = h('div', { className: 'titlebar' }, prev, title, counter, opts.titleExtra, next);

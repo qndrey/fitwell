@@ -19,6 +19,7 @@ const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/scrip
 const csp = [
   "default-src 'none'",
   "img-src 'self'",
+  "media-src 'self'", // the demo videos, from this site only
   "style-src 'self'",
   "font-src 'self'",
   `script-src 'self' ${hashes.join(" ")}`.trim(),

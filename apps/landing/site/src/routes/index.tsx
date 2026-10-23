@@ -30,16 +30,21 @@ import { BackToTop, ChatDemo, HeroCanvas, SiteHeader, Tilt, useReveal } from "@/
 // Every screenshot exists in a light and a dark version (<name>-light.png, <name>-dark.png), taken from the
 // real views by apps/mcp/scripts/screenshots.ts. The page theme picks one.
 const shotFiles = import.meta.glob<string>("../assets/*-{light,dark}.png", { eager: true, import: "default" });
+// The demo videos (webm, light and dark): the page theme picks one, like the screenshots. Their first screen is the poster.
+const videoFiles = import.meta.glob<string>("../assets/*.webm", { eager: true, import: "default", query: "?url" });
+// Pixel sizes of the screenshots, so the page reserves their space. Update them when you re-shoot.
 const SIZES: Record<string, [number, number]> = {
-  "hero-squat": [796, 1320],
-  food: [796, 1212],
-  energy: [732, 530],
-  warmup: [796, 1146],
-  swap: [796, 1984],
+  "demo-workout-poster": [796, 1200],
+  food: [796, 994],
+  energy: [796, 1216],
+  warmup: [796, 1166],
+  swap: [796, 1466],
   "guide-squat": [796, 1000],
-  muscles: [796, 1070],
-  shopping: [796, 1472],
-  review: [796, 1426],
+  muscles: [796, 1010],
+  dashboard: [796, 1216],
+  lift: [796, 1836],
+  shopping: [796, 1200],
+  review: [796, 1216],
 };
 
 const TITLE = "Fitwell for Claude";
@@ -86,7 +91,69 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-function Phone({ name, alt, priority = false, maxH }: { name: string; alt: string; priority?: boolean; maxH?: string | undefined }) {
+/** Whether the page shows its dark theme: the person's choice (data-theme) or else the system's. Starts light, as the prerendered page does. */
+function useDark() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const read = () => {
+      const t = document.documentElement.getAttribute("data-theme");
+      setDark(t === "dark" || (t !== "light" && mq.matches));
+    };
+    read();
+    mq.addEventListener("change", read);
+    const mo = new MutationObserver(read);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => {
+      mq.removeEventListener("change", read);
+      mo.disconnect();
+    };
+  }, []);
+  return dark;
+}
+
+type DemoVideoProps = { name: string; active: boolean; playing: boolean; onEnded: () => void };
+
+/**
+ * A demo video laid over its poster (the poster is the first screen, so nothing jumps). It exists only in the browser, after the page
+ * has loaded: the prerendered page has the poster alone. It plays muted from its start when its slide is shown and `playing`, holds
+ * where it is when only `playing` ends (paused), and goes back to the start when its slide is left.
+ */
+function DemoVideo({ name, active, playing, onEnded }: DemoVideoProps) {
+  const dark = useDark();
+  const ref = useRef<HTMLVideoElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const [shown, setShown] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const src = videoFiles[`../assets/${name}-${dark ? "dark" : "light"}.webm`];
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (!active) {
+      v.pause();
+      v.currentTime = 0;
+      setShown(false);
+    } else if (playing) void v.play().catch(() => undefined);
+    else v.pause();
+  }, [mounted, active, playing, src]);
+  if (!mounted || !src) return null;
+  return (
+    <video
+      ref={ref}
+      src={src}
+      muted
+      playsInline
+      preload={active ? "auto" : "none"}
+      aria-hidden
+      tabIndex={-1}
+      onPlaying={() => setShown(true)}
+      onEnded={onEnded}
+      className={cn("absolute inset-0 block h-full w-full object-cover transition-opacity duration-300", shown ? "opacity-100" : "opacity-0")}
+    />
+  );
+}
+
+function Phone({ name, alt, priority = false, maxH, video }: { name: string; alt: string; priority?: boolean; maxH?: string | undefined; video?: DemoVideoProps }) {
   const light = shotFiles[`../assets/${name}-light.png`];
   const dark = shotFiles[`../assets/${name}-dark.png`];
   const [width, height] = SIZES[name] ?? [796, 1400];
@@ -104,33 +171,38 @@ function Phone({ name, alt, priority = false, maxH }: { name: string; alt: strin
           className="shot-light block h-auto w-full"
         />
         <img src={dark} alt="" aria-hidden width={width} height={height} loading="lazy" decoding="async" className="shot-dark block h-auto w-full" />
+        {video && <DemoVideo {...video} />}
         {maxH && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent" />}
       </div>
     </div>
   );
 }
 
-const HERO_SLIDES: { name: string; label: string; alt: string }[] = [
+const HERO_SLIDES: { name: string; label: string; alt: string; video?: string }[] = [
   {
-    name: "hero-squat",
-    label: "Workout",
-    alt: "The workout player on Barbell Squat, set 1 of 2: last time 5, 5 and 4 reps at 82.5 kg, so today 85 kg, with reps and weight steppers and a Log set button",
+    name: "demo-workout-poster",
+    label: "Workout demo",
+    video: "demo-workout",
+    alt: "A short demo of a full-body workout in the player: start with the squat, log a set, rest, move on through the pull-ups and bench press, then finish with a summary that includes a new best",
   },
 ];
 
 function HeroRotator() {
-  const slides = [...HERO_SLIDES, ...features.map((f) => ({ name: f.shot, label: f.tab, alt: f.alt }))];
+  const slides: { name: string; label: string; alt: string; video?: string }[] = [...HERO_SLIDES, ...features.map((f) => ({ name: f.shot, label: f.tab, alt: f.alt }))];
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
   const [hover, setHover] = useState(false);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPaused(true);
   }, []);
+  const next = () => setI((n) => (n + 1) % slides.length);
+  // A still is shown for a few seconds; the demo video is shown for as long as it plays and then hands over to the next slide.
+  const onVideo = !!slides[i]?.video;
   useEffect(() => {
-    if (paused || hover) return;
-    const t = window.setInterval(() => setI((n) => (n + 1) % slides.length), 3800);
+    if (paused || hover || onVideo) return;
+    const t = window.setInterval(next, 3800);
     return () => window.clearInterval(t);
-  }, [paused, hover, slides.length]);
+  }, [paused, hover, onVideo, slides.length]);
   return (
     <div
       role="region"
@@ -148,7 +220,7 @@ function HeroRotator() {
             aria-hidden={n !== i}
             className={cn("col-start-1 row-start-1 transition-all duration-700 ease-out", n === i ? "opacity-100" : "pointer-events-none scale-[0.97] opacity-0")}
           >
-            <Phone name={s.name} alt={s.alt} priority={n === 0} maxH="max-h-[560px]" />
+            <Phone name={s.name} alt={s.alt} priority={n === 0} maxH="max-h-[560px]" {...(s.video ? { video: { name: s.video, active: n === i, playing: n === i && !paused, onEnded: () => !paused && next() } } : {})} />
           </div>
         ))}
       </div>
@@ -274,7 +346,7 @@ const features: Feature[] = [
       "It suggests a goal from that number. Claude asks before changing anything.",
     ],
     shot: "energy",
-    alt: "Energy card in the weekly review: burn a day 2,810 kcal with high confidence from 28 days and 25 weigh-ins, weight trend minus 0.54 kg a week, 2,260 kcal a day to lose 0.5 kg a week against a goal of 1,800, and the goal weight reached around 8 December",
+    alt: "The weekly review on its Energy card: burn a day 2,810 kcal from 28 days and 25 weigh-ins, weight trend minus 0.54 kg a week, 2,260 kcal a day to lose 0.5 kg a week against a goal of 1,800, and the goal weight reached around 8 December",
   },
   {
     tab: "Workouts",
@@ -313,6 +385,28 @@ const features: Feature[] = [
     alt: "The muscle map for 4 weeks: a 3D body coloured by weekly hard sets, buttons for 1, 4 and 12 weeks, and a legend: not trained, under 10, 10 to 20, over 20",
   },
   {
+    tab: "Progress",
+    title: "Your progress on one screen",
+    bullets: [
+      "Weight, nutrition, burn, training, strength, habits and measurements: one card each, with an icon to jump to it or a swipe.",
+      "Trends use the 7-day average, so a single weigh-in does not move the line. Pick 30 days, 90 days or a year.",
+    ],
+    shot: "dashboard",
+    alt: "The progress dashboard for 90 days: weight trend 82.6 kg, down 5.5 kg since 28 July, with the weigh-ins, the 7-day average and the goal of 78.5 kg on a chart, and a row of icon tabs for the other cards",
+    maxH: "max-h-[560px]",
+  },
+  {
+    tab: "Strength",
+    title: "Strength you can see",
+    bullets: [
+      "An estimated one-rep max for each lift, with a mark on every new best.",
+      "Your rep records and your last sessions, lift by lift.",
+    ],
+    shot: "lift",
+    alt: "Barbell bench press progress: an estimated one-rep max of 78.8 kg as a rising line with a diamond on every new best, then the rep records and the last sessions",
+    maxH: "max-h-[520px]",
+  },
+  {
     tab: "Meals",
     title: "A week of meals and the shopping list",
     bullets: [
@@ -328,7 +422,7 @@ const features: Feature[] = [
     title: "A weekly review",
     bullets: ["This week next to last week, what went well and a few neutral suggestions."],
     shot: "review",
-    alt: "The weekly review for 5 to 11 October: what went well, then the food tiles compared with the week before, including calories, protein, fibre, sugar, saturated fat and salt a day",
+    alt: "The weekly review for 5 to 11 October: the week's calories, workouts and weigh-ins, then a row of icon tabs and the what-went-well card",
     maxH: "max-h-[520px]",
   },
 ];

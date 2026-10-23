@@ -34,6 +34,8 @@ interface Shot {
   fitTo?: number;
   /** Cut the whole-view shot at exactly this many CSS px (for a view that is one tall card). */
   clip?: number;
+  /** Cut the whole-view shot where the view's content ends, not where the host frame does (a short view in the 600 px dev frame). */
+  trim?: boolean;
   /** Steps run in the view before the shot. */
   steps?: (f: Frame, page: Page) => Promise<void>;
   /** Makes the dev host fail these calls: ?fail=log, send or finish. */
@@ -82,6 +84,7 @@ const A2 = {
   exercises: [squat({ weight_kg: 102.5, warmup: true }), { id: 'ex:Barbell_Curl', sets: 2, reps: 10, weight_kg: 30, rest_sec: 90, superset: 'A' }, { id: 'ex:Triceps_Pushdown', sets: 2, reps: 12, weight_kg: 25, rest_sec: 90, superset: 'A' }, { id: 'ex:Plank', sets: 1, seconds: 10, rest_sec: 90 }],
 };
 const week = { week_start: '2026-10-05' };
+const planWeek = { week_start: '2026-10-19' }; // the demo person's meal plan: the shopping list defaults to next week, which has none
 /** Taps a strip segment of the dashboard or the review by the card's name and waits for the swipe to land. */
 const openCard = (name: string) => async (f: Frame, page: Page) => {
   await f.getByRole('button', { name: new RegExp(`^${name}, \\d+ of \\d+$`) }).click();
@@ -129,8 +132,9 @@ export const SHOTS: Shot[] = [
   { name: 'sleep', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300, steps: openCard('Sleep, steps, water') },
   { name: 'review', view: 'review', args: week, kcalGoal: GOAL_2300 },
   { name: 'energy', view: 'review', args: week, kcalGoal: 1800, steps: openCard('Energy') },
-  { name: 'shopping', fitTo: 780, view: 'shopping', args: { people: 2 } },
-  { name: 'muscles', clip: 535, view: 'muscles', args: { weeks: 4 } },
+  // The list as the demo person has it: three items ticked (ticking is saved, so only what is not ticked yet is tapped).
+  { name: 'shopping', fitTo: 780, view: 'shopping', args: { ...planWeek, people: 2 }, steps: async (f, page) => { for (const name of ['Potato, raw', 'Broccoli, raw', 'Chicken, breast, flesh and skin, raw']) { const box = f.getByRole('checkbox', { name: new RegExp(`^${name}`) }).first(); if ((await box.getAttribute('aria-checked')) !== 'true') { await box.click(); await page.waitForTimeout(300); } } } },
+  { name: 'muscles', clip: 505, view: 'muscles', args: { weeks: 4 } },
   { name: 'lift', view: 'lift', args: { id: 'ex:Barbell_Bench_Press_-_Medium_Grip' } },
   { name: 'lift-90', view: 'lift', args: { id: 'ex:Barbell_Bench_Press_-_Medium_Grip' }, steps: async (f) => { await f.getByRole('button', { name: '90 days', exact: true }).click(); } },
   { name: 'training-30', view: 'dashboard', args: { days: 30 }, steps: openCard('Volume') },
@@ -139,11 +143,12 @@ export const SHOTS: Shot[] = [
   { name: 'training-365-volume', view: 'dashboard', args: { days: 365 }, steps: async (f, page) => { await openCard('Volume')(f, page); await f.getByRole('button', { name: 'Volume', exact: true }).click(); } },
   { name: 'review-month', view: 'review', args: week, kcalGoal: GOAL_2300, steps: async (f, page) => { await f.getByRole('button', { name: 'Month', exact: true }).click(); await page.waitForTimeout(800); } },
   { name: 'muscles-recovery', clip: 700, view: 'muscles', args: { weeks: 4 }, steps: async (f, page) => { await f.getByRole('button', { name: 'Days since trained' }).click(); await page.waitForTimeout(800); } },
-  { name: 'shopping-undo', view: 'shopping', args: { people: 2 }, steps: async (f, page) => { await f.getByRole('checkbox').first().click(); await f.getByRole('checkbox').nth(1).click(); await f.getByRole('button', { name: 'Clear ticks' }).click(); await page.waitForTimeout(500); } },
+  { name: 'shopping-undo', view: 'shopping', args: { ...planWeek, people: 2 }, steps: async (f, page) => { await f.getByRole('checkbox').first().click(); await f.getByRole('checkbox').nth(1).click(); await f.getByRole('button', { name: 'Clear ticks' }).click(); await page.waitForTimeout(500); } },
   { name: 'guide-legpress', view: 'exercise', args: { query: 'leg press' } },
   { name: 'guide-squat', clip: 500, view: 'exercise', args: { query: 'barbell squat' } },
   { name: 'overview', view: 'workout', args: FULL },
-  { name: 'hero-squat', clip: 660, view: 'workout', args: { ...FULL, exercises: [squat({ weight_kg: undefined }), ...FULL.exercises.slice(1)] } },
+  // The squat card with its suggested weight, set 1 of 2: the first thing a visitor sees of the player.
+  { name: 'hero-squat', trim: true, view: 'workout', args: { ...FULL, exercises: [squat({ weight_kg: undefined }), ...FULL.exercises.slice(1)] }, steps: async (f, page) => { await start(f, page); await f.evaluate(`document.activeElement.blur()`); } },
   // The exercise card of the squat, rest running after set 1 of 2.
   { name: 'player-rest', view: 'workout', args: FULL, steps: async (f, page) => { await start(f, page); await click(f, /^Log set/, false); await page.waitForTimeout(PAUSE); } },
   // There is no rest after an exercise's last set (the pager moves on), so the rest zone with its "Next:" line needs a second set to come.
@@ -190,6 +195,7 @@ export const SHOTS: Shot[] = [
 async function shoot(page: Page, shot: Shot, theme: Theme) {
   if (shot.kcalGoal) sqlite(`update goals set kcal = ${shot.kcalGoal}, carbs_g = ${Math.round((shot.kcalGoal - 600 - 675) / 4)};`);
   const q = new URLSearchParams({ view: shot.view, theme });
+  q.set('maxh', '0'); // the dev host caps the frame at 600 px like Claude does; a shot shows the whole view
   if (shot.sample) q.set('sample', shot.sample);
   if (shot.fail) q.set('fail', shot.fail);
   if (shot.args) q.set('args', JSON.stringify(shot.args));
@@ -204,12 +210,12 @@ async function shoot(page: Page, shot: Shot, theme: Theme) {
   await page.waitForTimeout(1200); // 3D bodies and charts settle
   if (shot.steps) await shot.steps(frame, page);
   await page.waitForTimeout(600);
-  if ((shot.fitTo || shot.clip) && !shot.only) {
-    const cut = shot.clip ?? (await frame.evaluate(
+  if ((shot.fitTo || shot.clip || shot.trim) && !shot.only) {
+    const cut = shot.trim ? ((await frame.evaluate(`(() => { const r = document.querySelector('main').getBoundingClientRect(); return r.bottom + window.scrollY; })()`)) as number) : shot.clip ?? (await frame.evaluate(
       `((limit) => { let cut = 0; for (const el of document.querySelectorAll('#app > *')) { const b = el.getBoundingClientRect().bottom + window.scrollY; if (b <= limit && b > cut) cut = b; } return cut; })(${shot.fitTo ?? 0})`,
     )) as number;
     const box = (await iframe.boundingBox())!;
-    const height = Math.round(shot.clip ? cut : cut > 0 ? cut + 12 : shot.fitTo!);
+    const height = Math.round(shot.clip || shot.trim ? cut : cut > 0 ? cut + 12 : shot.fitTo!);
     const clipped = join(OUT, `${shot.name}-${theme}.png`);
     await page.screenshot({ path: clipped, clip: { x: box.x, y: box.y, width: box.width, height }, animations: 'disabled' });
     console.log('wrote', clipped, `(cut at ${height} px)`);

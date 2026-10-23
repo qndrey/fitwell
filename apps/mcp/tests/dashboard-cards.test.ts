@@ -104,8 +104,17 @@ describe('dashboard cards: structure (AC3, AC5)', () => {
     const v = await open(await progress(90));
     await v.frame.locator('section.pcard').first().waitFor();
     for (const sel of ['.tabs', 'section.card', 'footer', '.seg']) await pwExpect(v.frame.locator(sel)).toHaveCount(0);
-    await pwExpect(v.frame.locator('.sg')).toHaveCount(8);
-    for (const b of await v.frame.locator('.sgb').all()) expect((await b.boundingBox())!.width).toBeGreaterThanOrEqual(40);
+    // The strip is eight icon tabs that share the width without scrolling; each is named like its card and is at least 44 px high.
+    const tabs = v.frame.locator('.strip.icons > .tab');
+    await pwExpect(tabs).toHaveCount(8);
+    for (const b of await tabs.all()) {
+      const box = (await b.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(40);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      await pwExpect(b.locator('svg.icon')).toHaveAttribute('aria-hidden', 'true');
+    }
+    await pwExpect(tabs.first()).toHaveAttribute('aria-label', 'Weight, 1 of 8');
+    expect(await v.frame.locator('.strip').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
     await pwExpect(v.frame.locator('.labelrow strong')).toHaveText('Weight');
     await pwExpect(v.frame.locator('.counter')).toHaveText('1 of 8');
     await showCard(v, 'nutrition', 'Nutrition');

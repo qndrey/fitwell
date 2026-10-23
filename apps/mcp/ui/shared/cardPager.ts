@@ -2,12 +2,15 @@
 // an optional label row) over a horizontal scroll-snap track. The pager mechanics live here; what a card holds, and what the strip's
 // fill means, belongs to the view. Text goes through textContent only (names come from data).
 import { h } from './dom';
+import { iconButton, type IconName } from './icons';
 
 export type StripState = 'full' | 'half' | 'empty' | 'plain';
 
 export interface PagerCardInfo {
   key: string;
   name: string;
+  /** When every card has one, the strip is a row of icon tabs (the card's name is each tab's name) instead of thin segments. */
+  icon?: IconName;
 }
 
 export interface CardPagerOptions {
@@ -165,8 +168,18 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
     refreshHeader();
   }
 
+  const iconTabs = () => count() > 0 && infos.every((i) => i.icon);
+
   function stripSegments(): Node[] {
     const n = count();
+    if (iconTabs() && !opts.onStrip) {
+      return infos.map((info, i) => {
+        const tab = iconButton(info.icon!, `${info.name}, ${i + 1} of ${n}`, () => goTo(i, { focus: true }), { className: 'tab' });
+        tab.setAttribute('data-key', `tab-${info.key}`);
+        if (i === stripAt()) tab.setAttribute('aria-current', 'true');
+        return tab;
+      });
+    }
     const fill = opts.bar?.() ?? null;
     if (fill !== null && n > 1) {
       const bar = h('span', { className: 'cbar', 'aria-hidden': 'true' }, h('span', { className: 'cfill' }), h('span', { className: 'cmark', 'data-marker': '' }));
@@ -195,6 +208,7 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
   function refreshHeader() {
     const at = stripAt();
     const n = count();
+    strip.classList.toggle('icons', iconTabs() && !opts.onStrip);
     strip.replaceChildren(...stripSegments());
     if (opts.onStrip) strip.setAttribute('aria-label', opts.stripLabel ? opts.stripLabel(at, n) : `Card ${at + 1} of ${n}`);
     counter.textContent = `${at + 1} of ${n}`;

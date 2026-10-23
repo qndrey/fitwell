@@ -43,7 +43,7 @@ describe('strength card', () => {
     expect(p.records.exercises.length).toBeGreaterThan(6);
   });
 
-  it('opens a lift to its chart with ◆ marks and the last five sessions, and shows all lifts on request', async () => {
+  it('opens a lift to its chart with diamond marks and the last five sessions, and shows all lifts on request', async () => {
     await logLift(BENCH, [[-40, 5, 55], [-33, 5, 60], [-26, 5, 65], [-19, 5, 62.5], [-12, 5, 67.5], [-5, 5, 70], [-1, 3, 80]]);
     const ids = ['Barbell_Squat', 'Barbell_Curl', 'Barbell_Deadlift', 'Bent_Over_Barbell_Row', 'Standing_Military_Press', 'Dumbbell_Bicep_Curl', 'Barbell_Shrug'];
     for (const [i, id] of ids.entries()) await logLift(`ex:${id}`, [[-3 - i, 5, 50]]);
@@ -59,13 +59,15 @@ describe('strength card', () => {
     await pwExpect(bench.locator('summary')).toHaveAttribute('aria-label', /^Barbell Bench Press - Medium Grip: /); // the full library name for assistive tech
     await bench.locator('summary').click();
     expect(await bench.locator('polygon.pr').count()).toBe(p.records.exercises.find((e) => e.id === BENCH)!.sessions.filter((s) => s.isBest).length);
-    await pwExpect(bench.getByText('◆ new best estimate')).toBeVisible();
+    await pwExpect(bench.getByText('new best estimate')).toBeVisible();
+    await pwExpect(bench.getByText('new best estimate').locator('svg.icon')).toHaveCount(1);
     await pwExpect(bench.getByText('Open full lift page: ask Claude to show your Barbell Bench Press progress.')).toBeVisible(); // a hint, not a button
     await pwExpect(bench.getByRole('button')).toHaveCount(0);
     const rows = bench.locator('table.sessions tbody tr');
     await pwExpect(rows).toHaveCount(5);
     await pwExpect(rows.first()).toContainText('3 × 80 kg'); // the newest session first
-    await pwExpect(rows.first()).toContainText('◆ best');
+    await pwExpect(rows.first()).toContainText('best'); // a diamond, and the word for assistive technology
+    await pwExpect(rows.first().locator('svg.icon')).toHaveCount(1);
     await pwExpect(bench.locator('table.sessions caption')).toHaveText('Last 5 sessions');
     await pwExpect(card.getByText('Epley estimate from sets of 12 reps or fewer', { exact: false })).toBeAttached();
     await bench.locator('summary').click(); // closes again

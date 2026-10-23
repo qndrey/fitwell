@@ -21,6 +21,13 @@ header.head { display: grid; gap: var(--s1); }
 .cfill { position: absolute; inset: 0 auto 0 0; width: calc(var(--fill, 0) * 1%); background: var(--text); border-radius: 2px; }
 .cmark { position: absolute; top: -3px; bottom: -3px; width: 8px; left: calc((100% - 8px) * var(--pos, 0) / 100); background: var(--accent); border-radius: 2px; }
 
+/* icon tabs: when every card has an icon the strip is a row of them, sharing the width; the chosen one is ink with a bar under it */
+.strip.icons { height: auto; align-items: stretch; gap: 0; }
+.strip.icons > .tab { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); }
+.strip.icons > .tab[aria-current='true'] { color: var(--text); border-bottom-color: var(--text); }
+.strip.icons > .tab:focus-visible { outline-offset: -2px; }
+.strip .icon { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
 /* label row: the current card's name and a sub line on the left, a control on the right */
 .labelrow { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 44px; }
 .lname { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s2); }

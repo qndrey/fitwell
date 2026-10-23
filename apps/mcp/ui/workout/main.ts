@@ -5,6 +5,7 @@ import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPre
 import { h, type Child } from '../shared/dom';
 import { createCardPager, type CardPager, type StripState } from '../shared/cardPager';
 import { renderGuide } from '../shared/guide';
+import { icon, type IconName } from '../shared/icons';
 import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
 
 interface FinishSummary {
@@ -2122,11 +2123,36 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
   const warmupsShown = !folded || state.warmupsOpen.has(ex.uid);
   const shown = [...(warmupsShown ? warmups : []), ...ex.sets.filter((x) => !x.warmup)];
   const rows = [...(folded ? [warmupsRow(ex, warmups)] : []), ...shown.flatMap((set) => (set === first && zone ? [h('li', { className: 'zonerow' }, zone)] : setRow(i, ex, set, readOnly)))];
+  // Note, Swap and How to do it: icon buttons on the title row. Each opens its panel below the sets, and says so with aria-expanded.
+  const tool = (glyph: IconName, label: string, key: string, expanded: boolean, onclick: () => void) =>
+    h('button', { type: 'button', className: 'tool', 'aria-expanded': String(expanded), 'aria-label': label, title: label, 'data-key': key, onclick }, icon(glyph));
+  const tools =
+    !readOnly &&
+    h(
+      'div',
+      { className: 'tools' },
+      tool('pencil', ex.notes ? 'Edit note' : 'Note', 'note', state.noteEditing === ex.uid, () => {
+        state.noteEditing = state.noteEditing === ex.uid ? '' : ex.uid;
+        state.noteSaved = '';
+        render();
+        // Still inside the tap, so iOS opens the keyboard.
+        root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus({ preventScroll: true });
+        reveal('.notes');
+      }),
+      canSwap &&
+        tool('swap', 'Swap', 'swap', current && state.swapOpen, () => {
+          state.swapOpen = !state.swapOpen;
+          if (state.swapOpen && !state.swaps.has(ex.uid)) void loadSwaps(ex);
+          render();
+          if (state.swapOpen) reveal('.swapbox');
+        }),
+      tool('book-open', 'How to do it', 'guide', current && state.guideOpen, () => toggleGuide(ex)),
+    );
   return [
     h(
       'div',
       { className: 'body exercise' },
-      h('h1', { tabIndex: -1 }, ex.name),
+      h('div', { className: 'titlerow' }, h('h1', { tabIndex: -1 }, ex.name), tools),
       ex.supersetId && h('p', { className: 'small ss' }, supersetLabel(ex)),
       h('p', { className: 'muted small' }, [equipmentName(ex.equipment), ex.lastTime ? formatLastTime(ex.lastTime) : ''].filter(Boolean).join(' · ')),
       h('ol', { className: 'sets', 'aria-label': 'Sets' }, ...rows, !first && zone && h('li', { className: 'zonerow' }, zone)),
@@ -2148,57 +2174,6 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
               onclick: () => void swap(ex, swappedFrom),
             },
             'Undo',
-          ),
-        ),
-      !readOnly &&
-        h(
-          'div',
-          { className: 'more' },
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'link',
-              'aria-expanded': String(state.noteEditing === ex.uid),
-              'data-key': 'note',
-              onclick: () => {
-                state.noteEditing = state.noteEditing === ex.uid ? '' : ex.uid;
-                state.noteSaved = '';
-                render();
-                // Still inside the tap, so iOS opens the keyboard.
-                root.querySelector<HTMLTextAreaElement>('.notes textarea')?.focus({ preventScroll: true });
-                reveal('.notes');
-              },
-            },
-            ex.notes ? 'Edit note' : 'Note',
-          ),
-          canSwap &&
-            h(
-              'button',
-              {
-                type: 'button',
-                className: 'link',
-                'aria-expanded': String(current && state.swapOpen),
-                'data-key': 'swap',
-                onclick: () => {
-                  state.swapOpen = !state.swapOpen;
-                  if (state.swapOpen && !state.swaps.has(ex.uid)) void loadSwaps(ex);
-                  render();
-                  if (state.swapOpen) reveal('.swapbox');
-                },
-              },
-              'Swap',
-            ),
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'link',
-              'aria-expanded': String(current && state.guideOpen),
-              'data-key': 'guide',
-              onclick: () => toggleGuide(ex),
-            },
-            'How to do it',
           ),
         ),
       current && !readOnly && notesPanel(ex),
@@ -2348,7 +2323,7 @@ function render() {
   ui.pager.refreshCards();
   const shown = ui.cards[state.pos];
   if (shown) {
-    shown.style.scrollPaddingTop = `${shown.querySelector<HTMLElement>('.exercise > h1')?.offsetHeight ?? 0}px`;
+    shown.style.scrollPaddingTop = `${shown.querySelector<HTMLElement>('.exercise > .titlerow')?.offsetHeight ?? 0}px`;
   }
   // The cards were redrawn: put the focus back on the same control, so a keyboard or switch user keeps their place.
   if (focusKey) {

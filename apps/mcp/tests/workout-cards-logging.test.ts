@@ -867,12 +867,12 @@ describe('Specs: the weight-steps hint shows once per session (A6)', () => {
 describe('Specs: Rest, one clock, the next plates and the "Rest over" state (A7)', () => {
   const short = () => plan([ex('Squat', [set('1', { weightKg: 82.5 }), set('2', { weightKg: 85 }), set('3', { weightKg: 85 })], { restSec: 5 }), bench()]);
 
-  it('the zone holds the only clock of the rest (64 px); the dock keeps the progress line and the three buttons but no time', async () => {
+  it('the zone holds the only clock of the rest (56 px); the dock keeps the progress line and the three buttons but no time', async () => {
     const { card } = await onStep(plan([squat3(), bench()]), 0);
     await logBtn(card).click();
     await pwExpect(timerOf(card)).toHaveCount(1);
     await pwExpect(zoneOf(card).getByRole('timer')).toBeVisible();
-    expect(await timerOf(card).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).fontSize)).toBe('64px');
+    expect(await timerOf(card).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).fontSize)).toBe('56px');
     await pwExpect(card.locator('.dock [data-clock]')).toHaveCount(0);
     await pwExpect(card.locator('.dock [data-restbar]')).toHaveCount(1);
     for (const name of [MINUS_15, '+15 s', 'Skip rest']) await pwExpect(card.locator('.dock').getByRole('button', { name, exact: true })).toBeVisible();

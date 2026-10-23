@@ -13,7 +13,7 @@ A remote MCP server on Cloudflare Workers that lets Claude log food, plan meals,
 | Body and progress | `log_body` (weight, measurements, sleep, steps, water), `get_progress` (with the burn measured from logs and weigh-ins, and the goal date), `show_dashboard` (opens the dashboard), `show_lift_progress` (one lift: estimated 1RM line with new bests, rep records at 1, 3, 5 and 8, last 10 sessions), `show_weekly_review` (the week against the one before, with a calorie check-in; `period: month` for the last 4 weeks against the 4 before; optional `training_note`, `training_next`, `nutrition_note`, `nutrition_next` are saved per period and shown as the Training notes and Nutrition notes cards, else an automatic summary) |
 | Meals | `get_planning_context`, `save_recipe`, `import_recipe` (from a web page), `get_recipes`, `suggest_meals` (what can I cook), `save_meal_plan` (checked against goals, allergies, dislikes), `get_meal_plan`, `show_grocery_list` (tick-off checklist), `log_planned_meal` |
 | Anything | `delete_item` (food entry, workout, template, recipe, meal plan, weigh-in, measurements, daily metrics) |
-| Owner only | `manage_invites` (list, add, remove unused invitations), for emails in `ADMIN_EMAILS` |
+| Owner only | `manage_invites` (list, add, remove unused invitations), for emails in `ADMIN_EMAILS`. With the optional secrets `CF_ACCOUNT_ID` and `CF_API_TOKEN` (token: Account > Email Routing Addresses > Edit; `wrangler secret put`), `add` also registers the Email Routing destination, and the invitee only has to click Cloudflare's verification link |
 | Import | `import_fitwell_backup` (one-time upload link for a backup file from the retired Fitwell web app; `check_result` reports the outcome) |
 | Account | `export_my_data`, `delete_my_account` (erases everything, signs out everywhere) |
 
@@ -66,7 +66,7 @@ npm run dev:host -w @fitwell/mcp
 |---|---|
 | `npm run check -w @fitwell/mcp` | typecheck + lint + tests (a real MCP client against the Worker's fetch handler, Open Food Facts stubbed) |
 | `npm run build:ui -w @fitwell/mcp` | Bundle each view in `ui/<name>` into one HTML string (`src/ui/generated`, git-ignored); runs automatically before dev, deploy, typecheck and tests |
-| `npm run invite -w @fitwell/mcp -- <email> [--remote]` | Add someone to the invite list (local or deployed database). On the free plan they must also be a verified destination address in Email Routing |
+| `npm run invite -w @fitwell/mcp -- <email> [--remote]` | Add someone to the invite list (local or deployed database). On the free plan they must also be a verified destination address in Email Routing; with `--remote` and `CF_ACCOUNT_ID` + `CF_API_TOKEN` set, the destination is added too (Cloudflare then emails them a link to click) |
 | `npm run seed:review -w @fitwell/mcp -- [--apply local\|remote]` | Fill the directory reviewers' demo account (`review@fitwell.fyi`) with 12 weeks of history; it signs in with the `REVIEW_LOGIN` secret. See [REVIEW.md](REVIEW.md) |
 | `npm run types -w @fitwell/mcp` | Regenerate `worker-configuration.d.ts` after changing `wrangler.jsonc` |
 

@@ -10,6 +10,7 @@ import { SERVER_INSTRUCTIONS, withRoles } from './instructions';
 import { registerAccountTools } from './tools/account';
 import { registerCookTools } from './tools/cook';
 import { registerDeleteTool } from './tools/deleteItem';
+import type { DestinationRegistrar } from './auth/destinations';
 import { registerInviteTools } from './tools/invites';
 import { registerReviewTools } from './tools/review';
 import { registerShoppingTools } from './tools/shopping';
@@ -38,6 +39,8 @@ export interface ServerDeps {
   fetch?: typeof fetch;
   /** The owner of this server also gets manage_invites. */
   isAdmin?: boolean;
+  /** Adds an invitee to Cloudflare Email Routing destinations; without it the owner does that by hand. */
+  registerDestination?: DestinationRegistrar;
 }
 
 /** A fresh server per request (stateless serving); module-level caches keep the datasets warm between requests. */
@@ -71,6 +74,6 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   await registerLiftTools(server, { data, workouts });
   registerReviewTools(server, { data, workouts, body, plans, notes: reviewNotes });
   registerDeleteTool(server, { data, workouts, body, plans });
-  if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email });
+  if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email, registerDestination: deps.registerDestination });
   return mcp;
 }

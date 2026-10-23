@@ -318,6 +318,15 @@ describe('invitations from Claude', () => {
     expect((await (await admin()).listTools()).tools.some((t) => t.name === 'manage_invites')).toBe(true);
   });
 
+  it('registers the Email Routing destination when Cloudflare is configured', async () => {
+    const seen: string[] = [];
+    const c = await connectAs(env, ana, undefined, { isAdmin: true, registerDestination: async (e) => (seen.push(e), { status: 'verification_sent' }) });
+    const added = await call(c, 'manage_invites', { action: 'add', email: 'cf.friend@example.com' });
+    expect(seen).toEqual(['cf.friend@example.com']);
+    expect(added.data).toMatchObject({ invited: true, destination: 'verification_sent' });
+    expect(String(added.data.next)).toContain('verification link');
+  });
+
   it('adds, lists and removes unused invitations, and will not remove someone who signed in', async () => {
     const c = await admin();
     const added = await call(c, 'manage_invites', { action: 'add', email: ' New.Friend@Example.com ' });

@@ -1,0 +1,54 @@
+/* The card pager (shared/cardPager.ts): header, strip, track, cards and the dock. */
+header.head { display: grid; gap: var(--s1); }
+.titlebar { display: flex; align-items: center; gap: var(--s2); min-height: 44px; }
+.navbtn { flex: none; width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; font-size: 28px; line-height: 1; }
+.navbtn[aria-disabled='true'] { opacity: 0.3; cursor: default; }
+.titlebar strong { flex: 1 1 auto; min-width: 0; font-size: var(--fs-body); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.counter { flex: none; font-size: var(--fs-small); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.strip { display: flex; align-items: center; gap: 2px; width: 100%; height: var(--h-strip); min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+/* with one button per card each is a full-height tap target around its thin segment */
+.sgb { flex: 1 1 0; min-width: 0; height: var(--h-strip); min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; display: flex; align-items: center; }
+.sgb:focus-visible { outline-offset: -2px; }
+.sg { flex: 1 1 0; min-width: 0; height: 4px; border: 0; border-radius: 2px; background: var(--seg-off); }
+.sg.full { background: var(--text); }
+.sg.half { background: linear-gradient(90deg, var(--text) 50%, var(--seg-off) 50%); }
+.sg.current { height: 8px; }
+.sg.current:not(.full):not(.half) { background: var(--muted); }
+.sg.current.half { background: linear-gradient(90deg, var(--text) 50%, var(--muted) 50%); }
+.sg.plain.current:not(.full):not(.half) { background: var(--text); }
+.cbar { position: relative; flex: 1 1 auto; min-width: 0; height: 4px; border: 0; border-radius: 2px; background: var(--seg-off); }
+.cfill { position: absolute; inset: 0 auto 0 0; width: calc(var(--fill, 0) * 1%); background: var(--text); border-radius: 2px; }
+.cmark { position: absolute; top: -3px; bottom: -3px; width: 8px; left: calc((100% - 8px) * var(--pos, 0) / 100); background: var(--accent); border-radius: 2px; }
+
+/* label row: the current card's name and a sub line on the left, a control on the right */
+.labelrow { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 44px; }
+.lname { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--s2); }
+.lname strong { font-size: var(--fs-body); font-weight: 600; }
+.lname span { font-size: var(--fs-small); }
+.lright { flex: none; display: flex; align-items: center; }
+
+/* track and cards: a card is only the scroll area, there is no box around the content */
+.track { display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; min-width: 0; }
+.track::-webkit-scrollbar { display: none; }
+/* A card is as tall as its content and never scrolls by itself: a vertical scroller inside the horizontal pager traps the touch on iOS, so the chat scrolls the player. The track is given the height of the card in view (see fitTrack). */
+.slide { position: relative; display: flex; flex-direction: column; flex: 0 0 100%; min-width: 0; scroll-snap-align: center; scroll-snap-stop: always; }
+.pcard { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
+.pcard :focus-visible { outline-offset: -2px; }
+.pcard h1:focus, .pcard h2:focus { outline: none; }
+.pcard h1:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Fixed height: every card is as tall as the track and scrolls inside. */
+.track[data-fixed] { align-items: stretch; height: var(--track-h); }
+.track[data-fixed] .slide { height: 100%; }
+.track[data-fixed] .pcard { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior-y: auto; touch-action: pan-x pan-y; scrollbar-width: none; }
+.track[data-fixed] .pcard::-webkit-scrollbar { display: none; }
+.track[data-fixed] .pcard[data-scrolled] { box-shadow: inset 0 1px 0 var(--border); }
+/* a fade over the last 16 px above the dock while more remains below (a mask, so it takes no room in the card) */
+.track[data-fixed] .pcard[data-more] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--dock-h, 0px) - 16px), transparent calc(100% - var(--dock-h, 0px)), #000 calc(100% - var(--dock-h, 0px))); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--dock-h, 0px) - 16px), transparent calc(100% - var(--dock-h, 0px)), #000 calc(100% - var(--dock-h, 0px))); }
+@media (prefers-reduced-motion: reduce) { .track, .pcard { transition: none; } }
+
+/* The dock: the card's main action(s), pinned to the bottom of every card. It sits at the bottom when the content is short and stays in view when the card scrolls. */
+.dock { position: sticky; bottom: 0; z-index: 1; flex: none; margin-top: auto; display: grid; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--border); background: var(--bg); }
+.dock.split { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.dock > button { width: 100%; }
+.dock.stack button { white-space: nowrap; }

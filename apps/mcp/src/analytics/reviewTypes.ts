@@ -6,6 +6,23 @@ import type { EnergyProgress } from './types';
 /** A week, or a month: the last four weeks, week-aligned. The review type keeps its name; `period` says which it is. */
 export type ReviewPeriod = 'week' | 'month';
 
+/** One written note of the review: Claude's (saved) or the server's automatic summary. */
+export interface ReviewNote {
+  text: string;
+  /** One option for what comes next; null when there is none. */
+  next: string | null;
+  /** `claude` only for text that arrived as tool arguments (now or saved earlier). */
+  source: 'claude' | 'auto';
+  /** The numbers were too thin to say much (fewer than 3 logged days, no workout). */
+  lowData: boolean;
+}
+
+/** The notes Claude saved for a period; a pair is null where it wrote none. */
+export interface SavedNotes {
+  training: { note: string; next: string | null } | null;
+  nutrition: { note: string; next: string | null } | null;
+}
+
 export interface WeekReview {
   period: ReviewPeriod;
   /** First day: a Monday; for a month, three weeks before its last week. */
@@ -57,6 +74,8 @@ export interface WeekReview {
   energy: EnergyProgress;
   /** Meals in the week's plan and how many were logged from it; null without a plan. */
   plan: { meals: number; logged: number } | null;
+  /** Training notes and Nutrition notes: Claude's saved text where there is one, else an automatic summary of the numbers above. */
+  notes: { training: ReviewNote; nutrition: ReviewNote };
   highlights: string[];
   /** Things to consider next week, in neutral language. Claude explains and the person decides. */
   suggestions: string[];

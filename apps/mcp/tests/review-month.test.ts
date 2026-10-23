@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { WeekReview } from '../src/analytics/reviewTypes';
 import viewHtml from '../src/ui/generated/review';
 import { monthTitle } from '../ui/review/copy';
+import { showCard } from './support/cards';
 import { createTestEnv } from './support/env';
 import { call, connectAs, signedInUser } from './support/mcp';
 import { closeAll, launch, openView } from './support/viewHost';
@@ -72,19 +73,22 @@ describe('review view, month', () => {
     const weekReview = await review({ week_start: LAST_WEEK });
     const v = await openView(viewHtml, { content: [{ type: 'text', text: 'ok' }], structuredContent: { review: weekReview } }, { tools: (n, a) => (n === 'get_review_data' ? { content: [{ type: 'text', text: 'ok' }], structuredContent: { review: a.period === 'month' ? baseReview : weekReview } } : undefined) });
     const f = v.frame;
+    const here = f.locator('section.pcard:not([inert])'); // the card in view: the others hold a dock too
     await pwExpect(f.getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-pressed', 'true');
     for (const b of await f.getByRole('group', { name: 'Period' }).getByRole('button').all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await f.getByRole('button', { name: 'Month', exact: true }).click();
-    await pwExpect(f.locator('h1')).toHaveText('Monthly review');
+    await pwExpect(f.locator('.titlebar strong')).toHaveText('Monthly review');
     await expect.poll(() => v.calls.at(-1)).toEqual({ name: 'get_review_data', args: { week_start: LAST_WEEK, period: 'month' } });
     await pwExpect(f.getByRole('button', { name: 'Month', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await pwExpect(f.locator('section[aria-label="The 4 weeks"] table.sr-only tbody tr')).toHaveCount(28);
-    await pwExpect(f.getByText('vs the 4 weeks before').first()).toBeVisible();
+    await pwExpect(f.locator('section.pcard[data-key="week"] table.sr-only tbody tr')).toHaveCount(28);
+    await pwExpect(f.locator('.labelrow strong')).toHaveText('The 4 weeks');
+    await showCard(v, 'food', 'Food');
+    await pwExpect(f.locator('.labelrow')).toContainText('vs the 4 weeks before');
     await pwExpect(f.getByText(/vs last week/)).toHaveCount(0);
-    await pwExpect(f.getByRole('button', { name: 'Previous month' })).toBeEnabled();
-    await f.getByRole('button', { name: 'Previous month' }).click();
+    await pwExpect(here.getByRole('button', { name: 'Previous month' })).toBeEnabled();
+    await here.getByRole('button', { name: 'Previous month' }).click();
     await expect.poll(() => v.calls.at(-1)).toEqual({ name: 'get_review_data', args: { week_start: '2026-09-14', period: 'month' } }); // 28 days earlier
-    await f.getByRole('button', { name: 'This month' }).click();
+    await here.getByRole('button', { name: 'This month' }).click();
     await expect.poll(() => v.calls.at(-1)?.args.period).toBe('month');
     await f.getByRole('button', { name: 'Week', exact: true }).click();
     await expect.poll(() => v.calls.at(-1)?.args.period).toBe('week');

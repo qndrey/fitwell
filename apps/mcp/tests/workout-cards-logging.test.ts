@@ -740,7 +740,7 @@ describe('Swipe effect while the track is dragged', () => {
     await v.frame.getByRole('button', { name: /^Pullups,/ }).click();
     const seen = await trackOf(v).evaluate((el) => {
       const t = el as unknown as { scrollLeft: number; clientWidth: number; ownerDocument: { querySelectorAll(s: string): Iterable<{ className: string }> } };
-      const segs = Array.from(t.ownerDocument.querySelectorAll('.seg'));
+      const segs = Array.from(t.ownerDocument.querySelectorAll('.sg'));
       return { left: t.scrollLeft / t.clientWidth, current: segs.findIndex((x) => x.className.includes('current')) };
     });
     expect(seen.current).toBe(3);

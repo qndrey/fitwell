@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Progress } from '../src/analytics/types';
 import viewHtml from '../src/ui/generated/dashboard';
 import { createTestEnv } from './support/env';
+import { showCard } from './support/cards';
 import { call, connectAs, signedInUser } from './support/mcp';
 import { closeAll, launch, openView } from './support/viewHost';
 
@@ -48,12 +49,10 @@ describe('strength card', () => {
     for (const [i, id] of ids.entries()) await logLift(`ex:${id}`, [[-3 - i, 5, 50]]);
     const p = await progress();
     const v = await open(p);
-    await v.frame.locator('[aria-label="Strength"]').first().waitFor();
-    await v.frame.getByRole('button', { name: 'Strength' }).click();
-    const card = v.frame.locator('section[aria-label="Strength"]');
+    const card = await showCard(v, 'strength', 'Strength');
     const lifts = card.locator('details.lift');
-    await pwExpect(lifts).toHaveCount(6);
-    await pwExpect(card.getByRole('button', { name: `Show all lifts (${p.records.exercises.length})` })).toBeVisible();
+    await pwExpect(lifts).toHaveCount(p.records.exercises.length); // every lift is a row; the card scrolls
+    await pwExpect(card.getByRole('button')).toHaveCount(0);
 
     const bench = lifts.filter({ hasText: 'Barbell Bench Press' }).first();
     await pwExpect(bench.locator('.name')).toHaveText('Barbell Bench Press'); // short name in the row
@@ -68,10 +67,9 @@ describe('strength card', () => {
     await pwExpect(rows.first()).toContainText('3 × 80 kg'); // the newest session first
     await pwExpect(rows.first()).toContainText('◆ best');
     await pwExpect(bench.locator('table.sessions caption')).toHaveText('Last 5 sessions');
-    await pwExpect(card.getByText('Epley estimate from sets of 12 reps or fewer.')).toBeVisible();
-
-    await card.getByRole('button', { name: /^Show all lifts/ }).click();
-    await pwExpect(card.locator('details.lift')).toHaveCount(p.records.exercises.length);
+    await pwExpect(card.getByText('Epley estimate from sets of 12 reps or fewer', { exact: false })).toBeAttached();
+    await bench.locator('summary').click(); // closes again
+    await pwExpect(bench.locator('table.sessions')).toBeHidden();
   }, 60_000);
 });
 
@@ -80,22 +78,22 @@ describe('sleep goal in the habits card', () => {
     for (const [d, h] of [[-4, 6.5], [-3, 7], [-2, 8], [-1, 7.5]] as const) await call(client, 'log_body', { day: addD(today, d), sleep_hours: h });
     if (goal !== null) await call(client, 'set_goals', { sleep_h: goal });
     const v = await open(await progress(30));
-    await v.frame.getByRole('button', { name: 'Habits' }).click();
-    return v.frame.locator('section[aria-label="Sleep, steps and water"]');
+    return showCard(v, 'habits', 'Sleep, steps, water');
   }
 
   it('draws the line, the legend entry and the text when there is a goal', async () => {
     const card = await habits(7.5);
-    await pwExpect(card.getByText('sleep goal 7.5 h')).toBeVisible();
-    await pwExpect(card.getByText('Your sleep goal is 7.5 h a night.')).toBeVisible();
+    await pwExpect(card.getByText('average on 4 logged nights, goal 7.5 h')).toBeVisible();
+    await pwExpect(card.getByText('hours slept · dashed: sleep goal 7.5 h')).toBeVisible();
     await pwExpect(card.locator('svg line.goal')).toHaveCount(1);
   }, 30_000);
 
   it('draws no line and makes no claim without a goal', async () => {
     const card = await habits(null);
-    await pwExpect(card.getByText('hours slept')).toBeVisible();
+    await pwExpect(card.getByText('hours slept', { exact: true })).toBeVisible();
+    await pwExpect(card.getByText('average on 4 logged nights', { exact: true })).toBeVisible();
     await pwExpect(card.locator('svg line.goal')).toHaveCount(0);
-    await pwExpect(card.getByText(/sleep goal/i)).toHaveCount(0);
+    await pwExpect(card.getByText(/goal/i)).toHaveCount(0);
     await pwExpect(card.getByText(/\b8 h\b/)).toHaveCount(0);
   }, 30_000);
 });
@@ -105,8 +103,7 @@ describe('muscle rows', () => {
     const sets = (n: number) => Array.from({ length: n }, () => ({ reps: 8, weight_kg: 40 }));
     for (const off of [-2, -3, -4]) expect((await call(client, 'log_past_workout', { day: addD(today, off), exercises: [{ id: BENCH, sets: sets(8) }, ...(off === -2 ? [{ id: 'ex:Barbell_Squat', sets: sets(4) }] : [])] })).isError).toBe(false);
     const v = await open(await progress(30));
-    await v.frame.getByRole('button', { name: 'Training' }).click();
-    const card = v.frame.locator('section[aria-label="Training"]');
+    const card = await showCard(v, 'volume', 'Volume');
     await pwExpect(card.getByText('Hard sets a week, by muscle')).toBeVisible();
     await pwExpect(card.getByText('Working sets')).toHaveCount(0);
     await pwExpect(card.locator('.row', { hasText: 'chest' })).toContainText('over 20');

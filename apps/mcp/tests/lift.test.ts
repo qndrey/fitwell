@@ -82,7 +82,7 @@ describe('lift view', () => {
     const year = l.sessions.filter((s) => s.day >= addD(today, -364));
     expect(await page.locator('polygon.pr').count()).toBe(year.filter((s) => s.isBest).length);
     await pwExpect(page.getByText('◆ new best estimate')).toBeVisible();
-    await pwExpect(page.locator('section[aria-label="Estimated 1RM"] table.sr-only tbody tr')).toHaveCount(year.length);
+    await pwExpect(page.locator('section[aria-label="Estimated 1RM"] .sr-only table tbody tr')).toHaveCount(year.length);
     await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr')).toHaveCount(10);
     await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr').first()).toContainText('5 × 85 kg');
     await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr').first()).toContainText('◆ best');
@@ -92,9 +92,9 @@ describe('lift view', () => {
 
     await page.getByRole('button', { name: '90 days' }).click();
     const d90 = l.sessions.filter((s) => s.day >= addD(today, -89));
-    await pwExpect(page.locator('section[aria-label="Estimated 1RM"] table.sr-only tbody tr')).toHaveCount(d90.length);
+    await pwExpect(page.locator('section[aria-label="Estimated 1RM"] .sr-only table tbody tr')).toHaveCount(d90.length);
     await page.getByRole('button', { name: 'All' }).click();
-    await pwExpect(page.locator('section[aria-label="Estimated 1RM"] table.sr-only tbody tr')).toHaveCount(l.sessions.length);
+    await pwExpect(page.locator('section[aria-label="Estimated 1RM"] .sr-only table tbody tr')).toHaveCount(l.sessions.length);
   }, 60_000);
 
   it('says so when there are no sessions, and draws no chart for a single one', async () => {

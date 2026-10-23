@@ -63,9 +63,17 @@ describe('training volume in the dashboard', () => {
     const chart = card.locator('.chartbox').filter({ hasText: 'Upper body (sets)' });
     await pwExpect(chart.locator('svg line.goal')).toHaveCount(2);
     await pwExpect(chart.locator('svg rect[fill^="url(#hatch"]').first()).toBeAttached();
-    await pwExpect(chart.locator('table.sr-only th')).toHaveText(['Week', 'Upper body (sets)', 'Lower body (sets)', 'Core (sets)']);
+    await pwExpect(chart.locator('.sr-only table th')).toHaveText(['Week', 'Upper body (sets)', 'Lower body (sets)', 'Core (sets)']);
     for (const w of ['upper body', 'lower body', 'core']) await pwExpect(card.locator('.legend', { hasText: w })).toBeVisible();
     await pwExpect(card.getByText(/dashed lines: 10 and 20 sets a week/)).toBeVisible();
+  }, 60_000);
+
+  it('has no card wider than itself, so a sideways swipe moves the pager instead of scrolling a card (iOS)', async () => {
+    await seed();
+    const v = await open(await progress());
+    await pwExpect(v.frame.locator('section.pcard .sr-only table').first()).toBeAttached();
+    const wide = await v.frame.locator('section.pcard').evaluateAll((els) => els.map((e) => e.scrollWidth - e.clientWidth).filter((d) => d > 0));
+    expect(wide).toEqual([]);
   }, 60_000);
 
   it('switches to tonnage per week and back', async () => {
@@ -75,7 +83,7 @@ describe('training volume in the dashboard', () => {
     const card = await showCard(v, 'volume', 'Volume');
     await card.getByRole('button', { name: 'Volume' }).click();
     await pwExpect(card.getByRole('button', { name: 'Volume' })).toHaveAttribute('aria-pressed', 'true');
-    const table = card.locator('table.sr-only').filter({ hasText: 'Volume (kg)' });
+    const table = card.locator('.sr-only table').filter({ hasText: 'Volume (kg)' });
     await pwExpect(table).toBeAttached();
     expect(await table.locator('tbody tr').count()).toBe(p.training.weeks.length);
     await pwExpect(table.locator('tbody tr td:nth-child(2)').filter({ hasText: '1,000' }).first()).toBeAttached();

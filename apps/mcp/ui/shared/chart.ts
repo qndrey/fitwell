@@ -22,9 +22,13 @@ function axisLabels(el: SVGElement, from: string, to: string, height: number) {
   el.append(s('text', { x: M.l, y: height - 5 }, fmtDay(from, y)), s('text', { x: W - M.r, y: height - 5, 'text-anchor': 'end' }, fmtDay(to, y)));
 }
 
-/** The chart's data as a table that only a screen reader sees. */
+/**
+ * The chart's data as a table that only a screen reader sees. The table sits in a hidden box rather than carrying `sr-only` itself:
+ * a table ignores `width: 1px` and `overflow: hidden`, grows to its content and widens the card, which then scrolls sideways on iOS
+ * and takes the swipe meant for the pager.
+ */
 export function dataTable(caption: string, headers: string[], rows: (string | number)[][]) {
-  return h('table', { className: 'sr-only' }, h('caption', {}, caption), h('thead', {}, h('tr', {}, ...headers.map((x) => h('th', { scope: 'col' }, x)))), h('tbody', {}, ...rows.map((r) => h('tr', {}, ...r.map((c) => h('td', {}, String(c)))))));
+  return h('div', { className: 'sr-only' }, h('table', {}, h('caption', {}, caption), h('thead', {}, h('tr', {}, ...headers.map((x) => h('th', { scope: 'col' }, x)))), h('tbody', {}, ...rows.map((r) => h('tr', {}, ...r.map((c) => h('td', {}, String(c))))))));
 }
 
 const frame = (height: number, label: string) => s('svg', { class: 'chart', viewBox: `0 0 ${W} ${height}`, role: 'img', 'aria-label': label });

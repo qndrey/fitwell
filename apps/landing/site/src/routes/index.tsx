@@ -574,8 +574,7 @@ const troubles: { q: string; a: string | string[] }[] = [
   {
     q: "I didn't get a sign-in email",
     a: [
-      "Only invited addresses get one. If you haven't been invited yet, ask at fitwell.fyi@pm.me.",
-      "When you're invited, Cloudflare (which sends Fitwell's sign-in emails) sends you one email to confirm your address. Confirm it first, or the codes can't reach you.",
+      "Only invited addresses get one. If you haven't been invited yet, ask for an invite at mcp.fitwell.fyi/request-access.",
       "The code comes from login@fitwell.fyi, so check your spam folder too. It lasts 10 minutes; after that, start signing in again from Claude.",
     ],
   },
@@ -868,14 +867,15 @@ function Index() {
             </div>
             <ol className="space-y-8">
               <Step n={1} title="Ask for an invite">
-                <p>Email us from the address you want to sign in with.</p>
-                <CopyBox value={EMAIL} label="email address" />
+                <p>Leave the email address you want to sign in with. We look at each request, and once yours is approved we email you how to connect.</p>
                 <a
-                  href="mailto:fitwell.fyi@pm.me?subject=Fitwell%20invite&body=Hi%2C%20please%20invite%20this%20address.%0A%0AI%20use%20Claude%20on%3A%20desktop%20%2F%20web%20%2F%20iPhone"
+                  href="https://mcp.fitwell.fyi/request-access"
                   className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 font-semibold text-primary-foreground hover:opacity-90"
                 >
-                  <Mail className="size-4" aria-hidden /> Open in your email app
+                  <Mail className="size-4" aria-hidden /> Ask for an invite
                 </a>
+                <p className="mt-4 text-sm">Prefer email? Write to us from that address:</p>
+                <CopyBox value={EMAIL} label="email address" />
               </Step>
               <Step n={2} id="connect" title="Add the connector in Claude">
                 <p>

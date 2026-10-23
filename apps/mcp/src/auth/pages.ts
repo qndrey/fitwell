@@ -16,7 +16,9 @@ button{font:inherit;min-height:48px;border-radius:12px;border:1px solid var(--bo
 button:disabled{opacity:.5;cursor:not-allowed}
 button.primary{background:var(--btn);border-color:var(--btn);color:var(--on-btn);font-weight:600}
 .actions{display:grid;gap:8px}a{color:inherit}
-input[type=checkbox]{accent-color:var(--btn)}input:focus-visible,button:focus-visible{outline:3px solid var(--btn);outline-offset:2px}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+select{font:inherit;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--text);width:100%}
+input[type=checkbox]{accent-color:var(--btn)}input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--btn);outline-offset:2px}
 `;
 
 /** A page with a nonce-based CSP: no external resources, no framing, inline style/script only with the nonce. */
@@ -39,7 +41,7 @@ const PRIVACY_SUMMARY =
   'Fitwell stores the food, workout and body data you share with it, which is health data, to track it for you and show it back to you. ' +
   'It is kept in the EU, never sold or shared, and you can export or delete it at any time.';
 
-export function emailPage(d: ConsentDescription, handle: string, opts: { email?: string; error?: string; contact?: string } = {}): string {
+export function emailPage(d: ConsentDescription, handle: string, opts: { email?: string; error?: string } = {}): string {
   const who = d.clientDomain ? `${escape(d.clientName)} (${escape(d.clientDomain)})` : `${escape(d.clientName)} <span class="muted small">(name not verified)</span>`;
   return `
 <h1>Sign in to Fitwell</h1>
@@ -61,11 +63,11 @@ export function emailPage(d: ConsentDescription, handle: string, opts: { email?:
     <button name="step" value="deny" formnovalidate>Cancel</button>
   </div>
 </form>
-<p class="muted small">Fitwell is invite-only. No password: we email you a code.${opts.contact ? ` Not invited yet? Ask at <strong>${escape(opts.contact)}</strong>.` : ''}</p>`;
+<p class="muted small">Fitwell is invite-only. No password: we email you a code. Not invited yet? <a href="/request-access">Ask for an invite</a>.</p>`;
 }
 
 /** After the email step. Polls for the link being opened (in any browser) while the code can be typed here. */
-export function codePage(handle: string, loginId: string, email: string, error?: string, contact?: string): { body: string; script: string } {
+export function codePage(handle: string, loginId: string, email: string, error?: string): { body: string; script: string } {
   const body = `
 <h1>Check your email</h1>
 <p>If <strong>${escape(email)}</strong> is invited, a 6-digit code and a link are on their way. They expire in 10 minutes.</p>
@@ -78,7 +80,7 @@ export function codePage(handle: string, loginId: string, email: string, error?:
   <div class="actions"><button class="primary" name="step" value="code">Continue</button></div>
 </form>
 <p class="muted small" id="wait" aria-live="polite">Opened the link in this browser? This page continues by itself. On another device, type the code instead.</p>
-<p class="muted small">Wrong address or no email? Close this window and start signing in again from Claude.${contact ? ` Not invited yet? Ask at <strong>${escape(contact)}</strong>.` : ''}</p>`;
+<p class="muted small">Wrong address or no email? Close this window and start signing in again from Claude. Not invited yet? <a href="/request-access">Ask for an invite</a>.</p>`;
   const script = `
 const f=document.getElementById('code-form');
 const body=new URLSearchParams({step:'poll',handle:f.handle.value,login:f.login.value});
@@ -97,6 +99,28 @@ setTimeout(poll,3000);`;
   return { body, script };
 }
 
+/** The form for asking for an invitation (see requestAccess.ts). The hidden "website" field is for bots. */
+export function requestAccessPage(opts: { email?: string; platform?: string; error?: string; contact?: string } = {}): string {
+  const choice = (value: string, label: string) => `<option value="${value}"${opts.platform === value ? ' selected' : ''}>${label}</option>`;
+  return `
+<h1>Ask for an invite</h1>
+<p>Fitwell is invite-only. Leave your email and we will look at your request. If it is approved, we email you how to add Fitwell to Claude. We never email you before that.</p>
+<form method="post" class="card">
+  <label for="email">Your email</label>
+  <input id="email" type="email" name="email" autocomplete="email" required maxlength="254" value="${escape(opts.email ?? '')}" autofocus>
+  <label for="platform">I use Claude on <span class="muted small">(optional)</span></label>
+  <select id="platform" name="platform">${choice('', 'Not sure yet')}${choice('desktop', 'The desktop app')}${choice('web', 'The website (claude.ai)')}${choice('iphone', 'iPhone')}</select>
+  <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+  <div class="check"><input id="consent" type="checkbox" name="consent" value="yes" required>
+    <label for="consent" class="small">Keep my email address until you have answered (at most 30 days) so you can approve or decline it.</label>
+  </div>
+  <p class="small"><a href="/privacy" target="_blank" rel="noopener">Privacy notice</a></p>
+  ${opts.error ? `<p class="error small" role="alert">${escape(opts.error)}</p>` : ''}
+  <div class="actions"><button class="primary" type="submit">Ask for an invite</button></div>
+</form>
+${opts.contact ? `<p class="muted small">Prefer email? Write to <strong>${escape(opts.contact)}</strong>.</p>` : ''}`;
+}
+
 export function messageBody(title: string, text: string): string {
   return `<h1>${escape(title)}</h1><div class="card"><p>${escape(text)}</p></div>`;
 }
@@ -105,10 +129,10 @@ export function privacyBody(contact: string): string {
   return `
 <h1>Privacy notice</h1>
 <div class="card">
-  <p><strong>What:</strong> your email address, and what you choose to share through Claude: your profile (time zone, sex, birth year, height, weight, activity level, equipment, diet preferences and allergies) and goals; the foods you log and your own foods; recipes, meal plans and shopping-list ticks; workouts, workout templates and exercise notes; weigh-ins, body measurements, sleep, steps and water; the short written reviews of a week or month that Claude saves for you. This includes health data. For sign-in we also record the email address, IP address and time of each request for a code.</p>
-  <p><strong>Why:</strong> only to store it and show it back to you (tracking, plans, progress); the sign-in records are used only to limit repeated attempts. Legal basis: your explicit consent, given at sign-in.</p>
-  <p><strong>Where:</strong> Cloudflare (D1 database restricted to the EU). Sign-in emails are sent through Cloudflare, and sign-in sessions use Cloudflare's global storage, holding no health data. Food lookups send only search words or barcodes to Open Food Facts.</p>
-  <p><strong>How long:</strong> your data is kept until you delete it: one item at a time (delete_item), or everything with your account. Sign-in records are deleted after 30 days. Signing in to Claude stays valid while you use Fitwell and expires after 60 days without use. A link for importing a backup works for 30 minutes. Recent Open Food Facts results are cached for up to 7 days, without any link to you.</p>
+  <p><strong>What:</strong> your email address, and what you choose to share through Claude: your profile (time zone, sex, birth year, height, weight, activity level, equipment, diet preferences and allergies) and goals; the foods you log and your own foods; recipes, meal plans and shopping-list ticks; workouts, workout templates and exercise notes; weigh-ins, body measurements, sleep, steps and water; the short written reviews of a week or month that Claude saves for you. This includes health data. For sign-in we also record the email address, IP address and time of each request for a code. If you ask for an invite through the form, we keep your email address, the optional device you chose and your IP address.</p>
+  <p><strong>Why:</strong> only to store it and show it back to you (tracking, plans, progress); the sign-in records, and the IP address of an invite request, are used only to limit repeated attempts; an invite request is used only to decide on it and to email you the next steps if it is approved. Legal basis: your explicit consent, given at sign-in.</p>
+  <p><strong>Where:</strong> Cloudflare (D1 database restricted to the EU). Sign-in and invitation emails are sent through Resend (email delivery), which sees the recipient address and the message; sign-in sessions use Cloudflare's global storage, holding no health data. Food lookups send only search words or barcodes to Open Food Facts.</p>
+  <p><strong>How long:</strong> your data is kept until you delete it: one item at a time (delete_item), or everything with your account. Sign-in records are deleted after 30 days. An invite request is deleted when it is approved or declined, and at the latest after 30 days. Signing in to Claude stays valid while you use Fitwell and expires after 60 days without use. A link for importing a backup works for 30 minutes. Recent Open Food Facts results are cached for up to 7 days, without any link to you.</p>
   <p><strong>Not done:</strong> no ads, no analytics, no selling or sharing, no AI training by Fitwell.</p>
   <p><strong>Your rights:</strong> ask Claude to export your data (export_my_data) or delete your account (delete_my_account) at any time; deleting erases everything immediately and signs you out everywhere. You can also withdraw consent or ask questions by email.</p>
   <p><strong>Contact:</strong> ${escape(contact)}</p>

@@ -43,8 +43,6 @@ export interface LoginDeps {
   oauth: OAuthHelpers;
   mailer: Mailer;
   publicUrl: string;
-  /** Where people can ask for an invite; shown on the sign-in pages. */
-  contact?: string;
   /** The directory reviewers' demo account, which signs in with a fixed code instead of an email (see parseReviewLogin). */
   review?: ReviewLogin;
   now?: () => number;
@@ -107,7 +105,7 @@ async function start(request: Request, deps: LoginDeps): Promise<Response> {
   const authRequest = await deps.oauth.parseAuthRequest(request);
   const details = await deps.oauth.describeConsent(authRequest);
   const consent = await deps.oauth.beginConsent(authRequest);
-  return html('Sign in to Fitwell', emailPage(details, consent.handle, { contact: deps.contact }), 200, consent.headers);
+  return html('Sign in to Fitwell', emailPage(details, consent.handle), 200, consent.headers);
 }
 
 async function submit(request: Request, deps: LoginDeps): Promise<Response> {
@@ -171,7 +169,7 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
       console.error('sign-in email failed', e instanceof Error ? e.message : e);
     }
   }
-  const { body, script } = codePage(handle, id, email, undefined, deps.contact);
+  const { body, script } = codePage(handle, id, email);
   // Lax: sent when the emailed link is opened in this same browser (a top-level navigation from the mail app).
   const headers = new Headers({ 'Set-Cookie': `${BROWSER_COOKIE}=${browserSecret}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${TTL_MS / 1000}` });
   return page('Check your email', body, { script, headers });
@@ -215,7 +213,7 @@ async function checkCode(request: Request, deps: LoginDeps, handle: string, logi
   const ok = login.user_id !== null && /^\d{6}$/.test(code) && sameDigest(await sha256(`${login.id}:${code}`), login.code_hash);
   if (!ok) {
     const left = MAX_ATTEMPTS - counted.attempts;
-    const { body, script } = codePage(handle, login.id, login.email, left > 0 ? `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.` : 'Too many wrong codes. Start again from Claude.', deps.contact);
+    const { body, script } = codePage(handle, login.id, login.email, left > 0 ? `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.` : 'Too many wrong codes. Start again from Claude.');
     return page('Check your email', body, { script, status: 400 });
   }
   await deps.db.prepare('UPDATE login_requests SET verified_at = COALESCE(verified_at, ?) WHERE id = ?').bind(now, login.id).run();

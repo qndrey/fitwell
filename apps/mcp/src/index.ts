@@ -1,9 +1,9 @@
 import { OAuthProvider, type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
-import { cloudflareDestinations, type DestinationEnv } from './auth/destinations';
-import { cloudflareMailer } from './auth/mailer';
+import { mailerFor } from './auth/mailer';
 import { page, privacyBody } from './auth/pages';
+import { handleRequestAccess } from './auth/requestAccess';
 import { ICONS } from './icons';
 import { handleImport } from './import/routes';
 import { cachedOff } from './data/offCache';
@@ -17,8 +17,9 @@ interface Props {
   email: string;
 }
 // REVIEW_LOGIN is an optional secret (wrangler secret put REVIEW_LOGIN), so it is not in the generated Env.
-// CF_ACCOUNT_ID and CF_API_TOKEN (Email Routing Addresses: Edit) are optional secrets too: with them manage_invites adds the destination itself.
-type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string } & DestinationEnv;
+// RESEND_API_KEY is an optional secret too: with it sign-in and invitation emails go through Resend (to any address), else through Cloudflare.
+type OptionalSecrets = { RESEND_API_KEY?: string };
+type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string } & OptionalSecrets;
 
 const adminEmails = (env: Env) => (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
 
@@ -32,7 +33,7 @@ const DEV_EMAIL = 'dev@localhost';
 const DAY = 86_400;
 
 /** Serves MCP for one signed-in person (one fresh server per request). */
-async function serveMcp(request: Request, env: Env & DestinationEnv, user: Pick<User, 'id' | 'email'>, oauth?: OAuthHelpers): Promise<Response> {
+async function serveMcp(request: Request, env: Env & OptionalSecrets, user: Pick<User, 'id' | 'email'>, oauth?: OAuthHelpers): Promise<Response> {
   const handler = createMcpHandler(
     () =>
       createServer({
@@ -41,7 +42,8 @@ async function serveMcp(request: Request, env: Env & DestinationEnv, user: Pick<
         publicUrl: env.PUBLIC_URL,
         user,
         isAdmin: adminEmails(env).includes(user.email.toLowerCase()),
-        registerDestination: cloudflareDestinations(env),
+        mailer: mailerFor(env),
+        contact: env.CONTACT_EMAIL,
         deleteAccount: async () => {
           // Sign out everywhere first, then erase the data.
           if (oauth) for (const g of (await oauth.listUserGrants(user.id)).items) await oauth.revokeGrant(g.id, user.id);
@@ -59,8 +61,9 @@ const site = {
   async fetch(request: Request, env: EnvWithOAuth): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
-      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: cloudflareMailer(env), publicUrl: env.PUBLIC_URL, contact: env.CONTACT_EMAIL, review: reviewLogin(env) });
+      return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: mailerFor(env), publicUrl: env.PUBLIC_URL, review: reviewLogin(env) });
     }
+    if (url.pathname === '/request-access') return handleRequestAccess(request, { db: env.DB, contact: env.CONTACT_EMAIL });
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
     const icon = ICONS[url.pathname];

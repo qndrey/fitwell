@@ -1,5 +1,4 @@
-// The card shell in its fixed-height mode, seen through the dashboard (contracts/cards-shell, FR3 to FR8, FR10).
-// The fit mode is seen through the workout player in tests/cards-shell.test.ts.
+// The card shell seen through the dashboard (contracts/cards-shell, FR3 to FR8); the player's side is in tests/cards-shell.test.ts.
 import type { Client } from '@modelcontextprotocol/client';
 import { expect as pwExpect } from 'playwright/test';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -31,7 +30,7 @@ async function open() {
   return v;
 }
 
-describe('cards shell, fixed mode', () => {
+describe('cards shell, through the dashboard', () => {
   it('shows "k of n", one thin segment per card, and only the current card is not inert', async () => {
     const v = await open();
     await pwExpect(v.frame.locator('.counter')).toHaveText('1 of 8');
@@ -39,7 +38,7 @@ describe('cards shell, fixed mode', () => {
     await pwExpect(v.frame.locator('.sg.current')).toHaveCount(1);
     const inert = await v.frame.locator('section.pcard').evaluateAll((els) => els.map((e) => (e as unknown as { inert: boolean }).inert));
     expect(inert).toEqual([false, true, true, true, true, true, true, true]);
-    expect(await v.frame.locator('.track').getAttribute('data-fixed')).toBe('');
+    expect(await v.frame.locator('.track').getAttribute('data-fixed')).toBeNull(); // one mode: no fixed height
   }, 60_000);
 
   it('‹ › name the card they go to, are aria-disabled at the ends and do nothing there', async () => {
@@ -86,13 +85,14 @@ describe('cards shell, fixed mode', () => {
     expect(transforms.every((t) => t === '')).toBe(true);
   }, 60_000);
 
-  it('a card has a hairline once scrolled and a fade while more remains', async () => {
+  it('a card never scrolls inside: it is as tall as its content, at least the minimum height', async () => {
     const v = await open();
     await v.frame.locator('[data-key=next]').click();
     const card = v.frame.locator('section.pcard[data-key="nutrition"]');
-    await pwExpect(card).toHaveAttribute('data-more', '');
-    await card.evaluate((el) => (el.scrollTop = 40));
-    await pwExpect(card).toHaveAttribute('data-scrolled', '');
-    expect(await card.evaluate((el) => (globalThis as unknown as { getComputedStyle(e: unknown): { overflowY: string } }).getComputedStyle(el).overflowY)).toBe('auto');
+    const m = await card.evaluate((el) => ({ oy: (globalThis as unknown as { getComputedStyle(e: unknown): { overflowY: string } }).getComputedStyle(el).overflowY, client: el.clientHeight, scroll: el.scrollHeight }));
+    expect(m.oy).toBe('visible');
+    expect(m.scroll).toBe(m.client);
+    expect(m.client).toBeGreaterThanOrEqual(440);
+    for (const attr of ['data-more', 'data-scrolled']) expect(await card.getAttribute(attr)).toBeNull();
   }, 60_000);
 });

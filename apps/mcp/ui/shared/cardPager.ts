@@ -2,7 +2,6 @@
 // an optional label row) over a horizontal scroll-snap track. The pager mechanics live here; what a card holds, and what the strip's
 // fill means, belongs to the view. Text goes through textContent only (names come from data).
 import { h } from './dom';
-import { attachTouchLog } from './touchLog';
 
 export type StripState = 'full' | 'half' | 'empty' | 'plain';
 
@@ -15,8 +14,6 @@ export interface CardPagerOptions {
   /** The view name in the title bar. */
   title: string;
   cards: PagerCardInfo[];
-  /** The track takes the height of the card in view, as the player does (a vertical scroller inside the pager traps touch on iOS). Default: every card has the same height and scrolls inside. */
-  fit?: boolean;
   /** The track's `aria-label`. */
   trackLabel?: string;
   /** What each strip segment shows; `plain` (the default) is a thin segment without fill. */
@@ -97,8 +94,6 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
   const next = h('button', { type: 'button', className: 'navbtn', 'data-key': 'next', onclick: () => stepBy(1) }, '›');
   const counter = h('span', { className: 'counter' });
   const title = h('strong', { title: opts.title }, opts.title);
-  // Five quick taps on the title show a log of what touches do (temporary, to debug scrolling in the Claude iOS app).
-  attachTouchLog(title);
   const titlebar = h('div', { className: 'titlebar' }, prev, title, counter, opts.titleExtra, next);
   const strip = opts.onStrip
     ? h('button', { type: 'button', className: 'strip', 'data-strip': '', 'data-key': 'strip', onclick: opts.onStrip })
@@ -127,7 +122,6 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
       pointerDown = true;
     },
   });
-  if (!opts.fit) track.setAttribute('data-fixed', '');
 
   const announce = (text: string) => {
     if (opts.announce) return opts.announce(text);
@@ -141,13 +135,7 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
       className: 'pcard',
       role: 'group',
       'aria-roledescription': 'card',
-      // A hairline under the pinned heading once the card has scrolled; a fade at the bottom while more remains.
-      onscroll: (e: Event) => markScroll(e.currentTarget as HTMLElement),
     });
-  }
-  function markScroll(card: HTMLElement) {
-    card.toggleAttribute('data-scrolled', card.scrollTop > 0);
-    card.toggleAttribute('data-more', !opts.fit && card.scrollHeight - card.scrollTop - card.clientHeight > 1);
   }
 
   let cards: HTMLElement[] = [];
@@ -158,7 +146,7 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
     cards = Array.from({ length: n }, makeCard);
     track.replaceChildren(...cards.map((card) => h('div', { className: 'slide' }, card)));
     if ('ResizeObserver' in window) {
-      ro = new ResizeObserver(() => (opts.fit ? fitTrack() : cards.forEach(markScroll)));
+      ro = new ResizeObserver(fitTrack);
       for (const card of cards) ro.observe(card);
     }
   }
@@ -223,15 +211,15 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
     cards.forEach((card, i) => {
       card.setAttribute('aria-label', `${i + 1} of ${last + 1}: ${infos[i]!.name}`);
       card.inert = i !== pos();
-      markScroll(card);
     });
-    // Focus and scrolling into view must stop above the dock, which covers the bottom of the card.
-    const shownCard = cards[pos()];
-    if (shownCard) shownCard.style.scrollPaddingBottom = `${shownCard.querySelector<HTMLElement>('.dock')?.offsetHeight ?? 0}px`;
-    if (opts.fit) fitTrack();
+    fitTrack();
   }
 
-  /** The track is as tall as the card in view, so the other cards (longer or shorter) leave no gap or scroll under it. */
+  /**
+   * The track is as tall as the card in view (at least --track-h, so short cards share one height and swiping between them does not
+   * jump). A card never scrolls by itself: in the Claude iOS app the chat takes every up-and-down swipe that starts on a view, so the
+   * chat scrolls a long card.
+   */
   function fitTrack() {
     const slide = cards[pos()]?.parentElement;
     if (slide) track.style.height = `${slide.offsetHeight}px`;

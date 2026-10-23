@@ -31,23 +31,18 @@ header.head { display: grid; gap: var(--s1); }
 /* track and cards: a card is only the scroll area, there is no box around the content */
 .track { display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; min-width: 0; }
 .track::-webkit-scrollbar { display: none; }
-/* A card is as tall as its content and never scrolls by itself: a vertical scroller inside the horizontal pager traps the touch on iOS, so the chat scrolls the player. The track is given the height of the card in view (see fitTrack). */
-.slide { position: relative; display: flex; flex-direction: column; flex: 0 0 100%; min-width: 0; scroll-snap-align: center; scroll-snap-stop: always; }
-.pcard { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
+/* A card is as tall as its content, at least --track-h, and never scrolls by itself: in the Claude iOS app the chat takes every up-and-down
+   swipe that starts on a view, so the chat scrolls a long card. Short cards fill the minimum (the dock at its bottom), so swiping between
+   them does not change the height. The track is given the height of the card in view (see fitTrack). Nothing may stick out sideways
+   (overflow-x: clip): a card wider than itself would scroll sideways on iOS and take the swipe meant for the pager. */
+.slide { position: relative; display: flex; flex-direction: column; flex: 0 0 100%; min-width: 0; min-height: var(--track-h); scroll-snap-align: center; scroll-snap-stop: always; }
+.pcard { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; overflow-x: clip; }
 .pcard :focus-visible { outline-offset: -2px; }
 .pcard h1:focus, .pcard h2:focus { outline: none; }
 .pcard h1:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* Fixed height: every card is as tall as the track and scrolls inside, up and down only: a card that can scroll sideways takes the swipe meant for the pager on iOS. */
-.track[data-fixed] { align-items: stretch; height: var(--track-h); }
-.track[data-fixed] .slide { height: 100%; }
-.track[data-fixed] .pcard { flex: 1 1 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: auto; touch-action: pan-x pan-y; scrollbar-width: none; }
-.track[data-fixed] .pcard::-webkit-scrollbar { display: none; }
-.track[data-fixed] .pcard[data-scrolled] { box-shadow: inset 0 1px 0 var(--border); }
-/* a fade over the last 16 px above the dock while more remains below (a mask, so it takes no room in the card) */
-.track[data-fixed] .pcard[data-more] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--dock-h, 0px) - 16px), transparent calc(100% - var(--dock-h, 0px)), #000 calc(100% - var(--dock-h, 0px))); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--dock-h, 0px) - 16px), transparent calc(100% - var(--dock-h, 0px)), #000 calc(100% - var(--dock-h, 0px))); }
 @media (prefers-reduced-motion: reduce) { .track, .pcard { transition: none; } }
 
-/* The dock: the card's main action(s), pinned to the bottom of every card. It sits at the bottom when the content is short and stays in view when the card scrolls. */
+/* The dock: the card's main action(s), at the bottom of every card (a short card's minimum height keeps it in the same place). */
 .dock { position: sticky; bottom: 0; z-index: 1; flex: none; margin-top: auto; display: grid; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--border); background: var(--bg); }
 .dock.split { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
 .dock > button { width: 100%; }

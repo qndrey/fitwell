@@ -44,10 +44,23 @@ const open = (r: WeekReview, o: { theme?: 'light' | 'dark'; width?: number; revi
 
 const sizes = (v: OpenedView) =>
   v.frame.locator('body').evaluate(() => {
-    const d = globalThis as unknown as { document: { querySelector(s: string): { getBoundingClientRect(): { height: number; bottom: number } } | null; querySelectorAll(s: string): Iterable<{ getBoundingClientRect(): { height: number; bottom: number } }>; documentElement: { scrollHeight: number; scrollWidth: number } }; innerWidth: number };
-    return { track: d.document.querySelector('.track')!.getBoundingClientRect().height, cards: [...d.document.querySelectorAll('section.pcard')].map((c) => Math.round(c.getBoundingClientRect().height)), page: d.document.documentElement.scrollHeight, scrollW: d.document.documentElement.scrollWidth, width: d.innerWidth };
+    type El = { inert: boolean; clientHeight: number; scrollHeight: number; getBoundingClientRect(): { height: number; bottom: number } };
+    const d = globalThis as unknown as { document: { querySelector(s: string): El | null; querySelectorAll(s: string): Iterable<El>; documentElement: { scrollHeight: number; scrollWidth: number } }; innerWidth: number };
+    const cards = [...d.document.querySelectorAll('section.pcard')];
+    const current = cards.find((c) => !c.inert)!;
+    return {
+      track: Math.round(d.document.querySelector('.track')!.getBoundingClientRect().height),
+      cards: cards.map((c) => Math.round(c.getBoundingClientRect().height)),
+      current: Math.round(current.getBoundingClientRect().height),
+      // cards whose content is taller than the card: none, a card never scrolls inside (the chat scrolls a long one)
+      inner: cards.filter((c) => c.scrollHeight > c.clientHeight + 1).length,
+      page: d.document.documentElement.scrollHeight,
+      scrollW: d.document.documentElement.scrollWidth,
+      width: d.innerWidth,
+    };
   });
-/** The dock's bottom edge minus the card's, for the card in view. */
+/** The dock's bottom edge minus the card's, for the card in view. A card sized to its content can end on a fraction of a pixel, so
+ * "flush" allows half a pixel either way. */
 const dockGap = (v: OpenedView) =>
   v.frame.locator('section.pcard:not([inert])').evaluate((card) => {
     const dock = card.querySelector('.dock')!;
@@ -56,38 +69,37 @@ const dockGap = (v: OpenedView) =>
 
 describe('review cards: height and dock (AC1, AC2)', () => {
   for (const [period, width] of [['week', 398], ['month', 398], ['week', 375], ['month', 375]] as const) {
-    it(`${period} at ${width} px: every card is as tall as the track and its dock is flush with the bottom`, async () => {
+    it(`${period} at ${width} px: every card is at least the minimum height, never scrolls inside, and its dock is flush with the bottom`, async () => {
       await seed();
       const r = await review({ week_start: period === 'week' ? LAST_WEEK : addDays(THIS_WEEK, -7), period });
       const v = await open(r, { width });
       await v.frame.locator('section.pcard').first().waitFor();
       const first = await sizes(v);
       expect(first.cards).toHaveLength(8);
-      expect(new Set(first.cards).size).toBe(1);
-      expect(first.track).toBe(440);
+      expect(Math.min(...first.cards)).toBe(440); // --track-h
+      expect(first.inner).toBe(0);
       for (const [key, name] of keys(period)) {
         await showCard(v, key, name);
+        await expect.poll(async () => { const s = await sizes(v); return s.track === s.current; }).toBe(true);
         const s = await sizes(v);
-        expect(s.track).toBe(440);
-        expect(s.page).toBe(first.page);
-        expect({ key, gap: await dockGap(v) }).toEqual({ key, gap: 0 });
+        expect(s.current).toBeGreaterThanOrEqual(440);
+        expect(s.inner).toBe(0);
+        expect({ key, flush: Math.abs(await dockGap(v)) <= 0.5 }).toEqual({ key, flush: true });
       }
     }, 120_000);
   }
 
-  it('a long card scrolls inside, the dock stays flush and the page does not grow', async () => {
+  it('a long card grows instead of scrolling inside, the dock stays flush and the track follows', async () => {
     await seed();
     const r = await review({ week_start: LAST_WEEK });
     const long: WeekReview = { ...r, suggestions: Array.from({ length: 12 }, (_, i) => `Suggestion ${i + 1}: one option you could think about, written as a full sentence of some length so that it takes two lines.`) };
     const v = await open(long);
-    const before = (await sizes(v)).page;
     const card = await showCard(v, 'consider', 'To consider');
     const [client, scroll] = await card.evaluate((el) => [el.clientHeight, el.scrollHeight]);
-    expect(scroll).toBeGreaterThan(client!);
-    await card.evaluate((el) => (el.scrollTop = 150));
-    await pwExpect(card).toHaveAttribute('data-scrolled', '');
-    expect(await dockGap(v)).toBe(0);
-    expect((await sizes(v)).page).toBe(before);
+    expect(scroll).toBe(client);
+    expect(client).toBeGreaterThan(440);
+    expect(Math.abs(await dockGap(v))).toBeLessThanOrEqual(0.5);
+    await expect.poll(async () => (await sizes(v)).track).toBe(client);
   }, 60_000);
 });
 

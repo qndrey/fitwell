@@ -57,7 +57,7 @@ describe('notes cards', () => {
     await pwExpect(t2.locator('.nline', { hasText: 'Next 4 weeks' })).toBeVisible();
   }, 60_000);
 
-  it('set the text with textContent only, and a very long note scrolls inside the card above the dock', async () => {
+  it('set the text with textContent only, and a very long note makes the card grow, with the dock still at its bottom', async () => {
     const base = await review({ week_start: WEEK });
     const long = 'A sentence of some length, kept plain. '.repeat(120);
     const r: WeekReview = { ...base, notes: { ...base.notes, training: { text: `<b>bold</b> <img src=x onerror=alert(1)> ${long}`, next: '<i>next</i>', source: 'claude', lowData: false } } };
@@ -66,17 +66,19 @@ describe('notes cards', () => {
     await pwExpect(card.locator('b, img, i')).toHaveCount(0);
     await pwExpect(card.locator('.note')).toContainText('<b>bold</b> <img src=x onerror=alert(1)>');
     await pwExpect(card.locator('.nline', { hasText: 'Next week' })).toContainText('<i>next</i>');
-    const [client, scroll] = await card.evaluate((el) => [el.clientHeight, el.scrollHeight]);
-    expect(scroll).toBeGreaterThan(client!);
-    await pwExpect(card).toHaveAttribute('data-more', '');
+    const [client, scroll, gap] = await card.evaluate((el) => [el.clientHeight, el.scrollHeight, Math.round(el.querySelector('.dock')!.getBoundingClientRect().bottom - el.getBoundingClientRect().bottom)]);
+    expect(scroll).toBe(client);
+    expect(client).toBeGreaterThan(440);
+    expect(Math.abs(gap!)).toBe(0);
   }, 60_000);
 
-  it('a 480-character note fits the card without scrolling', async () => {
+  it('a 480-character note fits the card without growing it', async () => {
     const text = `${'You trained three times this week, on your goal. '.repeat(10)}`.slice(0, 480);
     const base = await review({ week_start: WEEK });
     const v = await open({ ...base, notes: { ...base.notes, training: { text, next: 'Repeat this rhythm; add weight on a lift once every set reaches its reps.', source: 'claude', lowData: false } } });
     const card = await showCard(v, 'training-notes', 'Training notes');
     const [client, scroll] = await card.evaluate((el) => [el.clientHeight, el.scrollHeight]);
     expect(scroll).toBeLessThanOrEqual(client!);
+    expect(client).toBe(440); // --track-h
   }, 60_000);
 });

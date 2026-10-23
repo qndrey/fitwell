@@ -15,9 +15,8 @@
 .chip button, .restrow button, .status-line button { flex: none; min-height: var(--h-secondary); padding: 0 var(--s3); border: 0; background: transparent; font-size: var(--fs-small); font-weight: 600; text-decoration: underline; }
 
 /* the exercise card */
-/* the exercise name stays at the top of its card while the card scrolls; a hairline shows under it once it has */
+/* the exercise name stays at the top of its card */
 .exercise > h1 { position: sticky; top: 0; z-index: 1; padding: var(--s1) 0; background: var(--bg); }
-.pcard[data-scrolled] .exercise > h1 { box-shadow: 0 1px 0 var(--border); }
 .body { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--s2); flex: 1 0 auto; }
 
 /* buttons */

@@ -1,12 +1,28 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import type { DestinationRegistrar, DestinationResult } from '../auth/destinations';
 import { findUserByEmail, inviteUser, normalizeEmail } from '../data/users';
 import { json, toolError } from './result';
 
 const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 
+const MANUAL = 'On the free Cloudflare plan, add this address as a verified destination in Email Routing (dashboard → fitwell.fyi → Email → Email Routing → Destination addresses)';
+
+function nextStep(d: DestinationResult): string {
+  switch (d.status) {
+    case 'verification_sent':
+      return 'Cloudflare has emailed them a verification link. Tell them to click it (check spam); sign-in emails only arrive after that. Then they add the connector in Claude.';
+    case 'already_registered':
+      return d.verified ? 'Their address is already a verified destination. Tell them to add the connector in Claude.' : 'Their address is registered but not verified yet: they need to click the link in the earlier Cloudflare email (check spam). Then they add the connector in Claude.';
+    case 'failed':
+      return `Could not add the destination automatically (${d.reason}). ${MANUAL}, then tell them to add the connector in Claude.`;
+    default:
+      return `${MANUAL}, then tell them to add the connector in Claude.`;
+  }
+}
+
 /** Only registered for the people listed in ADMIN_EMAILS, so everyone else never sees it. */
-export function registerInviteTools(server: McpServer, deps: { db: D1Database; ownEmail: string }) {
+export function registerInviteTools(server: McpServer, deps: { db: D1Database; ownEmail: string; registerDestination?: DestinationRegistrar }) {
   server.registerTool(
     'manage_invites',
     {
@@ -28,7 +44,8 @@ export function registerInviteTools(server: McpServer, deps: { db: D1Database; o
         const existing = await findUserByEmail(deps.db, address);
         if (existing) return json({ email: address, alreadyInvited: true, status: existing.status === 'active' ? 'signed in' : 'invited, not signed in yet' });
         await inviteUser(deps.db, address);
-        return json({ email: address, invited: true, next: 'On the free Cloudflare plan, add this address as a verified destination in Email Routing (dashboard → fitwell.fyi → Email → Email Routing → Destination addresses), then tell them to add the connector in Claude.' });
+        const destination = deps.registerDestination ? await deps.registerDestination(address) : ({ status: 'not_configured' } as const);
+        return json({ email: address, invited: true, destination: destination.status, next: nextStep(destination) });
       }
       const user = await findUserByEmail(deps.db, address);
       if (!user) return toolError('That address is not on the list.');

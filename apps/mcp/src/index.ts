@@ -1,6 +1,7 @@
 import { OAuthProvider, type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
+import { cloudflareDestinations, type DestinationEnv } from './auth/destinations';
 import { cloudflareMailer } from './auth/mailer';
 import { page, privacyBody } from './auth/pages';
 import { ICONS } from './icons';
@@ -16,7 +17,8 @@ interface Props {
   email: string;
 }
 // REVIEW_LOGIN is an optional secret (wrangler secret put REVIEW_LOGIN), so it is not in the generated Env.
-type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string };
+// CF_ACCOUNT_ID and CF_API_TOKEN (Email Routing Addresses: Edit) are optional secrets too: with them manage_invites adds the destination itself.
+type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string } & DestinationEnv;
 
 const adminEmails = (env: Env) => (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
 
@@ -30,7 +32,7 @@ const DEV_EMAIL = 'dev@localhost';
 const DAY = 86_400;
 
 /** Serves MCP for one signed-in person (one fresh server per request). */
-async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'email'>, oauth?: OAuthHelpers): Promise<Response> {
+async function serveMcp(request: Request, env: Env & DestinationEnv, user: Pick<User, 'id' | 'email'>, oauth?: OAuthHelpers): Promise<Response> {
   const handler = createMcpHandler(
     () =>
       createServer({
@@ -39,6 +41,7 @@ async function serveMcp(request: Request, env: Env, user: Pick<User, 'id' | 'ema
         publicUrl: env.PUBLIC_URL,
         user,
         isAdmin: adminEmails(env).includes(user.email.toLowerCase()),
+        registerDestination: cloudflareDestinations(env),
         deleteAccount: async () => {
           // Sign out everywhere first, then erase the data.
           if (oauth) for (const g of (await oauth.listUserGrants(user.id)).items) await oauth.revokeGrant(g.id, user.id);

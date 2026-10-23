@@ -9,6 +9,7 @@ interface HostWindow {
 
 export interface OpenedView {
   page: Page;
+  context: BrowserContext;
   frame: FrameLocator;
   /** Tool calls the view made, in order. */
   calls: { name: string; args: Record<string, unknown> }[];
@@ -27,8 +28,8 @@ export async function closeAll() {
   browser = null;
 }
 
-export async function openView(html: string, result: unknown, o: { theme?: 'light' | 'dark'; width?: number; tools?: (name: string, args: Record<string, unknown>) => unknown } = {}): Promise<OpenedView> {
-  const context = await browser!.newContext({ viewport: { width: o.width ?? 398, height: 1000 } });
+export async function openView(html: string, result: unknown, o: { theme?: 'light' | 'dark'; width?: number; touch?: boolean; tools?: (name: string, args: Record<string, unknown>) => unknown } = {}): Promise<OpenedView> {
+  const context = await browser!.newContext({ viewport: { width: o.width ?? 398, height: 1000 }, hasTouch: !!o.touch, isMobile: !!o.touch });
   contexts.push(context);
   const page = await context.newPage();
   const calls: OpenedView['calls'] = [];
@@ -47,7 +48,7 @@ export async function openView(html: string, result: unknown, o: { theme?: 'ligh
     return msg.id !== undefined ? { jsonrpc: '2.0', id: msg.id, result: {} } : null;
   });
   await page.setContent(
-    `<!doctype html><html><body style="margin:0"><iframe id="v" sandbox="allow-scripts" style="width:100%;height:1300px;border:0"></iframe>
+    `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0"><iframe id="v" sandbox="allow-scripts" style="width:100%;height:1300px;border:0"></iframe>
     <script>
       const f = document.getElementById('v');
       window.__send = (m) => f.contentWindow.postMessage(m, '*');
@@ -62,5 +63,5 @@ export async function openView(html: string, result: unknown, o: { theme?: 'ligh
     const el = (globalThis as unknown as HostWindow).document.getElementById('v');
     if (el) el.srcdoc = h;
   }, html);
-  return { page, frame: page.frameLocator('#v'), calls };
+  return { page, context, frame: page.frameLocator('#v'), calls };
 }

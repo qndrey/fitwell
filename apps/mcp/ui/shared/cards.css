@@ -46,6 +46,13 @@ header.head { display: grid; gap: var(--s1); }
 /* a fade over the last 16 px above the dock while more remains below (a mask, so it takes no room in the card) */
 .track[data-fixed] .pcard[data-more] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--dock-h, 0px) - 16px), transparent calc(100% - var(--dock-h, 0px)), #000 calc(100% - var(--dock-h, 0px))); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--dock-h, 0px) - 16px), transparent calc(100% - var(--dock-h, 0px)), #000 calc(100% - var(--dock-h, 0px))); }
 @media (prefers-reduced-motion: reduce) { .track, .pcard { transition: none; } }
+/* On a touch screen the track is not a scroller of its own and the swipe is drawn by shared/swipe.ts: a nested horizontal scroller
+   keeps the touch in the mobile apps, so neither the chat nor a fixed card could scroll up and down from the cards. Snap is off so the
+   drag can follow the finger; a fixed card pans only up and down, so a sideways drag on it reaches the swipe. */
+@media (pointer: coarse) {
+  .track { overflow-x: hidden; scroll-snap-type: none; touch-action: pan-y; }
+  .track[data-fixed] .pcard { touch-action: pan-y; }
+}
 
 /* The dock: the card's main action(s), pinned to the bottom of every card. It sits at the bottom when the content is short and stays in view when the card scrolls. */
 .dock { position: sticky; bottom: 0; z-index: 1; flex: none; margin-top: auto; display: grid; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--border); background: var(--bg); }

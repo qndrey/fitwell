@@ -166,6 +166,28 @@ const SAMPLES: Record<string, { plan: Sample; prepare?: Prepare }> = {
     },
     prepare: "sets",
   },
+  // ?sample=long: a full session to try scrolling and swiping on a phone: 9 exercises, 3 to 5 sets, warm-up ramps on the heavy
+  // lifts, a superset, a timed set, notes and cardio before and after (15 cards).
+  long: {
+    plan: {
+      name: "Long session",
+      exercises: [
+        { id: "ex:Barbell_Squat", sets: 5, reps: 5, weight_kg: 100, rest_sec: 5, notes: "Belt on the last two sets" },
+        { id: "ex:Romanian_Deadlift", sets: 4, reps: 8, weight_kg: 80, rest_sec: 5 },
+        { id: "ex:Barbell_Bench_Press_-_Medium_Grip", sets: 5, reps: 5, weight_kg: 80, rest_sec: 5, notes: "Pause on the chest" },
+        { id: "ex:Bent_Over_Barbell_Row", sets: 4, reps: 8, weight_kg: 60, rest_sec: 5 },
+        { id: "ex:Standing_Military_Press", sets: 4, reps: 6, weight_kg: 45, rest_sec: 5, warmup: true },
+        { id: "ex:Wide-Grip_Lat_Pulldown", sets: 4, reps: 10, weight_kg: 55, rest_sec: 5 },
+        { id: "ex:Barbell_Curl", sets: 3, reps: 10, weight_kg: 30, rest_sec: 5, superset: "A" },
+        { id: "ex:Triceps_Pushdown", sets: 3, reps: 12, weight_kg: 25, rest_sec: 5, superset: "A" },
+        { id: "ex:Plank", sets: 3, seconds: 30, rest_sec: 5 },
+      ],
+      cardio: [
+        { activity_id: "act:row-machine", minutes: 5, when: "before" },
+        FINISHER,
+      ],
+    },
+  },
   many: {
     plan: {
       name: "Big session",
@@ -426,8 +448,28 @@ log(
 const resource = await client.readResource({ uri: which.uri });
 const html = (resource.contents[0] as { text: string }).text;
 
+// ?touchlog=1 adds a log of touch, pointer and scroll events at the bottom of the view, to see on a phone what a swipe does.
+const TOUCH_LOG = `<script>(() => {
+  const box = document.createElement("pre");
+  box.style.cssText = "position:fixed;left:0;right:0;bottom:0;max-height:40vh;overflow:auto;margin:0;padding:6px;font:11px/1.3 ui-monospace,monospace;background:rgba(0,0,0,.8);color:#7f7;z-index:99999;pointer-events:none;white-space:pre-wrap";
+  const lines = [];
+  const out = (s) => { lines.push(s); if (lines.length > 14) lines.shift(); box.textContent = lines.join("\\n"); };
+  const where = (t) => (t && t.closest ? (t.closest(".pcard") ? "card" : t.closest(".track") ? "track" : t.closest("header") ? "header" : t.tagName) : "?");
+  let x0 = 0, y0 = 0, moves = 0;
+  addEventListener("touchstart", (e) => { const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; moves = 0; out("touchstart on " + where(e.target) + " (" + e.touches.length + " finger)"); }, { capture: true, passive: true });
+  addEventListener("touchmove", (e) => { const t = e.touches[0]; moves++; if (moves < 4 || moves % 10 === 0) out("touchmove #" + moves + " dx=" + Math.round(t.clientX - x0) + " dy=" + Math.round(t.clientY - y0) + (e.cancelable ? "" : " (not cancelable)")); }, { capture: true, passive: true });
+  addEventListener("touchend", () => out("touchend after " + moves + " moves"), { capture: true, passive: true });
+  addEventListener("touchcancel", () => out("touchcancel after " + moves + " moves"), { capture: true, passive: true });
+  addEventListener("pointercancel", (e) => out("pointercancel (" + e.pointerType + ")"), { capture: true });
+  let last = -1;
+  addEventListener("scroll", (e) => { const t = e.target; if (t && t.classList && t.classList.contains("track") && Math.round(t.scrollLeft) !== last) { last = Math.round(t.scrollLeft); out("track scrollLeft=" + last + " of " + (t.scrollWidth - t.clientWidth)); } }, { capture: true, passive: true });
+  addEventListener("load", () => { document.body.append(box); setTimeout(() => { const tr = document.querySelector(".track"); const cs = tr && getComputedStyle(tr); out("ready: track " + (cs ? cs.overflowX + " / touch-action " + cs.touchAction + " / snap " + cs.scrollSnapType : "missing") + ", pointer coarse " + matchMedia("(pointer: coarse)").matches + ", " + navigator.userAgent.slice(0, 80)); }, 2000); });
+})();</script>`;
 const iframe = doc.getElementById("view")!;
-iframe.srcdoc = html;
+// ?nofx=1 turns off the tilt of the cards while the track moves, to compare a swipe with and without it.
+const NO_FX = `<style>.pcard { transform: none !important; opacity: 1 !important; }</style>`;
+const q = new URLSearchParams(loc.search);
+iframe.srcdoc = html.replace("</body>", `${q.has("touchlog") ? TOUCH_LOG : ""}${q.has("nofx") ? NO_FX : ""}</body>`);
 await new Promise((r) => iframe.addEventListener("load", r, { once: true }));
 
 const bridge = new AppBridge(
@@ -442,8 +484,10 @@ const bridge = new AppBridge(
   },
   { hostContext: { theme, platform: "web", displayMode: "inline" } },
 );
+// Like Claude, the view grows with its content up to a maximum height and scrolls inside beyond it: ?maxh=<px> (default 600), 0 for none.
+const maxHeight = Number(new URLSearchParams(loc.search).get("maxh") ?? 600);
 bridge.onsizechange = ({ height }) => {
-  if (height) iframe.style.height = `${height}px`;
+  if (height) iframe.style.height = `${maxHeight > 0 ? Math.min(height, maxHeight) : height}px`;
 };
 bridge.onopenlink = async (params) => {
   log("open link", params.url);

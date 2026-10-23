@@ -7,6 +7,7 @@ import type { ProgressDeps } from '../analytics/load';
 import { buildMuscleMap, describeMuscleMap, type MuscleMap } from '../analytics/muscles';
 import { todayIn } from '../data/time';
 import { EXERCISE_VIEW_URI } from '../workout/plan';
+import { VIEW_ONLY } from './result';
 
 const input = z.object({
   weeks: z.number().int().min(1).max(12).default(4).describe('How many weeks to average over'),
@@ -40,7 +41,7 @@ export function registerMuscleTools(server: McpServer, deps: Pick<ProgressDeps, 
     },
     async ({ weeks, to }) => {
       const map = await loadMuscleMap(deps, weeks, to);
-      return { content: [{ type: 'text', text: `The muscle map is open.\n${describeMuscleMap(map)}` }], structuredContent: { muscleMap: map } as unknown as Record<string, unknown> };
+      return { content: [{ type: 'text', text: `The muscle map is open.\n${describeMuscleMap(map)}${VIEW_ONLY}` }], structuredContent: { muscleMap: map } as unknown as Record<string, unknown> };
     },
   );
 

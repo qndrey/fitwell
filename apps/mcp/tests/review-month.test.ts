@@ -80,7 +80,9 @@ describe('review view, month', () => {
     await pwExpect(f.locator('.titlebar strong')).toHaveText('Monthly review');
     await expect.poll(() => v.calls.at(-1)).toEqual({ name: 'get_review_data', args: { week_start: LAST_WEEK, period: 'month' } });
     await pwExpect(f.getByRole('button', { name: 'Month', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await pwExpect(f.locator('section.pcard[data-key="week"] table.sr-only tbody tr')).toHaveCount(28);
+    await pwExpect(f.locator('section.pcard[data-key="week"] .sr-only table tbody tr')).toHaveCount(28);
+    // No card is wider than itself: on iOS a card that scrolls sideways takes the swipe meant for the pager.
+    expect(await f.locator('section.pcard').evaluateAll((els) => els.map((e) => e.scrollWidth - e.clientWidth).filter((d) => d > 0))).toEqual([]);
     await pwExpect(f.locator('.labelrow strong')).toHaveText('The 4 weeks');
     await showCard(v, 'food', 'Food');
     await pwExpect(f.locator('.labelrow')).toContainText('vs the 4 weeks before');

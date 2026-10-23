@@ -10,7 +10,7 @@ import { SHOPPING_VIEW_URI } from '../workout/plan';
 import type { ShoppingData } from '../planning/shoppingTypes';
 import type { FoodDeps } from './foods';
 import { isMonday, label, nextMonday } from './planning';
-import { json, toolError } from './result';
+import { json, toolError, VIEW_ONLY } from './result';
 
 const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
 
@@ -63,7 +63,7 @@ export function registerShoppingTools(server: McpServer, deps: FoodDeps & { plan
         ...(skippedAsEaten ? { skippedAsEaten } : {}),
         markdown: shopping.sections.map((s) => `## ${s.aisle}\n${s.items.map((e) => `- [${e.checked ? 'x' : ' '}] ${e.name}: ${e.buy}${e.cooked ? ' (cooked weight)' : ''}`).join('\n')}`).join('\n\n'),
       };
-      return { content: [{ type: 'text', text: `The shopping list is open. ${JSON.stringify(text)}` }], structuredContent: { shopping } as unknown as Record<string, unknown> };
+      return { content: [{ type: 'text', text: `The shopping list is open.${VIEW_ONLY} ${JSON.stringify(text)}` }], structuredContent: { shopping } as unknown as Record<string, unknown> };
     },
   );
 

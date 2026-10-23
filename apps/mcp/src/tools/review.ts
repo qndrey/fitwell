@@ -6,7 +6,7 @@ import { loadWeeklyReview, type ReviewDeps } from '../analytics/load';
 import type { ReviewPeriod, SavedNotes, WeekReview } from '../analytics/reviewTypes';
 import reviewHtml from '../ui/generated/review';
 import { REVIEW_VIEW_URI } from '../workout/plan';
-import { toolError } from './result';
+import { toolError, VIEW_ONLY } from './result';
 
 const input = z.object({
   week_start: z.string().refine(isDay, 'Use YYYY-MM-DD').optional().describe('A Monday: the week to review, or with period month the last week of the month; default the week that is most useful to look at now'),
@@ -94,7 +94,7 @@ export function registerReviewTools(server: McpServer, deps: ReviewDeps) {
       if (!given.ok) return toolError(given.error);
       const r = await review(week_start, period, given.notes);
       if (!r.ok) return r.error;
-      return { content: [{ type: 'text', text: `The weekly review is open. ${JSON.stringify(r.review)}` }], structuredContent: { review: r.review } as unknown as Record<string, unknown> };
+      return { content: [{ type: 'text', text: `The weekly review is open.${VIEW_ONLY} ${JSON.stringify(r.review)}` }], structuredContent: { review: r.review } as unknown as Record<string, unknown> };
     },
   );
 

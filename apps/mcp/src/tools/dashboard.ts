@@ -5,6 +5,7 @@ import { loadProgress, type ProgressDeps } from '../analytics/load';
 import { summarize } from '../analytics/progress';
 import dashboardHtml from '../ui/generated/dashboard';
 import { DASHBOARD_VIEW_URI } from '../workout/plan';
+import { VIEW_ONLY } from './result';
 
 const input = z.object({ days: z.number().int().min(7).max(365).default(90) });
 
@@ -28,7 +29,7 @@ export function registerDashboardTools(server: McpServer, deps: ProgressDeps) {
     async ({ days }) => {
       const progress = await loadProgress(deps, days);
       // The view gets the full series as structured content; the model gets the short summary as text.
-      return { content: [{ type: 'text', text: `The dashboard is open (${progress.from} to ${progress.to}). ${JSON.stringify(summarize(progress))}` }], structuredContent: { progress } as unknown as Record<string, unknown> };
+      return { content: [{ type: 'text', text: `The dashboard is open (${progress.from} to ${progress.to}).${VIEW_ONLY} ${JSON.stringify(summarize(progress))}` }], structuredContent: { progress } as unknown as Record<string, unknown> };
     },
   );
 

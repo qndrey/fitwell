@@ -5,6 +5,9 @@ export function json(data: Record<string, unknown>): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(data) }], structuredContent: data };
 }
 
+/** Ends the text of a tool that opens a view in the chat: the view shows the result, and text Claude writes under it breaks scrolling there. */
+export const VIEW_ONLY = ' The view shows all of this: reply with nothing more, no summary or recap.';
+
 /** An error Claude should read and react to (wrong input, nothing found), not a protocol failure. */
 export function toolError(message: string): CallToolResult {
   return { content: [{ type: 'text', text: message }], isError: true };

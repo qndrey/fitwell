@@ -9,7 +9,7 @@ import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
 import type { WorkoutData } from '../data/workoutData';
 import liftHtml from '../ui/generated/lift';
-import { toolError } from './result';
+import { toolError, VIEW_ONLY } from './result';
 
 export const LIFT_VIEW_URI = 'ui://fitwell/lift.html';
 /** How far back the page reads: "All" in the view means this much. */
@@ -53,7 +53,7 @@ export async function registerLiftTools(server: McpServer, deps: { data: UserDat
       const to = todayIn((await deps.data.profile()).timeZone);
       const workouts = await deps.workouts.between(addDays(to, -(HISTORY_DAYS - 1)), to, 'strength');
       const lift = buildLiftProgress({ id: ex.ref, name: ex.name, to, workouts });
-      return { content: [{ type: 'text', text: `The lift page is open. ${describeLift(lift).slice(0, 1400)}` }], structuredContent: { lift } as unknown as Record<string, unknown> };
+      return { content: [{ type: 'text', text: `The lift page is open. ${describeLift(lift).slice(0, 1400)}${VIEW_ONLY}` }], structuredContent: { lift } as unknown as Record<string, unknown> };
     },
   );
 }

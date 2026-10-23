@@ -5,6 +5,8 @@ import { createServer } from 'node:http';
 
 const UPSTREAM = process.env.MCP_UPSTREAM ?? 'http://127.0.0.1:8787';
 const PORT = Number(process.env.HOST_PORT ?? 8788);
+// HOST_BIND=0.0.0.0 lets a phone on the same network open it (to try touch on a real device).
+const BIND = process.env.HOST_BIND ?? '127.0.0.1';
 const js = (await build({ entryPoints: ['dev-host/host.ts'], bundle: true, format: 'esm', target: 'es2022', write: false })).outputFiles[0]!.text;
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fitwell dev host</title><style>
@@ -42,4 +44,4 @@ createServer(async (req, res) => {
     return;
   }
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(page);
-}).listen(PORT, '127.0.0.1', () => console.log(`Dev host on http://127.0.0.1:${PORT} (proxying /mcp to ${UPSTREAM})`));
+}).listen(PORT, BIND, () => console.log(`Dev host on http://${BIND}:${PORT} (proxying /mcp to ${UPSTREAM})`));

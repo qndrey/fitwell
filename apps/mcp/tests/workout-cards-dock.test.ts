@@ -125,15 +125,16 @@ describe('Specs: Exercise card, Skip set and Log set are in the dock (A3; FR8)',
     await pwExpect(dockOf(second).getByRole('button', { name: 'Skip set', exact: true })).toBeVisible();
   });
 
-  it('a card taller than the minimum grows with its content, the track follows, and the dock stays at its bottom', async () => {
+  it('a card taller than the track scrolls inside it, the track keeps its height, and the dock stays at the card\'s bottom', async () => {
     const many = ex('Squat', Array.from({ length: 14 }, (_, k) => set(String(k + 1), { weightKg: 60 + k })));
     const { v, card } = await onCard(plan([many, bench()]), 1);
     const m = await card.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight, oy: (globalThis as unknown as Dom).getComputedStyle(el).overflowY }));
-    expect(m.sh).toBe(m.ch); // the card does not scroll by itself: the chat scrolls the player
-    expect(m.oy).toBe('visible');
-    expect(m.ch).toBeGreaterThan(560);
-    await expectDockAtBottom(card);
+    expect(m.oy).toBe('auto'); // fixed height: every card is as tall as the track and scrolls up and down inside
+    expect(m.sh).toBeGreaterThan(m.ch);
     expect(Math.abs((await trackOf(v).evaluate((el) => el.clientHeight)) - m.ch)).toBeLessThanOrEqual(1);
+    await expectDockAtBottom(card);
+    await card.evaluate((el) => (el.scrollTop = el.scrollHeight));
+    await expectDockAtBottom(card);
   });
 
   it('Skip set still skips and the 600 ms tap lock still holds', async () => {

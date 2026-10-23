@@ -1282,7 +1282,6 @@ function buildShell() {
   const pager = createCardPager({
     title: plan.name,
     cards: Array.from({ length: cardCount() }, (_, pos) => ({ key: String(pos), name: cardName(pos) })),
-    fit: true,
     trackLabel: 'Workout cards',
     stripState,
     bar: stripBar,

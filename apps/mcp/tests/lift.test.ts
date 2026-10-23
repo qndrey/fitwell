@@ -81,11 +81,14 @@ describe('lift view', () => {
     await pwExpect(page.locator('section[aria-label="Estimated 1RM"] svg[role="img"]')).toHaveCount(1);
     const year = l.sessions.filter((s) => s.day >= addD(today, -364));
     expect(await page.locator('polygon.pr').count()).toBe(year.filter((s) => s.isBest).length);
-    await pwExpect(page.getByText('◆ new best estimate')).toBeVisible();
+    await pwExpect(page.getByText('new best estimate')).toBeVisible();
+    await pwExpect(page.getByText('new best estimate').locator('svg.icon')).toHaveCount(1);
     await pwExpect(page.locator('section[aria-label="Estimated 1RM"] .sr-only table tbody tr')).toHaveCount(year.length);
     await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr')).toHaveCount(10);
     await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr').first()).toContainText('5 × 85 kg');
-    await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr').first()).toContainText('◆ best');
+    await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr').first()).toContainText('best'); // a diamond, and the word for assistive technology
+    await pwExpect(page.locator('section[aria-label="Last sessions"] tbody tr').first().locator('svg.icon')).toHaveCount(1);
+    await pwExpect(page.getByRole('group', { name: 'Period' }).getByRole('button')).toHaveText(['90d', '1y', 'All']);
     await pwExpect(page.locator('section[aria-label="Rep records"] tbody tr')).toHaveCount(4);
     await pwExpect(page.getByText('Ask Claude for a progression plan.')).toBeVisible();
     expect(await page.getByRole('button').count()).toBe(3); // the period switch only

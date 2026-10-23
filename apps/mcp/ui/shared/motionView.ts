@@ -5,6 +5,7 @@ import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Sce
 import { BREATH_SECONDS, gripFor, progressAt, relaxed, skeletonAt, type MotionSpec } from '../../src/exercises/motion';
 import bodyGz from '../assets/body.glb.gz';
 import { h } from './dom';
+import { icon, iconButton, type IconName } from './icons';
 import { loadHumanBody, type HumanBody } from './humanBody';
 import { buildProps, buildStandingProps, makeMaterials, setPalette, type Palette, type Props } from './props';
 
@@ -154,9 +155,17 @@ export function createMotionPlayer(): MotionPlayer | null {
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
   // ----- controls -----
-  const play = h('button', { type: 'button', className: 'motion-play', 'aria-pressed': 'false', onclick: () => setPaused(!paused) }, 'Pause');
-  const muscleButton = h('button', { type: 'button', className: 'motion-muscles', 'aria-pressed': 'true', onclick: () => setMuscles(!musclesOn) }, 'Highlight');
-  const resetButton = h('button', { type: 'button', className: 'motion-reset', onclick: () => turnTo(defaultView()) }, 'Reset view');
+  // Icon-only quiet buttons: the glyph and the name change together (pause and play, eye and eye-off); the name is also the tooltip.
+  const play = iconButton('pause', 'Pause', () => setPaused(!paused), { className: 'motion-play', pressed: false });
+  const muscleButton = iconButton('eye', 'Highlight', () => setMuscles(!musclesOn), { className: 'motion-muscles', pressed: true });
+  const resetButton = iconButton('crosshair', 'Reset view', () => turnTo(defaultView()), { className: 'motion-reset' });
+  const relabel = (b: HTMLElement, glyph: IconName, label: string) => {
+    b.replaceChildren(icon(glyph));
+    b.setAttribute('aria-label', label);
+    b.title = label;
+  };
+  const syncPlay = () => relabel(play, paused ? 'play' : 'pause', paused ? 'Play' : 'Pause');
+  const syncMuscles = () => relabel(muscleButton, musclesOn ? 'eye' : 'eye-off', heat !== null && !current ? 'Colours' : 'Highlight');
   const hint = h('p', { className: 'muted small' });
   const controls = h('div', { className: 'motion-controls', role: 'group', 'aria-label': 'Figure controls' }, play, muscleButton, resetButton);
   let mapControls: HTMLElement[] = [];
@@ -230,7 +239,7 @@ export function createMotionPlayer(): MotionPlayer | null {
     if (next) frozenAt = now() - started;
     else started = now() - frozenAt;
     paused = next;
-    play.textContent = paused ? 'Play' : 'Pause';
+    syncPlay();
     play.setAttribute('aria-pressed', String(paused));
     if (paused) {
       if (raf) cancelAnimationFrame(raf);
@@ -242,6 +251,7 @@ export function createMotionPlayer(): MotionPlayer | null {
     musclesOn = on;
     human?.setHighlightVisible(on);
     muscleButton.setAttribute('aria-pressed', String(on));
+    syncMuscles();
     draw(currentP());
   }
 
@@ -320,7 +330,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       player.show(null, name);
       heat = colours;
       human?.setHeat(heat);
-      muscleButton.textContent = 'Colours';
+      syncMuscles();
       hint.textContent = 'Drag to turn the figure. Colours shows or hides the colour of each muscle group.';
       placeMapControls(true);
       frame();
@@ -336,7 +346,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       stopped = false;
       heat = null;
       human?.setHeat(null);
-      muscleButton.textContent = 'Highlight';
+      syncMuscles();
       placeMapControls(false);
       worked = { primary: muscles?.primary ?? [], secondary: muscles?.secondary ?? [] };
       human?.setHighlight(worked.primary, worked.secondary);
@@ -351,7 +361,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       hint.textContent = spec ? 'Drag to turn the figure. Schematic animation: follow the written cues for detail.' : 'Drag to turn the figure.';
       started = now();
       paused = false;
-      play.textContent = 'Pause';
+      syncPlay();
       play.setAttribute('aria-pressed', 'false');
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
@@ -362,7 +372,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       if (spec && reduced) {
         paused = true;
         frozenAt = 0;
-        play.textContent = 'Play';
+        syncPlay();
         play.setAttribute('aria-pressed', 'true');
         draw(1);
       } else kick();

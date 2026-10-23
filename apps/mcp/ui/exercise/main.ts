@@ -2,6 +2,7 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { MuscleMap } from '../../src/analytics/muscleTypes';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { h } from '../shared/dom';
+import { iconButton } from '../shared/icons';
 import { renderGuide } from '../shared/guide';
 import { createMotionPlayer, isDarkTheme } from '../shared/motionView';
 import { heatColours, renderMuscleMap, type MapMode } from '../shared/muscleMap';
@@ -15,7 +16,7 @@ let mapShown: MuscleMap | null = null;
 let mapShownMode: MapMode | null = null;
 let mode: MapMode = 'sets';
 /** The second figure control of the map: colour by days since each muscle was trained. It stays one element so focus survives a redraw. */
-const recoveryButton = h('button', { type: 'button', className: 'motion-recovery', 'aria-pressed': 'false', onclick: () => { mode = mode === 'recovery' ? 'sets' : 'recovery'; render(); } }, 'Days since trained');
+const recoveryButton = iconButton('clock', 'Days since trained', () => { mode = mode === 'recovery' ? 'sets' : 'recovery'; render(); }, { className: 'motion-recovery', pressed: false });
 let loading = false;
 let error = '';
 /** One WebGL player for the life of the view; null when the device cannot do WebGL (the guide then has no animation). */

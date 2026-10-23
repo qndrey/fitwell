@@ -1,24 +1,26 @@
 /* The exercise guide card, shared by the guide view and the workout player. Colours come from each view's own variables. */
 .guide { display: grid; gap: 12px; text-align: left; }
-.guide h2 { font-size: 1.15rem; margin: 0; }
-.guide h3 { font-size: 1rem; margin: 0 0 4px; }
-.guide h4 { font-size: 0.85rem; margin: 8px 0 2px; color: var(--muted); letter-spacing: 0.02em; }
-.guide .worked { margin: 0; display: grid; gap: 2px; font-size: 0.85rem; justify-items: start; }
+.guide h2 { font-size: var(--fs-title, 18px); font-weight: 600; color: var(--text); margin: 0; }
+.guide h3 { font-size: var(--fs-body, 15px); font-weight: 600; margin: 0 0 4px; }
+.guide h4 { font-size: var(--fs-label, 12px); font-weight: 600; margin: 8px 0 2px; color: var(--muted); }
+.guide .worked { margin: 0; display: grid; gap: 2px; font-size: var(--fs-small, 13px); justify-items: start; }
 .guide .key { display: inline-flex; align-items: center; gap: 6px; }
 .guide .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
 .guide ol.steps, .guide ul.bullets { margin: 0; padding-left: 1.2rem; display: grid; gap: 6px; }
 .guide .machine { border-top: 1px solid var(--border); padding-top: 10px; }
-.guide button.demo { min-height: 44px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0 16px; }
-.guide button.demo:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Quiet buttons (no fill, no border, 44 px to press) that need nothing from base.css, so the player's guide card gets them too. */
+.guide button.demo, .guide .motion-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 0; background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-body, 15px); cursor: pointer; }
+.guide button.demo { justify-self: start; }
+.guide .motion-controls button[hidden] { display: none; }
+.guide button.demo:hover, .guide .motion-controls button:hover, .guide .motion-controls button[aria-pressed='true'] { color: var(--text); }
+.guide button.demo:focus-visible, .guide .motion-controls button:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.guide .icon { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .guide code { overflow-wrap: anywhere; }
 
 .guide .motion { display: grid; gap: 6px; }
 .guide .motion canvas:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
 .guide .motion canvas { width: 100%; aspect-ratio: 4 / 3; display: block; border-radius: 12px; background: var(--bg); }
-.guide .motion-controls { display: flex; gap: 6px; flex-wrap: wrap; }
-.guide .motion-controls button { min-height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.guide .motion-controls button:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
-.guide .motion-controls button.motion-muscles[aria-pressed='true'] { border-color: var(--text); }
-.guide .motion-controls button.motion-muscles[aria-pressed='false'] { opacity: 0.65; }
+/* The figure's controls are icons in a row under it, at the right. */
+.guide .motion-controls { display: flex; justify-content: flex-end; gap: 0; flex-wrap: wrap; }
 .guide .sw.hot { background: #e4572e; }
 .guide .sw.warm { background: #e4572e; opacity: 0.45; }

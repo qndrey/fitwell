@@ -6,6 +6,7 @@ import { WORKOUT_KEY } from '../shared/chartMath';
 import { createCardPager, type CardPager } from '../shared/cardPager';
 import { caption, empty, heading, hrow, subhead, tint } from '../shared/blocks';
 import { notesCard } from '../shared/notes';
+import { icon, type IconName } from '../shared/icons';
 import { addDays, CONFIDENCE_WORD, gain, mondayOf, monthTitle, shortName, weekTitle } from './copy';
 
 type CardKey = 'week' | 'training-notes' | 'nutrition-notes' | 'food' | 'training' | 'body' | 'energy' | 'consider';
@@ -178,14 +179,17 @@ function periodButtons(r: WeekReview) {
   return h('div', { className: 'periods', role: 'group', 'aria-label': 'Period' }, ...(['week', 'month'] as const).map((k) => h('button', { type: 'button', className: 'link', 'data-key': `period-${k}`, 'aria-pressed': String(r.period === k), disabled: state.loading, onclick: () => { if (r.period !== k) void go(0, lastWeekOf(r), k); } }, k === 'week' ? 'Week' : 'Month')));
 }
 
+/** The glyph of each card's tab: the card's name is the tab's name, and the label row under the strip names the chosen one. */
+const TAB_ICON: Record<CardKey, IconName> = { week: 'calendar', 'training-notes': 'dumbbell', 'nutrition-notes': 'utensils', food: 'bars', training: 'trending-up', body: 'heart-pulse', energy: 'flame', consider: 'lightbulb' };
+
 /** Previous, this week and next, at the bottom of every card. An ended button is aria-disabled: it keeps its place and does nothing. */
 function dock(r: WeekReview) {
   const month = r.period === 'month';
   const word = month ? 'month' : 'week';
   const isThis = titleOf(r) === `This ${word}`;
   const nextRunning = month ? addDays(lastWeekOf(r), 28) > mondayOf(today()) : r.inProgress;
-  const button = (key: string, text: string, label: string, off: boolean, run: () => void) => h('button', { type: 'button', 'data-key': key, 'aria-label': label, 'aria-disabled': off ? 'true' : undefined, disabled: state.loading, onclick: () => { if (!off) run(); } }, text);
-  return h('div', { className: 'dock pager3' }, button('dock-prev', '‹ Prev', `Previous ${word}`, false, () => void go(-stepOf(r))), button('dock-this', `This ${word}`, `This ${word}`, isThis, () => void go(0, mondayOf(today()))), button('dock-next', 'Next ›', `Next ${word}`, nextRunning, () => void go(stepOf(r))));
+  const button = (key: string, label: string, off: boolean, run: () => void, ...content: Child[]) => h('button', { type: 'button', 'data-key': key, 'aria-label': label, 'aria-disabled': off ? 'true' : undefined, disabled: state.loading, onclick: () => { if (!off) run(); } }, ...content);
+  return h('div', { className: 'dock pager3' }, button('dock-prev', `Previous ${word}`, false, () => void go(-stepOf(r)), icon('chevron-left'), 'Prev'), button('dock-this', `This ${word}`, isThis, () => void go(0, mondayOf(today())), `This ${word}`), button('dock-next', `Next ${word}`, nextRunning, () => void go(stepOf(r)), 'Next', icon('chevron-right')));
 }
 
 /** A drawing bug must never leave a blank frame: say so, and tell the host's log. */
@@ -209,7 +213,7 @@ function draw() {
   }
   const focusKey = document.activeElement?.getAttribute('data-key');
   const built = cardsOf(r);
-  const infos = built.map((c) => ({ key: c.key, name: c.name }));
+  const infos = built.map((c) => ({ key: c.key, name: c.name, icon: TAB_ICON[c.key] }));
   spoken.clear();
   for (const c of built) if (c.say) spoken.set(c.key, c.say);
   const first = !pager;

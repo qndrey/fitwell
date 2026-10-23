@@ -188,6 +188,24 @@ describe('review cards: structure (AC4)', () => {
     await pwExpect(food.locator('.delta, .up, .down')).toHaveCount(0);
   }, 90_000);
 
+  it('has eight icon tabs that share the width, named like their cards, and a dock with chevron icons and no boxes', async () => {
+    await seed();
+    const v = await open(await review({ week_start: LAST_WEEK }));
+    await v.frame.locator('section.pcard').first().waitFor();
+    const tabs = v.frame.locator('.strip.icons > .tab');
+    await pwExpect(tabs).toHaveCount(8);
+    await pwExpect(tabs.first()).toHaveAttribute('aria-label', 'The week, 1 of 8');
+    for (const t of await tabs.all()) {
+      expect((await t.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await pwExpect(t.locator('svg.icon')).toHaveAttribute('aria-hidden', 'true');
+    }
+    expect(await v.frame.locator('.strip').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+    await pwExpect(v.frame.locator('[data-key=dock-prev] svg.icon')).toHaveCount(8); // the dock is on every card
+    await pwExpect(v.frame.locator('[data-key=dock-next] svg.icon')).toHaveCount(8);
+    const border = await v.frame.locator('[data-key=dock-this]').first().evaluate((e) => (globalThis as unknown as { getComputedStyle(el: unknown): { borderTopWidth: string } }).getComputedStyle(e).borderTopWidth);
+    expect(border).toBe('0px'); // nothing is outlined
+  }, 60_000);
+
   it('says "so far" while the week runs, and names an empty week in a sentence', async () => {
     const empty = await review({});
     const v = await open(empty);

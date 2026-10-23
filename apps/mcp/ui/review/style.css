@@ -2,10 +2,11 @@
 @import '../shared/cards.css';
 @import '../shared/chart.css';
 @import '../shared/blocks.css';
+@import '../shared/controls.css';
 
 /* The dock: previous, this week, next, in the same place on every card (three columns like the player's rest buttons). */
 .dock.pager3 { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: var(--s2); }
-.dock.pager3 button { width: 100%; min-height: var(--h-primary); padding: 0 var(--s1); white-space: nowrap; }
+.dock.pager3 button { width: 100%; min-height: var(--h-primary); padding: 0 var(--s1); white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: var(--s1); }
 .dock.pager3 button[aria-disabled='true'] { opacity: 0.4; cursor: default; }
 .dock.pager3 button:disabled { opacity: 0.4; cursor: default; }
 

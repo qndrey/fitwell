@@ -27,7 +27,7 @@ describe('notes cards', () => {
     const r = await review({ week_start: WEEK, training_note: 'You trained 3 times, on your goal of 3.', training_next: 'Repeat this rhythm.', nutrition_note: 'Calories averaged about 2,350 a day.', nutrition_next: 'One option is a walk after lunch.' });
     const v = await open(r);
     await v.frame.locator('section.pcard').first().waitFor();
-    await pwExpect(v.frame.locator('.strip .sg')).toHaveCount(8);
+    await pwExpect(v.frame.locator('.strip.icons > .tab')).toHaveCount(8);
     const t = await showCard(v, 'training-notes', 'Training notes');
     await pwExpect(v.frame.locator('.labelrow strong')).toHaveText('Training notes');
     await pwExpect(v.frame.locator('.counter')).toHaveText('2 of 8');

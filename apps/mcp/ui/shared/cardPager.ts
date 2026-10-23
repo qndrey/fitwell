@@ -2,6 +2,7 @@
 // an optional label row) over a horizontal scroll-snap track. The pager mechanics live here; what a card holds, and what the strip's
 // fill means, belongs to the view. Text goes through textContent only (names come from data).
 import { h } from './dom';
+import { touchSwipe } from './swipe';
 
 export type StripState = 'full' | 'half' | 'empty' | 'plain';
 
@@ -125,6 +126,7 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
     },
   });
   if (!opts.fit) track.setAttribute('data-fixed', '');
+  const swipe = touchSwipe(track, (p) => goTo(p));
 
   const announce = (text: string) => {
     if (opts.announce) return opts.announce(text);
@@ -270,6 +272,8 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
 
   /** The scroll came to rest: the card in view is the current one. */
   function settle() {
+    // A finger dragging the track scrolls it on every move; the card it lands on is decided when it lifts.
+    if (swipe.dragging()) return;
     const p = trackPos();
     const previewed = shown;
     shown = -1;
@@ -390,6 +394,7 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
       window.clearTimeout(settleTimer);
       window.clearTimeout(announceTimer);
       ro?.disconnect();
+      swipe.destroy();
     },
   };
 }

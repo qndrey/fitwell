@@ -22,3 +22,8 @@ h3.sub { margin: var(--s2) 0 0; font-size: var(--fs-small); font-weight: 600; co
 .periods button.link:disabled, .toggle button.link:disabled { opacity: 0.5; cursor: default; }
 .lname span { font-size: var(--fs-small); }
 
+
+/* review notes: a paragraph, then hairline blocks with a 12 px muted label */
+.note { line-height: 1.35; padding: var(--s2) 0 var(--s3); overflow-wrap: anywhere; }
+.nline { display: grid; gap: 2px; border-top: 1px solid var(--border); padding: var(--s2) 0; overflow-wrap: anywhere; }
+.nline .lab { font-size: var(--fs-label); color: var(--muted); line-height: 1.3; }

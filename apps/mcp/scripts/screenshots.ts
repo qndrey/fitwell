@@ -88,7 +88,7 @@ const openCard = (name: string) => async (f: Frame, page: Page) => {
   await page.waitForTimeout(900);
 };
 const DASH_CARDS = [['weight', 'Weight'], ['nutrition', 'Nutrition'], ['energy', 'Energy'], ['training', 'Training'], ['volume', 'Volume'], ['strength', 'Strength'], ['habits', 'Sleep, steps, water'], ['measures', 'Measures']] as const;
-const REVIEW_CARDS = [['week', 'The week', 'The 4 weeks'], ['food', 'Food', 'Food'], ['training', 'Training', 'Training'], ['body', 'Body', 'Body'], ['energy', 'Energy', 'Energy'], ['consider', 'To consider', 'To consider']] as const;
+const REVIEW_CARDS = [['week', 'The week', 'The 4 weeks'], ['training-notes', 'Training notes', 'Training notes'], ['nutrition-notes', 'Nutrition notes', 'Nutrition notes'], ['food', 'Food', 'Food'], ['training', 'Training', 'Training'], ['body', 'Body', 'Body'], ['energy', 'Energy', 'Energy'], ['consider', 'To consider', 'To consider']] as const;
 /** Every review card, for the week and for the four weeks (names review-<week|month>-<card>). */
 const reviewShots: Shot[] = (['week', 'month'] as const).flatMap((period) =>
   REVIEW_CARDS.map(([key, weekName, monthName]): Shot => ({
@@ -105,6 +105,21 @@ const reviewShots: Shot[] = (['week', 'month'] as const).flatMap((period) =>
     },
   })),
 );
+/** Notes Claude wrote (saved for the week or month they are opened for); the same cards for another week show the automatic summary. */
+const NOTES = {
+  training_note: 'You trained 3 times, on your goal of 3. Barbell Squat and Barbell Bench Press each set a new estimated best. Rest days fell on Tue, Thu and Sun.',
+  training_next: 'Repeat this rhythm; add weight on a lift once every set reaches its reps.',
+  nutrition_note: 'Calories averaged about 2,350 a day, close to your goal of 2,300, and protein 146 g, above your 140 g goal (reached on 6 of 7 days). Food was logged every day, so the averages are solid.',
+  nutrition_next: 'Repeat this week; the 7-day weight average moved −0.4 kg.',
+};
+const notesShots: Shot[] = [
+  { name: 'notes-claude-training', view: 'review', args: { week_start: '2026-10-12', ...NOTES }, kcalGoal: GOAL_2300, steps: openCard('Training notes') },
+  { name: 'notes-claude-nutrition', view: 'review', args: { week_start: '2026-10-12', ...NOTES }, kcalGoal: GOAL_2300, steps: openCard('Nutrition notes') },
+  { name: 'notes-auto-training', view: 'review', args: { week_start: '2026-10-05' }, kcalGoal: GOAL_2300, steps: openCard('Training notes') },
+  { name: 'notes-auto-nutrition', view: 'review', args: { week_start: '2026-10-05' }, kcalGoal: GOAL_2300, steps: openCard('Nutrition notes') },
+  { name: 'notes-month-claude', view: 'review', args: { week_start: '2026-10-12', period: 'month', training_note: 'You averaged 3.0 workouts a week against a goal of 3, and 3 of the 4 weeks reached it (from 2 to 4 a week). Six new estimated bests.', training_next: 'Repeat this rhythm.' }, kcalGoal: GOAL_2300, steps: openCard('Training notes') },
+  { name: 'notes-month-auto', view: 'review', args: { week_start: '2026-09-14', period: 'month' }, kcalGoal: GOAL_2300, steps: openCard('Nutrition notes') },
+];
 /** Every dashboard card at 30, 90 and 365 days (names dash<days>-<card>). */
 const dashShots: Shot[] = [30, 90, 365].flatMap((days) => DASH_CARDS.map(([key, name]): Shot => ({ name: `dash${days}-${key}`, view: 'dashboard', args: { days }, kcalGoal: GOAL_2300, steps: openCard(name) })));
 
@@ -168,6 +183,7 @@ export const SHOTS: Shot[] = [
   { name: 'summary-cardio', view: 'workout', args: { ...FULL, cardio: [{ activity_id: 'act:row-machine', minutes: 5, when: 'before' }, { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/, 60); await page.clock.fastForward(52 * 60_000); backdate(52); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
   ...dashShots,
   ...reviewShots,
+  ...notesShots,
   { name: 'food', view: 'food', args: { day: '2026-10-13', slot: 'lunch', items: [{ food_id: 'frida:59', grams: 80 }, { food_id: 'frida:413', grams: 120 }] }, kcalGoal: GOAL_2300 },
 ];
 

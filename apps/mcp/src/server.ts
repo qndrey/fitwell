@@ -1,6 +1,7 @@
 import type { OffClient } from '@fitwell/core/off/client';
 import { McpServer } from '@modelcontextprotocol/server';
 import { BodyData } from './data/bodyData';
+import { ReviewNotesData } from './data/reviewNotes';
 import { PlanData } from './data/planData';
 import { UserData } from './data/userData';
 import type { User } from './data/users';
@@ -46,6 +47,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const workouts = new WorkoutData(deps.db, deps.user.id);
   const body = new BodyData(deps.db, deps.user.id);
   const plans = new PlanData(deps.db, deps.user.id);
+  const reviewNotes = new ReviewNotesData(deps.db, deps.user.id);
   // The tools Claude reads before planning or advising answer with the role to take (src/instructions/*.md).
   const server = withRoles(mcp, {
     trainer: ['search_exercises', 'list_workout_templates', 'suggest_progression', 'get_workout_history', 'show_muscle_map'],
@@ -55,7 +57,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerProfileTools(server, { data, email: deps.user.email });
   registerFoodTools(server, { off: deps.off, data });
   registerFoodLogTools(server, { off: deps.off, data, plans });
-  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
+  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()), ...(await reviewNotes.exportAll()) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
   await registerExerciseTools(server, { data });
   await registerWorkoutTools(server, { data, workouts });
   registerBodyTools(server, { data, workouts, body });
@@ -67,7 +69,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerDashboardTools(server, { data, workouts, body });
   registerMuscleTools(server, { data, workouts });
   await registerLiftTools(server, { data, workouts });
-  registerReviewTools(server, { data, workouts, body, plans });
+  registerReviewTools(server, { data, workouts, body, plans, notes: reviewNotes });
   registerDeleteTool(server, { data, workouts, body, plans });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email });
   return mcp;

@@ -7,6 +7,7 @@ import { addDays, dayDiff, dayNumber, weekStart as mondayOf } from '@fitwell/cor
 import { bmr } from '@fitwell/core/domain/energy';
 import { buildProgress, rangeStart, type Progress } from './progress';
 import { buildWeeklyReview, weekEndOf, weeksIn, type ReviewPeriod, type WeekReview } from './review';
+import type { SavedNotes } from './reviewTypes';
 
 export interface ProgressDeps {
   data: UserData;
@@ -36,13 +37,14 @@ export async function loadProgress(deps: ProgressDeps, days: number, to?: string
 
 export interface ReviewDeps extends ProgressDeps {
   plans: import('../data/planData').PlanData;
+  notes: import('../data/reviewNotes').ReviewNotesData;
 }
 
 /**
  * The weekly review for the week starting on `weekStart` (a Monday); the default is the most useful week to look at now.
  * For `period: 'month'` it is the four weeks that end with that week, compared with the same days four weeks earlier.
  */
-export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string, period: ReviewPeriod = 'week'): Promise<WeekReview> {
+export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string, period: ReviewPeriod = 'week', write?: Partial<SavedNotes>): Promise<WeekReview> {
   const today = todayIn((await deps.data.profile()).timeZone);
   // Early in the week (Monday, Tuesday) there is hardly anything to review yet, so look at the week that just ended.
   const monday = mondayOf(today);
@@ -51,7 +53,15 @@ export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string, per
   const start = addDays(last, -7 * (weeksIn(period) - 1));
   const { end } = weekEndOf(start, today, period);
   const counted = dayNumber(end) - dayNumber(start) + 1;
-  const [week, previous, history, plan] = await Promise.all([loadProgress(deps, counted, end), loadProgress(deps, counted, addDays(end, -7 * weeksIn(period))), loadProgress(deps, 120, end), period === 'week' ? deps.plans.plan(start) : null]);
+  // Notes Claude wrote for this period are saved first, so the review below (and every later one) carries them.
+  if (write && (write.training || write.nutrition)) {
+    try {
+      await deps.notes.save(period, start, write);
+    } catch {
+      throw new Error('The notes could not be saved. Try again.');
+    }
+  }
+  const [saved, week, previous, history, plan] = await Promise.all([deps.notes.get(period, start), loadProgress(deps, counted, end), loadProgress(deps, counted, addDays(end, -7 * weeksIn(period))), loadProgress(deps, 120, end), period === 'week' ? deps.plans.plan(start) : null]);
   return buildWeeklyReview({
     weekStart: start,
     period,
@@ -59,6 +69,7 @@ export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string, per
     week,
     previous,
     history,
+    saved,
     plan: plan ? { meals: plan.items.filter((i) => i.day <= end).length, logged: plan.items.filter((i) => i.day <= end && i.loggedAt).length } : null,
   });
 }

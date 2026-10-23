@@ -5,9 +5,10 @@ import { fmtDay, monthStrip, weekStrip } from '../shared/chart';
 import { WORKOUT_KEY } from '../shared/chartMath';
 import { createCardPager, type CardPager } from '../shared/cardPager';
 import { caption, empty, heading, hrow, subhead, tint } from '../shared/blocks';
+import { notesCard } from '../shared/notes';
 import { addDays, CONFIDENCE_WORD, gain, mondayOf, monthTitle, shortName, weekTitle } from './copy';
 
-type CardKey = 'week' | 'food' | 'training' | 'body' | 'energy' | 'consider';
+type CardKey = 'week' | 'training-notes' | 'nutrition-notes' | 'food' | 'training' | 'body' | 'energy' | 'consider';
 const state = { review: null as WeekReview | null, cardKey: 'week' as CardKey, loading: false, error: '' };
 /** What the numbers are compared with, in the review's own words. */
 const against = () => (state.review?.period === 'month' ? 'the 4 weeks before' : 'last week');
@@ -57,6 +58,8 @@ function weekCard(r: WeekReview): Built {
     body: [heading(name), strip, caption(join(WORKOUT_KEY, n.goals.kcal ? `dashed: calorie goal ${num(n.goals.kcal)}` : null)), r.highlights.length > 0 && subhead('Went well'), ...r.highlights.slice(0, 3).map((x) => h('p', { className: 'hline' }, x))],
   };
 }
+
+const notesBuilt = (key: 'training-notes' | 'nutrition-notes', name: string, r: WeekReview): Built => ({ key, name, body: notesCard(name, key === 'training-notes' ? r.notes.training : r.notes.nutrition, r.period) });
 
 function foodCard(r: WeekReview): Built {
   const n = r.nutrition;
@@ -158,7 +161,7 @@ function considerCard(r: WeekReview): Built {
   };
 }
 
-const cardsOf = (r: WeekReview): Built[] => [weekCard(r), foodCard(r), trainingCard(r), bodyCard(r), energyCard(r), considerCard(r)];
+const cardsOf = (r: WeekReview): Built[] => [weekCard(r), notesBuilt('training-notes', 'Training notes', r), notesBuilt('nutrition-notes', 'Nutrition notes', r), foodCard(r), trainingCard(r), bodyCard(r), energyCard(r), considerCard(r)];
 
 // ---------- the pager ----------
 const titleOf = (r: WeekReview) => (r.period === 'month' ? monthTitle(lastWeekOf(r), today()) : weekTitle(r.weekStart, today()));

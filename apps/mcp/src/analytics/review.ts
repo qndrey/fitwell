@@ -1,7 +1,8 @@
 // The weekly review: one week against the one before it, plus what to look at next. Pure: no I/O.
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import type { Progress } from './types';
-import type { ReviewPeriod, WeekReview } from './reviewTypes';
+import type { ReviewNote, ReviewPeriod, SavedNotes, WeekReview } from './reviewTypes';
+import { autoNotes, mergeNotes } from './reviewNotes';
 
 export type { ReviewPeriod, WeekReview } from './reviewTypes';
 
@@ -18,8 +19,11 @@ export interface ReviewInput {
   /** Progress over a longer period ending the same day (weight trend, records history). */
   history: Progress;
   plan: { meals: number; logged: number } | null;
+  /** What Claude saved for this period, if anything. */
+  saved?: SavedNotes | null;
 }
 
+const NO_NOTE: ReviewNote = { text: '', next: null, source: 'auto', lowData: false };
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const r0 = (n: number) => Math.round(n);
 /** "19 Nov", the way the view's tiles show dates; the year is added when it differs from the review's. */
@@ -110,6 +114,7 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
     },
     energy: h.energy,
     plan: i.plan,
+    notes: { training: NO_NOTE, nutrition: NO_NOTE },
     highlights: [],
     suggestions: [],
   };
@@ -150,5 +155,6 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
   if (hb.sleepHours !== null && hb.sleepHours < 7) review.suggestions.push(`Sleep averaged ${hb.sleepHours} h, under the 7 to 9 hours usually advised for adults. It is often the first thing to improve before changing food or training.`);
   if (review.plan && review.plan.meals > 0 && review.plan.logged / review.plan.meals < 0.5 && !inProgress) review.suggestions.push(`Fewer than half of the planned meals were logged (${review.plan.logged} of ${review.plan.meals}). A simpler plan with fewer different meals can be easier to follow.`);
 
+  review.notes = mergeNotes(autoNotes(review), i.saved ?? null);
   return review;
 }

@@ -23,7 +23,7 @@ const today = new Date().toISOString().slice(0, 10);
 const THIS_WEEK = mondayOf(today);
 const LAST_WEEK = addDays(THIS_WEEK, -7);
 const review = async (args: Record<string, unknown>) => ((await call(client, 'show_weekly_review', args)).data as unknown as { review: WeekReview }).review;
-const keys = (period: 'week' | 'month') => [['week', period === 'week' ? 'The week' : 'The 4 weeks'], ['food', 'Food'], ['training', 'Training'], ['body', 'Body'], ['energy', 'Energy'], ['consider', 'To consider']] as const;
+const keys = (period: 'week' | 'month') => [['week', period === 'week' ? 'The week' : 'The 4 weeks'], ['training-notes', 'Training notes'], ['nutrition-notes', 'Nutrition notes'], ['food', 'Food'], ['training', 'Training'], ['body', 'Body'], ['energy', 'Energy'], ['consider', 'To consider']] as const;
 
 /** Six weeks of food, weigh-ins, lifts that set records, sleep, steps and water. */
 async function seed() {
@@ -62,7 +62,7 @@ describe('review cards: height and dock (AC1, AC2)', () => {
       const v = await open(r, { width });
       await v.frame.locator('section.pcard').first().waitFor();
       const first = await sizes(v);
-      expect(first.cards).toHaveLength(6);
+      expect(first.cards).toHaveLength(8);
       expect(new Set(first.cards).size).toBe(1);
       expect(first.track).toBe(440);
       for (const [key, name] of keys(period)) {
@@ -143,7 +143,7 @@ describe('review cards: paging (AC3)', () => {
     await v.frame.locator('section.pcard').first().waitFor();
     await v.frame.locator('section.pcard:not([inert])').getByRole('button', { name: 'Previous week' }).click();
     await pwExpect(v.frame.getByText('Could not load that week. Try again.')).toBeVisible();
-    await pwExpect(v.frame.locator('section.pcard')).toHaveCount(6);
+    await pwExpect(v.frame.locator('section.pcard')).toHaveCount(8);
     await pwExpect(v.frame.getByRole('button', { name: 'Week', exact: true })).toBeEnabled();
   }, 60_000);
 });
@@ -155,7 +155,7 @@ describe('review cards: structure (AC4)', () => {
     const v = await open(r);
     await v.frame.locator('section.pcard').first().waitFor();
     for (const sel of ['.tiles', '.tabs', 'section.card', 'footer', '.nav']) await pwExpect(v.frame.locator(sel)).toHaveCount(0);
-    await pwExpect(v.frame.locator('.counter')).toHaveText('1 of 6');
+    await pwExpect(v.frame.locator('.counter')).toHaveText('1 of 8');
     await pwExpect(v.frame.locator('section.pcard[data-key="week"] svg.chart')).toHaveCount(1);
     await pwExpect(v.frame.locator('.labelrow strong')).toHaveText('The week');
     await pwExpect(v.frame.locator('.labelrow')).toContainText('Last week');

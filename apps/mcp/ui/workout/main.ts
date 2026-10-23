@@ -925,20 +925,13 @@ const EQUIPMENT: Record<string, string> = {
 };
 const equipmentName = (e: string) => EQUIPMENT[e.toLowerCase()] ?? e;
 
-/** Scrolls the card in view just far enough to show a panel that opened under the action row; the rows above keep their place in the card. */
+/**
+ * Brings a panel that opened under the action row into view; the rows above keep their place in the card. A card never scrolls by
+ * itself, so this scrolls the page the view is in, where the host lets it (as far as needed and no further).
+ */
 function reveal(selector: string) {
-  const card = ui?.cards[state.pos];
-  const el = card?.querySelector<HTMLElement>(selector);
-  if (!card || !el) return;
-  const c = card.getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  // The dock is pinned over the bottom of the card: what can be seen ends where the dock begins.
-  const bottom = card.querySelector('.dock')?.getBoundingClientRect().top ?? c.bottom;
-  // The exercise name is pinned over the top of the card: what can be seen begins where it ends.
-  const top = card.querySelector('.exercise > h1')?.getBoundingClientRect().bottom ?? c.top;
-  const tall = r.height + 8 > bottom - top;
-  const delta = tall ? r.top - top : r.bottom - bottom + 8;
-  if (tall ? Math.abs(delta) > 1 : delta > 8) card.scrollTo({ top: card.scrollTop + delta, behavior: scrollBehavior() });
+  const el = ui?.cards[state.pos]?.querySelector<HTMLElement>(selector);
+  el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() });
 }
 
 /** The note for one exercise: shown as a line, edited in a panel under the action row. The textarea exists only while editing. */

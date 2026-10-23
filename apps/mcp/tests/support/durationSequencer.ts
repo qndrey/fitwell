@@ -20,7 +20,7 @@ const SECONDS: Record<string, number> = {
   'tests/workout-cards-warmups.test.ts': 15,
   'tests/shopping-undo.test.ts': 11,
   'tests/muscles-compare.test.ts': 11,
-  'tests/cards-shell-fixed.test.ts': 11,
+  'tests/cards-shell-dashboard.test.ts': 11,
 };
 const DEFAULT = 3;
 

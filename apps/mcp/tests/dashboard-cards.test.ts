@@ -42,14 +42,25 @@ const open = (p: Progress, o: { theme?: 'light' | 'dark'; width?: number; tools?
 /** The numbers the cards are measured by, read in the view. */
 const sizes = (v: OpenedView) =>
   v.frame.locator('body').evaluate(() => {
-    const d = globalThis as unknown as { document: { querySelector(s: string): { getBoundingClientRect(): { height: number } } | null; querySelectorAll(s: string): Iterable<{ clientHeight: number; scrollHeight: number; getBoundingClientRect(): { height: number } }>; documentElement: { scrollHeight: number; scrollWidth: number } }; innerWidth: number };
+    type El = { inert: boolean; clientHeight: number; scrollHeight: number; getBoundingClientRect(): { height: number; bottom: number } };
+    const d = globalThis as unknown as { document: { querySelector(s: string): El | null; querySelectorAll(s: string): Iterable<El>; documentElement: { scrollHeight: number; scrollWidth: number } }; innerWidth: number };
     const cards = [...d.document.querySelectorAll('section.pcard')];
-    return { track: d.document.querySelector('.track')!.getBoundingClientRect().height, cards: cards.map((c) => Math.round(c.getBoundingClientRect().height)), page: d.document.documentElement.scrollHeight, scrollW: d.document.documentElement.scrollWidth, width: d.innerWidth };
+    const current = cards.find((c) => !c.inert)!;
+    return {
+      track: Math.round(d.document.querySelector('.track')!.getBoundingClientRect().height),
+      cards: cards.map((c) => Math.round(c.getBoundingClientRect().height)),
+      current: Math.round(current.getBoundingClientRect().height),
+      // cards whose content is taller than the card: none, a card never scrolls inside (the chat scrolls a long one)
+      inner: cards.filter((c) => c.scrollHeight > c.clientHeight + 1).length,
+      page: d.document.documentElement.scrollHeight,
+      scrollW: d.document.documentElement.scrollWidth,
+      width: d.innerWidth,
+    };
   });
 
 describe('dashboard cards: height (AC1, AC2)', () => {
   for (const width of [398, 375]) {
-    it(`at ${width} px every card is as tall as the track, whatever the period, and the track does not change when the card or the period does`, async () => {
+    it(`at ${width} px every card is at least the minimum height and never scrolls inside, and the track is as tall as the card in view, whatever the period`, async () => {
       await seedRich();
       const p90 = await progress(90);
       const bySize = new Map<number, Progress>([[30, await progress(30)], [90, p90], [365, await progress(365)]]);
@@ -57,34 +68,32 @@ describe('dashboard cards: height (AC1, AC2)', () => {
       await v.frame.locator('section.pcard').first().waitFor();
       const first = await sizes(v);
       expect(first.cards).toHaveLength(8);
-      expect(new Set(first.cards).size).toBe(1);
-      expect(first.cards[0]).toBe(Math.round(first.track));
-      expect(first.track).toBe(440);
+      expect(Math.min(...first.cards)).toBe(440); // --track-h: short cards share it, so swiping between them does not change the height
+      expect(first.inner).toBe(0);
+      expect(first.track).toBe(first.current);
       for (const [key, name] of [['nutrition', 'Nutrition'], ['training', 'Training'], ['strength', 'Strength'], ['measures', 'Measures'], ['weight', 'Weight']] as const) {
         await showCard(v, key, name);
         for (const days of [30, 365, 90]) {
           await v.frame.getByRole('button', { name: `${days} days`, exact: true }).or(v.frame.getByRole('button', { name: '1 year', exact: true })).first().click();
           await pwExpect(v.frame.locator('.labelrow')).not.toContainText('updating');
+          await expect.poll(async () => { const s = await sizes(v); return s.track === s.current; }).toBe(true);
           const s = await sizes(v);
-          expect(s.track).toBe(440);
-          expect(new Set(s.cards).size).toBe(1);
-          expect(s.page).toBe(first.page);
+          expect(s.current).toBeGreaterThanOrEqual(440);
+          expect(s.inner).toBe(0);
         }
       }
     }, 120_000);
   }
 
-  it('Strength and Volume scroll inside their card and the page does not grow', async () => {
+  it('Strength and Volume grow past the minimum instead of scrolling inside, and the track follows', async () => {
     await seedRich();
     const v = await open(await progress(90));
-    const before = (await sizes(v)).page;
     for (const [key, name] of [['strength', 'Strength'], ['volume', 'Volume']] as const) {
       const card = await showCard(v, key, name);
       const [client, scroll] = await card.evaluate((el) => [el.clientHeight, el.scrollHeight]);
-      expect(scroll).toBeGreaterThan(client!);
-      await card.evaluate((el) => (el.scrollTop = 200));
-      await pwExpect(card).toHaveAttribute('data-scrolled', '');
-      expect((await sizes(v)).page).toBe(before);
+      expect(scroll).toBe(client);
+      expect(client).toBeGreaterThan(440);
+      await expect.poll(async () => (await sizes(v)).track).toBe(client);
     }
   }, 60_000);
 });

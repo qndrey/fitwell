@@ -243,7 +243,6 @@ function draw() {
     card.setAttribute('data-name', c.name);
     card.replaceChildren(...[...c.body, dock(r)].filter((x): x is Node | string => x !== null && x !== false && x !== undefined));
     card.scrollTop = top;
-    card.style.setProperty('--dock-h', `${card.querySelector<HTMLElement>('.dock')?.offsetHeight ?? 0}px`);
   });
   pager.refreshCards();
   if (first) root.replaceChildren(pager.header, ...(state.error ? [h('p', { className: 'error small' }, state.error)] : []), pager.track);

@@ -1,5 +1,5 @@
-// The shared card pager (ui/shared/cardPager.ts), seen through the workout player, which is on the shell in its fixed-height mode
-// like the dashboard and the review (tests/cards-shell-fixed.test.ts).
+// The shared card pager (ui/shared/cardPager.ts), seen through the workout player; the dashboard's side is in
+// tests/cards-shell-dashboard.test.ts.
 // Contract: contracts/cards-shell. The built view runs in a real Chromium inside an iframe; see tests/support/workoutHost.ts.
 import { expect as pwExpect } from 'playwright/test';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -12,26 +12,13 @@ afterEach(closeOpened);
 const three = () => plan([ex('Squat', [set('1')]), ex('Bench Press', [set('1')]), ex('Pullups', [set('1')])]);
 
 describe('Cards shell: the player on the shell (AC3, AC4)', () => {
-  it('draws the strip with .sg segments and no .seg, and the track is in fixed mode', async () => {
+  it('draws the strip with .sg segments and no .seg, and the track has no fixed height', async () => {
     const v = await openView(three());
     const info = await v.inView(() => {
       const d = globalThis as unknown as Dom;
       return { sg: [...d.document.querySelectorAll('.sg')].length, seg: [...d.document.querySelectorAll('.seg')].length, fixed: d.document.querySelector('.track')!.getAttribute('data-fixed') };
     });
-    expect(info).toEqual({ sg: 5, seg: 0, fixed: '' });
-  });
-
-  it('five quick taps on the title show the touch log, and five more hide it', async () => {
-    const v = await openView(three());
-    const title = v.frame.locator('.titlebar strong');
-    const log = v.frame.locator('pre[aria-hidden="true"]');
-    for (let i = 0; i < 4; i++) await title.click();
-    await pwExpect(log).toHaveCount(0);
-    await title.click();
-    await pwExpect(log).toContainText('view ');
-    await pwExpect(log).toContainText('overflow-y auto');
-    for (let i = 0; i < 5; i++) await title.click();
-    await pwExpect(log).toHaveCount(0);
+    expect(info).toEqual({ sg: 5, seg: 0, fixed: null });
   });
 
   it('after the host resends the plan one arrow key moves one card (the key handler is not duplicated)', async () => {

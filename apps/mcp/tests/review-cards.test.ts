@@ -59,7 +59,8 @@ const sizes = (v: OpenedView) =>
       width: d.innerWidth,
     };
   });
-/** The dock's bottom edge minus the card's, for the card in view. */
+/** The dock's bottom edge minus the card's, for the card in view. A card sized to its content can end on a fraction of a pixel, so
+ * "flush" allows half a pixel either way. */
 const dockGap = (v: OpenedView) =>
   v.frame.locator('section.pcard:not([inert])').evaluate((card) => {
     const dock = card.querySelector('.dock')!;
@@ -83,7 +84,7 @@ describe('review cards: height and dock (AC1, AC2)', () => {
         const s = await sizes(v);
         expect(s.current).toBeGreaterThanOrEqual(440);
         expect(s.inner).toBe(0);
-        expect({ key, gap: await dockGap(v) }).toEqual({ key, gap: 0 });
+        expect({ key, flush: Math.abs(await dockGap(v)) <= 0.5 }).toEqual({ key, flush: true });
       }
     }, 120_000);
   }
@@ -97,7 +98,7 @@ describe('review cards: height and dock (AC1, AC2)', () => {
     const [client, scroll] = await card.evaluate((el) => [el.clientHeight, el.scrollHeight]);
     expect(scroll).toBe(client);
     expect(client).toBeGreaterThan(440);
-    expect(await dockGap(v)).toBe(0);
+    expect(Math.abs(await dockGap(v))).toBeLessThanOrEqual(0.5);
     await expect.poll(async () => (await sizes(v)).track).toBe(client);
   }, 60_000);
 });

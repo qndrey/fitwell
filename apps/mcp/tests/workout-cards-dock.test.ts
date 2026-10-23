@@ -163,7 +163,11 @@ describe('Specs: Dock, the tab order, the focus and the accessible names (A3)', 
 
   it('Tab goes from the content to Skip set, then Log set', async () => {
     const { v, card } = await onCard(fresh(), 1);
-    await btn(card, 'How to do it').focus();
+    // The last control of the content (How to do it is up on the title row now, with Note and Swap).
+    await card.evaluate((el) => {
+      const nodes = Array.from((el as unknown as Scroller).querySelectorAll('button, input, textarea')).filter((n) => !n.closest('.dock'));
+      (nodes[nodes.length - 1] as unknown as { focus(): void }).focus();
+    });
     await v.page.keyboard.press('Tab');
     const focused = () => v.inView(() => (globalThis as unknown as Dom).document.activeElement?.getAttribute('data-key') ?? '');
     expect(await focused()).toBe('skip');
@@ -428,9 +432,9 @@ describe('Specs: the exercise name stays at the top of its card (pinned heading)
     await expect.poll(async () => (await bottomOf(area)) <= (await box(dockOf(card))).y + 1).toBe(true);
   });
 
-  it('only the name is pinned: it is the heading line of an exercise card, and the Overview heading is not', async () => {
+  it('only the title row is pinned: the name of an exercise card with its three tools, and the Overview heading is not', async () => {
     const { v, card } = await onCard(plan([ramp(), bench()]), 1);
-    expect(await card.getByRole('heading', { name: 'Squat' }).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).position)).toBe('sticky');
+    expect(await card.getByRole('heading', { name: 'Squat' }).evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el.parentElement as unknown as Element).position)).toBe('sticky');
     expect(await card.getByText(/^barbell/).first().evaluate((el) => (globalThis as unknown as Dom).getComputedStyle(el).position)).not.toBe('sticky');
     await jumpTo(v, 0);
     await settled(v);

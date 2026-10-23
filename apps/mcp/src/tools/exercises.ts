@@ -8,7 +8,7 @@ import { machineGuideFor } from '../exercises/machines';
 import { motionFor } from '../exercises/motion';
 import exerciseHtml from '../ui/generated/exercise';
 import { EXERCISE_VIEW_URI, WORKOUT_VIEW_URI } from '../workout/plan';
-import { json, toolError } from './result';
+import { json, toolError, VIEW_ONLY } from './result';
 
 const exerciseIdSchema = z.string().regex(/^ex:/, 'Library ids start with "ex:"');
 const ATTRIBUTION = 'free-exercise-db (public domain, The Unlicense)';
@@ -89,7 +89,7 @@ export async function registerExerciseTools(server: McpServer, deps: { data: Use
       const ex = id ? lib.exercises.find((e) => e.ref === id) : query ? plainFirst(query, searchExercises(index, lib.exercises, { query }, 20))[0] : undefined;
       if (!ex) return toolError(id ? `No exercise with id ${id}. Search by name instead.` : 'Give an exercise id or a name to look up.');
       const g = await guideFor(ex);
-      return { content: [{ type: 'text', text: `The guide for ${g.name} is open. Muscles: ${g.primary.join(', ')}${g.secondary.length ? ` (also ${g.secondary.join(', ')})` : ''}. ${g.instructions.join(' ')}${g.machine ? ` ${g.machine.title}: ${g.machine.setup.join(' ')}` : ''}` }], structuredContent: { guide: g } as unknown as Record<string, unknown> };
+      return { content: [{ type: 'text', text: `The guide for ${g.name} is open. Muscles: ${g.primary.join(', ')}${g.secondary.length ? ` (also ${g.secondary.join(', ')})` : ''}. ${g.instructions.join(' ')}${g.machine ? ` ${g.machine.title}: ${g.machine.setup.join(' ')}` : ''}${VIEW_ONLY}` }], structuredContent: { guide: g } as unknown as Record<string, unknown> };
     },
   );
 

@@ -31,11 +31,12 @@ async function open() {
 }
 
 describe('cards shell, through the dashboard', () => {
-  it('shows "k of n", one thin segment per card, and only the current card is not inert', async () => {
+  it('shows "k of n", one icon tab per card, and only the current card is not inert', async () => {
     const v = await open();
     await pwExpect(v.frame.locator('.counter')).toHaveText('1 of 8');
-    await pwExpect(v.frame.locator('.strip .sg')).toHaveCount(8);
-    await pwExpect(v.frame.locator('.sg.current')).toHaveCount(1);
+    await pwExpect(v.frame.locator('.strip.icons > .tab')).toHaveCount(8);
+    await pwExpect(v.frame.locator('.tab[aria-current="true"]')).toHaveCount(1);
+    await pwExpect(v.frame.locator('.sg')).toHaveCount(0); // icon tabs in place of the thin segments
     const inert = await v.frame.locator('section.pcard').evaluateAll((els) => els.map((e) => (e as unknown as { inert: boolean }).inert));
     expect(inert).toEqual([false, true, true, true, true, true, true, true]);
     expect(await v.frame.locator('.track').getAttribute('data-fixed')).toBeNull(); // one mode: no fixed height

@@ -3,6 +3,8 @@
 @import '../shared/chart.css';
 
 @import '../shared/blocks.css';
+@import '../shared/controls.css';
+.cap .icon, table.sessions .icon { width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--fs-label); color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 

@@ -7,6 +7,7 @@ import { MUSCLE_REGIONS, setsByRegion, WEEKLY_SET_RANGE } from '../../src/analyt
 import { h, type Child } from '../shared/dom';
 import { energyView } from './energy';
 import { createCardPager, type CardPager } from '../shared/cardPager';
+import { icon, type IconName } from '../shared/icons';
 import { caption, empty, heading, hrow, subhead, tint, toggle } from '../shared/blocks';
 
 const RANGES = [{ days: 30, short: '30d', long: '30 days' }, { days: 90, short: '90d', long: '90 days' }, { days: 365, short: '1y', long: '1 year' }] as const;
@@ -258,13 +259,13 @@ function liftRow(p: Progress, e: Progress['records']['exercises'][number]) {
     h('div', { className: 'liftbody' },
       h('p', { className: 'muted small' }, detail),
       lineChart({ from: startOf(p), to: p.to, label: `${e.name}, estimated 1RM by session: ${num(e.firstE1rmKg)} to ${num(e.latestE1rmKg)} kg${bests.length ? `, ${bests.length} new best${bests.length === 1 ? '' : 's'}` : ''}.`, columns: ['Date', 'Estimated 1RM (kg)'], dots: e.points.map((q) => ({ day: q.day, value: q.e1rmKg })), line: e.points.map((q) => ({ day: q.day, value: q.e1rmKg })), digits: 0, height: 110, boldSingle: true, dotRadius: 2.2, marks: bests.map((x) => x.day) }),
-      bests.length > 0 && caption('◆ new best estimate'),
+      bests.length > 0 && h('p', { className: 'cap' }, icon('diamond'), 'new best estimate'),
       h(
         'table',
         { className: 'sessions' },
         h('caption', {}, `Last ${recent.length} session${recent.length === 1 ? '' : 's'}`),
         h('thead', {}, h('tr', {}, ...['Date', 'Top set', 'Est. 1RM', ''].map((c) => h('th', { scope: 'col' }, c)))),
-        h('tbody', {}, ...recent.map((x) => h('tr', {}, h('td', {}, dayLabel(p, x.day)), h('td', {}, `${x.topSet.reps} × ${num(x.topSet.kg)} kg`), h('td', {}, `${num(x.e1rm)} kg`), h('td', {}, x.isBest ? '◆ best' : '')))),
+        h('tbody', {}, ...recent.map((x) => h('tr', {}, h('td', {}, dayLabel(p, x.day)), h('td', {}, `${x.topSet.reps} × ${num(x.topSet.kg)} kg`), h('td', {}, `${num(x.e1rm)} kg`), h('td', {}, ...(x.isBest ? [icon('diamond'), h('span', { className: 'sr-only' }, 'best')] : []))))),
       ),
       h('p', { className: 'muted small' }, `Open full lift page: ask Claude to show your ${short} progress.`),
     ),
@@ -330,6 +331,9 @@ function habitsCard(p: Progress): Built | null {
 }
 
 // ---------- the pager ----------
+/** The glyph of each card's tab: the card's name is the tab's name, and the label row under the strip names the chosen one. */
+const TAB_ICON: Partial<Record<string, IconName>> = { weight: 'weight', nutrition: 'utensils', energy: 'flame', training: 'dumbbell', volume: 'bars', strength: 'trending-up', habits: 'list-check', measures: 'ruler' };
+
 const cardsOf = (p: Progress): Built[] => [weightCard(p), nutritionCard(p), energyCard(p), trainingCard(p), volumeCard(p), strengthCard(p), habitsCard(p), measuresCard(p)].filter((c): c is Built => c !== null);
 
 const rangeText = (p: Progress) => `${rangeLabel(startOf(p), p.to)}${startOf(p) > p.from ? ' · since your first log' : ''}`;
@@ -359,7 +363,7 @@ function draw() {
   }
   const focusKey = document.activeElement?.getAttribute('data-key');
   const built = cardsOf(p);
-  const infos = built.map((c) => ({ key: c.key, name: c.name }));
+  const infos = built.map((c) => ({ key: c.key, name: c.name, icon: TAB_ICON[c.key] }));
   spoken.clear();
   for (const c of built) if (c.say) spoken.set(c.key, c.say);
   const first = !pager;

@@ -21,6 +21,19 @@ describe('Cards shell: the player on the shell (AC3, AC4)', () => {
     expect(info).toEqual({ sg: 5, seg: 0, fixed: '' });
   });
 
+  it('five quick taps on the title show the touch log, and five more hide it', async () => {
+    const v = await openView(three());
+    const title = v.frame.locator('.titlebar strong');
+    const log = v.frame.locator('pre[aria-hidden="true"]');
+    for (let i = 0; i < 4; i++) await title.click();
+    await pwExpect(log).toHaveCount(0);
+    await title.click();
+    await pwExpect(log).toContainText('view ');
+    await pwExpect(log).toContainText('overflow-y auto');
+    for (let i = 0; i < 5; i++) await title.click();
+    await pwExpect(log).toHaveCount(0);
+  });
+
   it('after the host resends the plan one arrow key moves one card (the key handler is not duplicated)', async () => {
     const v = await openView(three());
     await pwExpect.poll(() => counterText(v)).toBe('1 of 5');

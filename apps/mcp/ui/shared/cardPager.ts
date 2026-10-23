@@ -2,6 +2,7 @@
 // an optional label row) over a horizontal scroll-snap track. The pager mechanics live here; what a card holds, and what the strip's
 // fill means, belongs to the view. Text goes through textContent only (names come from data).
 import { h } from './dom';
+import { attachTouchLog } from './touchLog';
 
 export type StripState = 'full' | 'half' | 'empty' | 'plain';
 
@@ -96,6 +97,8 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
   const next = h('button', { type: 'button', className: 'navbtn', 'data-key': 'next', onclick: () => stepBy(1) }, '›');
   const counter = h('span', { className: 'counter' });
   const title = h('strong', { title: opts.title }, opts.title);
+  // Five quick taps on the title show a log of what touches do (temporary, to debug scrolling in the Claude iOS app).
+  attachTouchLog(title);
   const titlebar = h('div', { className: 'titlebar' }, prev, title, counter, opts.titleExtra, next);
   const strip = opts.onStrip
     ? h('button', { type: 'button', className: 'strip', 'data-strip': '', 'data-key': 'strip', onclick: opts.onStrip })

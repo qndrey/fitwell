@@ -3,7 +3,6 @@
 import { build } from 'esbuild';
 import { createServer } from 'node:http';
 
-const PORT = Number(process.env.PORT ?? 8788);
 const UPSTREAM = process.env.MCP_UPSTREAM ?? 'http://127.0.0.1:8787';
 const PORT = Number(process.env.HOST_PORT ?? 8788);
 const js = (await build({ entryPoints: ['dev-host/host.ts'], bundle: true, format: 'esm', target: 'es2022', write: false })).outputFiles[0]!.text;

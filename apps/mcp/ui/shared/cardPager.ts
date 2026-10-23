@@ -53,8 +53,8 @@ export interface CardPager {
   /** One persistent section per card; the view fills them. */
   cards: () => HTMLElement[];
   setTitle(title: string): void;
-  /** Names the cards (and builds or drops sections when the count changes); returns the sections. */
-  setCards(infos: PagerCardInfo[]): HTMLElement[];
+  /** Names the cards (and builds or drops sections when the count changes, putting the track on `at`, else on the nearest card); returns the sections. */
+  setCards(infos: PagerCardInfo[], at?: number): HTMLElement[];
   setLabel(label: { sub?: (pos: number) => string | null; right?: Node | null }): void;
   goTo(pos: number, opts?: { focus?: boolean; auto?: boolean }): void;
   /** The card in view now (the settled one). */
@@ -361,11 +361,12 @@ export function createCardPager(opts: CardPagerOptions): CardPager {
       title.textContent = t;
       title.title = t;
     },
-    setCards(next) {
+    setCards(next, at) {
       infos = next.slice();
       if (infos.length !== cards.length) {
         build(infos.length);
-        current = clamp(current, 0, Math.max(0, infos.length - 1));
+        current = clamp(at ?? current, 0, Math.max(0, infos.length - 1));
+        snap(current);
         window.requestAnimationFrame(() => snap(pos()));
       }
       refreshHeader();

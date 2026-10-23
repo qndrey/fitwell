@@ -32,7 +32,7 @@ header.head { display: grid; gap: var(--s1); }
 .track { display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; min-width: 0; }
 .track::-webkit-scrollbar { display: none; }
 /* A card is as tall as its content and never scrolls by itself: a vertical scroller inside the horizontal pager traps the touch on iOS, so the chat scrolls the player. The track is given the height of the card in view (see fitTrack). */
-.slide { display: flex; flex-direction: column; flex: 0 0 100%; min-width: 0; scroll-snap-align: center; scroll-snap-stop: always; }
+.slide { position: relative; display: flex; flex-direction: column; flex: 0 0 100%; min-width: 0; scroll-snap-align: center; scroll-snap-stop: always; }
 .pcard { display: flex; flex-direction: column; flex: 1 0 auto; min-width: 0; }
 .pcard :focus-visible { outline-offset: -2px; }
 .pcard h1:focus, .pcard h2:focus { outline: none; }

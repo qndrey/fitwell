@@ -6,6 +6,7 @@ import { MUSCLE_GROUPS, REGION_OF, setsByRegion } from '../src/analytics/muscleT
 import type { Progress } from '../src/analytics/types';
 import viewHtml from '../src/ui/generated/dashboard';
 import { createTestEnv } from './support/env';
+import { showCard } from './support/cards';
 import { call, connectAs, signedInUser } from './support/mcp';
 import { closeAll, launch, openView } from './support/viewHost';
 
@@ -55,8 +56,7 @@ describe('training volume in the dashboard', () => {
   it('shows stacked sets with the 10 and 20 lines by default, a hidden table, and a 44 px Sets / Volume control', async () => {
     await seed();
     const v = await open(await progress());
-    await v.frame.getByRole('button', { name: 'Training' }).click();
-    const card = v.frame.locator('section[aria-label="Training"]');
+    const card = await showCard(v, 'volume', 'Volume');
     const group = card.getByRole('group', { name: 'Volume measure' });
     await pwExpect(group.getByRole('button', { name: 'Sets' })).toHaveAttribute('aria-pressed', 'true');
     for (const b of await group.getByRole('button').all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -65,15 +65,14 @@ describe('training volume in the dashboard', () => {
     await pwExpect(chart.locator('svg rect[fill^="url(#hatch"]').first()).toBeAttached();
     await pwExpect(chart.locator('table.sr-only th')).toHaveText(['Week', 'Upper body (sets)', 'Lower body (sets)', 'Core (sets)']);
     for (const w of ['upper body', 'lower body', 'core']) await pwExpect(card.locator('.legend', { hasText: w })).toBeVisible();
-    await pwExpect(card.getByText(/The dashed lines mark 10 and 20/)).toBeVisible();
+    await pwExpect(card.getByText(/dashed lines: 10 and 20 sets a week/)).toBeVisible();
   }, 60_000);
 
   it('switches to tonnage per week and back', async () => {
     await seed();
     const p = await progress();
     const v = await open(p);
-    await v.frame.getByRole('button', { name: 'Training' }).click();
-    const card = v.frame.locator('section[aria-label="Training"]');
+    const card = await showCard(v, 'volume', 'Volume');
     await card.getByRole('button', { name: 'Volume' }).click();
     await pwExpect(card.getByRole('button', { name: 'Volume' })).toHaveAttribute('aria-pressed', 'true');
     const table = card.locator('table.sr-only').filter({ hasText: 'Volume (kg)' });
@@ -82,14 +81,13 @@ describe('training volume in the dashboard', () => {
     await pwExpect(table.locator('tbody tr td:nth-child(2)').filter({ hasText: '1,000' }).first()).toBeAttached();
     await pwExpect(card.locator('svg line.goal')).toHaveCount(0);
     await card.getByRole('button', { name: 'Sets' }).click();
-    await pwExpect(card.getByText(/The dashed lines mark/)).toBeVisible();
+    await pwExpect(card.getByText(/dashed lines: 10 and 20/)).toBeVisible();
   }, 60_000);
 
   it('says so when there is nothing to stack', async () => {
     await call(client, 'log_cardio', { activity_id: 'act:run-10', duration_min: 30, day: addD(today, -2) });
     const v = await open(await progress(30));
-    await v.frame.getByRole('button', { name: 'Training' }).click();
-    const card = v.frame.locator('section[aria-label="Training"]');
+    const card = await showCard(v, 'volume', 'Volume');
     await pwExpect(card.getByText('No finished strength sets in this period.')).toBeVisible();
   }, 60_000);
 });

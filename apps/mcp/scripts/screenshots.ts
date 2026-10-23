@@ -82,21 +82,29 @@ const A2 = {
   exercises: [squat({ weight_kg: 102.5, warmup: true }), { id: 'ex:Barbell_Curl', sets: 2, reps: 10, weight_kg: 30, rest_sec: 90, superset: 'A' }, { id: 'ex:Triceps_Pushdown', sets: 2, reps: 12, weight_kg: 25, rest_sec: 90, superset: 'A' }, { id: 'ex:Plank', sets: 1, seconds: 10, rest_sec: 90 }],
 };
 const week = { week_start: '2026-10-05' };
+/** Taps a strip segment of the dashboard or the review by the card's name and waits for the swipe to land. */
+const openCard = (name: string) => async (f: Frame, page: Page) => {
+  await f.getByRole('button', { name: new RegExp(`^${name}, \\d+ of \\d+$`) }).click();
+  await page.waitForTimeout(900);
+};
+const DASH_CARDS = [['weight', 'Weight'], ['nutrition', 'Nutrition'], ['energy', 'Energy'], ['training', 'Training'], ['volume', 'Volume'], ['strength', 'Strength'], ['habits', 'Sleep, steps, water'], ['measures', 'Measures']] as const;
+/** Every dashboard card at 30, 90 and 365 days (names dash<days>-<card>). */
+const dashShots: Shot[] = [30, 90, 365].flatMap((days) => DASH_CARDS.map(([key, name]): Shot => ({ name: `dash${days}-${key}`, view: 'dashboard', args: { days }, kcalGoal: GOAL_2300, steps: openCard(name) })));
 
 export const SHOTS: Shot[] = [
   { name: 'dashboard', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300 },
-  { name: 'nutrition', view: 'dashboard', args: { days: 90 }, only: '[aria-label="Nutrition"]', kcalGoal: GOAL_2300 },
-  { name: 'sleep', view: 'dashboard', args: { days: 90 }, only: '[aria-label="Sleep, steps and water"]', kcalGoal: GOAL_2300 },
+  { name: 'nutrition', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300, steps: openCard('Nutrition') },
+  { name: 'sleep', view: 'dashboard', args: { days: 90 }, kcalGoal: GOAL_2300, steps: openCard('Sleep, steps, water') },
   { name: 'review', fitTo: 780, view: 'review', args: week, kcalGoal: GOAL_2300 },
   { name: 'energy', view: 'review', args: week, only: '[aria-label="Energy"]', kcalGoal: 1800 },
   { name: 'shopping', fitTo: 780, view: 'shopping', args: { people: 2 } },
   { name: 'muscles', clip: 535, view: 'muscles', args: { weeks: 4 } },
   { name: 'lift', view: 'lift', args: { id: 'ex:Barbell_Bench_Press_-_Medium_Grip' } },
   { name: 'lift-90', view: 'lift', args: { id: 'ex:Barbell_Bench_Press_-_Medium_Grip' }, steps: async (f) => { await f.getByRole('button', { name: '90 days', exact: true }).click(); } },
-  { name: 'training-30', view: 'dashboard', args: { days: 30 }, only: 'section[aria-label="Training"]', steps: async (f) => { await f.getByRole('button', { name: 'Training', exact: true }).click(); } },
-  { name: 'training-90-volume', view: 'dashboard', args: { days: 90 }, only: 'section[aria-label="Training"]', steps: async (f) => { await f.getByRole('button', { name: 'Training', exact: true }).click(); await f.getByRole('button', { name: 'Volume', exact: true }).click(); } },
-  { name: 'training-365', view: 'dashboard', args: { days: 365 }, only: 'section[aria-label="Training"]', steps: async (f) => { await f.getByRole('button', { name: 'Training', exact: true }).click(); } },
-  { name: 'training-365-volume', view: 'dashboard', args: { days: 365 }, only: 'section[aria-label="Training"]', steps: async (f) => { await f.getByRole('button', { name: 'Training', exact: true }).click(); await f.getByRole('button', { name: 'Volume', exact: true }).click(); } },
+  { name: 'training-30', view: 'dashboard', args: { days: 30 }, steps: openCard('Volume') },
+  { name: 'training-90-volume', view: 'dashboard', args: { days: 90 }, steps: async (f, page) => { await openCard('Volume')(f, page); await f.getByRole('button', { name: 'Volume', exact: true }).click(); } },
+  { name: 'training-365', view: 'dashboard', args: { days: 365 }, steps: openCard('Volume') },
+  { name: 'training-365-volume', view: 'dashboard', args: { days: 365 }, steps: async (f, page) => { await openCard('Volume')(f, page); await f.getByRole('button', { name: 'Volume', exact: true }).click(); } },
   { name: 'review-month', fitTo: 780, view: 'review', args: week, kcalGoal: GOAL_2300, steps: async (f, page) => { await f.getByRole('button', { name: 'Month', exact: true }).click(); await page.waitForTimeout(800); } },
   { name: 'muscles-recovery', clip: 700, view: 'muscles', args: { weeks: 4 }, steps: async (f, page) => { await f.getByRole('button', { name: 'Days since trained' }).click(); await page.waitForTimeout(800); } },
   { name: 'shopping-undo', view: 'shopping', args: { people: 2 }, steps: async (f, page) => { await f.getByRole('checkbox').first().click(); await f.getByRole('checkbox').nth(1).click(); await f.getByRole('button', { name: 'Clear ticks' }).click(); await page.waitForTimeout(500); } },
@@ -141,6 +149,7 @@ export const SHOTS: Shot[] = [
   // The cardio finisher card, after the squat's only set.
   { name: 'cardio', view: 'workout', args: { name: 'Squat and run', exercises: [squat({ sets: 1 })], cardio: [{ activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /\bMinutes\b/, 6); } },
   { name: 'summary-cardio', view: 'workout', args: { ...FULL, cardio: [{ activity_id: 'act:row-machine', minutes: 5, when: 'before' }, { activity_id: 'act:run-10', minutes: 10, when: 'after', distance_km: 1.5 }] }, steps: async (f, page) => { await work(f, page, /Finish and send to Claude/, 60); await page.clock.fastForward(52 * 60_000); backdate(52); await click(f, 'Finish and send to Claude'); await page.waitForTimeout(1200); } },
+  ...dashShots,
   { name: 'food', view: 'food', args: { day: '2026-10-13', slot: 'lunch', items: [{ food_id: 'frida:59', grams: 80 }, { food_id: 'frida:413', grams: 120 }] }, kcalGoal: GOAL_2300 },
 ];
 

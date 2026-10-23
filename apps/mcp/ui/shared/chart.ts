@@ -54,7 +54,7 @@ export interface LineChartOptions {
   marks?: string[];
 }
 
-/** Dots and an optional line over a value axis with grid lines at round values. */
+/** Dots and an optional line over a value axis with a baseline and the lowest and highest round values. */
 export function lineChart(o: LineChartOptions): HTMLElement {
   const H = o.height ?? 120;
   const digits = o.digits ?? 1;
@@ -66,7 +66,10 @@ export function lineChart(o: LineChartOptions): HTMLElement {
   const y = scale(lo, hi, H - M.b, M.t);
   const x = scale(dayNum(o.from), dayNum(o.to), M.l, W - M.r);
   const el = frame(H, o.label);
-  for (const v of niceTicks(lo, hi, 4)) el.append(s('line', { class: 'grid', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) }), s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
+  // A baseline, and only the lowest and the highest round value on the axis.
+  el.append(s('line', { class: 'axis', x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b }));
+  const ticks = niceTicks(lo, hi, 4);
+  for (const v of ticks.length > 1 ? [ticks[0]!, ticks[ticks.length - 1]!] : ticks) el.append(s('text', { x: M.l - 4, y: y(v) + 3, 'text-anchor': 'end' }, num(v, digits)));
   if (o.goal) el.append(s('line', { class: 'goal', x1: M.l, x2: W - M.r, y1: y(o.goal.value), y2: y(o.goal.value) }), s('text', { x: o.goal.atStart ? M.l + 2 : W - M.r, y: y(o.goal.value) - 4, 'text-anchor': o.goal.atStart ? 'start' : 'end' }, o.goal.label ?? `goal ${num(o.goal.value, digits)}`));
   const line = o.line && o.line.length > 1 ? s('polyline', { class: 'line', points: o.line.map((q) => `${x(dayNum(q.day))},${y(q.value)}`).join(' ') }) : null;
   const bold = o.boldSingle && o.dots.length === 1;
@@ -106,7 +109,7 @@ export interface BarChartOptions {
 
 /** One bar per logged day, from zero. */
 export function barChart(o: BarChartOptions): HTMLElement {
-  const H = o.height ?? 110;
+  const H = o.height ?? 120;
   const digits = o.digits ?? 0;
   const top = Math.max(...o.points.map((q) => q.value), o.reference ?? 0, 1) * (o.headroom ?? 1.1);
   const y = scale(0, top, H - M.b, M.t);
@@ -145,7 +148,7 @@ export interface WeekBarsOptions {
 
 /** Stacked bars, one per week, with the weekly goal as a dashed line. */
 export function weekBars(o: WeekBarsOptions): HTMLElement {
-  const H = o.height ?? 110;
+  const H = o.height ?? 120;
   const wk = o.weeks;
   const top = Math.max(2, ...wk.map((w) => w.a + w.b));
   const y = scale(0, top, H - M.b, M.t);
@@ -195,7 +198,7 @@ let patternIds = 0;
  * with a partial week as an outline. The legend swatches are `.sw-s0`, `.sw-s1` and `.sw-s2` in chart.css.
  */
 export function stackedWeekBars(o: StackedWeekBarsOptions): HTMLElement {
-  const H = o.height ?? 130;
+  const H = o.height ?? 110;
   const wk = o.weeks;
   const digits = o.digits ?? 0;
   const top = Math.max(1, ...wk.map((w) => w.values.reduce((a, b) => a + b, 0)), ...(o.lines ?? [])) * 1.08;

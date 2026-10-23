@@ -15,11 +15,11 @@ permissions:
 
 # Actions are pinned to full commit SHAs (a tag can be moved). Dependabot proposes updates (see dependabot.yml).
 jobs:
-  # Typecheck, lint and unit tests of every workspace (packages/core and apps/mcp).
+  # Typecheck and lint of every workspace, and the packages/core unit tests (about a second).
   check:
     name: Check
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -27,15 +27,41 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      # The workout player tests drive the built view in a real Chromium (tests/support/workoutHost.ts).
-      - run: node node_modules/playwright/cli.js install --with-deps chromium
-      - run: npm test
+      - run: npm test -w @fitwell/core
 
-  # Publishes to Cloudflare after Check passes on main. D1 migrations are NOT applied here: run
+  # The apps/mcp tests on four runners at once, side by side with Check. The files are split by how long they take
+  # (apps/mcp/tests/support/durationSequencer.ts): the browser files take two to three minutes each.
+  test:
+    name: Test (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix: { shard: [1, 2, 3, 4] }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      # The browser tests drive the built views in headless Chromium (tests/support/workoutHost.ts, viewHost.ts). Only the headless
+      # shell is installed, and without --with-deps: the runner image already has the libraries it needs, and that apt step once
+      # took 13 minutes on a slow mirror. The download is cached per Playwright version.
+      - id: playwright
+        run: echo "version=$(node -p "require('./node_modules/playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-headless-shell
+      - run: node node_modules/playwright/cli.js install --only-shell chromium
+      - run: npm run build:ui -w @fitwell/mcp
+      - run: npx vitest run --shard=${{ matrix.shard }}/4
+        working-directory: apps/mcp
+
+  # Publishes to Cloudflare after Check and every Test shard pass on main. D1 migrations are NOT applied here: run
   # `npm --prefix apps/mcp run db:migrate -- --remote` by hand first when a change adds one.
   deploy:
     name: Deploy
-    needs: check
+    needs: [check, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15

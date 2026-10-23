@@ -1,6 +1,7 @@
 @import '../shared/guide.css';
 @import '../shared/tokens.css';
 @import '../shared/cards.css';
+@import '../shared/controls.css';
 /* The zone holds the set line, steppers, plates, last time and the progression reason; Log set and Skip set are in the dock. */
 :root { --zone-h: 148px; }
 .center-text { text-align: center; }
@@ -19,27 +20,28 @@
 .exercise > h1 { position: sticky; top: 0; z-index: 1; padding: var(--s1) 0; background: var(--bg); }
 .body { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--s2); flex: 1 0 auto; }
 
-/* buttons */
-.primary { background: var(--btn); color: var(--on-btn); border-color: var(--btn); font-size: var(--fs-body); font-weight: 600; min-height: var(--h-primary); border-radius: var(--radius); }
+/* buttons: three looks (controls.css). Primary is filled (one a screen). A plain button is quiet text with no box. A stepper tile is a flat fill inside a zone. Nothing is outlined. */
+.primary { background: var(--btn); color: var(--on-btn); font-size: var(--fs-body); font-weight: 600; min-height: var(--h-primary); border-radius: var(--radius); }
 .primary.log { min-height: var(--h-log); }
 .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
 .afterset { display: grid; gap: var(--s1); }
 .cue { font-size: var(--fs-small); font-weight: 600; }
 .effort { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); }
 .effort > span { flex: none; }
-.effort > button { flex: 1 1 0; min-width: 0; min-height: var(--h-secondary); padding: 0 var(--s1); }
-.effort > button[aria-pressed="true"] { border-color: var(--accent); background: var(--surface); font-weight: 600; box-shadow: inset 0 0 0 1px var(--accent); }
+/* The effort choices are words in a row; the chosen one is ink, semibold and underlined, like the toggles of the dashboard, so colour is not the only sign. */
+.effort > button { flex: 1 1 0; min-width: 0; min-height: var(--h-secondary); padding: 0 var(--s1); color: var(--muted); }
+.effort > button[aria-pressed="true"] { color: var(--text); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
 .more { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 0 var(--s1); border-top: 1px solid var(--border); padding-top: var(--s1); }
 .more > button.link:first-child { padding-left: 0; }
 
 .dock .primary.log { min-height: var(--h-log); }
 
-/* steppers: the +/- buttons are the only bordered things inside a zone */
+/* steppers: the +/- buttons are the only filled things inside a zone */
 .steppers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
 .stepper { display: grid; gap: 2px; min-width: 0; }
 .stepper > span { font-size: var(--fs-label); line-height: 16px; }
 .stepper .row { display: grid; grid-template-columns: var(--h-stepper) minmax(0, 1fr) var(--h-stepper); align-items: center; border: 0; border-radius: 0; background: transparent; overflow: visible; }
-.stepper .row > button:not(.value) { min-height: var(--h-stepper); padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: 20px; line-height: 1; }
+.stepper .row > button:not(.value) { min-height: var(--h-stepper); padding: 0; border: 0; border-radius: var(--radius-sm); background: var(--bg); font-size: 20px; line-height: 1; }
 .stepper .value { border: 0; border-radius: 0; background: transparent; min-height: var(--h-stepper); padding: 0; width: 100%; min-width: 0; }
 .stepper output { text-align: center; font-size: var(--fs-big); font-weight: 600; font-variant-numeric: tabular-nums; border-bottom: 1px dotted var(--muted); }
 .stepper .value-field { width: 100%; min-width: 0; min-height: var(--h-stepper); border: 0; background: transparent; color: inherit; font: inherit; font-size: max(var(--fs-big), 16px); font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
@@ -120,6 +122,5 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .notes textarea:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; }
 .swaps { display: grid; gap: 0; }
 .swaps button { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); text-align: left; width: 100%; min-height: var(--h-primary); padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
-.pill { display: inline-block; padding: 0 8px; border-radius: 999px; border: 1px solid var(--border, currentColor); font-size: var(--fs-label); }
 .guide .animation { display: grid; gap: var(--s2); justify-items: start; }
-.guide .animation button { min-height: var(--h-secondary); border-radius: 999px; padding: 0 16px; }
+.guide .animation button { min-height: var(--h-secondary); padding: 0 var(--s2); text-decoration: underline; text-underline-offset: 2px; }

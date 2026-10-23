@@ -1881,7 +1881,7 @@ function setZone(i: number, ex: PlannedExercise, set: PlannedSet, d: Draft): Nod
     { className: set.warmup ? 'zone warmup' : 'zone', 'data-zone': '' },
     // The cue for a partner reached with no rest: the zone's first line (its place is kept in a superset, so nothing moves when it goes).
     ex.supersetId && h('p', { className: 'straight', ...(state.straight?.step === i ? { 'data-straight': '' } : {}) }, state.straight?.step === i ? 'Straight on · no rest' : ''),
-    h('p', { className: 'setline' }, set.warmup && h('span', { className: 'pill' }, 'Warm-up'), set.warmup && ' ', `${which} · ${target}`),
+    h('p', { className: 'setline' }, `${which} · ${target}`),
     setSteppers(ex, d, 'zone'),
     plates && h('p', { className: 'muted small plates' }, plates),
     lastForSet && h('p', { className: 'muted small' }, `Last time: ${lastForSet}`),

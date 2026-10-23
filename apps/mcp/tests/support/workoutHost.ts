@@ -199,7 +199,7 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
   });
 
   await page.setContent(
-    `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0"><iframe id="v" sandbox="allow-scripts" style="width:100%;height:1300px;border:0"></iframe>
+    `<!doctype html><html><body style="margin:0"><iframe id="v" sandbox="allow-scripts" style="width:100%;height:1300px;border:0"></iframe>
     <script>
       const f = document.getElementById('v');
       window.__send = (m) => f.contentWindow.postMessage(m, '*');

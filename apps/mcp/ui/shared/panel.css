@@ -1,0 +1,30 @@
+@import './tokens.css';
+@import './controls.css';
+@import './chart.css';
+/* The flat-card page of the views that are not card pagers (lift progress, the exercise guide and muscle map): a title, flat cards, hairline tables. */
+:root { --accent: var(--color-background-inverse, #4a4743); --on-accent: var(--color-text-inverse, #ffffff); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { --accent: var(--color-background-inverse, #d6d0c6); --on-accent: var(--color-text-inverse, #1b1a18); }
+}
+
+main { max-width: 640px; padding: var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom)); align-content: start; }
+.center { min-height: calc(var(--track-h) - 120px); display: grid; align-content: center; }
+header, .head { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-right: calc(-1 * var(--s2)); }
+
+.card { background: var(--surface); border-radius: var(--radius); padding: var(--s3); display: grid; gap: var(--s2); }
+.headline { font-size: var(--fs-big); font-weight: 600; line-height: 1.2; }
+.headline small { font-size: var(--fs-small); font-weight: 400; color: var(--muted); }
+
+.legend { display: flex; gap: var(--s3); flex-wrap: wrap; font-size: var(--fs-label); color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.small .icon, .legend .icon { width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; }
+.sw1 { background: var(--accent); }
+.sw1.faint { opacity: 0.35; }
+.sw2 { background: var(--series-2); }
+.legend i.goalsw { width: 14px; height: 0; border-top: 2px dashed var(--text); border-radius: 0; opacity: 0.7; vertical-align: 3px; }
+
+table.sessions { width: 100%; border-collapse: collapse; font-size: var(--fs-small); margin-top: 6px; }
+table.sessions caption { text-align: left; color: var(--muted); padding-bottom: 4px; }
+table.sessions th { text-align: left; font-weight: 400; color: var(--muted); padding: 2px 6px 2px 0; }
+table.sessions td { padding: 3px 6px 3px 0; border-top: 1px solid var(--border); }
+table.sessions .icon { width: 14px; height: 14px; vertical-align: -2px; }

@@ -1,5 +1,6 @@
 import type { MuscleLevel, MuscleLoad, MuscleMap } from '../../src/analytics/muscleTypes';
 import { h } from './dom';
+import { textButton } from './icons';
 import { daysBetween, deltaText, HEAT, RECOVERY_HEAT, RECOVERY_LABEL, RECOVERY_ORDER, recoveryOf, type MapMode } from './muscleHeat';
 
 export { deltaText, heatColours, type MapMode } from './muscleHeat';
@@ -46,8 +47,8 @@ export function renderMuscleMap(map: MuscleMap, dark: boolean, figure: HTMLEleme
   const recoveryColours = RECOVERY_HEAT[dark ? 'dark' : 'light'];
   const seg = h(
     'div',
-    { className: 'seg', role: 'group', 'aria-label': 'Period' },
-    ...[1, 4, 12].map((w) => h('button', { type: 'button', 'aria-pressed': String(map.weeks === w), disabled: loading, onclick: () => map.weeks !== w && onWeeks(w) }, w === 1 ? '1 week' : `${w} weeks`)),
+    { className: 'choices', role: 'group', 'aria-label': 'Period' },
+    ...[1, 4, 12].map((w) => textButton(null, `${w}w`, () => map.weeks !== w && onWeeks(w), { pressed: map.weeks === w, disabled: loading, label: w === 1 ? '1 week' : `${w} weeks` })),
   );
   const legend =
     mode === 'recovery'
@@ -75,9 +76,8 @@ export function renderMuscleMap(map: MuscleMap, dark: boolean, figure: HTMLEleme
   return h(
     'section',
     { className: 'guide musclemap', 'aria-label': 'Muscles trained' },
-    h('h2', {}, 'Muscles trained'),
+    h('div', { className: 'head' }, h('h2', {}, 'Muscles trained'), seg),
     h('p', { className: 'muted small' }, `${mode === 'recovery' ? 'Days since each muscle was trained as a main muscle' : 'Hard sets a week'}, ${fmtDay(map.from)} to ${fmtDay(map.to)} · ${map.sessions} strength session${map.sessions === 1 ? '' : 's'}${loading ? ' · updating…' : ''}`),
-    seg,
     figure,
     legend,
     ...groups,

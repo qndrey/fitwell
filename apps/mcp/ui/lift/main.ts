@@ -3,9 +3,10 @@ import type { LiftProgress } from '../../src/analytics/types';
 import { crossesYear, fmtDay, lineChart, num } from '../shared/chart';
 import { dayNum } from '../shared/chartMath';
 import { h } from '../shared/dom';
+import { icon, textButton } from '../shared/icons';
 import { shortName } from '../shared/names';
 
-const PERIODS = [['90 days', 90], ['1 year', 365], ['All', 0]] as const;
+const PERIODS = [['90d', '90 days', 90], ['1y', '1 year', 365], ['All', 'All', 0]] as const;
 const SESSIONS_SHOWN = 10;
 const state = { lift: null as LiftProgress | null, period: 365 as number, error: '' };
 
@@ -33,7 +34,7 @@ function chart(l: LiftProgress, sessions: LiftProgress['sessions']) {
       dotRadius: 2.5,
       marks: bests.map((s) => s.day),
     }),
-    bests.length > 0 && h('p', { className: 'muted small' }, '◆ new best estimate'),
+    bests.length > 0 && h('p', { className: 'muted small' }, icon('diamond'), 'new best estimate'),
   );
 }
 
@@ -52,7 +53,7 @@ function draw() {
     'header',
     {},
     h('h1', {}, shortName(l.name)),
-    all.length > 0 && h('div', { className: 'seg', role: 'group', 'aria-label': 'Period' }, ...PERIODS.map(([label, n]) => h('button', { type: 'button', 'aria-pressed': String(state.period === n), onclick: () => { state.period = n; draw(); } }, label))),
+    all.length > 0 && h('div', { className: 'choices', role: 'group', 'aria-label': 'Period' }, ...PERIODS.map(([text, label, n]) => textButton(null, text, () => { state.period = n; draw(); }, { pressed: state.period === n, label }))),
   );
   if (all.length === 0) {
     root.replaceChildren(header, h('section', { className: 'card', 'aria-label': 'Estimated 1RM' }, h('p', { className: 'muted' }, 'No sessions of this lift yet. Log it in the workout player to see progress.')));
@@ -91,7 +92,7 @@ function draw() {
           'table',
           { className: 'sessions' },
           h('thead', {}, h('tr', {}, ...['Date', 'Top set', 'Est. 1RM', ''].map((c) => h('th', { scope: 'col' }, c)))),
-          h('tbody', {}, ...recent.map((s) => h('tr', {}, h('td', {}, day(s.day)), h('td', {}, `${s.reps.join(', ')} × ${num(s.topSet.kg)} kg`), h('td', {}, `${num(s.e1rm)} kg`), h('td', {}, s.isBest ? '◆ best' : '')))),
+          h('tbody', {}, ...recent.map((s) => h('tr', {}, h('td', {}, day(s.day)), h('td', {}, `${s.reps.join(', ')} × ${num(s.topSet.kg)} kg`), h('td', {}, `${num(s.e1rm)} kg`), h('td', {}, ...(s.isBest ? [icon('diamond'), h('span', { className: 'sr-only' }, 'best')] : []))))),
         ),
       ),
     ]),

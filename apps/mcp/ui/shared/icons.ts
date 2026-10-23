@@ -7,7 +7,7 @@ export { ICONS, type IconName };
 
 /** One icon, hidden from assistive technology: whoever uses it names the button or row it sits in. */
 export function icon(name: IconName): SVGElement {
-  return svg('svg', { viewBox: '0 0 24 24', class: 'icon', 'aria-hidden': 'true', focusable: 'false' }, ...ICONS[name].map(([tag, attrs]) => svg(tag, attrs)));
+  return svg('svg', { viewBox: '0 0 24 24', class: 'icon', 'data-icon': name, 'aria-hidden': 'true', focusable: 'false' }, ...ICONS[name].map(([tag, attrs]) => svg(tag, attrs)));
 }
 
 interface ButtonOptions {
@@ -16,6 +16,8 @@ interface ButtonOptions {
   /** For a toggle: the state it is in. Leave out for a plain button. */
   pressed?: boolean;
   disabled?: boolean;
+  /** For a short visible word (30d): the full name assistive technology reads (30 days). */
+  label?: string;
 }
 
 /** A quiet button with only an icon: the label is its accessible name and its tooltip. */
@@ -25,7 +27,7 @@ export function iconButton(name: IconName, label: string, onclick: (e: MouseEven
 
 /** A quiet button with an icon and a word (or a word alone when `name` is null); the visible word is the accessible name. */
 export function textButton(name: IconName | null, text: string, onclick: (e: MouseEvent) => void, options: ButtonOptions = {}): HTMLButtonElement {
-  return quietButton([name ? icon(name) : null, text], undefined, onclick, options);
+  return quietButton([name ? icon(name) : null, text], options.label, onclick, options);
 }
 
 function quietButton(children: Child[], label: string | undefined, onclick: (e: MouseEvent) => void, { className, pressed, disabled }: ButtonOptions): HTMLButtonElement {

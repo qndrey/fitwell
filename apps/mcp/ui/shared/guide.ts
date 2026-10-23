@@ -1,6 +1,7 @@
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { MACHINE_FOOTNOTE } from '../../src/exercises/machines';
 import { h } from './dom';
+import { textButton } from './icons';
 
 const list = (items: string[]) => h('ul', { className: 'bullets' }, ...items.map((t) => h('li', {}, t)));
 
@@ -13,15 +14,11 @@ export function renderGuide(g: ExerciseGuide, openLink: (url: string) => Promise
   const primary = new Set(g.primary);
   const secondary = new Set(g.secondary.filter((m) => !primary.has(m)));
   const fallback = h('p', { className: 'muted small', hidden: true }, 'Could not open the link here. Search for: ', h('code', {}, `${g.name} exercise how to`));
-  const demo = h('button', {
-    type: 'button',
-    className: 'demo',
-    onclick: () => {
-      void openLink(g.demoUrl).then((ok) => {
-        fallback.hidden = ok;
-      });
-    },
-  }, 'Find a demo video');
+  const demo = textButton('external-link', 'Demo video', () => {
+    void openLink(g.demoUrl).then((ok) => {
+      fallback.hidden = ok;
+    });
+  }, { className: 'demo' });
   const facts = [g.equipment !== 'none' ? g.equipment : 'no equipment', g.level, g.category].filter((x): x is string => !!x);
   return h(
     'section',

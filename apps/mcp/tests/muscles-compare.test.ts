@@ -91,4 +91,38 @@ describe('muscle map view', () => {
     await toggle.click();
     await pwExpect(f.locator('details', { hasText: 'Chest' }).first().locator('.sets')).toHaveText('8 sets a week');
   }, 60_000);
+
+  it('puts the period in the heading row as 1w 4w 12w, and the days-since toggle is an icon', async () => {
+    await seed();
+    const v = await open(await map(4));
+    const f = v.frame;
+    const period = f.getByRole('group', { name: 'Period' });
+    await pwExpect(period.getByRole('button')).toHaveText(['1w', '4w', '12w']);
+    await pwExpect(period.getByRole('button', { name: '4 weeks' })).toHaveAttribute('aria-pressed', 'true');
+    await pwExpect(period.getByRole('button', { name: '1 week' })).toHaveAttribute('aria-pressed', 'false');
+    for (const b of await period.getByRole('button').all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await pwExpect(f.locator('.musclemap > .head h2')).toHaveText('Muscles trained');
+    const toggle = f.getByRole('button', { name: 'Days since trained' });
+    await pwExpect(toggle.locator('svg.icon')).toHaveCount(1);
+    expect(await toggle.textContent()).toBe('');
+    await pwExpect(f.locator('.seg')).toHaveCount(0);
+  }, 60_000);
+
+  it('has icon-only figure controls with names, and the guide has a quiet demo link', async () => {
+    const guide = ((await client.callTool({ name: 'show_exercise', arguments: { query: 'barbell squat' } })).structuredContent as { guide: unknown }).guide;
+    const v = await openView(viewHtml, { content: [{ type: 'text', text: 'ok' }], structuredContent: { guide } });
+    const f = v.frame;
+    const demo = f.getByRole('button', { name: 'Demo video' });
+    await pwExpect(demo).toBeVisible();
+    await pwExpect(demo.locator('svg.icon')).toHaveCount(1);
+    expect((await demo.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    // Without WebGL there is no figure and no controls; where there is, each control is an icon with a name.
+    const controls = f.locator('.motion-controls button');
+    for (const b of await controls.all()) {
+      await pwExpect(b).toHaveAttribute('aria-label', /\S/);
+      await pwExpect(b.locator('svg.icon')).toHaveCount(1);
+      expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+    await pwExpect(f.locator('.guide button.demo')).toHaveCount(1);
+  }, 60_000);
 });

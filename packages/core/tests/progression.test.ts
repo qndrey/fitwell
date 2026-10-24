@@ -35,4 +35,55 @@ describe('suggestProgression', () => {
     expect(suggestProgression([session('d', [[8, 60]], { done: false })], 'barbell')).toBeNull();
     expect(suggestProgression([], 'barbell')).toBeNull();
   });
+
+  describe('effort', () => {
+    /** Five-rep sets at 80 kg that all hit the target, with the given efforts (undefined: none tapped). */
+    const hit = (efforts: (number | undefined)[], kg = 80, extra: Partial<SessionSets['sets'][number]> = {}): SessionSets => ({
+      day: '2026-10-20',
+      sets: efforts.map((effort) => ({ type: 'working', reps: 5, weightKg: kg, targetReps: 5, ...(effort ? { effort } : {}), ...extra })),
+    });
+
+    it('adds two steps when every set felt Easy', () => {
+      const p = suggestProgression([hit([1, 1, 1])], 'barbell');
+      expect(p).toEqual({ weightKg: 85, reps: 5, action: 'increase', reason: 'All sets reached 5 reps at 80 kg and every one felt Easy; add 5 kg.' });
+      expect(suggestProgression([hit([1, 1], 20)], 'dumbbell')).toMatchObject({ weightKg: 24 });
+    });
+
+    it('adds one step when the hardest set felt Solid or Hard', () => {
+      expect(suggestProgression([hit([1, 2, 1])], 'barbell')).toEqual({ weightKg: 82.5, reps: 5, action: 'increase', reason: 'All sets reached 5 reps at 80 kg, the hardest felt Solid; add 2.5 kg.' });
+      expect(suggestProgression([hit([2, 3, 3])], 'barbell')).toMatchObject({ weightKg: 82.5, action: 'increase', reason: expect.stringContaining('the hardest felt Hard') });
+    });
+
+    it('holds the weight when any set felt Max', () => {
+      expect(suggestProgression([hit([1, 2, 4])], 'barbell')).toEqual({ weightKg: 80, reps: 5, action: 'repeat', reason: 'All sets reached 5 reps at 80 kg, but one felt Max; stay there until it feels easier.' });
+    });
+
+    it('adds one step when only some sets were Easy and the rest had no effort', () => {
+      expect(suggestProgression([hit([1, undefined, 1])], 'barbell')).toMatchObject({ weightKg: 82.5, action: 'increase', reason: expect.stringContaining('the ones noted felt Easy') });
+    });
+
+    it('keeps the plain rule and reason when no effort was tapped', () => {
+      expect(suggestProgression([hit([undefined, undefined])], 'barbell')).toEqual({ weightKg: 82.5, reps: 5, action: 'increase', reason: 'All sets reached 5 reps at 80 kg; add 2.5 kg.' });
+    });
+
+    it('does not change a miss or a deload', () => {
+      const miss = (day: string): SessionSets => ({ day, sets: [{ type: 'working', reps: 5, weightKg: 80, targetReps: 5, effort: 1 }, { type: 'working', reps: 3, weightKg: 80, targetReps: 5, effort: 1 }] });
+      expect(suggestProgression([miss('b')], 'barbell')).toMatchObject({ action: 'repeat', weightKg: 80 });
+      expect(suggestProgression([miss('b'), miss('a')], 'barbell')).toMatchObject({ action: 'deload', weightKg: 72.5 });
+    });
+
+    it('counts reps for bodyweight exercises: two more when Easy, the same when Max', () => {
+      const bw = { bodyweightKg: 80 };
+      expect(suggestProgression([hit([1, 1], 80, bw)], 'body only')).toMatchObject({ action: 'add_rep', reps: 7 });
+      expect(suggestProgression([hit([3, 2], 80, bw)], 'body only')).toMatchObject({ action: 'add_rep', reps: 6 });
+      expect(suggestProgression([hit([2, 4], 80, bw)], 'body only')).toMatchObject({ action: 'repeat', reps: 5, reason: expect.stringContaining('but one felt Max') });
+    });
+
+    it('ignores effort on warm-ups and values outside 1 to 4', () => {
+      const s = hit([1, 1]);
+      s.sets.unshift({ type: 'warmup', reps: 5, weightKg: 40, effort: 4 });
+      expect(suggestProgression([s], 'barbell')).toMatchObject({ weightKg: 85 });
+      expect(suggestProgression([hit([9, 0])], 'barbell')).toMatchObject({ weightKg: 82.5, reason: 'All sets reached 5 reps at 80 kg; add 2.5 kg.' });
+    });
+  });
 });

@@ -47,11 +47,11 @@ const SIZES: Record<string, [number, number]> = {
   review: [796, 1216],
 };
 
-const TITLE = "Fitwell for Claude";
+const TITLE = "Fitwell";
 const DESC =
-  "A fitness and nutrition coach inside Claude. Log food, plan meals, run workouts and see your progress by talking to your assistant. Invite-only, data stored in the EU.";
+  "A fitness and nutrition coach inside your AI assistant. Log food, plan meals, run workouts and see your progress by talking to your assistant. Invite-only, data stored in the EU.";
 const OG_IMAGE = "https://fitwell.fyi/og.png";
-const OG_ALT = "Fitwell for Claude: train smarter and get stronger by talking to your assistant";
+const OG_ALT = "Fitwell: train smarter and get stronger by talking to your assistant";
 const PRIVACY_URL = "https://mcp.fitwell.fyi/privacy";
 
 /**
@@ -310,17 +310,17 @@ function Section({ id, children, className = "", narrow = false }: { id?: string
 const chats = [
   {
     you: "Same breakfast as yesterday.",
-    claude:
+    assistant:
       "Logged: 80 g oats, 280 g milk and a banana, 495 kcal and 22 g protein. You have 1,805 kcal and 128 g protein left today.",
   },
   {
     you: "Is my calorie goal still right?",
-    claude:
+    assistant:
       "Your logs and weigh-ins over 4 weeks show you burn about 2,810 kcal a day. To lose 0.5 kg a week that means about 2,260 kcal. Shall I update the goal?",
   },
   {
     you: "Start my full-body workout.",
-    claude:
+    assistant:
       "Barbell squat first: 2 sets of 5. Last time you did 5, 5 and 4 at 82.5 kg and hit both planned sets, so today is 85 kg.",
   },
 ];
@@ -336,14 +336,14 @@ const features: Feature[] = [
       "A summary card shows the day so far against your goals.",
     ],
     shot: "food",
-    alt: "The summary Claude shows after logging a lunch of oats and rye bread: calories today 549 of 2,300, protein, carbs and fat against their goals, then saturated fat, trans fat, sugar, added sugar, fiber and salt, and the two foods",
+    alt: "The summary the assistant shows after logging a lunch of oats and rye bread: calories today 549 of 2,300, protein, carbs and fat against their goals, then saturated fat, trans fat, sugar, added sugar, fiber and salt, and the two foods",
   },
   {
     tab: "Your burn",
     title: "A calorie goal that learns your real burn",
     bullets: [
       "After a few weeks of logging and weigh-ins, Fitwell measures how much you actually burn.",
-      "It suggests a goal from that number. Claude asks before changing anything.",
+      "It suggests a goal from that number. The assistant asks before changing anything.",
     ],
     shot: "energy",
     alt: "The weekly review on its Energy card: burn a day 2,810 kcal from 28 days and 25 weigh-ins, weight trend minus 0.54 kg a week, 2,260 kcal a day to lose 0.5 kg a week against a goal of 1,800, and the goal weight reached around 8 December",
@@ -352,9 +352,9 @@ const features: Feature[] = [
     tab: "Workouts",
     title: "Workouts you start from the chat",
     bullets: [
-      "A workout player inside Claude with big buttons and a rest timer.",
+      "A workout player inside the chat with big buttons and a rest timer.",
       "Weights suggested from your history: add 2.5 kg when every planned set hit its reps. Warm-up sets show plates per side; supersets work too.",
-      "A summary with new personal bests goes back to Claude.",
+      "A summary with new personal bests goes back to the assistant.",
     ],
     shot: "warmup",
     alt: "A warm-up set of barbell squats: warm-up 2 of 4, 5 reps at 50 kg, 15 kg each side on a 20 kg bar",
@@ -543,7 +543,7 @@ const little = [
   { icon: Link2, title: "Recipes from a link", text: "Paste a link to a recipe and it is saved to your recipes." },
   { icon: Refrigerator, title: "What can I cook?", text: "Ranks your recipes by what is in the fridge." },
   { icon: TriangleAlert, title: "Allergen warnings", text: "Warnings for packaged foods that contain your allergens." },
-  { icon: Sunrise, title: "A morning brief", text: "Set up a scheduled task in Claude for a daily summary." },
+  { icon: Sunrise, title: "A morning brief", text: "Set up a scheduled task in your assistant for a daily summary." },
   { icon: Download, title: "Export or delete", text: "Take everything with you, or delete your account any time." },
 ];
 
@@ -566,7 +566,7 @@ const faqs = [
   },
   {
     q: "Which devices does it work on?",
-    a: "It is early days. Fitwell is tested on Claude desktop, web and iPhone. Android has not been tested yet.",
+    a: "It is early days. Fitwell is a standard connector and has been tested in Claude, ChatGPT and Cursor. Android has not been tested yet.",
   },
 ];
 
@@ -575,12 +575,12 @@ const troubles: { q: string; a: string | string[] }[] = [
     q: "I didn't get a sign-in email",
     a: [
       "Only invited addresses get one. If you haven't been invited yet, ask for an invite at mcp.fitwell.fyi/request-access.",
-      "The code comes from login@fitwell.fyi, so check your spam folder too. It lasts 10 minutes; after that, start signing in again from Claude.",
+      "The code comes from login@fitwell.fyi, so check your spam folder too. It lasts 10 minutes; after that, start signing in again from your assistant.",
     ],
   },
   {
     q: "The code doesn't work",
-    a: "Use the code from the newest email. A code lasts 10 minutes and allows 5 tries. After that, close the sign-in window and start again from Claude for a new code.",
+    a: "Use the code from the newest email. A code lasts 10 minutes and allows 5 tries. After that, close the sign-in window and start again from your assistant for a new code.",
   },
   {
     q: "The link in the email says to type the code instead",
@@ -588,19 +588,19 @@ const troubles: { q: string; a: string | string[] }[] = [
   },
   {
     q: "It says there were too many sign-in attempts",
-    a: "Each address can ask for 5 codes an hour. Wait an hour, then sign in again from Claude.",
+    a: "Each address can ask for 5 codes an hour. Wait an hour, then sign in again from your assistant.",
   },
   {
-    q: "Fitwell doesn't show up in the Claude app on my phone",
-    a: "Add the connector in Claude on the web or desktop first (Settings, then Connectors). It then appears in the Claude app on your phone when you're signed in to the same Claude account.",
+    q: "Fitwell doesn't show up in the app on my phone",
+    a: "Add the connector on the web or desktop first (Settings, then Connectors). It then appears in the app on your phone when you're signed in to the same account.",
   },
   {
-    q: "Claude asks me to sign in to Fitwell again",
+    q: "My assistant asks me to sign in to Fitwell again",
     a: "A sign-in stays valid while you use Fitwell and ends after 60 days without use. Sign in again from Settings, then Connectors; your data is kept.",
   },
   {
     q: "A food isn't found",
-    a: "Generic foods use the English names from the Danish database, so try a plain name (\"rye bread\", \"skyr\"). For packaged food, give Claude the barcode or ask it to search Open Food Facts, which is sometimes slow. If nothing fits, Claude logs an estimate and says so.",
+    a: "Generic foods use the English names from the Danish database, so try a plain name (\"rye bread\", \"skyr\"). For packaged food, give the assistant the barcode or ask it to search Open Food Facts, which is sometimes slow. If nothing fits, it logs an estimate and says so.",
   },
 ];
 
@@ -697,7 +697,7 @@ function Index() {
                 Train smarter and get stronger by <span className="text-amber">talking to your assistant</span>
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-                Tell Claude what you ate or start a workout from the chat. Open a dashboard when you want to see how you are
+                Tell your assistant what you ate or start a workout from the chat. Open a dashboard when you want to see how you are
                 doing.
               </p>
               <div className="mt-9 flex flex-wrap items-center gap-5">
@@ -712,11 +712,11 @@ function Index() {
               <p className="mt-4 text-sm text-muted-foreground">
                 Already invited?{" "}
                 <a href="#connect" className="font-semibold text-foreground underline underline-offset-4">
-                  Connect it to Claude
+                  Connect it to your assistant
                 </a>
               </p>
               <ul className="mt-10 flex flex-wrap gap-2 text-sm">
-                {["Invite-only", "Your Fitwell records stored in the EU", "Claude on desktop, web and iPhone"].map((f) => (
+                {["Invite-only", "Your Fitwell records stored in the EU", "Works in Claude, ChatGPT and Cursor"].map((f) => (
                   <li key={f} className="flex items-center gap-2 rounded-full border bg-background/70 px-3 py-1.5 text-muted-foreground backdrop-blur">
                     <span className="size-1.5 rounded-full bg-amber" aria-hidden />
                     {f}
@@ -738,7 +738,7 @@ function Index() {
             <div data-reveal className="md:sticky md:top-28 md:self-start">
               <h2 className="text-3xl sm:text-5xl">You talk, it keeps the records.</h2>
               <p className="mt-6 max-w-sm text-sm text-muted-foreground">
-                The numbers come from a made-up demo person; Claude's wording will differ.
+                The numbers come from a made-up demo person; your assistant's wording will differ.
               </p>
             </div>
             <ChatDemo chats={chats} />
@@ -806,11 +806,11 @@ function Index() {
                 analytics.
               </DataCard>
               <DataCard icon={<Download className="size-5" />} title="Leave any time">
-                Export or delete everything by asking Claude.
+                Export or delete everything by asking your assistant.
               </DataCard>
             </div>
             <p className="mt-8 max-w-3xl rounded-2xl border-l-4 border-amber bg-background px-5 py-4 leading-relaxed text-muted-foreground">
-              What you say in the chat is handled by Anthropic under your Claude account; Fitwell stores your records in the EU.{" "}
+              What you say in the chat is handled by Anthropic under your assistant account; Fitwell stores your records in the EU.{" "}
               <a href={PRIVACY_URL} className="font-semibold text-foreground underline underline-offset-4">
                 Read the privacy notice
               </a>
@@ -862,7 +862,7 @@ function Index() {
               <p className="text-sm font-semibold uppercase tracking-wide text-amber">Four steps, a few minutes</p>
               <h2 className="mt-3 text-3xl sm:text-5xl">How to join</h2>
               <p className="mt-5 max-w-sm leading-relaxed text-muted-foreground">
-                Ask for an invite, add the connector in Claude, sign in with a code and say hello.
+                Ask for an invite, add the connector, sign in with a code and say hello.
               </p>
             </div>
             <ol className="space-y-8">
@@ -877,16 +877,16 @@ function Index() {
                 <p className="mt-4 text-sm">Prefer email? Write to us from that address:</p>
                 <CopyBox value={EMAIL} label="email address" />
               </Step>
-              <Step n={2} id="connect" title="Add the connector in Claude">
+              <Step n={2} id="connect" title="Add the connector">
                 <p>
                   Go to <strong className="text-foreground">Settings</strong>, then <strong className="text-foreground">Connectors</strong>,
                   then <strong className="text-foreground">Add custom connector</strong>, and paste:
                 </p>
                 <CopyBox value={MCP_URL} label="connector URL" />
-                <p className="mt-3">It then shows up in the Claude app on your phone too.</p>
+                <p className="mt-3">It then shows up in the app on your phone too.</p>
               </Step>
               <Step n={3} title="Sign in">
-                <p>Claude opens the sign-in page. Enter your email, tick the consent box and type the 6-digit code.</p>
+                <p>Your assistant opens the sign-in page. Enter your email, tick the consent box and type the 6-digit code.</p>
               </Step>
               <Step n={4} title="Start talking" last>
                 <p>

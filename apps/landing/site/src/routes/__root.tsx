@@ -60,7 +60,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "theme-color", content: "#faf8f5", media: "(prefers-color-scheme: light)" },
       { name: "theme-color", content: "#1b1a18", media: "(prefers-color-scheme: dark)" },
-      { property: "og:site_name", content: "Fitwell for Claude" },
+      { property: "og:site_name", content: "Fitwell" },
     ],
     // Applies a theme the visitor chose earlier before the first paint (no flash); the page's CSP lists this script by hash.
     scripts: [

@@ -64,7 +64,7 @@ const SUPPORT: { name: string; kind: string; url: string }[] = [
   { name: "GitHub Sponsors", kind: "Monthly or one-off", url: "" },
 ];
 const supportLinks = SUPPORT.filter((s) => s.url !== "");
-const EMAIL = "fitwell.fyi@pm.me";
+const EMAIL = "hello@fitwell.fyi";
 const MCP_URL = "https://mcp.fitwell.fyi/mcp";
 
 export const Route = createFileRoute("/")({

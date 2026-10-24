@@ -23,7 +23,7 @@
     // or, without that secret, Email Routing must be enabled on it (Cloudflare's own sender, which only reaches verified destinations).
     "MAIL_FROM": "login@fitwell.fyi",
     // Contact on the privacy notice (/privacy).
-    "CONTACT_EMAIL": "fitwell.fyi@pm.me",
+    "CONTACT_EMAIL": "hello@fitwell.fyi",
     // Comma-separated: these people also get manage_invites (add or remove invitations from Claude).
     "ADMIN_EMAILS": "qndrey@proton.me"
   },

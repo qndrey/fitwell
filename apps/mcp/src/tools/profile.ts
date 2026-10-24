@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { isTimeZone, todayIn } from '../data/time';
 import type { Goals, UserData } from '../data/userData';
+import { SETUP_GUIDE } from '../instructions';
 import { json, toolError } from './result';
 
 const ACTIVITY = ['sedentary', 'light', 'moderate', 'active', 'very_active'] as const satisfies readonly ActivityLevel[];
@@ -16,13 +17,17 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
       title: 'Profile and goals',
       description:
         "The person's profile (time zone, units, body data, activity level, equipment, diet preferences and allergies) and goals. " +
-        'Read it before planning meals or workouts.',
+        'Read it at the start of a conversation and before planning meals or workouts. For a new account it also carries a short setup guide, once.',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
     },
+    // Read-only for the person's data; on a new account's first call it records that the setup was offered.
     async () => {
       const profile = await data.profile();
-      return json({ email: deps.email, today: todayIn(profile.timeZone), profile, goals: await data.goals() });
+      const result = { email: deps.email, today: todayIn(profile.timeZone), profile, goals: await data.goals() };
+      if (!(await data.offerSetup())) return json(result);
+      const res = json({ ...result, newAccount: true });
+      return { ...res, content: [...res.content, { type: 'text', text: SETUP_GUIDE }] };
     },
   );
 

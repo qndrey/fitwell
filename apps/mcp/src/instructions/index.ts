@@ -4,9 +4,13 @@ import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 import nutritionist from './nutritionist.md';
 import progressCoach from './progress-coach.md';
 import server from './server.md';
+import setup from './setup.md';
 import trainer from './trainer.md';
 
 export const SERVER_INSTRUCTIONS = server.trim();
+
+/** The guided first session, added once to get_profile's result for a new account. */
+export const SETUP_GUIDE = setup.trim();
 
 export const ROLES = { trainer, nutritionist, progressCoach } as const;
 export type Role = keyof typeof ROLES;

@@ -112,6 +112,12 @@ describe('the owner reviews requests from Claude', () => {
     expect(r.data.waiting).toEqual([{ email: 'new.person@example.com', uses: 'iphone', requestedAt: new Date().toISOString().slice(0, 10) }]);
   });
 
+  it('list shows the waiting requests too, so asking about invites finds them', async () => {
+    const r = await call(await connect(), 'manage_invites', { action: 'list' });
+    expect((r.data.waitingRequests as { email: string }[]).map((w) => w.email)).toEqual(['new.person@example.com']);
+    expect((r.data.people as { email: string }[]).map((p) => p.email)).toEqual(['owner@example.com']);
+  });
+
   it('approve invites them, emails the instructions, then removes the request', async () => {
     const c = await connect();
     const r = await call(c, 'manage_invites', { action: 'approve', email: 'new.person@example.com' });

@@ -122,7 +122,7 @@ export function Tilt({ children, className }: { children: ReactNode; className?:
   );
 }
 
-type Chat = { you: string; claude: string };
+type Chat = { you: string; assistant: string };
 
 /** The three chat exchanges, played one after another when they scroll into view. All text is in the page from the start. */
 export function ChatDemo({ chats }: { chats: Chat[] }) {
@@ -141,8 +141,8 @@ export function ChatDemo({ chats }: { chats: Chat[] }) {
         io.disconnect();
         let t = 200;
         for (let i = 0; i < total; i++) {
-          const isClaude = i % 2 === 1;
-          if (isClaude) {
+          const isAssistant = i % 2 === 1;
+          if (isAssistant) {
             timers.push(window.setTimeout(() => setTyping(true), t));
             t += 900;
           }
@@ -152,7 +152,7 @@ export function ChatDemo({ chats }: { chats: Chat[] }) {
               setStep(i + 1);
             }, t),
           );
-          t += isClaude ? 700 : 450;
+          t += isAssistant ? 700 : 450;
         }
       },
       { threshold: 0.25 },
@@ -188,8 +188,8 @@ export function ChatDemo({ chats }: { chats: Chat[] }) {
               </span>
             )}
             <p className={cn("max-w-[85%] rounded-2xl rounded-bl-md border bg-background px-4 py-3 leading-relaxed shadow-sm", bubble, !shown(n * 2 + 1) && hidden)}>
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-amber">Claude</span>
-              {c.claude}
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-amber">Assistant</span>
+              {c.assistant}
             </p>
           </div>
         </div>

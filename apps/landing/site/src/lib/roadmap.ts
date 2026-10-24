@@ -15,7 +15,7 @@ export const THEMES: { id: ThemeId; label: string }[] = [
 ];
 
 export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[] = [
-  { id: "shipped", label: "Shipped", sub: "Live today", blurb: "Already in Fitwell. Ask Claude to try any of it." },
+  { id: "shipped", label: "Shipped", sub: "Live today", blurb: "Already in Fitwell. Ask your assistant to try any of it." },
   {
     id: "next",
     label: "Next",
@@ -57,7 +57,7 @@ export const ITEMS: RoadmapItem[] = [
     title: "Your real calorie burn",
     summary: "A goal based on what you actually burn, not a formula.",
     detail:
-      "After a few weeks of logging and weigh-ins, Fitwell works out how much you burn, suggests a calorie goal for the pace you want and projects when you reach your goal weight. Claude asks before changing anything.",
+      "After a few weeks of logging and weigh-ins, Fitwell works out how much you burn, suggests a calorie goal for the pace you want and projects when you reach your goal weight. The assistant asks before changing anything.",
   },
   {
     id: "repeat",
@@ -121,8 +121,8 @@ export const ITEMS: RoadmapItem[] = [
     theme: "logging",
     status: "shipped",
     title: "Morning brief",
-    summary: "A daily summary from a scheduled Claude task.",
-    detail: "Set it up once in Claude and your day starts with what is left to eat and what is planned.",
+    summary: "A daily summary from a scheduled assistant task.",
+    detail: "Set it up once in your assistant and your day starts with what is left to eat and what is planned.",
   },
 
   // Next
@@ -230,7 +230,7 @@ export const ITEMS: RoadmapItem[] = [
     title: "ChatGPT",
     summary: "Testing first, no promises until it works properly.",
     detail:
-      "Fitwell is a standard connector, so it may work in ChatGPT, but the workout player and some plans' limits are unproven. Claude stays the main, supported home. Results will be published here once tested.",
+      "Fitwell is a standard connector, so it may work in ChatGPT, but the workout player and some plans' limits are unproven. Results will be published here once tested.",
   },
 
   // After

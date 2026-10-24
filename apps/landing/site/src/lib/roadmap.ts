@@ -21,7 +21,7 @@ export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[
     id: "next",
     label: "Next",
     sub: "Quick wins, streaks and friends",
-    blurb: "What is being built now: loads that follow your effort, an easier first day, reasons to come back, and training with people you trust.",
+    blurb: "What is being built now: an easier first day, reasons to come back, and training with people you trust.",
   },
   {
     id: "then",
@@ -146,6 +146,16 @@ export const ITEMS: RoadmapItem[] = [
     detail: "Saved with the set and shown in your history and summary, so Claude can see how close to the limit you trained.",
   },
   {
+    id: "rpe",
+    stage: "shipped",
+    theme: "coaching",
+    status: "shipped",
+    title: "Loads that follow your effort",
+    summary: "The effort you tap decides next time's weight.",
+    detail:
+      "When every set reaches its reps: all Easy adds two steps, Solid or Hard adds one, and a Max set keeps the weight. The reason comes with the suggestion, and skipping the taps keeps the usual rule.",
+  },
+  {
     id: "lift",
     stage: "shipped",
     theme: "coaching",
@@ -185,15 +195,6 @@ export const ITEMS: RoadmapItem[] = [
   },
 
   // Next
-  {
-    id: "rpe",
-    stage: "next",
-    theme: "coaching",
-    status: "next",
-    title: "Loads that follow your effort",
-    summary: "The effort you tap decides next time's weight.",
-    detail: "An easy set at the target reps adds load next time. A hard one holds, and a max effort holds or backs off. The reason is shown with the suggestion.",
-  },
   {
     id: "injuries",
     stage: "next",

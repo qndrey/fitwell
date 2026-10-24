@@ -788,7 +788,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     'suggest_progression',
     {
       title: 'Suggest next weights',
-      description: 'For each exercise (or every exercise of a template): what was done last time and what to do next, from a fixed rule (add 2.5 kg, 2 kg for dumbbells, when every set hit its reps; repeat after a miss; deload ~10 % after two misses; bodyweight: one more rep).',
+      description: 'For each exercise (or every exercise of a template): what was done last time and what to do next, from a fixed rule (add 2.5 kg, 2 kg for dumbbells, when every set hit its reps; repeat after a miss; deload ~10 % after two misses; bodyweight: one more rep). The effort logged in the player adjusts a hit: every set Easy adds two steps, any set Max holds, Solid or Hard adds one; no effort keeps the plain rule. The reason says which applied.',
       inputSchema: z.object({ exercise_ids: z.array(exerciseId).min(1).max(15).optional(), template_id: z.uuid().optional() }),
       annotations: { readOnlyHint: true },
     },

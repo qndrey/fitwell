@@ -18,8 +18,8 @@ export interface PlannedSet {
   effort?: number;
 }
 
-/** The four effort taps of a logged working set, easiest first: effort n is `EFFORT_LABELS[n - 1]`. */
-export const EFFORT_LABELS = ['Easy', 'Solid', 'Hard', 'Max'] as const;
+/** The four effort taps of a logged working set, easiest first (defined in core, where progression reads them). */
+export { EFFORT_LABELS } from '@fitwell/core/domain/progression';
 
 /** What earlier sessions did with an exercise, so the player can say a logged set beats them (compared the way the finish summary does). */
 export interface ExerciseBests {

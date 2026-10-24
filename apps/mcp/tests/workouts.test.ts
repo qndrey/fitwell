@@ -63,6 +63,21 @@ describe('strength workouts', () => {
     expect(explicit.exercises[0]!.note).toBeUndefined();
   });
 
+  it('lets the logged effort set the next weight: Easy adds two steps, Max holds', async () => {
+    const effortWorkout = async (plan: WorkoutPlan, effort: (set: number) => number) => {
+      for (const [k, s] of work(plan.exercises[0]!).entries()) await call(client, 'log_set', { workoutId: plan.workoutId, setId: s.id, reps: 5, weightKg: s.weightKg, effort: effort(k) });
+      await call(client, 'finish_workout', { workoutId: plan.workoutId });
+    };
+    await effortWorkout(await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 80, warmup: false }] }), () => 1);
+    const easy = await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, warmup: false }] });
+    expect(work(easy.exercises[0]!)[0]!.weightKg).toBe(85);
+    expect(easy.exercises[0]!.note).toBe('All sets reached 5 reps at 80 kg and every one felt Easy; add 5 kg.');
+
+    await effortWorkout(easy, (k) => (k === 2 ? 4 : 2));
+    const { data } = await call(client, 'suggest_progression', { exercise_ids: [SQUAT] });
+    expect(JSON.stringify(data)).toContain('All sets reached 5 reps at 85 kg, but one felt Max; stay there until it feels easier.');
+  });
+
   it('resumes from the stored state and records skipped sets', async () => {
     const plan = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 80 }, { id: PULLUP, sets: 2, reps: 8 }] });
     await call(client, 'log_set', { workoutId: plan.workoutId, setId: 's1.1', reps: 5, weightKg: 80 });

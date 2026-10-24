@@ -51,7 +51,7 @@ function Card({ item, open, onToggle }: { item: RoadmapItem; open: boolean; onTo
         <p className="border-t pt-3 text-sm leading-relaxed text-muted-foreground">{item.detail}</p>
         {item.status !== "shipped" && (
           <a
-            href={`mailto:fitwell.fyi@pm.me?subject=${encodeURIComponent(`Roadmap: ${item.title}`)}&body=${encodeURIComponent("I would use this because:\n")}`}
+            href={`mailto:hello@fitwell.fyi?subject=${encodeURIComponent(`Roadmap: ${item.title}`)}&body=${encodeURIComponent("I would use this because:\n")}`}
             className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline"
           >
             <Mail className="size-4" aria-hidden /> I would use this

@@ -6,7 +6,7 @@ interface __BaseEnv_Env {
 	DB: D1Database;
 	EMAIL: SendEmail;
 	MAIL_FROM: "login@fitwell.fyi";
-	CONTACT_EMAIL: "fitwell.fyi@pm.me";
+	CONTACT_EMAIL: "hello@fitwell.fyi";
 	ADMIN_EMAILS: "qndrey@proton.me";
 	DEV_UNAUTHENTICATED: string;
 	PUBLIC_URL: string;

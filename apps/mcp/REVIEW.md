@@ -42,7 +42,7 @@ The account and its data can stay. Without the secret it can only sign in by ema
 
 > 1. In Claude (web or desktop), open Settings → Connectors → Add custom connector and enter `https://mcp.fitwell.fyi/mcp`.
 > 2. Claude opens the Fitwell sign-in page. Enter `review@fitwell.fyi`, tick the consent box and continue.
-> 3. No email arrives for this test address. Type the code `<the 6 digits>` on the "Check your email" page. Please type it carefully: after repeated wrong codes it stops working (write to fitwell.fyi@pm.me and we'll reset it).
+> 3. No email arrives for this test address. Type the code `<the 6 digits>` on the "Check your email" page. Please type it carefully: after repeated wrong codes it stops working (write to hello@fitwell.fyi and we'll reset it).
 > 4. The account has 12 weeks of made-up history: food logs, weigh-ins, workouts, recipes and this week's and next week's meal plans. Its time zone is Europe/Copenhagen.
 >
 > Example prompts:
@@ -57,15 +57,15 @@ The account and its data can stay. Without the secret it can only sign in by ema
 
 **Use cases → what users need before they can connect:**
 
-> An invitation. Fitwell is in early access: email fitwell.fyi@pm.me from the address you'll sign in with, and you'll be added. You'll also confirm one email from Cloudflare, which sends the sign-in codes. Then add the connector and sign in with the 6-digit code from the email. No password, no separate app.
+> An invitation. Fitwell is in early access: ask for an invite at https://mcp.fitwell.fyi/request-access (or email hello@fitwell.fyi) and, once it is approved, you get an email with the steps. Then add the connector and sign in with the 6-digit code from the email. No password, no separate app.
 
 **Listing:**
 
 - **One-liner:** "Track food, training and weight by talking to Claude." Keep the invite in the description and the requirements field rather than here.
 - **Description:** start with what it does (food logging with macros, meal plans and shopping lists, a workout player, progress dashboards). End with: "Fitwell is invite-only during early access; see fitwell.fyi to ask for an invitation."
 - **Carousel (MCP App screenshots):** the five PNGs in [directory/](directory/README.md), with their paired prompts.
-- **Documentation URL:** https://fitwell.fyi (how to join, what it does). **Privacy policy:** https://mcp.fitwell.fyi/privacy. **Support:** fitwell.fyi@pm.me.
+- **Documentation URL:** https://fitwell.fyi (how to join, what it does). **Privacy policy:** https://mcp.fitwell.fyi/privacy. **Support:** hello@fitwell.fyi.
 
-An uninvited person who signs in from the directory sees the same "Check your email" page as everyone (so it doesn't reveal who is invited). Both sign-in pages say "Fitwell is invite-only… Not invited yet? Ask at fitwell.fyi@pm.me".
+An uninvited person who signs in from the directory sees the same "Check your email" page as everyone (so it doesn't reveal who is invited). Both sign-in pages say "Fitwell is invite-only… Not invited yet? Ask for an invite" (a link to the request form).
 
 **Data handling:** the API is our own (`mcp.fitwell.fyi`). Food searches and barcodes are also sent to Open Food Facts, a third party we don't control (only the search words or barcode). It does handle personal health data (weight, body measurements, food, training), and there's no sponsored content.

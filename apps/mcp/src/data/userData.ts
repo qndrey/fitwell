@@ -169,6 +169,24 @@ export class UserData {
     return p;
   }
 
+  /**
+   * True once for a new account: nothing saved yet (no goals, logs, workouts, templates, body data, own foods, recipes
+   * or plans, and nothing about them in the profile) and the setup not offered before. Marks it offered in the same statement.
+   */
+  async offerSetup(): Promise<boolean> {
+    const none = (table: string) => `NOT EXISTS (SELECT 1 FROM ${table} WHERE user_id = ?1)`;
+    const tables = ['goals', 'food_entries', 'workouts', 'workout_templates', 'weights', 'measurements', 'daily_metrics', 'custom_foods', 'recipes', 'meal_plans'];
+    const res = await this.db
+      .prepare(
+        `UPDATE users SET setup_offered_at = ?2 WHERE id = ?1 AND setup_offered_at IS NULL AND ${tables.map(none).join(' AND ')}
+           AND NOT EXISTS (SELECT 1 FROM profiles WHERE user_id = ?1
+             AND (sex IS NOT NULL OR birth_year IS NOT NULL OR height_cm IS NOT NULL OR weight_kg IS NOT NULL OR activity_level IS NOT NULL OR equipment != '[]'))`,
+      )
+      .bind(this.userId, this.now())
+      .run();
+    return res.meta.changes === 1;
+  }
+
   async goals(): Promise<Goals | null> {
     const r = await this.db.prepare('SELECT * FROM goals WHERE user_id = ?').bind(this.userId).first<Row>();
     if (!r) return null;

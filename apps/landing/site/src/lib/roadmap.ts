@@ -20,8 +20,8 @@ export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[
   {
     id: "next",
     label: "Next",
-    sub: "Quick wins, streaks and friends",
-    blurb: "What is being built now: an easier first day, reasons to come back, and training with people you trust.",
+    sub: "Streaks and friends",
+    blurb: "What is being built now: injuries remembered, reasons to come back, and training with people you trust.",
   },
   {
     id: "then",
@@ -185,6 +185,16 @@ export const ITEMS: RoadmapItem[] = [
       "Fibre, sugars, added sugar, saturated fat and salt are kept with each meal, with optional goals for fibre, saturated fat and added sugar. A total is shown as a minimum when some foods have no data.",
   },
   {
+    id: "firstday",
+    stage: "shipped",
+    theme: "start",
+    status: "shipped",
+    title: "A guided first day",
+    summary: "From your invite to goals, a first workout and a first meal, in one chat.",
+    detail:
+      "The first time you talk to Fitwell, Claude does what you asked and then offers to set up your profile, suggested targets and a starting template. Skip any step, and it is never offered twice.",
+  },
+  {
     id: "request",
     stage: "shipped",
     theme: "start",
@@ -204,15 +214,6 @@ export const ITEMS: RoadmapItem[] = [
     summary: "Tell Claude once about a sore knee, not in every chat.",
     detail:
       "Saved only when you agree. Exercises that load that area are flagged in plans and swaps. Fitwell does not diagnose, and this stays private like the rest of your health data.",
-  },
-  {
-    id: "firstday",
-    stage: "next",
-    theme: "start",
-    status: "next",
-    title: "A guided first day",
-    summary: "From your invite to goals, a first workout and a first meal, in one chat.",
-    detail: "Claude walks you through your profile, suggested targets and a starting template. Skip any step, and it is never asked twice.",
   },
   {
     id: "directory",

@@ -235,7 +235,7 @@ const cleanUp = () => sqlite(`delete from workouts where created_at >= ${started
 const PAGES: { name: string; html: () => Promise<string>; steps?: (page: Page) => Promise<void> }[] = [
   {
     name: 'signin',
-    html: async () => (await page(emailPageTitle, emailPage({ clientName: 'Claude', clientDomain: 'claude.ai', redirectHost: 'claude.ai', redirectIsLoopback: false } as ConsentDescription, 'h', { contact: 'hello@fitwell.fyi' }))).text(),
+    html: async () => (await page(emailPageTitle, emailPage({ clientName: 'Claude', clientDomain: 'claude.ai', redirectHost: 'claude.ai', redirectIsLoopback: false } as ConsentDescription, 'h'))).text(),
     steps: async (p) => {
       await p.fill('#email', 'you@example.com');
       await p.check('#consent');
@@ -244,7 +244,7 @@ const PAGES: { name: string; html: () => Promise<string>; steps?: (page: Page) =
   {
     name: 'code',
     html: async () => {
-      const c = codePage('h', 'l', 'you@example.com', undefined, 'hello@fitwell.fyi');
+      const c = codePage('h', 'l', 'you@example.com');
       return (await page('Check your email', c.body)).text();
     },
     steps: async (p) => void (await p.fill('#code', '482913')),

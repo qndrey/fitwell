@@ -156,8 +156,8 @@ describe('email sign-in', () => {
     expect(page).toContain('Check your email');
     expect(sent).toHaveLength(0);
     // Both pages say where to ask for an invite, the same for everyone.
-    expect(html).toContain('Not invited yet? Ask at <strong>privacy@fitwell.test</strong>');
-    expect(page).toContain('Not invited yet? Ask at <strong>privacy@fitwell.test</strong>');
+    expect(html).toContain('<a href="/request-access">Ask for an invite</a>');
+    expect(page).toContain('<a href="/request-access">Ask for an invite</a>');
     // No code can work for it.
     const res = await b('/authorize', form({ step: 'code', handle: hidden(page, 'handle'), login: hidden(page, 'login'), code: '123456' }));
     expect(res.status).toBe(400);

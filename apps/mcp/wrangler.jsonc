@@ -19,7 +19,8 @@
   "vars": {
     // The public origin; .dev.vars overrides it for local development.
     "PUBLIC_URL": "https://mcp.fitwell.fyi",
-    // Sign-in emails come from here (Email Routing must be enabled on fitwell.fyi).
+    // Sign-in and invitation emails come from here: fitwell.fyi must be a verified domain in Resend (secret RESEND_API_KEY),
+    // or, without that secret, Email Routing must be enabled on it (Cloudflare's own sender, which only reaches verified destinations).
     "MAIL_FROM": "login@fitwell.fyi",
     // Contact on the privacy notice (/privacy).
     "CONTACT_EMAIL": "fitwell.fyi@pm.me",
@@ -30,6 +31,6 @@
   "d1_databases": [{ "binding": "DB", "database_name": "fitwell", "database_id": "5cc25386-c8a7-480d-9f79-155155abb62c", "migrations_dir": "migrations" }],
   // OAuth clients, grants and tokens (stored hashed/encrypted by the library).
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "1caef8faebdb4c3081d4dfef8602773c" }],
-  // Sign-in emails. On the free plan only verified destination addresses (the invite list) can receive them.
+  // Fallback sender when RESEND_API_KEY is not set (local development). On the free plan only verified destination addresses can receive these.
   "send_email": [{ "name": "EMAIL" }]
 }

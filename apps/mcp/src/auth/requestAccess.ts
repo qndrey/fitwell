@@ -29,10 +29,12 @@ export async function handleRequestAccess(request: Request, deps: RequestAccessD
   if (request.method === 'GET') return page('Ask for an invite', requestAccessPage({ contact: deps.contact }));
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
-  // Only a form submitted from this very page.
+  // Only a form submitted from this very page. The page sends no referrer, so browsers send `Origin: null` with the form:
+  // Sec-Fetch-Site (sent by every current browser) is what tells a same-site post apart, and Origin only decides when it is missing.
   const origin = request.headers.get('Origin');
   const site = request.headers.get('Sec-Fetch-Site');
-  if ((origin !== null && origin !== url.origin) || (site !== null && site !== 'same-origin')) return new Response('Forbidden', { status: 403 });
+  const sameSite = site !== null ? site === 'same-origin' : origin === null || origin === url.origin;
+  if (!sameSite) return new Response('Forbidden', { status: 403 });
   if (Number(request.headers.get('Content-Length') ?? 0) > MAX_BODY) return new Response('Too large', { status: 413 });
 
   let form: FormData;

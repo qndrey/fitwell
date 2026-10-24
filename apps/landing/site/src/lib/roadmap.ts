@@ -1,7 +1,7 @@
 // The public roadmap, in plain words. The detailed plan lives in apps/mcp/ROADMAP.md; keep this in step with it.
 // No dates on purpose: the order is the plan, the timing is not a promise.
 
-export type ThemeId = "coaching" | "logging" | "streaks" | "friends" | "devices" | "hosts";
+export type ThemeId = "coaching" | "logging" | "streaks" | "friends" | "devices" | "hosts" | "start";
 export type StageId = "shipped" | "next" | "then" | "after" | "later";
 export type Status = "shipped" | "next" | "planned" | "exploring";
 
@@ -10,8 +10,9 @@ export const THEMES: { id: ThemeId; label: string }[] = [
   { id: "logging", label: "Logging" },
   { id: "streaks", label: "Streaks" },
   { id: "friends", label: "Friends" },
-  { id: "devices", label: "Devices" },
+  { id: "devices", label: "Your data" },
   { id: "hosts", label: "More chats" },
+  { id: "start", label: "Getting started" },
 ];
 
 export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[] = [
@@ -19,14 +20,14 @@ export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[
   {
     id: "next",
     label: "Next",
-    sub: "Streaks and friends",
-    blurb: "What is being built now: reasons to come back, and training with people you trust.",
+    sub: "Quick wins, streaks and friends",
+    blurb: "What is being built now: loads that follow your effort, an easier first day, reasons to come back, and training with people you trust.",
   },
   {
     id: "then",
     label: "Then",
     sub: "Your data and ChatGPT",
-    blurb: "Less typing: bring in steps, sleep and runs, and check how Fitwell works in ChatGPT.",
+    blurb: "Less typing: bring in steps, sleep, runs and your history from other apps, and check how Fitwell works in ChatGPT.",
   },
   {
     id: "after",
@@ -104,7 +105,8 @@ export const ITEMS: RoadmapItem[] = [
     status: "shipped",
     title: "Muscle map",
     summary: "A 3D body coloured by how much each muscle is trained.",
-    detail: "Hard sets per week against the usual 10 to 20, over 1, 4 or 12 weeks, with the numbers listed beside the colours.",
+    detail:
+      "Hard sets per week against the usual 10 to 20, over 1, 4 or 12 weeks, with the numbers listed beside the colours, the change since the period before, and how many days since each muscle was last trained.",
   },
   {
     id: "sessions",
@@ -124,8 +126,102 @@ export const ITEMS: RoadmapItem[] = [
     summary: "A daily summary from a scheduled Claude task.",
     detail: "Set it up once in Claude and your day starts with what is left to eat and what is planned.",
   },
+  {
+    id: "player",
+    stage: "shipped",
+    theme: "coaching",
+    status: "shipped",
+    title: "A calmer workout player",
+    summary: "One exercise per card, with the buttons where your thumb is.",
+    detail:
+      "Swipe from the overview through each exercise to the finish. The rest timer keeps running if the chat reloads, and a set that beats your best is called out as you log it.",
+  },
+  {
+    id: "effort",
+    stage: "shipped",
+    theme: "coaching",
+    status: "shipped",
+    title: "How hard it felt",
+    summary: "Tap Easy, Solid, Hard or Max after a set, or ignore it.",
+    detail: "Saved with the set and shown in your history and summary, so Claude can see how close to the limit you trained.",
+  },
+  {
+    id: "lift",
+    stage: "shipped",
+    theme: "coaching",
+    status: "shipped",
+    title: "Lift progress",
+    summary: "One lift over time: estimated max, rep records and recent sessions.",
+    detail: "Ask how your squat or bench is going and see the line, your best at 1, 3, 5 and 8 reps, and the last sessions.",
+  },
+  {
+    id: "month",
+    stage: "shipped",
+    theme: "coaching",
+    status: "shipped",
+    title: "Week and month reviews",
+    summary: "Your week or month against the one before, with notes from Claude.",
+    detail:
+      "Calories eaten against burned, a day-by-day strip, training volume and a calendar of trained days. Claude writes a short training and nutrition note that stays with that review.",
+  },
+  {
+    id: "extras",
+    stage: "shipped",
+    theme: "logging",
+    status: "shipped",
+    title: "Fibre, sugar and salt",
+    summary: "More than calories and macros, where the food data has it.",
+    detail:
+      "Fibre, sugars, added sugar, saturated fat and salt are kept with each meal, with optional goals for fibre, saturated fat and added sugar. A total is shown as a minimum when some foods have no data.",
+  },
+  {
+    id: "request",
+    stage: "shipped",
+    theme: "start",
+    status: "shipped",
+    title: "Ask for an invite",
+    summary: "Request access on this page and get step-by-step instructions by email.",
+    detail: "Fitwell is still invite-only. Requests are kept for 30 days at most and deleted once answered.",
+  },
 
   // Next
+  {
+    id: "rpe",
+    stage: "next",
+    theme: "coaching",
+    status: "next",
+    title: "Loads that follow your effort",
+    summary: "The effort you tap decides next time's weight.",
+    detail: "An easy set at the target reps adds load next time. A hard one holds, and a max effort holds or backs off. The reason is shown with the suggestion.",
+  },
+  {
+    id: "injuries",
+    stage: "next",
+    theme: "coaching",
+    status: "next",
+    title: "Injuries remembered",
+    summary: "Tell Claude once about a sore knee, not in every chat.",
+    detail:
+      "Saved only when you agree. Exercises that load that area are flagged in plans and swaps. Fitwell does not diagnose, and this stays private like the rest of your health data.",
+  },
+  {
+    id: "firstday",
+    stage: "next",
+    theme: "start",
+    status: "next",
+    title: "A guided first day",
+    summary: "From your invite to goals, a first workout and a first meal, in one chat.",
+    detail: "Claude walks you through your profile, suggested targets and a starting template. Skip any step, and it is never asked twice.",
+  },
+  {
+    id: "directory",
+    stage: "next",
+    theme: "start",
+    status: "next",
+    title: "Find Fitwell in Claude",
+    summary: "A listing in Claude's connector directory.",
+    detail: "So adding Fitwell is a click instead of a pasted address. It stays invite-only.",
+  },
   {
     id: "streaks",
     stage: "next",
@@ -223,6 +319,25 @@ export const ITEMS: RoadmapItem[] = [
     detail: "Saved as a midpoint and marked as an estimate, and your weekly review says how much of your intake was estimated.",
   },
   {
+    id: "mealplan",
+    stage: "then",
+    theme: "logging",
+    status: "planned",
+    title: "Meal plan view",
+    summary: "Your week of meals on one screen, to swap and repeat.",
+    detail: "Swap a meal for a saved recipe, repeat a day and tick off what you ate, with the same goal and allergy checks as a plan made in chat.",
+  },
+  {
+    id: "import",
+    stage: "then",
+    theme: "devices",
+    status: "planned",
+    title: "Bring your history",
+    summary: "Import from Hevy, Strong, MyFitnessPal and MacroFactor.",
+    detail:
+      "Upload the export file those apps give you. It is read in your browser, never pasted into the chat, and nothing already in Fitwell is overwritten. Exercises that do not match are listed for you to check.",
+  },
+  {
     id: "chatgpt",
     stage: "then",
     theme: "hosts",
@@ -244,22 +359,13 @@ export const ITEMS: RoadmapItem[] = [
     detail: 'Linear, double progression or percentage waves, and "Week 3, Day B" offered when you start a workout.',
   },
   {
-    id: "rpe",
-    stage: "after",
-    theme: "coaching",
-    status: "planned",
-    title: "Effort per set",
-    summary: "Log how hard a set felt and let loads follow.",
-    detail: "An easier-than-planned set adds load next time. A harder one holds or backs off.",
-  },
-  {
     id: "volume",
     stage: "after",
     theme: "coaching",
     status: "planned",
     title: "Weekly volume ranges",
     summary: "Flags muscles that are under- or over-trained.",
-    detail: "Builds on the muscle map with a plain verdict for each group.",
+    detail: "The muscle map already colours each group against 10 to 20 sets a week. Next: a plain verdict for each group in your weekly review.",
   },
   {
     id: "micros",
@@ -267,8 +373,8 @@ export const ITEMS: RoadmapItem[] = [
     theme: "logging",
     status: "planned",
     title: "Micronutrients",
-    summary: "Iron, B12, sodium and more, and protein per meal.",
-    detail: "The food database has them. They need to be added without making Fitwell slower.",
+    summary: "Iron, B12, calcium and more, and protein per meal.",
+    detail: "Fibre, sugar and salt are already tracked. The food database has the vitamins and minerals too; they need to be added without making Fitwell slower.",
   },
   {
     id: "feed",
@@ -340,8 +446,8 @@ export const ITEMS: RoadmapItem[] = [
     stage: "later",
     theme: "hosts",
     status: "exploring",
-    title: "Official listings and Gemini",
-    summary: "Directory listings once other chats work well.",
+    title: "ChatGPT listing and Gemini",
+    summary: "Listed in other chats' directories once Fitwell works well there.",
     detail: "Gemini does not support these interactive views yet, so only text answers would work there.",
   },
 ];

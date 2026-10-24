@@ -1,15 +1,15 @@
 # Fitwell for Claude: long-term roadmap
 
-What comes after the phases in [PLAN.md](PLAN.md). Drafted 2026-10-15 from a brainstorm with research on comparable tools. Six themes: smarter coaching, friends, wearables, faster logging, nudges that work without a phone app, streaks with shareable celebrations, and support for ChatGPT, plus the foundations they need.
+What comes after the phases in [PLAN.md](PLAN.md). Drafted 2026-10-15 from a brainstorm with research on comparable tools; brought in line with what shipped on 2026-10-24. Eight themes: smarter coaching, friends, wearables, faster logging, nudges that work without a phone app, streaks with shareable celebrations, support for ChatGPT, and getting new people started, plus the foundations they need.
 
-## 1. Ground rules (from PLAN.md, unchanged)
+## 1. Ground rules (from PLAN.md)
 
 | Rule | What it means for new features |
 |---|---|
 | The server never calls an LLM | "Smart" features are deterministic, tested functions in `@fitwell/core`; Claude explains them and asks before saving. |
 | Free plan, stateless Worker, D1 (EU) | No Durable Objects. Cron Triggers for anything scheduled. Every new table indexed by `(user_id, …)`; watch D1 daily limits. |
 | Health data is GDPR Art. 9 | Nothing is shared between people by default. Every share is explicit, per category, revocable, recorded, and covered by `export_my_data` and `delete_my_account`. |
-| Claude chat is the main surface | The server cannot push into a chat. Proactive features use email (`send_email`, invitees are verified addresses) or a Claude scheduled task calling the connector. ChatGPT is a second host on the roadmap (theme G); Claude stays the one the views and tool descriptions are tuned for. |
+| Claude chat is the main surface | The server cannot push into a chat. Proactive features use email (Resend from fitwell.fyi since 2026-10-24, so any address works; `auth/mailer.ts` falls back to Cloudflare's binding without `RESEND_API_KEY`) or a Claude scheduled task calling the connector. Every email that is not a sign-in or an invite needs an opt-in and an unsubscribe link. ChatGPT is a second host on the roadmap (theme G); Claude stays the one the views and tool descriptions are tuned for. |
 | Images people share are made in the view | A share card is drawn in the person's own view and saved or copied by them. The server never renders, stores or posts it, and nothing is shared unless they press the button. |
 
 Out of scope: a native mobile app, public sign-up, billing, server-side LLM calls.
@@ -25,12 +25,13 @@ Effort: S (a day or two), M (a few days), L (a week or more).
 | A2 | Supersets and timed sets (open from phase 2), plate calculator, warm-up ramp in the player | `ui/workout`, `workout/plan.ts`, core `workouts.ts` | M | Phase 6 |
 | A3 | Exercise swap: ranked substitutes by primary muscle, pattern and the equipment in the profile | `search_exercises`, free-exercise-db fields | S | Phase 6 |
 | A4 | Programs: blocks of N weeks of templates, progression scheme (linear, double progression, %-of-e1RM waves), scheduled deload; `start_workout` offers "Week 3, Day B" | templates, `suggestProgression` (`core/domain/progression.ts`) | L | Phase 9 |
-| A5 | RPE/RIR per set and autoregulated progression (easier than target adds load, harder holds or reduces) | player, `suggestProgression` | M | Phase 9 |
-| A6 | Weekly sets per muscle against ranges; flags under- and over-trained groups | `setsPerWeekByMuscle` in `analytics/progress.ts` | S | Phase 9 |
-| A7 | Micronutrients (fibre, sodium, iron, B12 …) and protein per meal | the Frida 5.5 dataset has them, but the bundle keeps only energy and macros: extend `packages/core/scripts/build-foods.ts` and watch the Worker size; `get_food_log`, review | M | Phase 9 |
+| A5 | Effort per set and autoregulated progression (easier than target adds load, harder holds or reduces). **Effort shipped** (#59): an optional Easy / Solid / Hard / Max tap on working sets (`EFFORT_LABELS` in `workout/plan.ts`), stored and shown in history, the summary and export. **Left:** `suggestProgression` ignores it | `effort` on stored sets, `suggestProgression` (`core/domain/progression.ts`) | S | Phase 6c |
+| A6 | Weekly sets per muscle against ranges; flags under- and over-trained groups. **Mostly shipped** with A10: the muscle map colours each group under / in range / over and lists the numbers. **Left:** a plain verdict per group in the weekly review and `get_progress` | `analytics/muscles.ts`, `analytics/review.ts` | S | Phase 9 |
+| A7 | Micronutrients and protein per meal. **Partly shipped** (migration 0010): fibre, sugars, added sugar, saturated and trans fat and salt on foods and entries, with goals for fibre, saturated fat and added sugar. **Left:** iron, B12, calcium, vitamin D and the rest, and protein per meal | the Frida 5.5 dataset has them, but the bundle keeps only energy, macros and the extras: extend `packages/core/scripts/build-foods.ts` and watch the Worker size; `get_food_log`, review | M | Phase 9 |
 | A8 | Readiness: sleep, resting HR, HRV and a one-tap soreness/energy check-in suggest a lighter day | C1, `start_workout` | M | Phase 10+ |
 | A9 | Diet breaks and refeeds in long cuts; more 3D movements and a female figure (see PLAN.md 5d) | A1, `exercises/motion.ts` | M | Phase 10+ |
-| A10 | **Muscle heatmap** on the 3D body, answering "how well is each muscle trained?": weekly hard sets per muscle group (a set counts 1 for a main muscle, 0.5 for a helping one) against the usual 10–20 range, coloured not trained / under / in range / over, over 1, 4 or 12 weeks; drag to turn; a list with the numbers, top exercises and last trained day per muscle (colour is never the only signal). The model's reply has the same numbers. Later modes: strength progress (e1RM trend per muscle) and recovery (time since each muscle was trained hard) | `humanBody.ts` (per-vertex weights for the 17 `BODY_MUSCLES`; a heat mode in the shader), the exercise view's body, library primary/secondary muscles | M | Phase 6 (sets against the range); Phase 9 (strength, recovery) |
+| A10 | **Muscle heatmap** on the 3D body, answering "how well is each muscle trained?": weekly hard sets per muscle group (a set counts 1 for a main muscle, 0.5 for a helping one) against the usual 10–20 range, coloured not trained / under / in range / over, over 1, 4 or 12 weeks; drag to turn; a list with the numbers, top exercises and last trained day per muscle (colour is never the only signal). The model's reply has the same numbers. **Shipped:** sets against the range (phase 6), then the change against the period before and a recovery mode, days since each muscle was trained (#65). **Left:** a strength mode (e1RM trend per muscle) | `humanBody.ts` (per-vertex weights for the 17 `BODY_MUSCLES`; a heat mode in the shader), the exercise view's body, library primary/secondary muscles | M | Phase 9 (strength) |
+| A11 | **Injuries and limitations in the profile**: what the person said (body area, what hurts, what to avoid, since when, optional end date), so it is not asked again in every chat. `start_workout`, templates and `search_exercises` flag exercises that load the area, and the substitutes rank around it. Claude asks before saving and never diagnoses; the trainer instructions already ask about pain before programming | `update_profile`, `get_profile`, `substitutes()` in core, library primary muscles, `instructions/trainer.md` | S | Phase 6c |
 
 ### B. Friends
 Foundation (with B1): a `connections` table (requester, addressee, status) and a `shares` table (who may see which category of whose data). Categories: workouts and records / consistency only / templates and recipes / weight and body (off, never in feeds). One new tool, `friends` (invite, accept, list, set_sharing); invitations reuse `manage_invites` and the sign-in email.
@@ -61,15 +62,18 @@ One ingest path: values are normalised into `daily_metrics` (extended with resti
 | D3 | Today view (MCP Apps): remaining macros, today's planned meals with one-tap "eaten", frequent foods as quick-add, water and steps, today's workout | `log_planned_meal`, `get_food_log`, dashboard view | M | Phase 8 |
 | D4 | Restaurant estimates with a range (store the midpoint, marked as an estimate); the review reports the share of estimated calories | `log_food` estimates | S | Phase 8 |
 | D5 | Shared food corrections within the friend group | B foundation, `save_custom_food` | M | Phase 10+ |
+| D6 | **Meal plan view** (MCP Apps), open since phase 4: the week as days and meals against the calorie and protein goals, swap a meal for a saved recipe or another day's meal, repeat a day, tick "eaten" (`log_planned_meal`), and a link to the shopping list. Edits save through app-only tools with the same checks as `save_meal_plan` (goals, allergies, dislikes). B2 households reuse it | `get_meal_plan` (`editable` form), `save_meal_plan`, `log_planned_meal`, `suggest_meals`, the cards shell in `ui/shared` | M | Phase 8 |
 
 ### E. Nudges
 | # | Feature | Builds on | Effort | When |
 |---|---|---|---|---|
-| E1 | Email digests by cron: Sunday review summary, "nothing logged since Tuesday", challenge results; each opt-in in `update_profile`, with an unsubscribe link | `send_email`, `analytics/review.ts` | M | Phase 7 |
+| E1 | Email digests by cron: Sunday review summary, "nothing logged since Tuesday", challenge results; each opt-in in `update_profile`, with an unsubscribe link (and the `List-Unsubscribe` header, which inbox providers expect from bulk senders) | `auth/mailer.ts` (Resend), `analytics/review.ts` | M | Phase 7 |
 | E2 | Morning brief: README recipe for a Claude scheduled task that opens the dashboard or Today view every morning | none (docs only) | S | Phase 6 |
 
 ### F. Streaks and celebrations
 A streak counts weeks (or days for logging) in which a target was met, so a rest day or a busy week does not break it unfairly. Targets come from the profile: workouts per week, a logging target and a goal weight. Everything is computed from the logs by pure functions in `@fitwell/core` (no new source of truth); only milestones already celebrated are stored, so each is celebrated once.
+
+The dashboard's consistency calendar (a 12 × 7 grid of trained days with "3/3" per week, in `ui/shared/chart.ts`, #58) is already built for F1 and F3 to reuse.
 
 | # | Feature | Builds on | Effort | When |
 |---|---|---|---|---|
@@ -91,10 +95,19 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 | G4 | Listing: OpenAI's app directory requirements (submission, review account like `REVIEW.md`, privacy text, screenshots) and, if Google opens one, Gemini's; the scheduled morning brief stays Claude-only, documented | `directory/`, `REVIEW.md`, `/privacy` | M | Phase 10+ |
 | G5 | Gemini: revisit when it supports MCP Apps; until then text answers only (the tools already work without views) | G1 results | S | Later |
 
+### H. Getting started
+Since 2026-10-24 people can ask for an invite at `/request-access` and the owner approves them from Claude (`manage_invites`), so new people now arrive who were not set up by hand. These items help them get going and bring their history with them.
+
+| # | Feature | Builds on | Effort | When |
+|---|---|---|---|---|
+| H1 | **First session**: when `get_profile` finds a new account (no profile, no goals, no logs), its result asks Claude to walk through setup in one go: profile and equipment, `suggest_targets` then `set_goals` after agreement, a first template from what they train, and the first meal logged; then the dashboard. Skippable at every step, never asked twice; the approval email already gives step-by-step instructions | `get_profile` result text, `instructions/`, `suggest_targets`, `save_workout_template` | S | Phase 6c |
+| H2 | **Import from other apps**: workout history from Hevy and Strong (CSV exports), food logs and weigh-ins from MyFitnessPal and MacroFactor exports. Same path as the Fitwell backup: a one-time upload link, the file parsed in the browser and sent in chunks, `INSERT OR IGNORE`, skipped rows counted with a reason. Exercise names are matched to the library (unmatched ones become own exercises, listed for the person to check); foods come in as marked estimates with their macros, not matched to Frida | `import/routes.ts`, `import/convert.ts`, `import/store.ts`, `search_exercises` | M | Phase 8 |
+| H3 | **Claude Connectors Directory listing**: submit with the screenshots and prompts already in `directory/`, the review account in `REVIEW.md` and the privacy notice. Invite-only sign-in stays, so the listing points to the request form | `directory/`, `REVIEW.md`, `/privacy`, `/request-access` | S | Phase 6c |
+
 ## 3. Phases and exit criteria
 
 **Phase 6: foundations and quick wins**
-- [ ] Deploy the backlog: remote migrations 0007, 0008 and 0009, `wrangler deploy` (phases 5–5d and 6).
+- [x] Deploy the backlog. Since #55 CI deploys the Worker and the landing page from main after the checks pass; D1 migrations are still applied by hand (`npx wrangler d1 migrations apply fitwell --remote`). On 2026-10-24 the remote database had every migration up to 0015.
 - [-] D1 usage: dropped (2026-10-16). Cloudflare's dashboard already shows D1 rows read and written per day and per query; a handful of people is far from the free plan's limits, and counting in code would add writes of its own.
 - [-] Cron: moved to phase 7, built with its first job (E1 email digests) rather than as an empty scaffold.
 - [x] Open Food Facts: when OFF fails, an older cached answer is served (`data/offCache.ts`). No retry inside a request: after a 503 the client already pauses its rate limiter for up to 30 s.
@@ -106,6 +119,22 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 - [x] A10 muscle heatmap: `buildMuscleMap()` (`analytics/muscles.ts`, tested against hand-counted sets), `show_muscle_map` and the app-only `get_muscle_map`, drawn by the exercise view (it already carries three.js and the body, so the Worker grows by 4.5 KB instead of another 1.7 MB view); a heat mode in `humanBody.ts`; colours for light and dark; period switch keeps the figure's angle.
 - [x] E2: morning brief section in `apps/mcp/README.md` (a Claude scheduled task; text tools only, since a scheduled run shows no views).
 - [ ] Exit: after a week of real logging, "how am I doing this week?" gives an expenditure estimate and a suggested target; "same breakfast as yesterday" logs in one call; "which muscles did I train this month?" shows the heatmap with the numbers in the reply.
+
+**Phase 6b: shipped outside the plan (2026-10-16 to 2026-10-24)**
+- [x] Whole-body sessions: `log_session` for Pilates, yoga, HIIT, CrossFit, Hyrox and functional training, counted in the week and the review (migration 0011).
+- [x] Workout player: swipeable cards (overview, one card per exercise, finish card), a bottom action dock, a cardio card, folded warm-ups, sets per muscle on the overview, an optional effort tap per working set (A5, first half), the rest stored on the server so it survives a reload (migration 0013), and a record cue when a set beats an earlier best (#53–#66, #76–#82).
+- [x] Food extras (A7, first part): fibre, sugars, added sugar, saturated and trans fat and salt, with goals for fibre, saturated fat and added sugar (migration 0010). A sleep goal (migration 0012).
+- [x] Body: a 14-day body-fat average and trend in the `log_body` reply (#56).
+- [x] Dashboard and review (from `docs/plan-player-dashboards.md`): energy card (eaten against burned, the gap, the target and goal date), consistency calendar, strength rows, periods that start with the data, a week strip in the review (#58); `show_lift_progress` (one lift's e1RM over time, rep records, last sessions), weekly sets or tonnage on the training card, a Week / Month switch in the review, the muscle map's change against the period before and its recovery mode (A10), Undo after clearing shopping ticks (#65); training and nutrition notes Claude writes into the review (migration 0014, #68); one card shell and one set of controls and icons across the views (#68, #76–#83).
+- [x] Invite requests: a form at `/request-access`, approved or declined by the owner through `manage_invites`; sign-in and approval emails through Resend, so invitees no longer need a verified destination (migration 0015, #86–#89).
+- [x] Landing page with the public roadmap (`apps/landing/site`, `src/lib/roadmap.ts`), demo video and screenshots (#48–#52, #84).
+
+**Phase 6c: quick wins before phase 7**
+- [ ] A5 second half: `suggestProgression` uses the logged effort (an Easy or Solid set at the target reps adds load, Hard holds, Max holds or backs off); the reason is in the progression note the player shows.
+- [ ] A11 injuries and limitations in the profile (decision in §4), flagged in plans, templates and swaps.
+- [ ] H1 first session for new accounts.
+- [ ] H3 Claude Connectors Directory submission.
+- [ ] Exit: a squat logged Easy at the target reps gets more weight next time, with the reason; "my left knee hurts on lunges" is saved once and the next leg plan flags lunges and offers swaps; a newly approved person goes from the email to goals set and a first meal logged in one chat.
 
 **Phase 7: friends v1 and streaks**
 - [ ] Decisions in §4 agreed.
@@ -120,12 +149,13 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 **Phase 8: data in and ChatGPT**
 - [ ] C1 ingest webhook with per-person token; Health Auto Export and Shortcut setup in the README; sources shown in `get_progress`.
 - [ ] C2 Strava.
-- [ ] D3 Today view; D4 restaurant estimates.
+- [ ] D3 Today view; D4 restaurant estimates; D6 meal plan view.
+- [ ] H2 import from Hevy, Strong, MyFitnessPal and MacroFactor exports (decision in §4).
 - [ ] G1 ChatGPT compatibility spike (by the owner) with the results table in the README; G2 fallbacks if the player does not work there; G3 host-neutral wording.
-- [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio; a ChatGPT user on a plan that allows it logs a meal and sees the dashboard, and the table says what works where.
+- [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio; a year of Hevy workouts imports with "last time" values in the player and every unmatched exercise listed; a meal is swapped and a day repeated in the plan view; a ChatGPT user on a plan that allows it logs a meal and sees the dashboard, and the table says what works where.
 
 **Phase 9: coaching v2 and crew**
-- [ ] A4 programs with deloads; A5 RPE/RIR; A6 volume ranges; A10 strength and recovery modes; A7 micronutrients.
+- [ ] A4 programs with deloads; A6 a verdict per muscle group in the review; A10 strength mode; A7 vitamins and minerals, protein per meal.
 - [ ] B3 crew feed; B4 challenges; F5 streaks in both (consistency only).
 - [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
 
@@ -137,6 +167,8 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 - **Visibility defaults.** Proposal: nothing shared by default; weight and body never in feeds, only to an accountability buddy who was chosen explicitly.
 - **Challenges and weight.** Proposal: consistency metrics only, never weight or body fat.
 - **Wearable data retention.** Proposal: keep normalised values only; drop raw payloads after processing.
+- **Injuries (A11).** Proposal: saved only when the person tells Claude and agrees; a body area from a fixed list, their own words, and optional start and end dates; health data under Art. 9 like the rest, in export and delete, never shared with friends or shown on a card. Claude flags and offers swaps but does not diagnose or say an exercise is safe.
+- **Imports from other apps (H2).** Proposal: the file is read in the person's browser, never through the chat, and only converted records are kept (no raw file); imported foods are marked estimates; nothing already in the account is overwritten, as with the Fitwell backup.
 - **Streak rules (agreed 2026-10-18).** Weekly streaks for training (a week counts when the workout target is met; one rest or sick week per 12 weeks, or a freeze the person sets, keeps the streak), daily plus weekly-target streaks for logging ("logged" means at least one meal, not a full day, so partial days do not punish); milestones 1, 2, 3, 5, 7, 14, 21, 30, 52. A weight goal is a milestone celebrated when it is reached (by the trend, after 7 days at or past the goal); it never feeds a streak.
 - **Share cards (agreed 2026-10-18).** Drawn in the view only; name and numbers chosen per card; weight and body data off by default and never in the default caption; a small "Fitwell" line the person can remove (just "Fitwell", not "Fitwell for Claude").
 - **ChatGPT scope (agreed 2026-10-18).** The owner tests in ChatGPT first (the G1 checklist, on a plan that allows write tools) before any support is promised; G2 to G4 depend on those results. Claude remains the primary, documented host.
@@ -148,4 +180,5 @@ Fitwell is a standard remote MCP server (Streamable HTTP, OAuth 2.1 with dynamic
 - Streaks: weekly targets and rest allowances keep motivation without rewarding overtraining; streak loss can discourage, so the engine forgives one gap and celebrates milestones once (no repeats).
 - Hosts: ChatGPT custom connectors need Developer Mode and may restrict write tools by plan ([guide](https://coworker.ai/blog/chatgpt-mcp)); the MCP Apps announcement lists ChatGPT, Claude, Goose and VS Code Insiders ([blog](https://blog.modelcontextprotocol.io/posts/2026-01-26-mcp-apps/)); Gemini custom apps are limited to personal US accounts ([help](https://support.google.com/gemini/answer/17209137?hl=en&co=GENIE.Platform%3DDesktop)).
 - Social features: friend groups seeing each other's activity and time-boxed challenges recur as retention levers; challenge windows that are too tight put busy people off ([study](https://www.theseus.fi/handle/10024/887910)). Rest-day-friendly streaks avoid rewarding overtraining.
+- Switching: Hevy and Strong export workouts as CSV; MyFitnessPal and MacroFactor have data exports too. Their columns, units and plan limits (MyFitnessPal's export may need Premium) have to be checked against real files before H2 is specified.
 - Health data: Apple Health has no web API (exports or a companion app, e.g. Health Auto Export's REST automation); Oura, Whoop, Withings, Polar and Strava have personal OAuth APIs; Garmin's needs business approval.

@@ -50,13 +50,13 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 | Area | Tool | Status |
 |---|---|---|
 | Reference | `search_foods`, `lookup_barcode`, `search_exercises` (with `id` for details) | **Done (phase 0)** |
-| Profile | `get_profile`, `update_profile`, `set_goals` (with a TDEE/macro suggestion from core) | Phase 1 |
-| Food log | `log_food` (several items in one call), `get_food_log`, `edit_food_entry`, `save_custom_food`, `save_recipe` | Phase 1 |
-| Workouts | `create_workout_template`, `list_templates`, `start_workout` (opens the player), `log_set`, `finish_workout`, `get_workout_history` | Phase 2 |
-| Body | `log_body` (weight, measurements, sleep, steps, water) | Phase 3, 5 |
-| Analytics | `get_progress` (weight trend, macro adherence, volume, PRs, e1RM), `show_dashboard` (opens the UI) | Phase 3 |
-| Meal planning | `save_meal_plan` (validated against goals), `get_meal_plan`, `show_grocery_list` (aggregated grams, grouped by aisle, scaled for prep; tick-off checklist) | Phase 4, 5 |
-| Account | `export_my_data`, `delete_my_account`, `import_fitwell_backup` (web app backup JSON) | Phase 1 (export/delete), 3 (import) |
+| Profile | `get_profile`, `update_profile`, `set_goals`, `suggest_targets` (TDEE/macro suggestion from core) | Done (phase 1) |
+| Food log | `log_food` (several items in one call), `get_food_log`, `edit_food_entry`, `save_custom_food`, `save_recipe` | Done (phase 1) |
+| Workouts | `save_workout_template`, `list_workout_templates`, `start_workout` (opens the player; `log_set` is app-only), `finish_workout`, `get_workout_history`, `log_past_workout`, `log_cardio`, `log_session`, `suggest_progression`, `show_exercise` | Done (phases 2, 5c, 6b) |
+| Body | `log_body` (weight, measurements, sleep, steps, water) | Done (phases 3, 5) |
+| Analytics | `get_progress` (weight trend, macro adherence, volume, PRs, e1RM), `show_dashboard`, `show_weekly_review`, `show_lift_progress`, `show_muscle_map` | Done (phases 3, 5, 6, 6b) |
+| Meal planning | `save_meal_plan` (validated against goals), `get_meal_plan`, `log_planned_meal`, `get_planning_context`, `get_recipes`, `import_recipe`, `suggest_meals`, `show_grocery_list` (aggregated grams, grouped by aisle, scaled for prep; tick-off checklist) | Done (phases 4, 5) |
+| Account | `export_my_data`, `delete_my_account`, `import_fitwell_backup` (web app backup JSON), `delete_item`; `manage_invites` for the owners | Done (phases 1, 3, 5, 6b) |
 
 ## 5. Phases and exit criteria
 
@@ -83,7 +83,7 @@ Phases 6 and later (coaching, friends, wearables, faster logging) are in [ROADMA
 
 **Phase 2: workouts**
 - [x] Templates, sessions, sets; "last time" values per exercise; supersets and timed sets as in the web app (supersets and timed sets in phase 6, see ROADMAP.md).
-- [ ] Workout player UI: current set, rest timer, log/skip, next exercise; state saved on every set so a dropped connection loses nothing.
+- [x] Workout player UI: current set, rest timer, log/skip, next exercise; state saved on every set so a dropped connection loses nothing. Later rebuilt as swipeable cards with an action dock, and the rest is stored on the server so it survives a reload (see ROADMAP.md, phase 6b).
 
 **Phase 3: body, analytics, dashboard, import (built 2026-10-13)**
 - [x] Weight (one per day; 7-day average and trend in the reply; profile weight follows the latest weigh-in) and measurements (cm, body fat %, merged per day); migration 0004; export and delete include them.
@@ -111,19 +111,19 @@ Phases 6 and later (coaching, friends, wearables, faster logging) are in [ROADMA
 - [x] `suggest_meals`: saved recipes ranked by what is at home (staples ignored), fitted to today's remaining calories; recipes with allergy foods are left out.
 - [x] `manage_invites` (list, add, remove unused) for the owners in `ADMIN_EMAILS`; nobody else sees it. The sign-in pages say where to ask for an invite.
 - [x] Fewer tools: `delete_item` (8 kinds), `log_body`, `get_food_log`, `get_recipes`, exercise details in `search_exercises`, `check_result` on the import tool.
-- [ ] Deploy: remote migration 0007, `wrangler deploy`.
+- [x] Deployed (CI deploys main since #55; remote migrations checked up to 0015 on 2026-10-24).
 
 **Phase 5b: feedback from the first real use (2026-10-14)**
 - [x] Cardio inside a strength workout: `start_workout`, templates and `log_past_workout` take `cardio` blocks (activity, minutes, optional km, `when` before or after). The player runs them as steps with minutes and distance steppers (`log_cardio_block`, app-only); calories use the same MET estimate as `log_cardio`. They count as cardio minutes in progress and the review, not as a second workout. Migration 0008 (`cardio_blocks` on workouts and templates).
 - [x] The rest screen shows what is next: the next set (or exercise) with reps × weight, last time, the progression note, the exercise note, or the next cardio block; after the final set it says to finish.
 - [x] A note per exercise: in plans and templates, editable in the player (`set_exercise_note`, app-only), shown in the summary and in history, and the previous session's note appears as "Last note". Finished exercises can still be opened to change their note.
-- [ ] Deploy: remote migration 0008, `wrangler deploy`.
+- [x] Deployed (CI deploys main since #55; remote migrations checked up to 0015 on 2026-10-24).
 
 **Phase 5c: exercise guides (2026-10-14)**
 - [x] Research on exercise images: the images of free-exercise-db (our instruction source) have no known licence (the maintainer says so), wger has clear per-image CC-BY-SA licences but covers few of our exercises and almost no machines, and ExerciseDB/MuscleWiki/RepDB are commercial or unclear. Decision: no photos or illustrations for now.
 - [x] `show_exercise` (view `ui://fitwell/exercise.html`) and the player's "How to do it" (`get_exercise_guide`, app-only): original front/back body drawing with primary and secondary muscles (`exercises/bodyMap.ts`), the library's steps, a "Find a demo video" button (a video search, so no link can go stale; `app.openLink`, with the search words shown when the host refuses), and our own written setup, form cues and common mistakes for 21 machine and station types plus generic cable and machine guidance (`exercises/machines.ts`; applies only to exercises with machine or cable equipment). The library's step text itself comes from free-exercise-db (Unlicense).
 - [ ] Not done: photos or illustrations; a pass to rewrite the library's step text for the exercises where it is awkward.
-- [ ] Deploy (no migration).
+- [x] Deployed (CI deploys main since #55; remote migrations checked up to 0015 on 2026-10-24).
 
 **Phase 5d: 3D exercise animation, prototype (2026-10-15)**
 - [x] (Replaced by the realistic body below; the mannequin code is deleted, `ui/shared/props.ts` keeps the barbell, dumbbells, kettlebell and bench.) Own male mannequin drawn with three.js: rigid parts with ball joints and a nose wedge so the facing direction reads, procedural barbell, dumbbells, kettlebell and bench. No model file, no downloaded asset, no licence to track. Colours follow the host theme; the player only creates a WebGL context when "How to do it" is opened and stops it when closed or hidden; without WebGL the guide simply has no animation.
@@ -135,18 +135,17 @@ Phases 6 and later (coaching, friends, wearables, faster logging) are in [ROADMA
 - [x] More movements (2026-10-15, branch `mcp-more-movements`): overhead press (standing and seated, barbell and dumbbells), bent-over row, curl, pull-up and chin-up, lat pulldown (wide, close, underhand), lunge and split squat, incline bench press, push-up (normal, wide, close): 30 more mapped exercises, each with a solver and tested form rules (bar clears the face in the press, arms vertical at the bottom of the row, chin over the bar in the pull-up, rear knee off the floor in the lunge, one straight line in the push-up, bar touching the chest surface on the incline). New props: incline bench and upright seat, pull-up bar, pulldown station with the cable following the bar. Feet are oriented from the hip line (so feet on their toes work), open hands are aimed along their fingers, and underhand grips flip the palms.
 - [x] Polish (2026-10-15, branch `mcp-polish`): the torso muscle regions are drawn as anatomical outlines instead of ovals (chest fan, straight abdominal muscle and obliques, lat wings, kite-shaped trapezius, a narrow band between the shoulder blades, erector columns, glutes), so the tint on the back reads as the real muscles; soft relief for lats, trapezius and the middle back in the skin shader. The figure with no movement now stands at ease with the arms hanging and the palms toward the thighs, and breathes (shoulders lift a few millimetres, ribs and belly swell in the skin shader; off under reduced motion).
 - [x] Machines, Smith machine and cables (2026-10-15, branch `mcp-machines`): 46 more exercises animated. Smith machine (8; `Variant.rails` keeps the bar on a vertical line, one frame prop). Seated and lying machines (24; leg press, leg extension, seated and lying leg curl, chest press with incline and decline, shoulder press machine, row machines, pec deck and reverse fly, bicep, preacher, triceps and dip machines, standing, seated and Smith calf raise, hip abductor and adductor): the machine fixes the handle, pad or platform and the limbs are solved to it, with a machine prop that follows the pose. Cable exercises (14; seated row, four pushdowns, cable curl, face pull, two straight-arm pulldowns, two crossovers, standing cable chest press, two cable shoulder presses): cable stations draw the pulley on a post and a cable re-aimed each frame. `motion.ts` was split into `motionKit.ts` (shared helpers), `motionMachines.ts` and `motionCable.ts`; props into `propsMachines.ts`. Left at rest: ab crunch machine (needs spine flexion), hack squat, glute-ham raise, one-arm and twisting cable exercises, cardio machines.
-- [ ] Next patterns: triceps extension, lateral raise, dips, calf raise, hip thrust, crunch; decline bench; machines; a female figure. Each needs a solver with its own form rule and a review of the motion.
+- [ ] Next patterns: triceps extension, lateral raise, dips, free-weight calf raise, hip thrust, crunch; decline bench; the machines left at rest above; a female figure. Each needs a solver with its own form rule and a review of the motion.
 - Cost: both views grow from 0.6 MB to 1.2 MB (three.js, pinned 0.186.1), and to 1.7 MB with the body model; the Worker is 1.39 MB gzipped (limit 3 MB).
-- [x] Machines, Smith machine and cables (2026-10-15, branch `mcp-machines`): 46 more exercises animated. Smith machine (8; `Variant.rails` keeps the bar on a vertical line, one frame prop). Seated and lying machines (24; leg press, leg extension, seated and lying leg curl, chest press with incline and decline, shoulder press machine, row machines, pec deck and reverse fly, bicep, preacher, triceps and dip machines, standing, seated and Smith calf raise, hip abductor and adductor): the machine fixes the handle, pad or platform and the limbs are solved to it, with a machine prop that follows the pose. Cable exercises (14; seated row, four pushdowns, cable curl, face pull, two straight-arm pulldowns, two crossovers, standing cable chest press, two cable shoulder presses): cable stations draw the pulley on a post and a cable re-aimed each frame. `motion.ts` was split into `motionKit.ts` (shared helpers), `motionMachines.ts` and `motionCable.ts`; props into `propsMachines.ts`. Left at rest: ab crunch machine (needs spine flexion), hack squat, glute-ham raise, one-arm and twisting cable exercises, cardio machines.
-- [ ] Deploy (no migration).
+- [x] Deployed (CI deploys main since #55; remote migrations checked up to 0015 on 2026-10-24).
 
 ## 6. Risks and open items
 - **Free-plan CPU (10 ms/request)**: first request in an isolate parses the datasets; measure on the real edge after the first deploy. If needed, move search indexes to D1 FTS.
-- **D1 daily limits** fail hard on the free plan; add a usage check to the dashboard tool.
+- **D1 daily limits** fail hard on the free plan. The usage check was dropped on 2026-10-16: Cloudflare's dashboard shows rows read and written per day and per query, and a handful of people is far from the limits (see ROADMAP.md, phase 6).
 - **Open Food Facts** text search is intermittently 503; cache in D1, barcode lookups are more reliable. Rate limiting is per isolate only.
 - **Tool count** (decided 2026-10-16): no limit on the number or size of tool definitions (about 10k tokens for 37 visible tools). Merging tools where it reads naturally is still fine, but new features add tools when that is clearer.
 - **View bundle size**: the player is 597 KB (129 KB gzip), almost all zod pulled in by the MCP Apps SDK; our code is 6 KB. Fine for the spike; look for a slimmer import before phase 2.
-- **Player state** lives in the view only during phase 0b; a reload of the conversation loses progress until sets are stored (phase 1/2).
-- **EU jurisdiction for D1**: confirm the current setting and that it is available on the free plan before creating the database.
-- **Email sending on the free plan** works only to verified destination addresses, and Cloudflare marks outbound sending as beta. Confirm the `send_email` binding behaviour when building phase 1. Fallback: Workers Paid (about $5/month, sends to anyone).
+- **Player state** (resolved): sets are stored on every log since phase 2, and the running rest since migration 0013, so a reload loses nothing.
+- **EU jurisdiction for D1** (resolved): the database was created with `--jurisdiction eu` on 2026-10-13 (`wrangler.jsonc`).
+- **Email sending** (resolved 2026-10-24, #86): mail goes through Resend from fitwell.fyi when `RESEND_API_KEY` is set, to any address; Cloudflare's `send_email` binding (verified destinations only) is the fallback. Resend sees the recipient and the message, as the privacy notice says. Digests (ROADMAP.md E1) add volume and need opt-in and unsubscribe handling.
 - **GDPR**: privacy notice, consent record, export and delete in phase 1; Cloudflare DPA applies.

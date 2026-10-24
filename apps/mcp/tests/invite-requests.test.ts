@@ -53,9 +53,17 @@ describe('the request form', () => {
     expect(await countInviteRequests(env.DB)).toBe(0);
   });
 
+  it('accepts the browser form post, which carries Origin: null because the page sends no referrer', async () => {
+    const res = await submit({ ...valid, email: 'browser@example.com' }, { headers: { origin: 'null', 'sec-fetch-site': 'same-origin' } });
+    expect(res.status).toBe(200);
+    expect(await waiting()).toEqual([['browser@example.com', 'iphone']]);
+  });
+
   it('refuses another site, a bad address and a missing tick', async () => {
     expect((await submit(valid, { headers: { origin: 'https://evil.example' } })).status).toBe(403);
     expect((await submit(valid, { headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
+    expect((await submit({ ...valid, email: 'bad' }, { headers: { origin: 'https://evil.example', 'sec-fetch-site': 'same-origin' } })).status).toBe(400); // Sec-Fetch-Site decides when it is sent: past the origin check
+    expect((await submit({ ...valid, email: 'null.origin@example.com' }, { headers: { origin: 'null' } })).status).toBe(403); // no Sec-Fetch-Site: a null Origin is not trusted
     expect((await submit({ ...valid, email: 'not an address' })).status).toBe(400);
     expect((await submit({ ...valid, email: `${'a'.repeat(250)}@example.com` })).status).toBe(400);
     const noTick = await submit({ ...valid, consent: '' });

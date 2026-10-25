@@ -22,6 +22,8 @@ The page is edited in this repository: `site/` is the source (TanStack Start, Re
 
 ## Changing the page
 
+**Invite form.** Step 1 of "How to join" (`InviteForm` in `site/src/routes/index.tsx`) posts to `https://mcp.fitwell.fyi/request-access` with fetch and shows the answer in place, so the visitor stays on the page. The MCP server answers JSON only to `LANDING_ORIGINS` in `apps/mcp/src/auth/requestAccess.ts`, and the CSP allows it with `connect-src https://mcp.fitwell.fyi`. Deploy the MCP server before the page, or the form cannot read the answer.
+
 **Support section.** `SUPPORT` at the top of `site/src/routes/index.tsx` lists Liberapay, Ko-fi and GitHub Sponsors with an empty `url` each. A provider is shown once its `url` is set; while all are empty the "Support Fitwell" section is not rendered, so there is never a dead link. Set the URLs, then `deploy`.
 
 Edit `site/src/routes/index.tsx` (copy and layout), `site/src/styles.css` (colours and tokens) and the screenshots (see above). Run `dev:cf` to check it on the real Cloudflare runtime, then `deploy` to publish.

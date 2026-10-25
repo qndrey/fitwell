@@ -34,7 +34,7 @@ export interface NutritionProgress {
 }
 
 export interface TrainingProgress {
-  weeks: { week: Day; /** The week is cut off: it starts before the data (or the period) does, or ends after the period. Left out of averages. */ partial: boolean; strength: number; cardio: number; cardioMin: number; session: number; sessionMin: number; sets: Record<string, number>;
+  weeks: { week: Day; /** The week is cut off: it starts before the data (or the period) does, ends after the period, or has not ended yet (it ends today). Left out of averages. */ partial: boolean; strength: number; cardio: number; cardioMin: number; session: number; sessionMin: number; sets: Record<string, number>;
     /** Tonnage of finished strength workouts: reps × weight of the working sets, in kg (bodyweight and timed sets add nothing). */
     tonnageKg: number }[];
   sessions: { strength: number; cardio: number; session: number };

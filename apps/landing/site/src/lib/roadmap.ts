@@ -203,6 +203,16 @@ export const ITEMS: RoadmapItem[] = [
     summary: "Request access on this page and get step-by-step instructions by email.",
     detail: "Fitwell is still invite-only. Requests are kept for 30 days at most and deleted once answered.",
   },
+  {
+    id: "friendinvite",
+    stage: "shipped",
+    theme: "start",
+    status: "shipped",
+    title: "Invite a friend",
+    summary: "People who use Fitwell regularly can invite a friend from their assistant.",
+    detail:
+      "A few invitations a month, by email address. The friend gets one email that says who invited them, with no reminders, and an unused invitation expires after 30 days.",
+  },
 
   // Next
   {

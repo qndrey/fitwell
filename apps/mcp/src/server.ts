@@ -12,6 +12,8 @@ import { registerCookTools } from './tools/cook';
 import { registerDeleteTool } from './tools/deleteItem';
 import type { Mailer } from './auth/mailer';
 import { registerInviteTools } from './tools/invites';
+import { registerMemberInviteTools } from './tools/memberInvites';
+import { exportInvites } from './data/memberInvites';
 import { registerReviewTools } from './tools/review';
 import { registerShoppingTools } from './tools/shopping';
 import { registerBodyTools } from './tools/body';
@@ -39,6 +41,8 @@ export interface ServerDeps {
   fetch?: typeof fetch;
   /** The owner of this server also gets manage_invites. */
   isAdmin?: boolean;
+  /** The directory reviewers' demo account, which may not send invitations (invite_friend). */
+  isReviewer?: boolean;
   /** Sends the owner's approval emails (manage_invites approve). */
   mailer?: Mailer;
   /** Where people can reach the owner; named in the approval email. */
@@ -62,7 +66,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerProfileTools(server, { data, email: deps.user.email });
   registerFoodTools(server, { off: deps.off, data });
   registerFoodLogTools(server, { off: deps.off, data, plans });
-  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()), ...(await reviewNotes.exportAll()) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
+  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()), ...(await reviewNotes.exportAll()), ...(await exportInvites(deps.db, deps.user.id)) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
   await registerExerciseTools(server, { data });
   await registerWorkoutTools(server, { data, workouts });
   registerBodyTools(server, { data, workouts, body });
@@ -76,6 +80,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   await registerLiftTools(server, { data, workouts });
   registerReviewTools(server, { data, workouts, body, plans, notes: reviewNotes });
   registerDeleteTool(server, { data, workouts, body, plans });
+  registerMemberInviteTools(server, { db: deps.db, userId: deps.user.id, isAdmin: deps.isAdmin === true, isReviewer: deps.isReviewer, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   return mcp;
 }

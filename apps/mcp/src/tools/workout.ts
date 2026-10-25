@@ -16,6 +16,7 @@ import workoutHtml from '../ui/generated/workout';
 import { exerciseBests, sessionBest } from '../workout/bests';
 import { SESSION_PROFILES } from '../workout/sessions';
 import { EFFORT_LABELS, WORKOUT_VIEW_URI, type ExerciseBests, type PlannedCardio, type PlannedExercise, type PlannedRest, type WorkoutPlan } from '../workout/plan';
+import { loadMuscleMap } from './muscles';
 import { json, toolError } from './result';
 
 export interface WorkoutDeps {
@@ -346,7 +347,33 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     });
     const minutes = Math.round(((w.finishedAt ?? Date.now()) - (w.startedAt ?? w.createdAt)) / 60000);
     const cardio = w.cardioBlocks.filter((b) => b.done).map(cardioLine);
-    return { workoutId: w.id, name: w.name, day: w.day, minutes, volumeKg: Math.round(volumeKg), exercises, ...(cardio.length ? { cardio } : {}) };
+    return { workoutId: w.id, name: w.name, day: w.day, minutes, volumeKg: Math.round(volumeKg), exercises, ...(cardio.length ? { cardio } : {}), ...(await muscleReport(w)) };
+  }
+
+  /** Small muscle groups that other lifts train anyway: never suggested as "due". */
+  const MINOR_MUSCLES = new Set(['neck', 'forearms', 'abductors', 'adductors']);
+
+  /**
+   * What the workout did to the body, for the finish overview: working sets per muscle in this session (the muscle map's credit),
+   * the muscles that took the most (give them a rest) and the big ones with no set in the last 7 days up to this workout (due next).
+   * Left out when it cannot be read: the summary does not depend on it.
+   */
+  async function muscleReport(w: Workout) {
+    try {
+      const sets = new Map<string, number>();
+      for (const e of w.exercises) {
+        const done = e.sets.filter((s) => s.done !== false && s.type === 'working').length;
+        if (!done) continue;
+        for (const [m, k] of musclesOf(e.exerciseRef) ?? []) sets.set(m, (sets.get(m) ?? 0) + done * k);
+      }
+      const map = await loadMuscleMap({ data, workouts }, 1, w.day);
+      const muscles = [...sets].map(([muscle, n]) => ({ muscle, sets: r1(n) })).sort((a, b) => b.sets - a.sets || a.muscle.localeCompare(b.muscle));
+      const recover = muscles.filter((m) => m.sets >= 2).slice(0, 4).map((m) => m.muscle);
+      const due = map.muscles.filter((m) => m.setsPerWeek === 0 && !MINOR_MUSCLES.has(m.muscle)).map((m) => m.muscle).slice(0, 4);
+      return muscles.length ? { muscles, next: { recover, due, weekSessions: map.sessions } } : {};
+    } catch {
+      return {};
+    }
   }
 
   registerAppResource(server, 'Workout player', WORKOUT_VIEW_URI, { description: 'Runs a workout: sets, reps, weights, rest timer, last time.' }, async () => ({
@@ -649,7 +676,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     'finish_workout',
     {
       title: 'Finish a workout',
-      description: 'Marks a workout finished and returns its summary: sets per exercise, volume, time, and personal records (best estimated 1RM, Epley). The player calls it; call it yourself if the person says they are done in chat.',
+      description: 'Marks a workout finished and returns its summary: sets per exercise, volume, time, personal records (best estimated 1RM, Epley), sets per muscle, and what to rest and what is due next. The player calls it; call it yourself if the person says they are done in chat.',
       inputSchema: z.object({ workoutId: z.uuid() }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI } },

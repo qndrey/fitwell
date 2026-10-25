@@ -488,7 +488,7 @@ function dotsFor(sets: PlannedSet[]): string {
 }
 
 const MUSCLE_LABELS: Record<string, string> = { quadriceps: 'Quads', abdominals: 'Abs', lats: 'Lats', 'lower back': 'Lower back', 'middle back': 'Mid back' };
-const muscleLabel = (m: string) => MUSCLE_LABELS[m] ?? m.charAt(0).toUpperCase() + m.slice(1);
+export const muscleLabel = (m: string) => MUSCLE_LABELS[m] ?? m.charAt(0).toUpperCase() + m.slice(1);
 
 /** Working sets per muscle, most first: each logged working set gives the plan's credit per muscle (1 for a main muscle, 0.5 for a helping one, as the muscle map counts), at most `max` muscles. */
 export function setsPerMuscle(plan: WorkoutPlan, max = 6): { muscle: string; sets: number }[] {

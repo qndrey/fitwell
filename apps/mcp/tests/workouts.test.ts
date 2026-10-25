@@ -54,6 +54,16 @@ describe('strength workouts', () => {
     expect((after.exercises as { personalRecord?: string }[])[0]!.personalRecord).toContain('New best estimated 1RM: 96.3 kg');
   });
 
+  it('reports the muscles of a finished workout and what is due next', async () => {
+    const summary = await doWorkout(await start({ exercises: [{ id: SQUAT, sets: 3, reps: 5, weight_kg: 80 }] }), () => 5);
+    const { muscles, next } = summary as { muscles: { muscle: string; sets: number }[]; next: { recover: string[]; due: string[]; weekSessions: number } };
+    expect(muscles.find((m) => m.muscle === 'quadriceps')).toEqual({ muscle: 'quadriceps', sets: 3 });
+    expect(next.recover).toContain('quadriceps');
+    expect(next.due).not.toContain('quadriceps');
+    expect(next.due).toContain('chest');
+    expect(next.weekSessions).toBeGreaterThanOrEqual(1);
+  });
+
   it('repeats the weight after a missed set, and an explicit weight always wins', async () => {
     await doWorkout(await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5, weight_kg: 100 }] }), (_i, k) => (k === 0 ? 5 : 3));
     const next = await start({ exercises: [{ id: SQUAT, sets: 2, reps: 5 }] });

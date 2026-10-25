@@ -135,6 +135,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 - [ ] A11 injuries and limitations in the profile (decision in §4), flagged in plans, templates and swaps.
 - [x] H1 first session for new accounts: the setup guide in the first `get_profile` result of an account with nothing saved, offered once (migration 0016, `users.setup_offered_at`; the privacy notice says so).
 - [x] H4 invite a friend: `invite_friend` for every signed-in person, limited to active people and 3 a month (`data/memberInvites.ts`, migration 0017); the privacy notice, README and landing page say so.
+- [x] Leaner finished-workout report: bests (only when there are any), the exercise lines, cardio, the muscles as a ranked list (top four, "+n more") with an upright 3D figure beside it from three muscle groups (one colour ramp by share of the top muscle, opens on the side with more of the work, drag to turn, no buttons; the same sets in list and figure), one line on what is next and the "Plan my next workout" link. Cut: the 17 chips, "No new bests", the 7-day count, "about 48 hours", echoed notes and "Sent to Claude".
 - [ ] H3 Claude Connectors Directory submission.
 - [ ] Exit: a squat logged Easy at the target reps gets more weight next time, with the reason; "my left knee hurts on lunges" is saved once and the next leg plan flags lunges and offers swaps; a newly approved person goes from the email to goals set and a first meal logged in one chat.
 

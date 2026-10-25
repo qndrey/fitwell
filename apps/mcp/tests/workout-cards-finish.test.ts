@@ -136,17 +136,17 @@ describe('Specs: Finish card rules 2 and 3, finishing and the finished card (P8.
     await pwExpect(card.getByRole('heading', { name: 'New best' })).toBeVisible();
     await pwExpect(card).toContainText('Squat');
     await pwExpect(card).toContainText('estimated 1RM: 102.1 kg (was 96.3)');
-    await pwExpect(card).toContainText('Sent to Claude. It will reply below.');
+    await pwExpect(card).not.toContainText('Sent to Claude'); // Claude's reply appears below by itself
     await expect.poll(() => v.messages.length).toBe(1);
     expect(finishCalls(v)).toHaveLength(1);
     expect(v.messages[0]).toContain('Full body A');
   });
 
-  it('says "No new bests this time." when the summary has no record', async () => {
+  it('says nothing about new bests when the summary has no record: no record is not news', async () => {
     const { card } = await onFinish(allClosed(), { tools: finishWith(false) });
     await btn(card, 'Finish and send to Claude').click();
     await pwExpect(card.getByRole('heading', { name: 'Workout finished' })).toBeVisible();
-    await pwExpect(card).toContainText('No new bests this time.');
+    await pwExpect(card).not.toContainText('No new bests');
     await pwExpect(card.getByRole('heading', { name: 'New best' })).toHaveCount(0);
   });
 
@@ -200,7 +200,7 @@ describe('Specs: Finish card rule 4, send failure (P8.4; FR14, AC21)', () => {
     fail = false;
     await btn(card, 'Send again').click();
     await expect.poll(() => v.messages.length).toBe(2);
-    await pwExpect(card).toContainText('Sent to Claude. It will reply below.');
+    await pwExpect(card).not.toContainText('Could not send to Claude.');
     expect(finishCalls(v)).toHaveLength(1);
   });
 });

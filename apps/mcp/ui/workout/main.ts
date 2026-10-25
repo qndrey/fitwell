@@ -3,11 +3,11 @@ import type { ExerciseGuide } from '../../src/exercises/guide';
 import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
 import { muscleLabel, recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, muscleSetsText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
-import { MUSCLE_GROUPS, MUSCLE_REGIONS, REGION_OF, type MuscleRegion } from '../../src/analytics/muscleTypes';
 import { createCardPager, type CardPager, type StripState } from '../shared/cardPager';
 import { renderGuide } from '../shared/guide';
 import { icon, type IconName } from '../shared/icons';
-import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
+import { createMotionPlayer, isDarkTheme, type MotionPlayer } from '../shared/motionView';
+import { cssHex, defaultSide, FIGURE_MIN_MUSCLES, LIST_SHOWN, sessionColour, sessionColours, sessionLevel } from '../shared/sessionHeat';
 
 interface FinishSummary {
   minutes: number;
@@ -74,6 +74,8 @@ const state = {
   /** The exercise whose note is being edited; the textarea exists only then (see notesPanel). */
   noteEditing: '',
   noteSaved: '',
+  /** The report lists every muscle, not just the top few. */
+  reportAll: false,
   guideOpen: false,
   /** The guide shows its animation only after "Show the animation". */
   animationOpen: false,
@@ -248,6 +250,7 @@ function load(plan: WorkoutPlan) {
   plan.cardio ??= []; // a workout saved before cardio blocks existed
   state.plan = plan;
   state.finished = null;
+  state.reportAll = false;
   state.summaryNote = '';
   state.summaryFailed = false;
   state.sendFailed = false;
@@ -685,7 +688,7 @@ async function sendSummary(summary: FinishSummary | null) {
   } catch {
     state.sendFailed = true;
   }
-  state.note = state.sendFailed ? 'Could not send to Claude.' : 'Sent to Claude. It will reply below.';
+  state.note = state.sendFailed ? 'Could not send to Claude.' : ''; // Claude's reply appears below by itself
   render();
 }
 
@@ -1509,20 +1512,20 @@ function summaryBody(): Child[] {
       { className: 'body summary' },
       h('h1', { tabIndex: -1 }, 'Workout finished'),
       h('p', { className: 'muted' }, `${loading ? '' : `${f.minutes} min · `}${doneWorking} working ${doneWorking === 1 ? 'set' : 'sets'}${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
-      // New bests get their own block with a text heading, above the exercise lines.
+      // New bests get their own block, above the exercise lines, and only when there are any: no record is not news.
       bests.length > 0
         ? h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`)))
-        : loading
-          ? null
-          : h('p', { className: 'muted' }, state.summaryNote ? 'New bests could not be checked.' : 'No new bests this time.'),
+        : !loading && state.summaryNote
+          ? h('p', { className: 'muted' }, 'New bests could not be checked.')
+          : null,
       ...f.exercises.map((e) => {
         const versus = comparison(e.name);
-        return h('p', {}, h('strong', {}, e.name), ` ${formatSetSummary(e.done)}`, versus && h('span', { className: 'muted small block' }, versus), e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`));
+        return h('p', {}, h('strong', {}, e.name), ` ${formatSetSummary(e.done)}`, versus && h('span', { className: 'muted small block' }, versus));
       }),
       groupedLines('Skipped', openGroups(steps, 'skipped', false)),
       groupedLines('Not done', openGroups(steps, 'notDone', false)),
       ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · ~${c.kcal} kcal` : ''}`)),
-      heatBlock(f) ?? (muscleSetsText(plan) && h('p', { className: 'muscles' }, h('strong', {}, 'Muscles'), h('span', { className: 'block' }, muscleSetsText(plan)), h('span', { className: 'muted small block' }, 'Ask Claude to show your muscle map.'))),
+      musclesBlock(f) ?? (muscleSetsText(plan) && h('p', { className: 'muscles' }, h('strong', {}, 'Muscles'), h('span', { className: 'block' }, muscleSetsText(plan)), h('span', { className: 'muted small block' }, 'Ask Claude to show your muscle map.'))),
       nextBlock(f),
       state.summaryNote &&
         h(
@@ -1554,51 +1557,79 @@ function summaryBody(): Child[] {
   ];
 }
 
-const REGION_LABEL: Record<MuscleRegion, string> = { upper: 'Upper body', core: 'Core', lower: 'Lower body' };
 const joinNames = (names: string[]) => {
   const l = names.map((m) => muscleLabel(m).toLowerCase());
   return l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l.at(-1)}`;
 };
 
-/** The session as a heat map of muscle chips: the colour deepens with the working sets, and the number is on the chip, so colour is never the only sign. */
-function heatBlock(f: FinishSummary): Node | null {
-  if (!f.muscles?.length) return null;
-  const sets = new Map(f.muscles.map((m) => [m.muscle, m.sets]));
-  const top = Math.max(...sets.values());
-  const chip = (m: string) => {
-    const n = sets.get(m) ?? 0;
-    const level = n === 0 ? 0 : Math.min(4, Math.ceil((n / top) * 4));
-    return h('li', { className: `heat l${level}` }, muscleLabel(m), n > 0 && h('b', {}, kg(n)));
+/**
+ * The upright figure of this workout, shared with the guide (one WebGL context per view): null when there are fewer than three muscles
+ * (the list says it all), the guide has the figure, or the browser has no WebGL. It is coloured again only when the muscles or the theme change,
+ * so turning it by hand (drag, or the arrow keys) is not undone by a redraw. It opens on the side that shows more of the work.
+ */
+function reportFigure(rows: { muscle: string; sets: number }[], dark: boolean): HTMLElement | null {
+  if (rows.length < FIGURE_MIN_MUSCLES || (state.guideOpen && state.animationOpen)) return null;
+  if (motion === undefined) motion = createMotionPlayer();
+  if (!motion) return null;
+  const key = `report:${dark ? 'd' : 'l'}:${rows.map((m) => `${m.muscle}=${m.sets}`).join(',')}`;
+  if (motionFor !== key) {
+    motion.showSession(sessionColours(rows, dark), 'Muscles worked in this workout', defaultSide(rows));
+    motionFor = key;
+  }
+  return motion.element;
+}
+
+/**
+ * The muscles of this workout: the list is the legend and the accessible version (name, sets, a swatch in the figure's colour; the top few,
+ * the rest behind "+n more"), and an upright figure beside it when there are three or more. One colour ramp, built from the same sets.
+ */
+function musclesBlock(f: FinishSummary): Node | null {
+  const rows = f.muscles?.filter((m) => m.sets > 0);
+  if (!rows?.length) return null;
+  const dark = isDarkTheme();
+  const top = Math.max(...rows.map((m) => m.sets));
+  const figure = reportFigure(rows, dark);
+  const shown = state.reportAll ? rows : rows.slice(0, LIST_SHOWN);
+  const swatch = (sets: number) => {
+    const s = h('span', { className: 'swatch', 'aria-hidden': 'true' });
+    s.style.background = cssHex(sessionColour(sessionLevel(sets, top), dark));
+    return s;
   };
   return h(
     'div',
-    { className: 'heatmap', role: 'group', 'aria-label': 'Muscles trained' },
-    h('h2', {}, 'Muscles trained'),
-    ...MUSCLE_REGIONS.map((r) => {
-      const group = MUSCLE_GROUPS.filter((m) => REGION_OF[m] === r).sort((a, b) => (sets.get(b) ?? 0) - (sets.get(a) ?? 0));
-      return h('div', { className: 'region' }, h('span', { className: 'muted small' }, REGION_LABEL[r]), h('ul', {}, ...group.map(chip)));
-    }),
-    h('p', { className: 'muted small' }, 'Working sets in this session. A main muscle counts 1 a set, a helping one 0.5.'),
+    { className: 'report', role: 'group', 'aria-label': 'Muscles worked' },
+    h('h2', {}, 'Muscles worked'),
+    h(
+      'div',
+      { className: `report-body${figure ? '' : ' solo'}` },
+      figure && h('div', { className: 'figure' }, figure),
+      h(
+        'div',
+        { className: 'report-rows' },
+        h('ul', { className: 'report-list' }, ...shown.map((m) => h('li', {}, swatch(m.sets), muscleLabel(m.muscle), h('b', {}, kg(m.sets))))),
+        rows.length > LIST_SHOWN &&
+          h('button', { type: 'button', className: 'link', 'data-key': 'muscles-more', 'aria-expanded': String(state.reportAll), onclick: () => ((state.reportAll = !state.reportAll), render()) }, state.reportAll ? 'Show less' : `+${rows.length - LIST_SHOWN} more`),
+      ),
+    ),
+    h('p', { className: 'muted small' }, 'Working sets. A main muscle counts 1 a set, a helping one 0.5.'),
   );
 }
 
-/** What to do with the body now: what to rest, what has had no work for a week, and a way to ask Claude for the next session. */
+/** What to do with the body now, in one line, and a way to ask Claude for the next session. */
 function nextBlock(f: FinishSummary): Node | null {
   const n = f.next;
   if (!n) return null;
+  const parts = [n.recover.length > 0 && `${cap(joinNames(n.recover))} worked hardest.`, n.due.length > 0 && `${cap(joinNames(n.due))} ${n.due.length === 1 ? 'is' : 'are'} due.`].filter(Boolean);
   return h(
     'div',
     { className: 'next-up' },
-    h('h2', {}, "What's next"),
-    n.recover.length > 0 && h('p', {}, h('strong', {}, 'Rest'), h('span', { className: 'block' }, `${cap(joinNames(n.recover))} did the most today. Give them about 48 hours.`)),
-    n.due.length > 0 && h('p', {}, h('strong', {}, 'Due next'), h('span', { className: 'block' }, `${cap(joinNames(n.due))} had no sets in the last 7 days.`)),
-    h('p', { className: 'muted small' }, `${n.weekSessions} strength session${n.weekSessions === 1 ? '' : 's'} in the last 7 days.`),
+    parts.length > 0 && h('p', { className: 'next-line' }, h('strong', {}, 'Next'), ` ${parts.join(' ')}`),
     h('button', { type: 'button', className: 'link', 'data-key': 'plan-next', onclick: () => void askNext(n) }, 'Plan my next workout'),
   );
 }
 
 async function askNext(n: NonNullable<FinishSummary['next']>) {
-  const text = `Plan my next workout.${n.recover.length ? ` I just worked ${joinNames(n.recover)} hard.` : ''}${n.due.length ? ` ${cap(joinNames(n.due))} are due.` : ''}`;
+  const text = `Plan my next workout.${n.recover.length ? ` I just worked ${joinNames(n.recover)} hard.` : ''}${n.due.length ? ` ${cap(joinNames(n.due))} ${n.due.length === 1 ? 'is' : 'are'} due.` : ''}`;
   try {
     await app.sendMessage({ role: 'user', content: [{ type: 'text', text }] });
   } catch {

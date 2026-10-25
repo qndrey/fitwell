@@ -23,6 +23,11 @@ export interface MotionPlayer {
   show(spec: MotionSpec | null, label: string, muscles?: { primary: string[]; secondary: string[] }): void;
   /** The standing figure with each muscle group in its own colour (hex by group name); groups not listed keep the skin colour. */
   showHeat(colours: Map<string, number>, label: string): void;
+  /**
+   * The standing figure for one workout, small and upright, with each muscle group in its own colour: it opens on `side` and turns
+   * by dragging (a short hint says so; no buttons). Another `show` / `showHeat` brings the controls and the wide frame back.
+   */
+  showSession(colours: Map<string, number>, label: string, side: 'front' | 'back'): void;
   /** Extra buttons for the muscle map, shown beside "Colours" while the heat map is on and dropped when an exercise is shown. */
   setMapControls(buttons: HTMLElement[]): void;
   /** Stop animating (the panel is closed or the exercise changed). */
@@ -147,6 +152,8 @@ export function createMotionPlayer(): MotionPlayer | null {
   /** A camera target chosen from a script (`look`), for close-ups. */
   let closeup: { x: number; y: number; d: number } | null = null;
   let musclesOn = true;
+  /** Width over height of the picture: 4:3 for the guide, upright for the workout report (`showSession`). */
+  let aspect = 4 / 3;
   let paused = false;
   let visible = true;
   let started = 0;
@@ -180,6 +187,8 @@ export function createMotionPlayer(): MotionPlayer | null {
     controls,
     hint,
   );
+
+  const sideView = (side: 'front' | 'back'): View => ({ az: side === 'front' ? Math.PI / 2 : -Math.PI / 2, el: 0.06 });
 
   /** The side for a movement, the front for the standing figure; a lying figure is first seen from the side too. */
   const defaultView = (): View => (current ? { az: 0, el: 0.06 } : { az: Math.PI / 2, el: 0.06 });
@@ -295,7 +304,7 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   function resize(): void {
     const w = Math.max(160, Math.round(element.clientWidth || canvas.clientWidth || 320));
-    const hgt = Math.round((w * 3) / 4);
+    const hgt = Math.round(w / aspect);
     renderer.setSize(w, hgt, false);
     camera.aspect = w / hgt;
     camera.updateProjectionMatrix();
@@ -336,7 +345,23 @@ export function createMotionPlayer(): MotionPlayer | null {
       frame();
       draw(currentP());
     },
+    showSession(colours, name, side) {
+      player.show(null, name);
+      heat = colours;
+      human?.setHeat(heat);
+      aspect = 0.72;
+      controls.hidden = true;
+      hint.hidden = false;
+      hint.textContent = 'Drag to turn.';
+      view = sideView(side);
+      syncMuscles();
+      frame();
+      resize();
+    },
     show(spec, name, muscles) {
+      aspect = 4 / 3;
+      controls.hidden = false;
+      hint.hidden = false;
       if (humanState === 'failed') {
         element.hidden = true;
         return;
@@ -412,6 +437,10 @@ export function createMotionPlayer(): MotionPlayer | null {
       closeup = x === undefined ? null : { x, y: y ?? 0.88, d: d ?? 1 };
       frame();
       draw(currentP());
+    },
+    /** The side of a standing figure the camera is on. */
+    side() {
+      return Math.sin(view.az) > 0 ? 'front' : 'back';
     },
     /** Whether the body has loaded. */
     bodyReady() {

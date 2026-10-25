@@ -130,16 +130,23 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .guide .animation { display: grid; gap: var(--s2); justify-items: start; }
 .guide .animation button { min-height: var(--h-secondary); padding: 0 var(--s2); text-decoration: underline; text-underline-offset: 2px; }
 
-/* the finish overview: the muscle heat map and what is next */
+/* the finished report: the muscles of the workout (an upright figure beside the list) and one line on what is next */
 .summary h2 { font-size: var(--fs-body); font-weight: 600; }
-.heatmap, .next-up { display: grid; gap: var(--s2); padding: var(--s2) 0; border-bottom: 1px solid var(--border); }
-.region { display: grid; gap: var(--s1); }
-.region ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s1); }
-.heat { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border-radius: 14px; font-size: var(--fs-small); background: var(--surface); color: var(--muted); }
-.heat b { font-variant-numeric: tabular-nums; }
-.heat.l1 { background: color-mix(in srgb, var(--btn) 14%, transparent); color: var(--text); }
-.heat.l2 { background: color-mix(in srgb, var(--btn) 30%, transparent); color: var(--text); }
-.heat.l3 { background: color-mix(in srgb, var(--btn) 55%, transparent); color: var(--text); }
-.heat.l4 { background: var(--btn); color: var(--on-btn); }
+.report { display: grid; gap: var(--s2); padding: var(--s2) 0; border-bottom: 1px solid var(--border); }
+.report p { border-bottom: 0; padding: 0; }
+.report-body { display: grid; grid-template-columns: minmax(104px, 34%) minmax(0, 1fr); gap: var(--s3); align-items: center; }
+.report-body.solo { grid-template-columns: minmax(0, 1fr); }
+.figure:has(.motion[hidden]) { display: none; }
+.report-body:has(.figure .motion[hidden]) { grid-template-columns: minmax(0, 1fr); }
+.figure .motion { display: grid; }
+.figure .motion canvas { width: 100%; aspect-ratio: 18 / 25; display: block; border-radius: 12px; }
+.figure .motion canvas:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.report-rows { display: grid; gap: var(--s1); justify-items: start; }
+.report-list { list-style: none; margin: 0; padding: 0; display: grid; width: 100%; }
+.report-list li { display: flex; align-items: center; gap: var(--s2); min-height: 32px; }
+.report-list b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.swatch { flex: none; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border); }
+.figure .motion p { text-align: center; padding: 0; border-bottom: 0; }
+.report .link, .next-up .link { min-height: var(--h-secondary); padding: 0; font-weight: 600; justify-self: start; }
+.next-up { display: grid; gap: var(--s2); padding: var(--s2) 0; }
 .next-up p { border-bottom: 0; padding: 0; }
-.next-up .link { justify-self: start; min-height: var(--h-secondary); padding: 0; text-decoration: underline; font-weight: 600; }

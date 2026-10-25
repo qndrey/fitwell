@@ -8,6 +8,7 @@
 // The pending OAuth request lives server-side behind the library's consent handle, bound to the browser
 // that started it, so only that browser can complete the sign-in.
 import { AuthorizationError, CimdFetchError, type AuthRequest, type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
+import { pruneExpiredInvitations } from '../data/memberInvites';
 import { findUser, findUserByEmail, normalizeEmail, recordLogin } from '../data/users';
 import { signInMail, type Mailer } from './mailer';
 import { codePage, emailPage, messageBody, page } from './pages';
@@ -131,6 +132,8 @@ async function sendCode(request: Request, deps: LoginDeps, handle: string, rawEm
     return problem(!consented ? 'Please tick the consent box to continue. Go back and try again.' : 'That email address does not look right. Go back and try again.');
   }
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  // A friend's invitation nobody used in 30 days is gone, so it behaves as an address that was never invited.
+  await pruneExpiredInvitations(deps.db, now);
   const user = await findUserByEmail(deps.db, email);
   const id = crypto.randomUUID();
   let reviewer = deps.review?.email === email; // settled below, once this request is recorded

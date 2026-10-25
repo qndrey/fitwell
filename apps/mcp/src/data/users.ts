@@ -9,6 +9,8 @@ export interface User {
   created_at: number;
   consented_at: number | null;
   last_login_at: number | null;
+  /** The member who invited this person (invite_friend); null for people the owner added or approved. */
+  invited_by: string | null;
 }
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
@@ -41,6 +43,9 @@ export async function recordLogin(db: D1Database, userId: string, now = Date.now
 /** Erases a person and everything they stored (rows cascade from users). Sign-in attempts go too. */
 export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'>): Promise<void> {
   await db.batch([
+    // Invitations this person sent that nobody used go with them; friends who joined stay (their invited_by is cleared).
+    db.prepare("DELETE FROM users WHERE invited_by = ? AND status = 'invited'").bind(user.id),
+    db.prepare('DELETE FROM member_invites WHERE inviter_id = ?').bind(user.id),
     db.prepare('DELETE FROM food_entries WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM meal_plans WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM recipes WHERE user_id = ?').bind(user.id),

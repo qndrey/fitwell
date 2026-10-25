@@ -33,7 +33,7 @@ const DEV_EMAIL = 'dev@localhost';
 const DAY = 86_400;
 
 /** Serves MCP for one signed-in person (one fresh server per request). */
-async function serveMcp(request: Request, env: Env & OptionalSecrets, user: Pick<User, 'id' | 'email'>, oauth?: OAuthHelpers): Promise<Response> {
+async function serveMcp(request: Request, env: Env & OptionalSecrets & { REVIEW_LOGIN?: string }, user: Pick<User, 'id' | 'email'>, oauth?: OAuthHelpers): Promise<Response> {
   const handler = createMcpHandler(
     () =>
       createServer({
@@ -42,6 +42,7 @@ async function serveMcp(request: Request, env: Env & OptionalSecrets, user: Pick
         publicUrl: env.PUBLIC_URL,
         user,
         isAdmin: adminEmails(env).includes(user.email.toLowerCase()),
+        isReviewer: parseReviewLogin(env.REVIEW_LOGIN)?.email === user.email.toLowerCase(),
         mailer: mailerFor(env),
         contact: env.CONTACT_EMAIL,
         deleteAccount: async () => {

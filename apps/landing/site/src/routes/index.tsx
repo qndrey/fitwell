@@ -563,6 +563,10 @@ const faqs = [
     a: "Generic foods come from the Danish national food database (Frida), with English names. Packaged products come from Open Food Facts.",
   },
   {
+    q: "Can I invite a friend?",
+    a: "If you already use Fitwell regularly, yes: ask your assistant to invite a friend by email address. Your friend gets one email saying you invited them and how to connect. There are a few invitations each month, so it is not for everyone at once.",
+  },
+  {
     q: "What does it cost?",
     a: "Fitwell is free while it is invite-only.",
   },
@@ -871,6 +875,7 @@ function Index() {
               <Step n={1} title="Ask for an invite">
                 <p>Leave the email address you want to sign in with. We look at each request, and once yours is approved we email you how to connect.</p>
                 <InviteForm />
+                <p className="mt-4 text-sm">Know someone who already uses Fitwell? They can invite you from their assistant instead.</p>
                 <p className="mt-4 text-sm">Prefer email? Write to us from that address:</p>
                 <CopyBox value={EMAIL} label="email address" />
               </Step>

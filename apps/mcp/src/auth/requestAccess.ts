@@ -7,6 +7,7 @@
 // reveals nothing about who is on the list. Checks: POST from this site or the landing page only, a hidden field only bots
 // fill, a strict address shape, a few requests per IP per hour and a cap on waiting requests.
 import { addInviteRequest, countInviteRequests, countInviteRequestsFromIp, EMAIL, PLATFORMS, type Platform } from '../data/inviteRequests';
+import { pruneExpiredInvitations } from '../data/memberInvites';
 import { findUserByEmail, normalizeEmail } from '../data/users';
 import { messageBody, page, requestAccessPage } from './pages';
 
@@ -74,6 +75,7 @@ export async function handleRequestAccess(request: Request, deps: RequestAccessD
   if ((await countInviteRequestsFromIp(deps.db, ip, now - 3_600_000)) >= PER_IP_PER_HOUR) return problem('Too many requests from here. Try again in an hour.', 429);
   if ((await countInviteRequests(deps.db)) >= MAX_WAITING) return problem('Requests are paused for now.' + (deps.contact ? ` Ask at ${deps.contact} instead.` : ''), 503);
 
+  await pruneExpiredInvitations(deps.db, now);
   if (!(await findUserByEmail(deps.db, email))) await addInviteRequest(deps.db, { email, platform, ip, now });
   return thanks();
 }

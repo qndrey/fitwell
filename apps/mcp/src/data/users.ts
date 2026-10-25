@@ -46,6 +46,8 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     // Invitations this person sent that nobody used go with them; friends who joined stay (their invited_by is cleared).
     db.prepare("DELETE FROM users WHERE invited_by = ? AND status = 'invited'").bind(user.id),
     db.prepare('DELETE FROM member_invites WHERE inviter_id = ?').bind(user.id),
+    // Off every inviter's list; their count stays.
+    db.prepare('UPDATE member_invites SET email = NULL WHERE email = ?').bind(normalizeEmail(user.email)),
     db.prepare('DELETE FROM food_entries WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM meal_plans WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM recipes WHERE user_id = ?').bind(user.id),

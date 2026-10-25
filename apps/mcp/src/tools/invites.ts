@@ -73,6 +73,7 @@ export function registerInviteTools(server: McpServer, deps: { db: D1Database; o
       if (address === normalizeEmail(deps.ownEmail)) return toolError('You cannot remove yourself.');
       if (user.status === 'active') return toolError('That person has already signed in and has data stored. They can delete their account themselves with delete_my_account.');
       await deps.db.prepare("DELETE FROM users WHERE id = ? AND status = 'invited'").bind(user.id).run();
+      await deps.db.prepare('UPDATE member_invites SET email = NULL WHERE email = ?').bind(address).run(); // off the inviter's list; it still counts for them
       return json({ email: address, removed: true });
     },
   );

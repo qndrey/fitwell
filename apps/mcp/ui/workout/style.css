@@ -129,3 +129,17 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .swaps button { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); text-align: left; width: 100%; min-height: var(--h-primary); padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
 .guide .animation { display: grid; gap: var(--s2); justify-items: start; }
 .guide .animation button { min-height: var(--h-secondary); padding: 0 var(--s2); text-decoration: underline; text-underline-offset: 2px; }
+
+/* the finish overview: the muscle heat map and what is next */
+.summary h2 { font-size: var(--fs-body); font-weight: 600; }
+.heatmap, .next-up { display: grid; gap: var(--s2); padding: var(--s2) 0; border-bottom: 1px solid var(--border); }
+.region { display: grid; gap: var(--s1); }
+.region ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s1); }
+.heat { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border-radius: 14px; font-size: var(--fs-small); background: var(--surface); color: var(--muted); }
+.heat b { font-variant-numeric: tabular-nums; }
+.heat.l1 { background: color-mix(in srgb, var(--btn) 14%, transparent); color: var(--text); }
+.heat.l2 { background: color-mix(in srgb, var(--btn) 30%, transparent); color: var(--text); }
+.heat.l3 { background: color-mix(in srgb, var(--btn) 55%, transparent); color: var(--text); }
+.heat.l4 { background: var(--btn); color: var(--on-btn); }
+.next-up p { border-bottom: 0; padding: 0; }
+.next-up .link { justify-self: start; min-height: var(--h-secondary); padding: 0; text-decoration: underline; font-weight: 600; }

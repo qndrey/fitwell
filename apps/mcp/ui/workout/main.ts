@@ -1,8 +1,9 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
-import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, muscleSetsText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
+import { muscleLabel, recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, muscleSetsText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
+import { MUSCLE_GROUPS, MUSCLE_REGIONS, REGION_OF, type MuscleRegion } from '../../src/analytics/muscleTypes';
 import { createCardPager, type CardPager, type StripState } from '../shared/cardPager';
 import { renderGuide } from '../shared/guide';
 import { icon, type IconName } from '../shared/icons';
@@ -25,6 +26,10 @@ interface FinishSummary {
     distanceKm?: number;
     kcal?: number;
   }[];
+  /** Working sets per muscle in this session, most first (the muscle map's credit). */
+  muscles?: { muscle: string; sets: number }[];
+  /** What to rest and what is due: muscle names, and strength sessions in the last 7 days. */
+  next?: { recover: string[]; due: string[]; weekSessions: number };
 }
 
 /** One step of the workout: a warm-up, an exercise or a finisher, in the order they are done. */
@@ -325,6 +330,9 @@ function followIntent() {
   if (!intent || intent.cancelled || !intent.target) return;
   const pos = intent.target.kind === 'finish' ? cardCount() - 1 : intent.target.index + 1;
   goTo(pos, { auto: true });
+  // The pager only moves sideways: a card longer than the screen would stay scrolled to the rest dock it came from, so bring the
+  // top of the card it moved to (the title bar and strip) into view.
+  ui?.header.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() });
 }
 
 /** Exercises (as step indices) of the superset `ex` belongs to, in order; just `ex` when it is in none. */
@@ -1514,7 +1522,8 @@ function summaryBody(): Child[] {
       groupedLines('Skipped', openGroups(steps, 'skipped', false)),
       groupedLines('Not done', openGroups(steps, 'notDone', false)),
       ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · ~${c.kcal} kcal` : ''}`)),
-      muscleSetsText(plan) && h('p', { className: 'muscles' }, h('strong', {}, 'Muscles'), h('span', { className: 'block' }, muscleSetsText(plan)), h('span', { className: 'muted small block' }, 'Ask Claude to show your muscle map.')),
+      heatBlock(f) ?? (muscleSetsText(plan) && h('p', { className: 'muscles' }, h('strong', {}, 'Muscles'), h('span', { className: 'block' }, muscleSetsText(plan)), h('span', { className: 'muted small block' }, 'Ask Claude to show your muscle map.'))),
+      nextBlock(f),
       state.summaryNote &&
         h(
           'p',
@@ -1543,6 +1552,58 @@ function summaryBody(): Child[] {
       state.sendFailed && h('p', { className: 'muted small' }, failed.size === 0 ? 'Your workout is saved.' : `${failed.size} change${failed.size === 1 ? ' was' : 's were'} not saved to Fitwell.`),
     ),
   ];
+}
+
+const REGION_LABEL: Record<MuscleRegion, string> = { upper: 'Upper body', core: 'Core', lower: 'Lower body' };
+const joinNames = (names: string[]) => {
+  const l = names.map((m) => muscleLabel(m).toLowerCase());
+  return l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l.at(-1)}`;
+};
+
+/** The session as a heat map of muscle chips: the colour deepens with the working sets, and the number is on the chip, so colour is never the only sign. */
+function heatBlock(f: FinishSummary): Node | null {
+  if (!f.muscles?.length) return null;
+  const sets = new Map(f.muscles.map((m) => [m.muscle, m.sets]));
+  const top = Math.max(...sets.values());
+  const chip = (m: string) => {
+    const n = sets.get(m) ?? 0;
+    const level = n === 0 ? 0 : Math.min(4, Math.ceil((n / top) * 4));
+    return h('li', { className: `heat l${level}` }, muscleLabel(m), n > 0 && h('b', {}, kg(n)));
+  };
+  return h(
+    'div',
+    { className: 'heatmap', role: 'group', 'aria-label': 'Muscles trained' },
+    h('h2', {}, 'Muscles trained'),
+    ...MUSCLE_REGIONS.map((r) => {
+      const group = MUSCLE_GROUPS.filter((m) => REGION_OF[m] === r).sort((a, b) => (sets.get(b) ?? 0) - (sets.get(a) ?? 0));
+      return h('div', { className: 'region' }, h('span', { className: 'muted small' }, REGION_LABEL[r]), h('ul', {}, ...group.map(chip)));
+    }),
+    h('p', { className: 'muted small' }, 'Working sets in this session. A main muscle counts 1 a set, a helping one 0.5.'),
+  );
+}
+
+/** What to do with the body now: what to rest, what has had no work for a week, and a way to ask Claude for the next session. */
+function nextBlock(f: FinishSummary): Node | null {
+  const n = f.next;
+  if (!n) return null;
+  return h(
+    'div',
+    { className: 'next-up' },
+    h('h2', {}, "What's next"),
+    n.recover.length > 0 && h('p', {}, h('strong', {}, 'Rest'), h('span', { className: 'block' }, `${cap(joinNames(n.recover))} did the most today. Give them about 48 hours.`)),
+    n.due.length > 0 && h('p', {}, h('strong', {}, 'Due next'), h('span', { className: 'block' }, `${cap(joinNames(n.due))} had no sets in the last 7 days.`)),
+    h('p', { className: 'muted small' }, `${n.weekSessions} strength session${n.weekSessions === 1 ? '' : 's'} in the last 7 days.`),
+    h('button', { type: 'button', className: 'link', 'data-key': 'plan-next', onclick: () => void askNext(n) }, 'Plan my next workout'),
+  );
+}
+
+async function askNext(n: NonNullable<FinishSummary['next']>) {
+  const text = `Plan my next workout.${n.recover.length ? ` I just worked ${joinNames(n.recover)} hard.` : ''}${n.due.length ? ` ${cap(joinNames(n.due))} are due.` : ''}`;
+  try {
+    await app.sendMessage({ role: 'user', content: [{ type: 'text', text }] });
+  } catch {
+    /* the host may not support it */
+  }
 }
 
 /** A heading and one line per exercise ("Pullups: 2 sets"); nothing when there are none. */

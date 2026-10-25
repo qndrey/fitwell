@@ -676,7 +676,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
     'finish_workout',
     {
       title: 'Finish a workout',
-      description: 'Marks a workout finished and returns its summary: sets per exercise, volume, time, personal records (best estimated 1RM, Epley), sets per muscle, and what to rest and what is due next. The player calls it; call it yourself if the person says they are done in chat.',
+      description: 'Marks a workout finished and returns its summary: sets per exercise, volume, time, personal records (best estimated 1RM, Epley), sets per muscle, and what to rest and what is due next. The player calls it; call it yourself if the person says they are done in chat, or to show the report of a finished workout again (find its id with get_workout_history): it opens the report in the player.',
       inputSchema: z.object({ workoutId: z.uuid() }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI } },

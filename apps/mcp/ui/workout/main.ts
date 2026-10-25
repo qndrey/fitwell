@@ -2402,15 +2402,35 @@ function applyHost(ctx: McpUiHostContext | undefined) {
   if (ctx.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
 }
 
-app.ontoolresult = (result) => {
-  const plan = (result.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
-  if (plan) void open(plan);
-  else if (result.isError) {
-    const message = h('p', { className: 'error center' }, 'The workout could not be started. Claude will explain why.');
-    if (ui) ui.track.replaceWith(message);
-    else root.replaceChildren(message);
-    ui = null;
+function showError(text: string) {
+  const message = h('p', { className: 'error center' }, text);
+  if (ui) ui.track.replaceWith(message);
+  else root.replaceChildren(message);
+  ui = null;
+}
+
+/**
+ * Claude calls finish_workout to show a finished workout's report again ("show me my last workout"): the result is the summary, which
+ * names the workout (workoutId) but is not a plan. Fetch the stored workout; a finished one opens on its summary.
+ */
+async function openReport(workoutId: string) {
+  if (state.plan?.workoutId === workoutId) return;
+  try {
+    const res = await app.callServerTool({ name: 'get_workout', arguments: { workoutId } });
+    const plan = (res.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
+    if (!res.isError && plan) return load(plan);
+  } catch {
+    /* offline: the message below */
   }
+  showError('The workout report could not be loaded. Claude will explain why.');
+}
+
+app.ontoolresult = (result) => {
+  const content = result.structuredContent as { workout?: WorkoutPlan; workoutId?: string } | undefined;
+  if (content?.workout) void open(content.workout);
+  else if (result.isError) showError('The workout could not be started. Claude will explain why.');
+  else if (typeof content?.workoutId === 'string') void openReport(content.workoutId);
+  else showError('This workout could not be shown. Claude will explain why.');
 };
 app.onhostcontextchanged = (ctx) => {
   applyHost(ctx);

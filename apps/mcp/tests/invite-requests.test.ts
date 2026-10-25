@@ -59,6 +59,25 @@ describe('the request form', () => {
     expect(await waiting()).toEqual([['browser@example.com', 'iphone']]);
   });
 
+  it('answers the landing page in JSON it may read, and keeps the same checks', async () => {
+    const landing = { origin: 'https://fitwell.fyi', 'sec-fetch-site': 'same-site', accept: 'application/json' };
+    const ok = await submit({ ...valid, email: 'landing@example.com' }, { headers: landing });
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get('access-control-allow-origin')).toBe('https://fitwell.fyi');
+    expect(await ok.json()).toMatchObject({ ok: true });
+    expect(await waiting()).toContainEqual(['landing@example.com', 'iphone']);
+
+    const bad = await submit({ ...valid, email: 'bad' }, { headers: { ...landing, origin: 'https://www.fitwell.fyi' } });
+    expect(bad.status).toBe(400);
+    expect(bad.headers.get('access-control-allow-origin')).toBe('https://www.fitwell.fyi');
+    expect(await bad.json()).toEqual({ ok: false, error: 'That email address does not look right.' });
+
+    // Another subdomain is same-site too, but not the landing page.
+    const other = await submit(valid, { headers: { ...landing, origin: 'https://evil.fitwell.fyi' } });
+    expect(other.status).toBe(403);
+    expect(other.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
   it('refuses another site, a bad address and a missing tick', async () => {
     expect((await submit(valid, { headers: { origin: 'https://evil.example' } })).status).toBe(403);
     expect((await submit(valid, { headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);

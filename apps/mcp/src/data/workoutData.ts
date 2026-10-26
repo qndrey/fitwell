@@ -168,6 +168,12 @@ export class WorkoutData {
     return (await this.db.prepare('DELETE FROM workouts WHERE user_id = ? AND id = ?').bind(this.userId, id).run()).meta.changes > 0;
   }
 
+  /** The first day with a workout, or null. */
+  async firstDay(): Promise<string | null> {
+    const r = await this.db.prepare('SELECT MIN(day) AS day FROM workouts WHERE user_id = ?').bind(this.userId).first<Row>();
+    return (r?.day as string | null | undefined) ?? null;
+  }
+
   /** Workouts in an inclusive day range, newest first. */
   async between(from: string, to: string, type?: Workout['type']): Promise<Workout[]> {
     const sql = `SELECT * FROM workouts WHERE user_id = ? AND day BETWEEN ? AND ?${type ? ' AND type = ?' : ''} ORDER BY day DESC, created_at DESC`;

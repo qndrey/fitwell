@@ -138,7 +138,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 
 **Phase 7: friends v1 and streaks**
 - [ ] Decisions in §4 agreed.
-- [x] F1 streak engine in core with calendar tests (`computeStreaks`, not wired in yet); [ ] F2 `get_streaks` and the `achievements` table (export and delete cover it).
+- [x] F1 streak engine in core with calendar tests (`computeStreaks`); F2 `get_streaks` and the `achievements` table (migration 0017; export and delete cover it) shipped, with the goal weight's start day stored on `goals`. **Left for F2:** a streak line in `show_weekly_review` and `get_progress`, and freezes (nothing stores them yet, so the engine gets none).
 - [ ] F3 celebration view; F4 share card (4:5, 9:16, 1:1; light and dark; weight off by default; the preview matches what is saved).
 - [ ] `connections` and `shares` tables, the `friends` tool, consent records; export and delete cover them; isolation tests extended (no share means no access).
 - [ ] B1 send a template, recipe or plan; B2 household plan and ticks.

@@ -25,6 +25,8 @@ export interface LoadedStreaks {
   /** The rows the result was worked out from, for what the celebration says it took. */
   workouts: Workout[];
   food: DayTotal[];
+  /** The goal weight in kg, if one is set. */
+  goalWeightKg: number | null;
 }
 
 export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
@@ -47,7 +49,7 @@ export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
     weighIns: weighIns.map((w) => ({ day: w.day, kg: w.kg })),
     goals: { workoutsPerWeek: goals?.workoutsPerWeek ?? null, proteinG: goals?.proteinG ?? null, goalWeightKg: goals?.goalWeightKg ?? null, goalWeightSince },
   });
-  return { today, result, workouts, food };
+  return { today, result, workouts, food, goalWeightKg: goals?.goalWeightKg ?? null };
 }
 
 /** The streaks in a line each, for tools that only mention them (get_progress); get_streaks has the full result. */

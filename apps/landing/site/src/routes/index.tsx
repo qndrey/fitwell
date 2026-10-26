@@ -66,6 +66,8 @@ const SUPPORT: { name: string; kind: string; url: string }[] = [
 const supportLinks = SUPPORT.filter((s) => s.url !== "");
 const EMAIL = "hello@fitwell.fyi";
 const MCP_URL = "https://mcp.fitwell.fyi/mcp";
+/** The invite form posts here with fetch and reads a JSON answer (the server allows this page's origins). */
+const REQUEST_ACCESS_URL = "https://mcp.fitwell.fyi/request-access";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -561,6 +563,10 @@ const faqs = [
     a: "Generic foods come from the Danish national food database (Frida), with English names. Packaged products come from Open Food Facts.",
   },
   {
+    q: "Can I invite a friend?",
+    a: "If you already use Fitwell regularly, yes: ask your assistant to invite a friend by email address. Your friend gets one email saying you invited them and how to connect. There are a few invitations each month, so it is not for everyone at once.",
+  },
+  {
     q: "What does it cost?",
     a: "Fitwell is free while it is invite-only.",
   },
@@ -574,7 +580,7 @@ const troubles: { q: string; a: string | string[] }[] = [
   {
     q: "I didn't get a sign-in email",
     a: [
-      "Only invited addresses get one. If you haven't been invited yet, ask for an invite at mcp.fitwell.fyi/request-access.",
+      "Only invited addresses get one. If you haven't been invited yet, ask for one with the form in How to join, above.",
       "The code comes from login@fitwell.fyi, so check your spam folder too. It lasts 10 minutes; after that, start signing in again from your assistant.",
     ],
   },
@@ -868,12 +874,8 @@ function Index() {
             <ol className="space-y-8">
               <Step n={1} title="Ask for an invite">
                 <p>Leave the email address you want to sign in with. We look at each request, and once yours is approved we email you how to connect.</p>
-                <a
-                  href="https://mcp.fitwell.fyi/request-access"
-                  className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 font-semibold text-primary-foreground hover:opacity-90"
-                >
-                  <Mail className="size-4" aria-hidden /> Ask for an invite
-                </a>
+                <InviteForm />
+                <p className="mt-4 text-sm">Know someone who already uses Fitwell? They can invite you from their assistant instead.</p>
                 <p className="mt-4 text-sm">Prefer email? Write to us from that address:</p>
                 <CopyBox value={EMAIL} label="email address" />
               </Step>
@@ -950,6 +952,93 @@ function Index() {
       </footer>
       <BackToTop />
     </div>
+  );
+}
+
+/**
+ * The invite request, sent from this page so the visitor never leaves it. The fields match the form at
+ * mcp.fitwell.fyi/request-access (apps/mcp/src/auth/requestAccess.ts), which answers this page in JSON.
+ */
+function InviteForm() {
+  const [state, setState] = useState<{ kind: "idle" | "sending" } | { kind: "done"; message: string } | { kind: "error"; message: string }>({ kind: "idle" });
+  const field = "mt-1 w-full rounded-lg border border-input bg-card px-3 py-2 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+
+  if (state.kind === "done") {
+    return (
+      <div role="status" className="mt-4 flex gap-3 rounded-xl border bg-card p-4 text-foreground">
+        <Check className="mt-0.5 size-5 shrink-0 text-amber" aria-hidden />
+        <p>
+          <strong>Thanks.</strong> {state.message}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="mt-4 space-y-4"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setState({ kind: "sending" });
+        try {
+          const res = await fetch(REQUEST_ACCESS_URL, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            body: new FormData(e.currentTarget),
+          });
+          const data = (await res.json().catch(() => null)) as { ok?: boolean; message?: string; error?: string } | null;
+          if (res.ok && data?.ok) setState({ kind: "done", message: data.message ?? "" });
+          else setState({ kind: "error", message: data?.error ?? `Something went wrong. Try again, or write to ${EMAIL}.` });
+        } catch {
+          setState({ kind: "error", message: `Could not reach Fitwell. Check your connection and try again, or write to ${EMAIL}.` });
+        }
+      }}
+    >
+      <div>
+        <label htmlFor="invite-email" className="text-sm font-semibold text-foreground">
+          Your email
+        </label>
+        <input id="invite-email" type="email" name="email" autoComplete="email" required maxLength={254} className={field} />
+      </div>
+      <div>
+        <label htmlFor="invite-platform" className="text-sm font-semibold text-foreground">
+          Where you will use it <span className="font-normal text-muted-foreground">(optional)</span>
+        </label>
+        <select id="invite-platform" name="platform" defaultValue="" className={field}>
+          <option value="">Not sure yet</option>
+          <option value="desktop">A desktop app</option>
+          <option value="web">A website</option>
+          <option value="iphone">iPhone</option>
+        </select>
+      </div>
+      {/* A person never sees this field; the server quietly drops a request that fills it. */}
+      <div aria-hidden="true" className="absolute -left-[9999px] size-px overflow-hidden">
+        <label>
+          Leave this empty <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+        </label>
+      </div>
+      <div className="flex items-start gap-2.5">
+        <input id="invite-consent" type="checkbox" name="consent" value="yes" required className="mt-1 size-4 shrink-0 accent-primary" />
+        <label htmlFor="invite-consent" className="text-sm">
+          Keep my email address until you have answered (at most 30 days) so you can approve or decline it.{" "}
+          <a href={PRIVACY_URL} className="font-semibold text-foreground underline underline-offset-4">
+            Privacy notice
+          </a>
+        </label>
+      </div>
+      {state.kind === "error" && (
+        <p role="alert" className="flex gap-2 text-sm text-destructive">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /> {state.message}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={state.kind === "sending"}
+        className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60"
+      >
+        <Mail className="size-4" aria-hidden /> {state.kind === "sending" ? "Sending…" : "Ask for an invite"}
+      </button>
+    </form>
   );
 }
 

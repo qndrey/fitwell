@@ -28,6 +28,8 @@ export interface ProgressInput {
   musclesOf: (exerciseRef: string) => { primary: string[]; secondary: string[] };
   /** Basal metabolic rate when the profile allows it: suggested calories never go below it. */
   bmrKcal?: number;
+  /** The person's today: a week ending today (a Sunday) is still in progress. */
+  today?: Day;
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -127,7 +129,7 @@ export function buildProgress(i: ProgressInput): Progress {
   const dataFrom = logged.length ? logged.reduce((a, b) => (a < b ? a : b)) : null;
   const start = dataFrom ?? i.from;
   const weekStarts = weeksIn(start, i.to);
-  const weeks = weekStarts.map((week) => ({ week, partial: week < start || addDays(week, 6) > i.to, strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number>, tonnageKg: 0 }));
+  const weeks = weekStarts.map((week) => ({ week, partial: week < start || addDays(week, 6) > i.to || (i.today !== undefined && addDays(week, 6) >= i.today), strength: 0, cardio: 0, cardioMin: 0, session: 0, sessionMin: 0, sets: {} as Record<string, number>, tonnageKg: 0 }));
   const weekOf = (d: Day) => weeks[Math.max(0, Math.floor((dayNumber(d) - dayNumber(weekStarts[0]!)) / 7))];
   for (const w of strength) {
     const wk = weekOf(w.day);

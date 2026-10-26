@@ -64,23 +64,36 @@ export function signInMail(to: string, code: string, link: string, clientName: s
   return { to, subject: "Your Fitwell sign-in code", text, html };
 }
 
+const stepsText = (to: string, connectorUrl: string) => [
+  '1. Add the connector in Claude',
+  '   On claude.ai or the Claude desktop app: Settings, then Connectors, then Add custom connector.',
+  '   Paste this address and save:',
+  `   ${connectorUrl}`,
+  '   It then shows up in the Claude app on your phone too.',
+  '',
+  '2. Sign in',
+  '   Claude opens a Fitwell sign-in window. Enter this email address (' + to + '), tick the consent box and press the button.',
+  '   We email you a 6-digit code (check spam if it is slow). Type it into the window, or open the link in the email in the same browser.',
+  '',
+  '3. Say hello',
+  '   Start a chat with the Fitwell connector turned on and write: "Set up my Fitwell profile".',
+];
+
+const stepsHtml = (to: string, connectorUrl: string) => {
+  const step = (n: number, title: string, body: string) => `<tr><td style="vertical-align:top;padding:0 12px 16px 0;font-weight:700;color:#5a5650">${n}</td><td style="padding-bottom:16px"><strong>${title}</strong><br>${body}</td></tr>`;
+  return `<table role="presentation" style="border-collapse:collapse;margin-top:16px">
+${step(1, 'Add the connector in Claude', `On claude.ai or the Claude desktop app: <strong>Settings</strong>, then <strong>Connectors</strong>, then <strong>Add custom connector</strong>. Paste this address and save:<br><code style="display:inline-block;margin-top:6px;padding:6px 10px;background:#f1ede7;border-radius:8px;word-break:break-all">${escape(connectorUrl)}</code><br><span style="color:#6b655d;font-size:14px">It then shows up in the Claude app on your phone too.</span>`)}
+${step(2, 'Sign in', `Claude opens a Fitwell sign-in window. Enter <strong>${escape(to)}</strong>, tick the consent box and press the button. We email you a 6-digit code (check spam if it is slow). Type it into the window, or open the link in the email in the same browser.`)}
+${step(3, 'Say hello', 'Start a chat with the Fitwell connector turned on and write: <em>Set up my Fitwell profile</em>.')}
+</table>`;
+};
+
 /** Sent when the owner approves a request: how to add the connector in Claude and sign in. */
 export function approvalMail(to: string, d: { connectorUrl: string; privacyUrl: string; contact?: string }): Mail {
   const text = [
     "Your Fitwell invitation is approved. Here is how to start (about three minutes).",
     '',
-    '1. Add the connector in Claude',
-    '   On claude.ai or the Claude desktop app: Settings, then Connectors, then Add custom connector.',
-    '   Paste this address and save:',
-    `   ${d.connectorUrl}`,
-    '   It then shows up in the Claude app on your phone too.',
-    '',
-    '2. Sign in',
-    '   Claude opens a Fitwell sign-in window. Enter this email address (' + to + '), tick the consent box and press the button.',
-    '   We email you a 6-digit code (check spam if it is slow). Type it into the window, or open the link in the email in the same browser.',
-    '',
-    '3. Say hello',
-    '   Start a chat with the Fitwell connector turned on and write: "Set up my Fitwell profile".',
+    ...stepsText(to, d.connectorUrl),
     '',
     `Privacy notice: ${d.privacyUrl}`,
     d.contact ? `Questions: ${d.contact}` : '',
@@ -89,16 +102,27 @@ export function approvalMail(to: string, d: { connectorUrl: string; privacyUrl: 
   ]
     .filter((l, i, all) => l !== '' || all[i - 1] !== '')
     .join('\n');
-  const step = (n: number, title: string, body: string) => `<tr><td style="vertical-align:top;padding:0 12px 16px 0;font-weight:700;color:#5a5650">${n}</td><td style="padding-bottom:16px"><strong>${title}</strong><br>${body}</td></tr>`;
   const html = `<!doctype html><html><body style="font-family:system-ui,sans-serif;color:#1f1d1a;line-height:1.5;max-width:480px;margin:0 auto;padding:24px">
 <h1 style="font-size:22px;margin:0 0 8px">You're in</h1>
 <p>Your Fitwell invitation is approved. Here is how to start (about three minutes).</p>
-<table role="presentation" style="border-collapse:collapse;margin-top:16px">
-${step(1, 'Add the connector in Claude', `On claude.ai or the Claude desktop app: <strong>Settings</strong>, then <strong>Connectors</strong>, then <strong>Add custom connector</strong>. Paste this address and save:<br><code style="display:inline-block;margin-top:6px;padding:6px 10px;background:#f1ede7;border-radius:8px;word-break:break-all">${escape(d.connectorUrl)}</code><br><span style="color:#6b655d;font-size:14px">It then shows up in the Claude app on your phone too.</span>`)}
-${step(2, 'Sign in', `Claude opens a Fitwell sign-in window. Enter <strong>${escape(to)}</strong>, tick the consent box and press the button. We email you a 6-digit code (check spam if it is slow). Type it into the window, or open the link in the email in the same browser.`)}
-${step(3, 'Say hello', 'Start a chat with the Fitwell connector turned on and write: <em>Set up my Fitwell profile</em>.')}
-</table>
+${stepsHtml(to, d.connectorUrl)}
 <p style="color:#6b655d;font-size:14px"><a href="${escape(d.privacyUrl)}">Privacy notice</a>${d.contact ? ` · Questions: ${escape(d.contact)}` : ''}<br>If you didn't ask for an invitation, ignore this email; nothing happens unless you add the connector and sign in.</p>
 </body></html>`;
   return { to, subject: "You're invited to Fitwell: add it to Claude", text, html };
+}
+
+/** Sent when a member invites a friend. The only words from the member are their own address; there is no free text. */
+export function invitationMail(to: string, d: { inviter: string; connectorUrl: string; privacyUrl: string; contact?: string; expiresOn: string }): Mail {
+  const intro = `${d.inviter} invited you to try Fitwell, a fitness and nutrition coach that works inside your AI assistant: you log food, plan meals and run workouts by chatting. Fitwell is invite-only. Here is how to start (about three minutes).`;
+  const closing = `This is a one-off email: we send no reminders. Nothing happens unless you add the connector and sign in, and the invitation expires on ${d.expiresOn}. If you don't know ${d.inviter} or don't want this, ignore it.`;
+  const text = [intro, '', ...stepsText(to, d.connectorUrl), '', `Privacy notice: ${d.privacyUrl}`, d.contact ? `Questions: ${d.contact}` : '', '', closing]
+    .filter((l, i, all) => l !== '' || all[i - 1] !== '')
+    .join('\n');
+  const html = `<!doctype html><html><body style="font-family:system-ui,sans-serif;color:#1f1d1a;line-height:1.5;max-width:480px;margin:0 auto;padding:24px">
+<h1 style="font-size:22px;margin:0 0 8px">${escape(d.inviter)} invited you to Fitwell</h1>
+<p>${escape(intro)}</p>
+${stepsHtml(to, d.connectorUrl)}
+<p style="color:#6b655d;font-size:14px"><a href="${escape(d.privacyUrl)}">Privacy notice</a>${d.contact ? ` · Questions: ${escape(d.contact)}` : ''}<br>${escape(closing)}</p>
+</body></html>`;
+  return { to, subject: `${d.inviter} invited you to Fitwell`, text, html };
 }

@@ -18,7 +18,8 @@ export interface ProgressDeps {
 /** Reads the rows for a period (a handful of indexed queries) and computes the progress numbers. */
 export async function loadProgress(deps: ProgressDeps, days: number, to?: string): Promise<Progress> {
   const profile = await deps.data.profile();
-  const end = to ?? todayIn(profile.timeZone);
+  const today = todayIn(profile.timeZone);
+  const end = to ?? today;
   const from = rangeStart(end, days);
   const lib = await loadExercises();
   const muscles = new Map(lib.exercises.map((e) => [e.ref, { primary: e.primary, secondary: e.secondary }]));
@@ -32,7 +33,7 @@ export async function loadProgress(deps: ProgressDeps, days: number, to?: string
   ]);
   const weightKg = weights.at(-1)?.kg ?? profile.weightKg;
   const bmrKcal = profile.sex && profile.birthYear && profile.heightCm && weightKg ? bmr({ sex: profile.sex, ageYears: Number(end.slice(0, 4)) - profile.birthYear, heightCm: profile.heightCm, weightKg }) : undefined;
-  return buildProgress({ from, to: end, weights, measurements, metrics, nutrition, workouts, goals, musclesOf: (ref) => muscles.get(ref) ?? { primary: [], secondary: [] }, bmrKcal });
+  return buildProgress({ from, to: end, weights, measurements, metrics, nutrition, workouts, goals, musclesOf: (ref) => muscles.get(ref) ?? { primary: [], secondary: [] }, bmrKcal, today });
 }
 
 export interface ReviewDeps extends ProgressDeps {

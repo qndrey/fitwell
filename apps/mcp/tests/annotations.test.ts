@@ -10,6 +10,7 @@ const DESTRUCTIVE = [
   'delete_my_account',
   'edit_food_entry', // changes a logged entry
   'edit_workout_set', // changes a logged set
+  'invite_friend', // cancel takes back an invitation
   'manage_invites', // remove takes back an invitation
   'save_meal_plan', // saving a week again replaces its plan
   'save_recipe', // saving under an existing name replaces it

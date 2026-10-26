@@ -1,12 +1,13 @@
 import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { ExerciseGuide } from '../../src/exercises/guide';
 import { EFFORT_LABELS, type PlannedCardio, type PlannedExercise, type PlannedSet, type WorkoutPlan } from '../../src/workout/plan';
-import { recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, muscleSetsText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
+import { muscleLabel, recordCue, backTarget, compareToLast, loggedTotals, openGroups, sendPreview, buildOverview, nextSet, cardPosition, cardioClosed, cardioText, muscleSetsText, drainQueue, draftFor, finishState, firstOpenStep, supersetRound, formatLastTime, formatSets, formatSetSummary, isFresh, lastTimeForSet, nextPlatesText, kg, nextTarget, openingCard, stepName, stepOpen, stepsOf, supersetHandoff, workingCounts, WEIGHT_STEP, plateText as plateTextFor, setName, setValues, type Draft, type PagerIntent, type Rest, type Step } from './cards';
 import { h, type Child } from '../shared/dom';
 import { createCardPager, type CardPager, type StripState } from '../shared/cardPager';
 import { renderGuide } from '../shared/guide';
 import { icon, type IconName } from '../shared/icons';
-import { createMotionPlayer, type MotionPlayer } from '../shared/motionView';
+import { createMotionPlayer, isDarkTheme, type MotionPlayer } from '../shared/motionView';
+import { cssHex, defaultSide, FIGURE_MIN_MUSCLES, LIST_SHOWN, sessionColour, sessionColours, sessionLevel } from '../shared/sessionHeat';
 
 interface FinishSummary {
   minutes: number;
@@ -25,6 +26,10 @@ interface FinishSummary {
     distanceKm?: number;
     kcal?: number;
   }[];
+  /** Working sets per muscle in this session, most first (the muscle map's credit). */
+  muscles?: { muscle: string; sets: number }[];
+  /** What to rest and what is due: muscle names, and strength sessions in the last 7 days. */
+  next?: { recover: string[]; due: string[]; weekSessions: number };
 }
 
 /** One step of the workout: a warm-up, an exercise or a finisher, in the order they are done. */
@@ -69,6 +74,8 @@ const state = {
   /** The exercise whose note is being edited; the textarea exists only then (see notesPanel). */
   noteEditing: '',
   noteSaved: '',
+  /** The report lists every muscle, not just the top few. */
+  reportAll: false,
   guideOpen: false,
   /** The guide shows its animation only after "Show the animation". */
   animationOpen: false,
@@ -243,6 +250,7 @@ function load(plan: WorkoutPlan) {
   plan.cardio ??= []; // a workout saved before cardio blocks existed
   state.plan = plan;
   state.finished = null;
+  state.reportAll = false;
   state.summaryNote = '';
   state.summaryFailed = false;
   state.sendFailed = false;
@@ -325,6 +333,9 @@ function followIntent() {
   if (!intent || intent.cancelled || !intent.target) return;
   const pos = intent.target.kind === 'finish' ? cardCount() - 1 : intent.target.index + 1;
   goTo(pos, { auto: true });
+  // The pager only moves sideways: a card longer than the screen would stay scrolled to the rest dock it came from, so bring the
+  // top of the card it moved to (the title bar and strip) into view.
+  ui?.header.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: scrollBehavior() });
 }
 
 /** Exercises (as step indices) of the superset `ex` belongs to, in order; just `ex` when it is in none. */
@@ -677,7 +688,7 @@ async function sendSummary(summary: FinishSummary | null) {
   } catch {
     state.sendFailed = true;
   }
-  state.note = state.sendFailed ? 'Could not send to Claude.' : 'Sent to Claude. It will reply below.';
+  state.note = state.sendFailed ? 'Could not send to Claude.' : ''; // Claude's reply appears below by itself
   render();
 }
 
@@ -1501,20 +1512,21 @@ function summaryBody(): Child[] {
       { className: 'body summary' },
       h('h1', { tabIndex: -1 }, 'Workout finished'),
       h('p', { className: 'muted' }, `${loading ? '' : `${f.minutes} min · `}${doneWorking} working ${doneWorking === 1 ? 'set' : 'sets'}${f.volumeKg ? ` · ${f.volumeKg.toLocaleString()} kg lifted` : ''}`),
-      // New bests get their own block with a text heading, above the exercise lines.
+      // New bests get their own block, above the exercise lines, and only when there are any: no record is not news.
       bests.length > 0
         ? h('div', { className: 'bests' }, h('h2', {}, 'New best'), ...bests.map((e) => h('p', {}, h('strong', {}, e.name), ` · ${(e.personalRecord ?? '').replace(/^new best\s*/i, '')}`)))
-        : loading
-          ? null
-          : h('p', { className: 'muted' }, state.summaryNote ? 'New bests could not be checked.' : 'No new bests this time.'),
+        : !loading && state.summaryNote
+          ? h('p', { className: 'muted' }, 'New bests could not be checked.')
+          : null,
       ...f.exercises.map((e) => {
         const versus = comparison(e.name);
-        return h('p', {}, h('strong', {}, e.name), ` ${formatSetSummary(e.done)}`, versus && h('span', { className: 'muted small block' }, versus), e.notes && h('span', { className: 'muted small block' }, `Note: ${e.notes}`));
+        return h('p', {}, h('strong', {}, e.name), ` ${formatSetSummary(e.done)}`, versus && h('span', { className: 'muted small block' }, versus));
       }),
       groupedLines('Skipped', openGroups(steps, 'skipped', false)),
       groupedLines('Not done', openGroups(steps, 'notDone', false)),
       ...(f.cardio ?? []).map((c) => h('p', {}, h('strong', {}, c.activity), ` ${c.minutes} min${c.distanceKm ? ` · ${kg(c.distanceKm)} km` : ''}${c.kcal ? ` · ~${c.kcal} kcal` : ''}`)),
-      muscleSetsText(plan) && h('p', { className: 'muscles' }, h('strong', {}, 'Muscles'), h('span', { className: 'block' }, muscleSetsText(plan)), h('span', { className: 'muted small block' }, 'Ask Claude to show your muscle map.')),
+      musclesBlock(f) ?? (muscleSetsText(plan) && h('p', { className: 'muscles' }, h('strong', {}, 'Muscles'), h('span', { className: 'block' }, muscleSetsText(plan)), h('span', { className: 'muted small block' }, 'Ask Claude to show your muscle map.'))),
+      nextBlock(f),
       state.summaryNote &&
         h(
           'p',
@@ -1543,6 +1555,86 @@ function summaryBody(): Child[] {
       state.sendFailed && h('p', { className: 'muted small' }, failed.size === 0 ? 'Your workout is saved.' : `${failed.size} change${failed.size === 1 ? ' was' : 's were'} not saved to Fitwell.`),
     ),
   ];
+}
+
+const joinNames = (names: string[]) => {
+  const l = names.map((m) => muscleLabel(m).toLowerCase());
+  return l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} and ${l.at(-1)}`;
+};
+
+/**
+ * The upright figure of this workout, shared with the guide (one WebGL context per view): null when there are fewer than three muscles
+ * (the list says it all), the guide has the figure, or the browser has no WebGL. It is coloured again only when the muscles or the theme change,
+ * so turning it by hand (drag, or the arrow keys) is not undone by a redraw. It opens on the side that shows more of the work.
+ */
+function reportFigure(rows: { muscle: string; sets: number }[], dark: boolean): HTMLElement | null {
+  if (rows.length < FIGURE_MIN_MUSCLES || (state.guideOpen && state.animationOpen)) return null;
+  if (motion === undefined) motion = createMotionPlayer();
+  if (!motion) return null;
+  const key = `report:${dark ? 'd' : 'l'}:${rows.map((m) => `${m.muscle}=${m.sets}`).join(',')}`;
+  if (motionFor !== key) {
+    motion.showSession(sessionColours(rows, dark), 'Muscles worked in this workout', defaultSide(rows));
+    motionFor = key;
+  }
+  return motion.element;
+}
+
+/**
+ * The muscles of this workout: the list is the legend and the accessible version (name, sets, a swatch in the figure's colour; the top few,
+ * the rest behind "+n more"), and an upright figure beside it when there are three or more. One colour ramp, built from the same sets.
+ */
+function musclesBlock(f: FinishSummary): Node | null {
+  const rows = f.muscles?.filter((m) => m.sets > 0);
+  if (!rows?.length) return null;
+  const dark = isDarkTheme();
+  const top = Math.max(...rows.map((m) => m.sets));
+  const figure = reportFigure(rows, dark);
+  const shown = state.reportAll ? rows : rows.slice(0, LIST_SHOWN);
+  const swatch = (sets: number) => {
+    const s = h('span', { className: 'swatch', 'aria-hidden': 'true' });
+    s.style.background = cssHex(sessionColour(sessionLevel(sets, top), dark));
+    return s;
+  };
+  return h(
+    'div',
+    { className: 'report', role: 'group', 'aria-label': 'Muscles worked' },
+    h('h2', {}, 'Muscles worked'),
+    h(
+      'div',
+      { className: `report-body${figure ? '' : ' solo'}` },
+      figure && h('div', { className: 'figure' }, figure),
+      h(
+        'div',
+        { className: 'report-rows' },
+        h('ul', { className: 'report-list' }, ...shown.map((m) => h('li', {}, swatch(m.sets), muscleLabel(m.muscle), h('b', {}, kg(m.sets))))),
+        rows.length > LIST_SHOWN &&
+          h('button', { type: 'button', className: 'link', 'data-key': 'muscles-more', 'aria-expanded': String(state.reportAll), onclick: () => ((state.reportAll = !state.reportAll), render()) }, state.reportAll ? 'Show less' : `+${rows.length - LIST_SHOWN} more`),
+      ),
+    ),
+    h('p', { className: 'muted small' }, 'Working sets. A main muscle counts 1 a set, a helping one 0.5.'),
+  );
+}
+
+/** What to do with the body now, in one line, and a way to ask Claude for the next session. */
+function nextBlock(f: FinishSummary): Node | null {
+  const n = f.next;
+  if (!n) return null;
+  const parts = [n.recover.length > 0 && `${cap(joinNames(n.recover))} worked hardest.`, n.due.length > 0 && `${cap(joinNames(n.due))} ${n.due.length === 1 ? 'is' : 'are'} due.`].filter(Boolean);
+  return h(
+    'div',
+    { className: 'next-up' },
+    parts.length > 0 && h('p', { className: 'next-line' }, h('strong', {}, 'Next'), ` ${parts.join(' ')}`),
+    h('button', { type: 'button', className: 'link', 'data-key': 'plan-next', onclick: () => void askNext(n) }, 'Plan my next workout'),
+  );
+}
+
+async function askNext(n: NonNullable<FinishSummary['next']>) {
+  const text = `Plan my next workout.${n.recover.length ? ` I just worked ${joinNames(n.recover)} hard.` : ''}${n.due.length ? ` ${cap(joinNames(n.due))} ${n.due.length === 1 ? 'is' : 'are'} due.` : ''}`;
+  try {
+    await app.sendMessage({ role: 'user', content: [{ type: 'text', text }] });
+  } catch {
+    /* the host may not support it */
+  }
 }
 
 /** A heading and one line per exercise ("Pullups: 2 sets"); nothing when there are none. */
@@ -2341,15 +2433,35 @@ function applyHost(ctx: McpUiHostContext | undefined) {
   if (ctx.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
 }
 
-app.ontoolresult = (result) => {
-  const plan = (result.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
-  if (plan) void open(plan);
-  else if (result.isError) {
-    const message = h('p', { className: 'error center' }, 'The workout could not be started. Claude will explain why.');
-    if (ui) ui.track.replaceWith(message);
-    else root.replaceChildren(message);
-    ui = null;
+function showError(text: string) {
+  const message = h('p', { className: 'error center' }, text);
+  if (ui) ui.track.replaceWith(message);
+  else root.replaceChildren(message);
+  ui = null;
+}
+
+/**
+ * Claude calls finish_workout to show a finished workout's report again ("show me my last workout"): the result is the summary, which
+ * names the workout (workoutId) but is not a plan. Fetch the stored workout; a finished one opens on its summary.
+ */
+async function openReport(workoutId: string) {
+  if (state.plan?.workoutId === workoutId) return;
+  try {
+    const res = await app.callServerTool({ name: 'get_workout', arguments: { workoutId } });
+    const plan = (res.structuredContent as { workout?: WorkoutPlan } | undefined)?.workout;
+    if (!res.isError && plan) return load(plan);
+  } catch {
+    /* offline: the message below */
   }
+  showError('The workout report could not be loaded. Claude will explain why.');
+}
+
+app.ontoolresult = (result) => {
+  const content = result.structuredContent as { workout?: WorkoutPlan; workoutId?: string } | undefined;
+  if (content?.workout) void open(content.workout);
+  else if (result.isError) showError('The workout could not be started. Claude will explain why.');
+  else if (typeof content?.workoutId === 'string') void openReport(content.workoutId);
+  else showError('This workout could not be shown. Claude will explain why.');
 };
 app.onhostcontextchanged = (ctx) => {
   applyHost(ctx);

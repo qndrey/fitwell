@@ -98,6 +98,10 @@ export interface HostOptions {
   tools?: (name: string, args: Record<string, unknown>) => Record<string, unknown> | undefined;
   /** How long (ms) a tool call waits before the host answers it, by tool name: to see what the view shows meanwhile. */
   delay?: (name: string) => number;
+  /** The browser has no WebGL (the figure is left out). */
+  noWebGL?: boolean;
+  /** The first tool result the host sends the view instead of the plan (a `finish_workout` summary, an unexpected result). */
+  initial?: Record<string, unknown>;
   /** Installs Playwright's fake clock (it keeps running in real time until `page.clock.runFor` / `fastForward` jumps it). */
   clock?: boolean;
 }
@@ -126,13 +130,20 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
     hasTouch: !!o.touch,
     isMobile: !!o.touch,
   });
-  await context.addInitScript(() => {
+  await context.addInitScript((noWebGL) => {
     const g = globalThis as unknown as {
       __fx: Effects;
       AudioContext: unknown;
       navigator: { vibrate: (pattern: unknown) => boolean };
     };
     g.__fx = { oscillators: 0, vibrations: [] };
+    if (noWebGL) {
+      const canvas = (globalThis as unknown as { HTMLCanvasElement: { prototype: { getContext: (kind: string, ...rest: unknown[]) => unknown } } }).HTMLCanvasElement.prototype;
+      const real = canvas.getContext;
+      canvas.getContext = function (this: unknown, kind: string, ...rest: unknown[]) {
+        return /webgl/.test(kind) ? null : real.call(this, kind, ...rest);
+      };
+    }
     const node = { connect: () => node, frequency: { value: 0 }, gain: { setValueAtTime: () => undefined, exponentialRampToValueAtTime: () => undefined }, start: () => (g.__fx.oscillators += 1), stop: () => undefined };
     class FakeAudio {
       state = 'running';
@@ -147,7 +158,7 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
       g.__fx.vibrations.push(pattern);
       return true;
     };
-  });
+  }, !!o.noWebGL);
   if (o.clock) await context.clock.install();
   const page = await context.newPage();
   const calls: Opened['calls'] = [];
@@ -168,7 +179,7 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
       };
     }
     if (msg.method === 'ui/notifications/initialized') {
-      const result = p === 'error' ? { content: [{ type: 'text', text: 'No workout.' }], isError: true } : planResult(p);
+      const result = o.initial ?? (p === 'error' ? { content: [{ type: 'text', text: 'No workout.' }], isError: true } : planResult(p));
       setTimeout(() => void page.evaluate((r) => (globalThis as unknown as Dom).window.__send({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: r }), result), 0);
       return null;
     }
@@ -232,7 +243,7 @@ export async function openView(p: WorkoutPlan | 'error', o: HostOptions = {}): P
     },
   };
   open.push(opened);
-  if (p !== 'error') await opened.frame.locator('[aria-roledescription="carousel"]').waitFor();
+  if (p !== 'error' && !o.initial) await opened.frame.locator('[aria-roledescription="carousel"]').waitFor();
   return opened;
 }
 

@@ -22,6 +22,7 @@ const csp = [
   "media-src 'self'", // the demo videos, from this site only
   "style-src 'self'",
   "font-src 'self'",
+  "connect-src https://mcp.fitwell.fyi", // the invite form posts to mcp.fitwell.fyi/request-access
   `script-src 'self' ${hashes.join(" ")}`.trim(),
   "base-uri 'none'",
   "form-action 'none'",

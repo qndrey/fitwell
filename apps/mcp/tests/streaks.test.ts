@@ -122,3 +122,56 @@ describe('export and delete', () => {
     expect(await rows()).toEqual([]);
   });
 });
+
+describe('set_streak_freeze', () => {
+  const monday = weekStart(today);
+  const freeze = async (args: Record<string, unknown> = {}) => call(client, 'set_streak_freeze', args);
+  const stored = async () => (await env.DB.prepare('SELECT week_start FROM streak_freezes WHERE user_id = ? ORDER BY week_start').bind(ana.id).all<{ week_start: string }>()).results.map((r) => r.week_start);
+
+  it('freezes the week of any given day, by default this one, and lifts it again', async () => {
+    const r = await freeze();
+    expect(r.data).toMatchObject({ week: monday, frozen: true, frozenWeeks: [monday] });
+    expect((await freeze({ day: addDays(monday, 5) })).data.week).toBe(monday); // the same week again changes nothing
+    expect(await stored()).toEqual([monday]);
+    await freeze({ day: addDays(monday, 15) });
+    expect(await stored()).toEqual([monday, addDays(monday, 14)]);
+    const lifted = await freeze({ day: monday, frozen: false });
+    expect(lifted.data).toMatchObject({ frozen: false, frozenWeeks: [addDays(monday, 14)] });
+    expect(await stored()).toEqual([addDays(monday, 14)]);
+  });
+
+  it('only weeks from 4 back to 4 ahead', async () => {
+    expect((await freeze({ day: addDays(monday, -28) })).isError).toBe(false);
+    expect((await freeze({ day: addDays(monday, 28) })).isError).toBe(false);
+    const tooOld = await freeze({ day: addDays(monday, -35) });
+    expect(tooOld.isError).toBe(true);
+    expect(tooOld.text).toContain('4 back to 4 ahead');
+    expect((await freeze({ day: addDays(monday, 35) })).isError).toBe(true);
+    expect(await stored()).toEqual([addDays(monday, -28), addDays(monday, 28)]);
+  });
+
+  it('keeps a training streak going through a frozen week below target, without using the forgiven week', async () => {
+    await call(client, 'update_profile', { weight_kg: 80 });
+    await call(client, 'set_goals', { workouts_per_week: 1 });
+    for (const week of [-21, -7]) await call(client, 'log_cardio', { activity_id: 'act:run-10', duration_min: 30, day: addDays(monday, week) });
+    const before = (await streaks()).training.streak;
+    expect(before).toMatchObject({ current: 2, forgiven: { freeze: 0, allowance: 1 } });
+    await freeze({ day: addDays(monday, -14) });
+    const after = await streaks();
+    expect(after.training.streak).toMatchObject({ current: 2, forgiven: { freeze: 1, allowance: 0 } });
+    expect(after.frozenWeeks).toEqual([addDays(monday, -14)]);
+  });
+
+  it('is exported, and erased with the account', async () => {
+    await freeze();
+    const exported = (await call(client, 'export_my_data')).data as { streakFreezes: string[] };
+    expect(exported.streakFreezes).toEqual([monday]);
+    await deleteUser(env.DB, ana);
+    expect(await stored()).toEqual([]);
+  });
+
+  it('is not read-only, not destructive and safe to repeat', async () => {
+    const tool = (await client.listTools()).tools.find((t) => t.name === 'set_streak_freeze');
+    expect(tool?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: true });
+  });
+});

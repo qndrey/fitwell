@@ -4,6 +4,7 @@ import type { ActivityLevel, Sex } from '@fitwell/core/domain/energy';
 import { STANDARD_GYM, type Gym } from '@fitwell/core/domain/plates';
 import { EXTRA_KEYS, scaleExtras, type Extras, type Nutrients, type Portion } from '@fitwell/core/domain/nutrition';
 import type { Slot } from '@fitwell/core/schema';
+import { todayIn } from './time';
 
 export interface Diet {
   preferences: string[];
@@ -204,20 +205,36 @@ export class UserData {
     };
   }
 
+  /** The local day the current goal weight was set, or null without one. */
+  async goalWeightSince(): Promise<string | null> {
+    const r = await this.db.prepare('SELECT goal_weight_since FROM goals WHERE user_id = ? AND goal_weight_kg IS NOT NULL').bind(this.userId).first<Row>();
+    return (r?.goal_weight_since as string | null | undefined) ?? null;
+  }
+
   async setGoals(patch: Partial<Goals>): Promise<Goals> {
     const empty: Goals = { kcal: null, proteinG: null, carbsG: null, fatG: null, workoutsPerWeek: null, goalWeightKg: null, fiberG: null, satFatG: null, addedSugarG: null, sleepH: null };
-    const g = { ...empty, ...(await this.goals()), ...patch };
+    const before = await this.goals();
+    const g = { ...empty, ...before, ...patch };
+    // A new goal weight (not a repeat of the same one) starts its streak today, in the person's own time zone.
+    const since = g.goalWeightKg === null ? null : g.goalWeightKg === (before?.goalWeightKg ?? null) ? await this.goalWeightSince() : todayIn((await this.profile()).timeZone, new Date(this.now()));
     await this.db
       .prepare(
-        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, fiber_g, sat_fat_g, added_sugar_g, sleep_h, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, fiber_g, sat_fat_g, added_sugar_g, sleep_h, goal_weight_since, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (user_id) DO UPDATE SET kcal = excluded.kcal, protein_g = excluded.protein_g, carbs_g = excluded.carbs_g,
            fat_g = excluded.fat_g, workouts_per_week = excluded.workouts_per_week, goal_weight_kg = excluded.goal_weight_kg,
-           fiber_g = excluded.fiber_g, sat_fat_g = excluded.sat_fat_g, added_sugar_g = excluded.added_sugar_g, sleep_h = excluded.sleep_h, updated_at = excluded.updated_at`,
+           fiber_g = excluded.fiber_g, sat_fat_g = excluded.sat_fat_g, added_sugar_g = excluded.added_sugar_g, sleep_h = excluded.sleep_h,
+           goal_weight_since = excluded.goal_weight_since, updated_at = excluded.updated_at`,
       )
-      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, g.fiberG, g.satFatG, g.addedSugarG, g.sleepH, this.now())
+      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, g.fiberG, g.satFatG, g.addedSugarG, g.sleepH, since, this.now())
       .run();
     return g;
+  }
+
+  /** The first day with a food entry, or null. */
+  async firstFoodDay(): Promise<string | null> {
+    const r = await this.db.prepare('SELECT MIN(day) AS day FROM food_entries WHERE user_id = ?').bind(this.userId).first<Row>();
+    return (r?.day as string | null | undefined) ?? null;
   }
 
   // ---------- food log ----------

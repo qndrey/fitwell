@@ -1,5 +1,7 @@
 // Streak milestones and the goal weight reached. Like the other data classes, every query is bound to the signed-in user's id.
-export type AchievementKind = 'training_weeks' | 'logging_days' | 'logging_weeks' | 'protein_days' | 'goal_weight';
+import type { AchievementKind } from '../analytics/celebrationTypes';
+
+export type { AchievementKind };
 
 export interface Achievement {
   kind: AchievementKind;
@@ -26,6 +28,11 @@ export class AchievementsData {
       found.map((a) => this.db.prepare('INSERT OR IGNORE INTO achievements (user_id, kind, threshold, achieved_at) VALUES (?, ?, ?, ?)').bind(this.userId, a.kind, a.threshold, a.achievedAt)),
     );
     return found.filter((_, i) => results[i]!.meta.changes > 0);
+  }
+
+  /** Marks every achievement not yet shown as shown at `at`; each is celebrated once, whether or not a view was drawn for it. */
+  async markCelebrated(at: number): Promise<void> {
+    await this.db.prepare('UPDATE achievements SET celebrated_at = ? WHERE user_id = ? AND celebrated_at IS NULL').bind(at, this.userId).run();
   }
 
   async list(): Promise<Achievement[]> {

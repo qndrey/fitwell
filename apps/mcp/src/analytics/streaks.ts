@@ -5,8 +5,8 @@ import { computeStreaks, type OptionalStreak, type Streak, type StreakResult } f
 import type { AchievementKind } from '../data/achievements';
 import type { BodyData } from '../data/bodyData';
 import { todayIn } from '../data/time';
-import type { UserData } from '../data/userData';
-import type { WorkoutData } from '../data/workoutData';
+import type { DayTotal, UserData } from '../data/userData';
+import type { Workout, WorkoutData } from '../data/workoutData';
 
 export interface StreakDeps {
   data: UserData;
@@ -22,6 +22,9 @@ const TREND_LEAD_DAYS = 6;
 export interface LoadedStreaks {
   today: Day;
   result: StreakResult;
+  /** The rows the result was worked out from, for what the celebration says it took. */
+  workouts: Workout[];
+  food: DayTotal[];
 }
 
 export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
@@ -44,7 +47,7 @@ export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
     weighIns: weighIns.map((w) => ({ day: w.day, kg: w.kg })),
     goals: { workoutsPerWeek: goals?.workoutsPerWeek ?? null, proteinG: goals?.proteinG ?? null, goalWeightKg: goals?.goalWeightKg ?? null, goalWeightSince },
   });
-  return { today, result };
+  return { today, result, workouts, food };
 }
 
 /** The streaks in a line each, for tools that only mention them (get_progress); get_streaks has the full result. */

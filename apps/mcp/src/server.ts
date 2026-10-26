@@ -16,6 +16,7 @@ import { registerMemberInviteTools } from './tools/memberInvites';
 import { exportInvites } from './data/memberInvites';
 import { registerReviewTools } from './tools/review';
 import { registerShoppingTools } from './tools/shopping';
+import { registerCelebrationTools } from './tools/celebration';
 import { registerStreakTools } from './tools/streaks';
 import { AchievementsData } from './data/achievements';
 import { registerBodyTools } from './tools/body';
@@ -83,6 +84,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   await registerLiftTools(server, { data, workouts });
   registerReviewTools(server, { data, workouts, body, plans, notes: reviewNotes });
   registerStreakTools(server, { data, workouts, body, achievements });
+  registerCelebrationTools(server, { data, workouts, body, achievements });
   registerDeleteTool(server, { data, workouts, body, plans });
   registerMemberInviteTools(server, { db: deps.db, userId: deps.user.id, isAdmin: deps.isAdmin === true, isReviewer: deps.isReviewer, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });

@@ -5,7 +5,7 @@ Platform-neutral code used by Fitwell for Claude (`apps/mcp`, the MCP server). N
 | Path | What |
 |---|---|
 | `schema.ts` | The data model (food entries, workouts, body, goals) |
-| `domain/*` | Pure logic: dates, units, nutrition, totals, workouts, MET, stats, body |
+| `domain/*` | Pure logic: dates, units, nutrition, totals, workouts, MET, stats, body, streaks |
 | `data/*` | Bundled datasets (Frida 5.5 foods, free-exercise-db, cardio activities, measurement presets), lazy-loaded |
 | `search/*` | Typo-tolerant ranking for foods and exercises |
 | `off/*` | Open Food Facts client (inject `fetch`), response normalisation, rate limiter |

@@ -66,6 +66,22 @@ describe('get_streaks', () => {
     expect((await rows()).map((r) => `${r.kind}:${r.threshold}`)).toEqual(expect.arrayContaining(['training_weeks:1', 'training_weeks:2']));
   });
 
+  it('is mentioned in get_progress as of today, recording nothing, and left out for an earlier period', async () => {
+    await logFood(today);
+    const p = (await call(client, 'get_progress', { days: 30 })).data as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(p.streaks).toMatchObject({ training: null, proteinDays: null, loggingDays: { unit: 'day', current: 1, best: 1, next: { threshold: 2, remaining: 1 } }, weightGoal: { status: 'none', reason: 'no_target' } });
+    expect(await rows()).toEqual([]);
+    expect(((await call(client, 'get_progress', { days: 30, to: addDays(today, -1) })).data as Record<string, unknown>).streaks).toBeUndefined();
+  });
+
+  it('follows the weekly review for Claude, and leaves the view data alone', async () => {
+    await logFood(today);
+    const r = await call(client, 'show_weekly_review', {});
+    expect(r.text).toContain('Streaks as of today: {');
+    expect(r.text).toContain('"loggingDays":{"unit":"day","current":1');
+    expect(Object.keys(r.data)).toEqual(['review']);
+  });
+
   it('is not read-only but not destructive either', async () => {
     const tool = (await client.listTools()).tools.find((t) => t.name === 'get_streaks');
     expect(tool?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: true });

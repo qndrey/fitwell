@@ -1,7 +1,7 @@
 // Builds the streak engine's input (packages/core domain/streaks) from a person's stored rows.
 import { addDays } from '@fitwell/core/domain/dates';
 import type { Day } from '@fitwell/core/domain/dates';
-import { computeStreaks, type OptionalStreak, type StreakResult } from '@fitwell/core/domain/streaks';
+import { computeStreaks, type OptionalStreak, type Streak, type StreakResult } from '@fitwell/core/domain/streaks';
 import type { AchievementKind } from '../data/achievements';
 import type { BodyData } from '../data/bodyData';
 import { todayIn } from '../data/time';
@@ -45,6 +45,13 @@ export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
     goals: { workoutsPerWeek: goals?.workoutsPerWeek ?? null, proteinG: goals?.proteinG ?? null, goalWeightKg: goals?.goalWeightKg ?? null, goalWeightSince },
   });
   return { today, result };
+}
+
+/** The streaks in a line each, for tools that only mention them (get_progress); get_streaks has the full result. */
+export function streakSummary(result: StreakResult) {
+  const line = (s: Streak) => ({ unit: s.unit, current: s.current, best: s.best.length, atLeast: s.atLeast, next: s.next });
+  const optional = (s: OptionalStreak) => (s.status === 'ok' ? line(s.streak) : null);
+  return { training: optional(result.training), loggingDays: line(result.loggingDays), loggingWeeks: line(result.loggingWeeks), proteinDays: optional(result.proteinDays), weightGoal: result.weightGoal };
 }
 
 /** Every milestone reached and the goal weight, as what the achievements table records. */

@@ -5,6 +5,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { loadProgress, type ProgressDeps } from '../analytics/load';
 import { summarize } from '../analytics/progress';
+import { loadStreaks, streakSummary } from '../analytics/streaks';
 import { todayIn } from '../data/time';
 import { json, toolError } from './result';
 
@@ -83,10 +84,12 @@ export function registerBodyTools(server: McpServer, deps: ProgressDeps) {
         'training per week and working sets per muscle, strength records (best estimated 1RM, Epley) and measurement changes. Numbers only; show_dashboard draws charts. ' +
         'energy: the calories the person actually burns, measured from their own logs and weigh-ins over the last 28 days (with confidence, or a reason when there is not enough data), the calories for their goal weight at the default rate, and when the goal weight is reached at the current trend. ' +
         'Prefer it to the formula once it exists; to change the calorie goal, show the numbers and call set_goals only after the person agrees (suggest_targets with expenditure_kcal gives full macros). ' +
+        'streaks (as of today, when no end day is given): current and best runs, with the next milestone; get_streaks has the detail. Mention a streak only briefly and warmly, never as pressure. ' +
         'Describe changes neutrally, and note that a trend needs several weigh-ins.',
       inputSchema: z.object({ days: z.number().int().min(7).max(365).default(90), to: day.optional() }),
       annotations: { readOnlyHint: true },
     },
-    async ({ days, to }) => json(summarize(await loadProgress(deps, days, to))),
+    // Streaks are as of today, so a report for an earlier period leaves them out.
+    async ({ days, to }) => json({ ...summarize(await loadProgress(deps, days, to)), ...(to ? {} : { streaks: streakSummary((await loadStreaks(deps)).result) }) }),
   );
 }

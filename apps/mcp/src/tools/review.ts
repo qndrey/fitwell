@@ -3,6 +3,7 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { loadWeeklyReview, type ReviewDeps } from '../analytics/load';
+import { loadStreaks, streakSummary } from '../analytics/streaks';
 import type { ReviewPeriod, SavedNotes, WeekReview } from '../analytics/reviewTypes';
 import reviewHtml from '../ui/generated/review';
 import { REVIEW_VIEW_URI } from '../workout/plan';
@@ -83,6 +84,7 @@ export function registerReviewTools(server: McpServer, deps: ReviewDeps) {
         'Use it when the person asks how the week went or what to change, or at the end of a week. Early in the week (Monday, Tuesday) it shows the week that just ended. ' +
         'With period month it reviews the last 4 weeks (week-aligned) against the 4 weeks before, for "how was my month"; the person can also switch in the view. ' +
         'Talk about it neutrally, offer the suggestions as options, and let the person decide. ' +
+        'The result ends with their streaks as of today: when one is worth a mention (a milestone, a run in progress), say so in one warm line, never as pressure. ' +
         NOTES_TEXT,
       inputSchema: showInput,
       // It saves the optional notes, replacing the ones saved for that period; without notes it only reads.
@@ -94,7 +96,9 @@ export function registerReviewTools(server: McpServer, deps: ReviewDeps) {
       if (!given.ok) return toolError(given.error);
       const r = await review(week_start, period, given.notes);
       if (!r.ok) return r.error;
-      return { content: [{ type: 'text', text: `The weekly review is open.${VIEW_ONLY} ${JSON.stringify(r.review)}` }], structuredContent: { review: r.review } as unknown as Record<string, unknown> };
+      // The streaks as of today follow the review for Claude only (the view does not draw them); a failure here never blocks the review.
+      const streaks = await loadStreaks(deps).then((s) => streakSummary(s.result), () => null);
+      return { content: [{ type: 'text', text: `The weekly review is open.${VIEW_ONLY} ${JSON.stringify(r.review)}${streaks ? ` Streaks as of today: ${JSON.stringify(streaks)}` : ''}` }], structuredContent: { review: r.review } as unknown as Record<string, unknown> };
     },
   );
 

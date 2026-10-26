@@ -1,0 +1,22 @@
+@import '../shared/panel.css';
+/* A calm milestone: a ring that draws itself once and the number fading up. No confetti; nothing moves for a person who prefers reduced motion. */
+.celebrate { justify-items: center; text-align: center; gap: var(--s3); }
+.celebrate + .celebrate { margin-top: var(--s3); }
+.celebrate h1 { font-size: var(--fs-big); line-height: 1.2; margin: 0; }
+.center-text { text-align: center; margin: 0; }
+.badge { position: relative; width: 140px; height: 140px; }
+.badge svg { display: block; }
+.ring-track, .ring { fill: none; stroke-width: 6; }
+.ring-track { stroke: var(--border); }
+.ring { stroke: var(--accent); stroke-linecap: round; animation: draw 1.1s ease-out both; }
+.badge-number { position: absolute; inset: 0; display: grid; place-items: center; font-size: 44px; font-weight: 600; animation: rise 0.8s ease-out 0.3s both; }
+.badge-number .icon { width: 44px; height: 44px; }
+.took { display: grid; grid-template-columns: auto auto; gap: 4px var(--s3); margin: 0; font-size: var(--fs-small); }
+.took dt { color: var(--muted); text-align: right; }
+.took dd { margin: 0; text-align: left; font-weight: 600; }
+.next { margin: 0; font-size: var(--fs-small); }
+@keyframes draw { from { stroke-dashoffset: 390; } to { stroke-dashoffset: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .ring, .badge-number { animation: none; }
+}

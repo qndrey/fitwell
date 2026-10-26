@@ -142,7 +142,8 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 **Phase 7: friends v1 and streaks**
 - [ ] Decisions in §4 agreed.
 - [x] F1 streak engine in core with calendar tests (`computeStreaks`); F2 `get_streaks` and the `achievements` table (migration 0018; export and delete cover it) shipped, with the goal weight's start day stored on `goals`. `get_progress` carries a `streaks` summary (as of today) and `show_weekly_review` ends its text with the same for Claude to mention; the review view does not draw it. **Left:** freezes (a planned rest week): nothing stores or sets them yet, so the engine gets none and only the one-week allowance applies.
-- [ ] F3 celebration view; F4 share card (4:5, 9:16, 1:1; light and dark; weight off by default; the preview matches what is saved).
+- [x] F3 celebration view (`show_celebration`, `ui/celebration`): shows the highest new milestone of each streak from the last 7 days once (marks `achievements.celebrated_at`), with the number, what it took and what is next; a ring that draws itself once, still for reduced motion. Claude opens it after a workout or log, per the server instructions; nothing opens it by itself yet.
+- [ ] F4 share card (4:5, 9:16, 1:1; light and dark; weight off by default; the preview matches what is saved).
 - [ ] `connections` and `shares` tables, the `friends` tool, consent records; export and delete cover them; isolation tests extended (no share means no access).
 - [ ] B1 send a template, recipe or plan; B2 household plan and ticks.
 - [ ] Cron: `triggers.crons` in `wrangler.jsonc` and a `scheduled()` handler next to `fetch` in `src/index.ts`, tested with `wrangler dev --test-scheduled`.

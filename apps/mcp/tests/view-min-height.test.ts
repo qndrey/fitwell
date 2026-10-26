@@ -1,6 +1,7 @@
 // No view is a thin strip: even a view that only has a message to show (here: the tool failed) fills at least the cards' minimum (--track-h, 440 px at phone width), with the message in the middle. The cards of the dashboard, the review and the player have their own tests.
 import { expect as pwExpect } from 'playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import celebration from '../src/ui/generated/celebration';
 import exercise from '../src/ui/generated/exercise';
 import food from '../src/ui/generated/food';
 import lift from '../src/ui/generated/lift';
@@ -13,6 +14,7 @@ afterAll(closeAll);
 const failed = { isError: true, content: [{ type: 'text', text: 'failed' }] };
 const VIEWS: [string, string, RegExp][] = [
   ['lift', lift, /Loading|could not/],
+  ['milestone', celebration, /could not be opened/],
   ['exercise guide', exercise, /could not be opened/],
   ['shopping list', shopping, /could not be opened/],
   ['food summary', food, /Nothing was logged/],

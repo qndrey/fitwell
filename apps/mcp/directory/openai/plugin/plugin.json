@@ -22,7 +22,7 @@
         "shortDescription": "Food, training and weight",
         "longDescription": "Fitwell is a food, training and body-progress tracker you use by talking.\n\nLog meals and get calories and macros (searches Frida, your own foods and Open Food Facts, scans barcodes, copies yesterday's breakfast). Build and run workouts in a card-by-card workout player with suggested weights, warm-ups, supersets, rest timers and new-best tracking. Plan a week of meals that respects your goals, allergies and dislikes, then tick off a shopping list. Log weight, measurements, sleep, steps and water, and open a progress dashboard, a weekly review, a lift-progress chart, a muscle map and illustrated exercise guides.\n\nYour data is yours: export everything or delete your account with one request. No ads, no analytics, no selling or sharing, no AI training.\n\nFitwell is invite-only during early access. Ask for an invitation at https://fitwell.fyi; once approved you get an email, then connect and sign in with a 6-digit code (no password). Fitwell gives general guidance, not medical advice.",
         "developerName": "Fitwell",
-        "category": "Health & Fitness",
+        "category": "Productivity",
         "capabilities": [
           "Read",
           "Write"

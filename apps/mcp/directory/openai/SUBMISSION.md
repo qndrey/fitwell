@@ -18,7 +18,7 @@ This checks the manifest against the portal's limits and writes `apps/mcp/.wrang
 ## In the portal (platform.openai.com/plugins)
 
 1. **Account:** you must be an organization owner, or have *Apps Management Write*. Finish individual or business verification under Settings → Organization → General, and pick the verified *Developer identity* (shown in the directory; the manifest's `developerName` is "Fitwell", so use an identity that matches or change it).
-2. **Plugins → Upload new or existing plugin → Upload plugin:** the ZIP. Read the *Metadata & Skills* findings, fix them in `plugin/`, rebuild and upload again. Two guesses of mine to confirm there: `category` ("Health & Fitness": pick the closest title the dashboard offers and put it in `plugin.json`) and the `capabilities` labels.
+2. **Plugins → Upload new or existing plugin → Upload plugin:** the ZIP. Read the *Metadata & Skills* findings, fix them in `plugin/`, rebuild and upload again. `category` must be a title from the dashboard's list: "Health & Fitness" was refused ("Select a valid category"), so it is `Productivity`, the title OpenAI's docs use. OpenAI's own plugins use only Developer Tools, Productivity, Creativity, Communication, Education & Research, Data & Analytics, Finance, Security, Business & Operations and Scientific Research; if the dashboard offers something closer for a fitness tracker, put that title in `plugin.json`. The `capabilities` labels are also a guess.
 3. **MCPs → Connect:** URL `https://mcp.fitwell.fyi/mcp`, authentication OAuth. **Domain verification** shows a token. Set it and redeploy nothing else:
 
    ```bash

@@ -49,7 +49,7 @@ Already in `plugin/plugin.json`; the short one is limited to 30 characters.
 > 1. Add the connector `https://mcp.fitwell.fyi/mcp` and open Fitwell's sign-in page.
 > 2. Enter `review@fitwell.fyi`, tick the consent box and continue.
 > 3. No email is sent to this test address. Type the code `<the 6 digits>` on the "Check your email" page. Please type it carefully: after repeated wrong codes it stops working (write to hello@fitwell.fyi and we reset it).
-> 3b. OpenAI's reviewer address `mcp-review@theaicompany.org` is also invited (on 2026-10-27). It signs in with the 6-digit code emailed to that mailbox, and starts with an empty account: use `review@fitwell.fyi` to see the demo data.
+> 3b. OpenAI's reviewer address `mcp-review@theaicompany.org` is invited too and has the same demo data (since 2026-10-27). It signs in with the 6-digit code Fitwell emails to that mailbox (check spam; it is valid for 10 minutes), not a fixed code.
 > 4. The account has 12 weeks of made-up history: food, weigh-ins, workouts, recipes, and meal plans for this week and next. Its time zone is Europe/Copenhagen. Fitwell is invite-only for real users; this account is already invited.
 
 ## Test cases

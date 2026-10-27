@@ -9,7 +9,7 @@ export interface User {
   created_at: number;
   consented_at: number | null;
   last_login_at: number | null;
-  /** The member who invited this person (invite_friend); null for people the owner added or approved. */
+  /** The member who invited this person (send_friend_invite); null for people the owner added or approved. */
   invited_by: string | null;
 }
 

@@ -1,6 +1,6 @@
 // The public form for asking for an invitation.
 //   GET  /request-access   the form
-//   POST /request-access   store the request (nothing is emailed; the owner reviews it with manage_invites)
+//   POST /request-access   store the request (nothing is emailed; the owner reviews it with list_invite_requests)
 // The landing page (fitwell.fyi) has the same form and posts it here with fetch and `Accept: application/json`, so the
 // visitor stays on that page: those answers are JSON, readable by the landing origins only (CORS).
 // The answer is the same whether the address is new, already waiting, already invited or already signed in, so the form

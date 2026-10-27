@@ -35,7 +35,9 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
     'update_profile',
     {
       title: 'Update profile',
-      description: 'Change any profile fields; only the ones given change. Weights in kg, heights in cm. diet lists replace the previous lists.',
+      description:
+        "Changes the person's own profile: only the fields given change, the others stay. Use it only for values the person stated or confirmed in this conversation; never guess or infer sex, birth year, height, weight, activity level or allergies. " +
+        'The profile feeds their calorie estimates, allergy warnings, workout plates and meal plans, and is never shared. Weights in kg, heights in cm. A diet list (preferences, allergies, dislikes) replaces the previous list, so send the whole list; call get_profile first when unsure what is stored.',
       inputSchema: z.object({
         time_zone: z.string().refine(isTimeZone, 'An IANA time zone, e.g. "Europe/Copenhagen"').optional(),
         units: z.enum(['metric', 'imperial']).optional().describe('How to present numbers to the person; storage is always metric'),

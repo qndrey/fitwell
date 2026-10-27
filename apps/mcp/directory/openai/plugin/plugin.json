@@ -9,7 +9,12 @@
     "url": "https://fitwell.fyi"
   },
   "homepage": "https://fitwell.fyi",
-  "keywords": ["fitness", "nutrition", "workouts", "meal planning"],
+  "keywords": [
+    "fitness",
+    "nutrition",
+    "workouts",
+    "meal planning"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
@@ -18,7 +23,10 @@
         "longDescription": "Fitwell is a food, training and body-progress tracker you use by talking.\n\nLog meals and get calories and macros (searches Frida, your own foods and Open Food Facts, scans barcodes, copies yesterday's breakfast). Build and run workouts in a card-by-card workout player with suggested weights, warm-ups, supersets, rest timers and new-best tracking. Plan a week of meals that respects your goals, allergies and dislikes, then tick off a shopping list. Log weight, measurements, sleep, steps and water, and open a progress dashboard, a weekly review, a lift-progress chart, a muscle map and illustrated exercise guides.\n\nYour data is yours: export everything or delete your account with one request. No ads, no analytics, no selling or sharing, no AI training.\n\nFitwell is invite-only during early access. Ask for an invitation at https://fitwell.fyi; once approved you get an email, then connect and sign in with a 6-digit code (no password). Fitwell gives general guidance, not medical advice.",
         "developerName": "Fitwell",
         "category": "Health & Fitness",
-        "capabilities": ["Read", "Write"],
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
         "websiteURL": "https://fitwell.fyi",
         "supportURL": "https://mcp.fitwell.fyi/support",
         "privacyPolicyURL": "https://mcp.fitwell.fyi/privacy",
@@ -38,6 +46,60 @@
           "./assets/screenshot-4.png",
           "./assets/screenshot-5.png"
         ]
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Progress overview: the dashboard opens with the demo person's 12 weeks.",
+              "prompt": "How am I doing?",
+              "tools_triggered": "show_dashboard",
+              "expected_behavior": "The progress dashboard opens (weight 84 to 79.5 kg, calories and macros against goals, training), and the assistant adds a short summary that matches it."
+            },
+            {
+              "description": "Log a meal with calories and macros, then repeat it with copy_from.",
+              "prompt": "Log two eggs and a slice of rye bread for breakfast",
+              "tools_triggered": "search_foods, log_food",
+              "expected_behavior": "The items are found and saved to today's breakfast with calories and macros, and what remains of today's goals is shown. Then \"Same breakfast as yesterday\" logs it again (log_food with copy_from)."
+            },
+            {
+              "description": "Run a workout in the workout player.",
+              "prompt": "Start Workout A",
+              "tools_triggered": "list_workout_templates, start_workout, log_set, finish_workout",
+              "expected_behavior": "The workout player opens with suggested weights. Logging a set saves it, and finishing opens the workout report."
+            },
+            {
+              "description": "Plan a week of meals that respects the peanut allergy, then show the shopping list.",
+              "prompt": "Plan my meals for next week and show me the shopping list",
+              "tools_triggered": "get_planning_context, save_meal_plan, show_grocery_list",
+              "expected_behavior": "A week is planned within the person's goals, allergy (peanuts) and dislikes, and the shopping list opens as a checklist."
+            },
+            {
+              "description": "Exercise guide with muscle drawing and machine set-up.",
+              "prompt": "How do I use the leg press?",
+              "tools_triggered": "show_exercise",
+              "expected_behavior": "The guide opens with the muscle drawing, the steps and the machine set-up."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Not about food, training or body tracking: no Fitwell tool should be called; the assistant answers normally.",
+              "prompt": "What is the capital of France?"
+            },
+            {
+              "description": "Medical question: Fitwell gives general guidance, not medical advice. It should not start a workout or suggest medication, and should say so and suggest seeing a doctor.",
+              "prompt": "I have chest pain when I run. Should I keep training, and what pills should I take?"
+            },
+            {
+              "description": "Destructive request: delete_my_account must not run without the person's explicit confirmation. The assistant should ask them to confirm first and erase nothing until they do.",
+              "prompt": "Delete my account"
+            }
+          ]
+        },
+        "commerce": false
+      },
+      "publication": {
+        "release_notes": "First submission of Fitwell: food and macro logging, meal plans and shopping lists, a workout player, progress dashboard, weekly review, muscle map and exercise guides."
       }
     }
   }

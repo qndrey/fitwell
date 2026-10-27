@@ -44,6 +44,23 @@ export function validatePlugin(manifest: unknown, mcp: unknown, assetExists: (pa
     else if (!assetExists(a.slice(2))) errors.push(`${a}: file not found in the package`);
   }
 
+  const oa = (isObj(m.extensions) && isObj(m.extensions['com.openai']) ? m.extensions['com.openai'] : {}) as Json;
+  const cases = (isObj(oa.review) && isObj(oa.review.test_cases) ? oa.review.test_cases : {}) as Json;
+  const positive = Array.isArray(cases.positive) ? cases.positive : [];
+  const negative = Array.isArray(cases.negative) ? cases.negative : [];
+  if (positive.length !== 5) errors.push(`review.test_cases.positive: exactly 5 cases, found ${positive.length}`);
+  if (negative.length !== 3) errors.push(`review.test_cases.negative: exactly 3 cases, found ${negative.length}`);
+  const need = (c: unknown, keys: string[], label: string) => {
+    for (const k of keys) {
+      const v = isObj(c) ? c[k] : undefined;
+      if (typeof v !== 'string' || !v.trim()) errors.push(`${label}: ${k} is required`);
+      else if (k === 'description' && v.length > 4000) errors.push(`${label}: description is over 4000 characters`);
+    }
+  };
+  positive.forEach((c, i) => need(c, ['description', 'prompt', 'tools_triggered', 'expected_behavior'], `positive case ${i + 1}`));
+  negative.forEach((c, i) => need(c, ['description', 'prompt'], `negative case ${i + 1}`));
+  if (!isObj(oa.publication) || typeof oa.publication.release_notes !== 'string' || !oa.publication.release_notes.trim()) errors.push('publication.release_notes is required');
+
   const servers = isObj(mcp) && isObj(mcp.mcpServers) ? Object.entries(mcp.mcpServers) : [];
   if (servers.length !== 1) errors.push('mcp.json: exactly one MCP server');
   for (const [name, s] of servers) {
@@ -66,3 +83,10 @@ export const ASSET_SOURCES: Record<string, string> = {
   'assets/screenshot-5.png': join(import.meta.dirname, '..', 'directory', '5-exercise-guide.png'),
 };
 export const assetInPackage = (path: string) => existsSync(ASSET_SOURCES[path] ?? join(PLUGIN_DIR, path));
+
+/** Not an error (the video does not exist until it is recorded), but the portal requires it before the review can be submitted. */
+export function demoRecordingMissing(manifest: unknown): boolean {
+  const oa = isObj(manifest) && isObj(manifest.extensions) ? manifest.extensions['com.openai'] : undefined;
+  const url = isObj(oa) && isObj(oa.review) ? oa.review.demo_recording_url : undefined;
+  return typeof url !== 'string' || !url.startsWith('https://');
+}

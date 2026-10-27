@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "fitwell": {
+      "type": "streamable-http",
+      "url": "https://mcp.fitwell.fyi/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": { "type": "oauth" }
+        }
+      }
+    }
+  }
+}

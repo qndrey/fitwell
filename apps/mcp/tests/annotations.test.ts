@@ -10,6 +10,7 @@ const DESTRUCTIVE = [
   'delete_my_account',
   'edit_food_entry', // changes a logged entry
   'edit_workout_set', // changes a logged set
+  'log_body', // a value logged for a day replaces the one already there
   'invite_friend', // cancel takes back an invitation
   'manage_invites', // remove takes back an invitation
   'save_meal_plan', // saving a week again replaces its plan
@@ -18,6 +19,9 @@ const DESTRUCTIVE = [
   'set_goals',
   'update_profile',
 ];
+
+/** Tools that reach outside Fitwell: Open Food Facts, a web page, or an email to someone else. */
+const OPEN_WORLD = ['search_foods', 'lookup_barcode', 'import_recipe', 'invite_friend', 'manage_invites'];
 
 async function listTools(isAdmin: boolean) {
   const { env } = createTestEnv();
@@ -35,7 +39,9 @@ describe('tool annotations', () => {
       const a = tool.annotations ?? {};
       expect(tool.title, tool.name).toBeTruthy();
       expect(a.title, `${tool.name} annotations.title`).toBe(tool.title); // the directory reads this one
-      expect(typeof a.readOnlyHint, `${tool.name} readOnlyHint`).toBe('boolean');
+      // OpenAI's plugin scan wants all three as explicit booleans on every tool.
+      for (const hint of ['readOnlyHint', 'destructiveHint', 'openWorldHint'] as const) expect(typeof a[hint], `${tool.name} ${hint}`).toBe('boolean');
+      expect(a.openWorldHint, `${tool.name} openWorldHint`).toBe(OPEN_WORLD.includes(tool.name));
       if (a.readOnlyHint) {
         expect(a.destructiveHint, `${tool.name} is read-only`).not.toBe(true);
       } else {

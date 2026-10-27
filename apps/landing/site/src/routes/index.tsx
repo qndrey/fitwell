@@ -759,6 +759,34 @@ function Index() {
           </div>
         </Section>
 
+        {/* Walkthrough: recorded by apps/mcp/scripts/demo-walkthrough.ts into public/demo */}
+        <Section id="walkthrough" className="pb-16 md:pb-20">
+          <div data-reveal className="grid items-center gap-10 md:grid-cols-[1fr_auto] md:gap-16">
+            <div>
+              <h2 className="max-w-xl text-3xl sm:text-5xl">See it work</h2>
+              <p className="mt-6 max-w-xl leading-relaxed text-muted-foreground">
+                A minute in the real views, each opened by one plain request shown above it: the progress dashboard, a logged meal, a workout in the player, next week's shopping list and an exercise guide.
+              </p>
+              <p className="mt-4 max-w-xl text-sm text-muted-foreground">
+                Recorded with a made-up demo person; your assistant's wording will differ.{" "}
+                <a className="underline underline-offset-4" href="/demo/fitwell-walkthrough.webm">Open the video file</a>.
+              </p>
+            </div>
+            <video
+              controls
+              playsInline
+              preload="none"
+              poster="/demo/fitwell-walkthrough-poster.png"
+              width={398}
+              height={664}
+              aria-label="Walkthrough of Fitwell: progress dashboard, logging a meal, a workout, the shopping list and an exercise guide"
+              className="mx-auto h-auto w-full max-w-[320px] rounded-2xl border shadow-phone"
+            >
+              <source src="/demo/fitwell-walkthrough.webm" type="video/webm" />
+            </video>
+          </div>
+        </Section>
+
         {/* Little things */}
         <section className="border-y bg-card/50">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">

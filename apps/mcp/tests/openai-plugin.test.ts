@@ -29,5 +29,7 @@ describe('OpenAI plugin package', () => {
     expect(errors.join('\n')).toMatch(/supportURL must be an https/);
     expect(errors.join('\n')).toMatch(/defaultPrompt/);
     expect(errors.join('\n')).toMatch(/exactly one MCP server/);
+    expect(errors.join('\n')).toMatch(/positive: exactly 5 cases, found 0/);
+    expect(errors.join('\n')).toMatch(/release_notes is required/);
   });
 });

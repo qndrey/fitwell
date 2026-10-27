@@ -13,7 +13,7 @@ This checks the manifest against the portal's limits and writes `apps/mcp/.wrang
 1. **ChatGPT works.** Roadmap item G1 (a hand test in ChatGPT, see [ROADMAP.md](../../ROADMAP.md)) is not done. Add `https://mcp.fitwell.fyi/mcp` in ChatGPT (Developer Mode), sign in as the review account, and run every test case below. Note what does not work (the player? write tools on your plan?) and fix or word the listing around it before submitting: reviewers run these same prompts.
 2. **Deploy this change** (adds `/terms`, `/support` and the domain-challenge route): `npm run deploy -w @fitwell/mcp`. Read `/terms` first: it is a plain draft written from how the product works, not legal advice, and it names no governing law or legal entity. Have it checked, or change it, if that matters to you.
 3. **The review account:** follow [REVIEW.md](../../REVIEW.md) (`REVIEW_LOGIN` secret, then `npm run seed:review -- --apply remote` shortly before the review). OpenAI forbids sign-in that needs "MFA, email or SMS codes, magic links": the fixed code is typed from the instructions, nothing is emailed, so it should pass, but if the portal's own check rejects it, ask OpenAI support. Do not delete the secret until the review is decided.
-4. **A demo video:** the portal wants a reviewer-accessible URL. Record 1 to 2 minutes in ChatGPT: connect and sign in, "How am I doing?", log a meal, start a workout and log a set, the shopping list. Upload it unlisted (YouTube, Loom). The clip on the landing page shows the player only, in Claude.
+4. **The demo video:** recorded by `scripts/demo-walkthrough.ts` and live at https://fitwell.fyi/demo/fitwell-walkthrough.webm (about a minute: the dashboard, a logged meal, a workout, the shopping list and an exercise guide, each under its prompt; it is also on the landing page). It shows the real views in the local dev host, not ChatGPT itself, and has no sound. If OpenAI asks for ChatGPT footage, record that and replace `review.demo_recording_url`. To re-record it after the views change: seed the local demo person, start `npm run dev` and `npm run dev:host`, then `npx tsx scripts/demo-walkthrough.ts` from `apps/mcp`, and deploy the landing page.
 
 ## In the portal (platform.openai.com/plugins)
 
@@ -26,7 +26,7 @@ This checks the manifest against the portal's limits and writes `apps/mcp/.wrang
    ```
 
    Paste the token, check `https://mcp.fitwell.fyi/.well-known/openai-apps-challenge` shows only the token, then Connect. The OAuth step opens Fitwell's sign-in: use the review account. Wait for the tool scan; fix findings with *Reconnect* or *Rescan*. Do not enter a client secret: Fitwell registers clients itself (dynamic registration), and the portal has no API-key or bearer flow.
-4. **Review details:** paste the sections below (test cases, instructions, release notes), the video URL and the review account's code. Put the code only here, never in the ZIP.
+4. **Review details:** the test cases, release notes and demo video link come from the ZIP (see Test cases below). In the form, enter the reviewer credentials: sign-in method *Magic link or email code*, reviewer email `mcp-review@theaicompany.org` (fixed by the portal), login URL `https://mcp.fitwell.fyi/mcp`, tenant empty, and the sign-in steps from the reviewer instructions below.
 5. **Submit for review**, tick the policy attestations (you answer those), then watch *Review status* and your email. One review can run at a time. If it is rejected, fix and upload a new ZIP; appeal by replying to the email.
 6. **After approval:** *Publish plugin* is a separate click, when you choose. Afterwards the server is scanned daily; a changed tool list goes live after the automated checks. The server URL can't be changed without contacting support.
 
@@ -49,9 +49,12 @@ Already in `plugin/plugin.json`; the short one is limited to 30 characters.
 > 1. Add the connector `https://mcp.fitwell.fyi/mcp` and open Fitwell's sign-in page.
 > 2. Enter `review@fitwell.fyi`, tick the consent box and continue.
 > 3. No email is sent to this test address. Type the code `<the 6 digits>` on the "Check your email" page. Please type it carefully: after repeated wrong codes it stops working (write to hello@fitwell.fyi and we reset it).
+> 3b. OpenAI's reviewer address `mcp-review@theaicompany.org` is invited too and has the same demo data (since 2026-10-27). It signs in with the 6-digit code Fitwell emails to that mailbox (check spam; it is valid for 10 minutes), not a fixed code.
 > 4. The account has 12 weeks of made-up history: food, weigh-ins, workouts, recipes, and meal plans for this week and next. Its time zone is Europe/Copenhagen. Fitwell is invite-only for real users; this account is already invited.
 
 ## Test cases
+
+The portal reads these from the ZIP (`extensions.com.openai.review.test_cases` in `plugin/plugin.json`, read-only in the dashboard) together with the release notes (`publication`), so edit them there, rebuild and upload again. The tables below are the same cases. The demo video link goes in the same block as `review.demo_recording_url` once it is recorded: add it, rebuild, upload. Reviewer credentials are the one thing entered in the portal's form, never in the ZIP.
 
 Run each one as the review account before submitting.
 

@@ -56,7 +56,7 @@ Claude ──HTTPS──▶ Worker (apps/mcp)
 | Body | `log_body` (weight, measurements, sleep, steps, water) | Done (phases 3, 5) |
 | Analytics | `get_progress` (weight trend, macro adherence, volume, PRs, e1RM), `show_dashboard`, `show_weekly_review`, `show_lift_progress`, `show_muscle_map` | Done (phases 3, 5, 6, 6b) |
 | Meal planning | `save_meal_plan` (validated against goals), `get_meal_plan`, `log_planned_meal`, `get_planning_context`, `get_recipes`, `import_recipe`, `suggest_meals`, `show_grocery_list` (aggregated grams, grouped by aisle, scaled for prep; tick-off checklist) | Done (phases 4, 5) |
-| Account | `export_my_data`, `delete_my_account`, `import_fitwell_backup` (web app backup JSON), `delete_item`; `manage_invites` for the owners | Done (phases 1, 3, 5, 6b) |
+| Account | `export_my_data`, `delete_my_account`, `import_fitwell_backup` (web app backup JSON), `delete_item`; the owner's invitation tools (`approve_invite_request` and five more) for the owners | Done (phases 1, 3, 5, 6b) |
 
 ## 5. Phases and exit criteria
 
@@ -109,7 +109,7 @@ Phases 6 and later (coaching, friends, wearables, faster logging) are in [ROADMA
 - [x] Photo meal logging: `log_food` item flag `amount_estimated` (grams guessed from a picture; stored as an estimate) and instructions for Claude.
 - [x] `import_recipe` reads a recipe page's schema.org data (https only, public hosts, 1.5 MB, 8 s, redirects re-checked; nothing is saved), `save_recipe` takes `steps` and `source_url`; migration 0007.
 - [x] `suggest_meals`: saved recipes ranked by what is at home (staples ignored), fitted to today's remaining calories; recipes with allergy foods are left out.
-- [x] `manage_invites` (list, add, remove unused) for the owners in `ADMIN_EMAILS`; nobody else sees it. The sign-in pages say where to ask for an invite.
+- [x] the owner's invitation tools (`approve_invite_request` and five more) (list, add, remove unused) for the owners in `ADMIN_EMAILS`; nobody else sees it. The sign-in pages say where to ask for an invite.
 - [x] Fewer tools: `delete_item` (8 kinds), `log_body`, `get_food_log`, `get_recipes`, exercise details in `search_exercises`, `check_result` on the import tool.
 - [x] Deployed (CI deploys main since #55; remote migrations checked up to 0015 on 2026-10-24).
 

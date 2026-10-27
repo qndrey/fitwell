@@ -24,7 +24,7 @@ type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string 
 
 const adminEmails = (env: Env) => (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
 
-/** The reviewers' fixed-code sign-in, never for an admin address (manage_invites must stay behind a real email). */
+/** The reviewers' fixed-code sign-in, never for an admin address (the owner's invitation tools must stay behind a real email). */
 function reviewLogin(env: EnvWithOAuth) {
   const review = parseReviewLogin(env.REVIEW_LOGIN);
   return review && !adminEmails(env).includes(review.email) ? review : undefined;

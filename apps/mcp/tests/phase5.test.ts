@@ -314,25 +314,25 @@ describe('invitations from Claude', () => {
   const admin = () => connectAs(env, ana, undefined, { isAdmin: true });
 
   it('is only offered to the owner', async () => {
-    expect((await client.listTools()).tools.some((t) => t.name === 'manage_invites')).toBe(false);
-    expect((await (await admin()).listTools()).tools.some((t) => t.name === 'manage_invites')).toBe(true);
+    expect((await client.listTools()).tools.some((t) => t.name === 'list_invitations')).toBe(false);
+    expect((await (await admin()).listTools()).tools.some((t) => t.name === 'list_invitations')).toBe(true);
   });
 
   it('adds, lists and removes unused invitations, and will not remove someone who signed in', async () => {
     const c = await admin();
-    const added = await call(c, 'manage_invites', { action: 'add', email: ' New.Friend@Example.com ' });
+    const added = await call(c, 'add_invitation', { email: ' New.Friend@Example.com ' });
     expect(added.data).toMatchObject({ email: 'new.friend@example.com', invited: true });
     expect(String(added.data.next)).toContain('No email was sent');
-    expect((await call(c, 'manage_invites', { action: 'add', email: 'new.friend@example.com' })).data.alreadyInvited).toBe(true);
-    const list = (await call(c, 'manage_invites', { action: 'list' })).data.people as { email: string; status: string }[];
+    expect((await call(c, 'add_invitation', { email: 'new.friend@example.com' })).data.alreadyInvited).toBe(true);
+    const list = (await call(c, 'list_invitations', {})).data.people as { email: string; status: string }[];
     expect(list.find((p) => p.email === 'new.friend@example.com')!.status).toContain('invited');
     expect(list.find((p) => p.email === 'ana@example.com')!.status).toBe('signed in');
-    expect((await call(c, 'manage_invites', { action: 'add', email: 'not an address' })).isError).toBe(true);
-    expect((await call(c, 'manage_invites', { action: 'remove', email: 'ana@example.com' })).isError).toBe(true);
+    expect((await call(c, 'add_invitation', { email: 'not an address' })).isError).toBe(true);
+    expect((await call(c, 'remove_invitation', { email: 'ana@example.com' })).isError).toBe(true);
     await signedInUser(env, 'bo@example.com');
-    expect((await call(c, 'manage_invites', { action: 'remove', email: 'bo@example.com' })).text).toContain('already signed in');
-    expect((await call(c, 'manage_invites', { action: 'remove', email: 'new.friend@example.com' })).data.removed).toBe(true);
-    expect((await call(c, 'manage_invites', { action: 'remove', email: 'new.friend@example.com' })).isError).toBe(true);
+    expect((await call(c, 'remove_invitation', { email: 'bo@example.com' })).text).toContain('already signed in');
+    expect((await call(c, 'remove_invitation', { email: 'new.friend@example.com' })).data.removed).toBe(true);
+    expect((await call(c, 'remove_invitation', { email: 'new.friend@example.com' })).isError).toBe(true);
   });
 });
 

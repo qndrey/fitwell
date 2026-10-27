@@ -11,8 +11,9 @@ const DESTRUCTIVE = [
   'edit_food_entry', // changes a logged entry
   'edit_workout_set', // changes a logged set
   'log_body', // a value logged for a day replaces the one already there
-  'invite_friend', // cancel takes back an invitation
-  'manage_invites', // remove takes back an invitation
+  'cancel_friend_invite', // takes back an invitation
+  'decline_invite_request', // deletes a request
+  'remove_invitation', // takes back an invitation
   'save_meal_plan', // saving a week again replaces its plan
   'save_recipe', // saving under an existing name replaces it
   'save_workout_template', // the same
@@ -21,7 +22,7 @@ const DESTRUCTIVE = [
 ];
 
 /** Tools that reach outside Fitwell: Open Food Facts, a web page, or an email to someone else. */
-const OPEN_WORLD = ['search_foods', 'lookup_barcode', 'import_recipe', 'invite_friend', 'manage_invites'];
+const OPEN_WORLD = ['search_foods', 'lookup_barcode', 'import_recipe', 'send_friend_invite', 'approve_invite_request'];
 
 async function listTools(isAdmin: boolean) {
   const { env } = createTestEnv();
@@ -31,7 +32,7 @@ async function listTools(isAdmin: boolean) {
 
 describe('tool annotations', () => {
   it('covers the admin-only tool too', async () => {
-    expect((await listTools(true)).map((t) => t.name)).toContain('manage_invites');
+    expect((await listTools(true)).map((t) => t.name)).toContain('approve_invite_request');
   });
 
   it.each([false, true])('every tool has a title and explicit hints (admin: %s)', async (isAdmin) => {

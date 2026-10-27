@@ -42,11 +42,11 @@ export interface ServerDeps {
   deleteAccount: () => Promise<void>;
   /** Opens recipe web pages; the global fetch in the Worker. */
   fetch?: typeof fetch;
-  /** The owner of this server also gets manage_invites. */
+  /** The owner of this server also gets the owner's invitation tools (list_invitations, approve_invite_request and the rest). */
   isAdmin?: boolean;
-  /** The directory reviewers' demo account, which may not send invitations (invite_friend). */
+  /** The directory reviewers' demo account, which may not send invitations (send_friend_invite). */
   isReviewer?: boolean;
-  /** Sends the owner's approval emails (manage_invites approve). */
+  /** Sends the owner's approval emails (approve_invite_request). */
   mailer?: Mailer;
   /** Where people can reach the owner; named in the approval email. */
   contact?: string;

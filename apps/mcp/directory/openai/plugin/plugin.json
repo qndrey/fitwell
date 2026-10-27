@@ -96,7 +96,8 @@
             }
           ]
         },
-        "commerce": false
+        "commerce": false,
+        "demo_recording_url": "https://fitwell.fyi/demo/fitwell-walkthrough.webm"
       },
       "publication": {
         "release_notes": "First submission of Fitwell: food and macro logging, meal plans and shopping lists, a workout player, progress dashboard, weekly review, muscle map and exercise guides."

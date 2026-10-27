@@ -34,7 +34,7 @@ export function registerBodyTools(server: McpServer, deps: ProgressDeps) {
         water_ml: z.number().int().min(0).max(20000).optional(),
         add_water_ml: z.number().int().min(1).max(5000).optional(),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false }, // a value for a day replaces the one already logged
     },
     async ({ day: d, weight_kg, measurements: given, sleep_hours, steps, water_ml, add_water_ml }) => {
       const values: Record<string, number> = Object.fromEntries(Object.entries(given ?? {}).filter((e): e is [string, number] => e[1] !== undefined));

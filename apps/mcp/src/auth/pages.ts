@@ -125,6 +125,33 @@ export function messageBody(title: string, text: string): string {
   return `<h1>${escape(title)}</h1><div class="card"><p>${escape(text)}</p></div>`;
 }
 
+export function supportBody(contact: string): string {
+  return `
+<h1>Fitwell support</h1>
+<div class="card">
+  <p>Questions, something broken, a sign-in code that stopped working, or you want your data exported or erased? Write to <strong>${escape(contact)}</strong>. One person reads it, usually within a few days.</p>
+  <p><strong>Not invited yet?</strong> Fitwell is invite-only during early access. <a href="/request-access">Ask for an invite</a>.</p>
+  <p><strong>On your own:</strong> ask your assistant to export your data (export_my_data) or delete your account (delete_my_account) at any time.</p>
+  <p class="small"><a href="/privacy">Privacy notice</a> · <a href="/terms">Terms of service</a> · <a href="https://fitwell.fyi">About Fitwell</a></p>
+</div>`;
+}
+
+export function termsBody(contact: string): string {
+  return `
+<h1>Terms of service</h1>
+<div class="card">
+  <p><strong>What Fitwell is:</strong> a connector that lets an AI assistant (Claude, ChatGPT) log your food, plan meals, build and run workouts and show your progress. Fitwell is in early access and by invitation only. It is run by one person, not a company with a support team.</p>
+  <p><strong>Not medical advice:</strong> calorie and macro targets, training suggestions and weekly reviews are general guidance, estimated from what you enter. They are not medical, dietary or other professional advice, and nothing in Fitwell diagnoses or treats anything. Talk to a doctor or a dietitian before big changes to your diet or training, and if you have a medical condition, an eating disorder, or are pregnant. Stop exercising if something hurts. Food data comes from public databases and from you, and can be wrong: check allergens on the package.</p>
+  <p><strong>Your account:</strong> you sign in with your own email address, and you are responsible for what is done with your account. Use Fitwell lawfully, do not try to break it, get around its limits, or reach anyone else's data, and do not use it to send invitations to people who would not want them. You can invite friends only as far as Fitwell allows. We may refuse or end access to anyone who breaks these terms or abuses the service.</p>
+  <p><strong>Your data:</strong> it stays yours. Fitwell stores it only to run the service for you, as described in the <a href="/privacy">privacy notice</a>. You can export it (export_my_data) or erase it together with your account (delete_my_account) at any time.</p>
+  <p><strong>The service:</strong> Fitwell is free during early access and is provided as it is, without promises that it will always be available, error-free or kept in its current form. Features, limits and the invitation rule can change, and the service can be changed or stopped; if that happens we will give you a chance to export your data first where we can.</p>
+  <p><strong>Liability:</strong> to the extent the law allows, Fitwell and its owner are not liable for indirect or consequential loss, or for any decision you make from the numbers and suggestions it shows. Nothing here limits rights you have by law that cannot be limited, or liability for intent or gross negligence.</p>
+  <p><strong>Changes:</strong> if these terms change in a way that matters, the new version is posted here and the date below is updated. Using Fitwell after that means you accept it.</p>
+  <p><strong>Contact:</strong> ${escape(contact)}</p>
+  <p class="muted small">Last updated 27 October 2026.</p>
+</div>`;
+}
+
 export function privacyBody(contact: string): string {
   return `
 <h1>Privacy notice</h1>

@@ -11,6 +11,8 @@ const DESTRUCTIVE = [
   'edit_food_entry', // changes a logged entry
   'edit_workout_set', // changes a logged set
   'log_body', // a value logged for a day replaces the one already there
+  'send_friend_invite', // emails someone, which cannot be unsent
+  'approve_invite_request', // the same, and deletes the request
   'cancel_friend_invite', // takes back an invitation
   'decline_invite_request', // deletes a request
   'remove_invitation', // takes back an invitation

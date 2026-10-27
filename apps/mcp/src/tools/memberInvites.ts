@@ -105,7 +105,7 @@ export function registerMemberInviteTools(server: McpServer, deps: MemberInviteD
         `At most ${INVITES_PER_WINDOW} invitations per 30 days and ${MAX_UNUSED_INVITES} that nobody used yet; an unused invitation expires after 30 days. The answer and the list are the same whether or not the address already uses Fitwell, so never say or guess whether it does. ` +
         RULES,
       inputSchema: emailInput,
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }, // emails an address outside Fitwell
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true }, // emails an address outside Fitwell, which cannot be unsent
     },
     async ({ email }) => {
       const ctx = await standingOfMe();

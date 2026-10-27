@@ -66,7 +66,7 @@ export function registerInviteTools(server: McpServer, deps: { db: D1Database; o
         OWNER +
         'Accepts a waiting request: the address is invited, Fitwell emails them that they are approved with step-by-step instructions to add the connector and sign in, and the request is removed once that email went out. Only what the owner tells you to approve.',
       inputSchema: emailInput,
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true }, // emails the person
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true }, // emails the person (it cannot be unsent) and deletes the request
     },
     async ({ email }) => {
       await pruneExpiredInvitations(deps.db, Date.now());

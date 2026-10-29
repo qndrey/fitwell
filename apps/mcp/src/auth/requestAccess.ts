@@ -1,6 +1,6 @@
 // The public form for asking for an invitation.
 //   GET  /request-access   the form
-//   POST /request-access   store the request (nothing is emailed; the owner reviews it with list_invite_requests)
+//   POST /request-access   store the request and email the owner (nothing is emailed to the requester; the owner reviews it with list_invite_requests)
 // The landing page (fitwell.fyi) has the same form and posts it here with fetch and `Accept: application/json`, so the
 // visitor stays on that page: those answers are JSON, readable by the landing origins only (CORS).
 // The answer is the same whether the address is new, already waiting, already invited or already signed in, so the form
@@ -9,6 +9,7 @@
 import { addInviteRequest, countInviteRequests, countInviteRequestsFromIp, EMAIL, PLATFORMS, type Platform } from '../data/inviteRequests';
 import { pruneExpiredInvitations } from '../data/memberInvites';
 import { findUserByEmail, normalizeEmail } from '../data/users';
+import { inviteRequestMail, type Mailer } from './mailer';
 import { messageBody, page, requestAccessPage } from './pages';
 
 const PER_IP_PER_HOUR = 5;
@@ -24,6 +25,8 @@ export interface RequestAccessDeps {
   now?: () => number;
   /** Defaults to LANDING_ORIGINS. */
   landingOrigins?: readonly string[];
+  /** Emails the owner at `to` about each new request. A failed send is logged and never changes the answer. */
+  notify?: { mailer: Mailer; to: string; waitUntil?: (p: Promise<unknown>) => void };
 }
 
 const THANKS = 'Your request is in. If it is approved you will get an email at that address with the next steps. Nothing else is sent.';
@@ -76,6 +79,13 @@ export async function handleRequestAccess(request: Request, deps: RequestAccessD
   if ((await countInviteRequests(deps.db)) >= MAX_WAITING) return problem('Requests are paused for now.' + (deps.contact ? ` Ask at ${deps.contact} instead.` : ''), 503);
 
   await pruneExpiredInvitations(deps.db, now);
-  if (!(await findUserByEmail(deps.db, email))) await addInviteRequest(deps.db, { email, platform, ip, now });
+  if (!(await findUserByEmail(deps.db, email)) && (await addInviteRequest(deps.db, { email, platform, ip, now }))) {
+    // Only a new request tells the owner; a repeat or a known address sends nothing, so the form still reveals nothing.
+    if (deps.notify) {
+      const { mailer, to, waitUntil } = deps.notify;
+      const sending = mailer.send(inviteRequestMail(to, { email, platform })).catch((e) => console.error('invite request notice failed', e instanceof Error ? e.message : e));
+      waitUntil?.(sending);
+    }
+  }
   return thanks();
 }

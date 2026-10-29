@@ -40,6 +40,45 @@ describe('the request form', () => {
     expect(await waiting()).toEqual([['new.person@example.com', 'iphone']]);
   });
 
+  describe('the owner notice', () => {
+    let notices: Mail[];
+    let fail = false;
+    const notify = { mailer: { send: async (m: Mail) => { if (fail) throw new Error('down'); notices.push(m); } }, to: 'hello@fitwell.test' };
+    const post = (fields: Record<string, string>) => {
+      const headers = { 'content-type': 'application/x-www-form-urlencoded', origin: ORIGIN, 'cf-connecting-ip': '203.0.113.9' };
+      return handleRequestAccess(new Request(`${ORIGIN}/request-access`, { method: 'POST', headers, body: new URLSearchParams(fields) }), { db: env.DB, notify });
+    };
+    beforeEach(() => {
+      notices = [];
+      fail = false;
+    });
+
+    it('emails the owner the address and device of a new request, once', async () => {
+      await post(valid);
+      await post({ ...valid, platform: 'web' });
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toMatchObject({ to: 'hello@fitwell.test', subject: 'New Fitwell invite request' });
+      expect(notices[0]!.text).toContain('new.person@example.com');
+      expect(notices[0]!.text).toContain('Uses: iphone');
+    });
+
+    it('sends nothing for a known member, a bot or a bad request', async () => {
+      await inviteUser(env.DB, 'ana@example.com');
+      await post({ ...valid, email: 'ana@example.com' });
+      await post({ ...valid, website: 'http://spam.example' });
+      await post({ ...valid, email: 'bad' });
+      await post({ ...valid, consent: '' });
+      expect(notices).toEqual([]);
+    });
+
+    it('still stores the request and answers the same when the notice cannot be sent', async () => {
+      fail = true;
+      const res = await post(valid);
+      expect(await res.text()).toContain('Your request is in');
+      expect(await waiting()).toEqual([['new.person@example.com', 'iphone']]);
+    });
+  });
+
   it('answers the same for someone already invited and stores nothing', async () => {
     await inviteUser(env.DB, 'ana@example.com');
     const res = await submit({ ...valid, email: 'ana@example.com' });

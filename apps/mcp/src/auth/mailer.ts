@@ -111,6 +111,19 @@ ${stepsHtml(to, d.connectorUrl)}
   return { to, subject: "You're invited to Fitwell: add it to Claude", text, html };
 }
 
+/** Sent to the owner when someone asks for an invite. The address was checked against a strict shape before it got here. */
+export function inviteRequestMail(to: string, d: { email: string; platform: string | null }): Mail {
+  const uses = d.platform ? `Uses: ${d.platform}` : 'Device: not given';
+  const how = 'To answer it, ask Claude (with the Fitwell connector) to list the invite requests, then approve or decline.';
+  const text = [`${d.email} asked for a Fitwell invite.`, uses, '', how, 'Nothing was sent to them; they get an email only if you approve.'].join('\n');
+  const html = `<!doctype html><html><body style="font-family:system-ui,sans-serif;color:#1f1d1a;line-height:1.5;max-width:480px;margin:0 auto;padding:24px">
+<p><strong>${escape(d.email)}</strong> asked for a Fitwell invite.</p>
+<p>${escape(uses)}</p>
+<p style="color:#6b655d;font-size:14px">${escape(how)} Nothing was sent to them; they get an email only if you approve.</p>
+</body></html>`;
+  return { to, subject: 'New Fitwell invite request', text, html };
+}
+
 /** Sent when a member invites a friend. The only words from the member are their own address; there is no free text. */
 export function invitationMail(to: string, d: { inviter: string; connectorUrl: string; privacyUrl: string; contact?: string; expiresOn: string }): Mail {
   const intro = `${d.inviter} invited you to try Fitwell, a fitness and nutrition coach that works inside your AI assistant: you log food, plan meals and run workouts by chatting. Fitwell is invite-only. Here is how to start (about three minutes).`;

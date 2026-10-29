@@ -60,12 +60,15 @@ async function serveMcp(request: Request, env: Env & OptionalSecrets & { REVIEW_
 const LANDING_URL = 'https://fitwell.fyi/';
 
 const site = {
-  async fetch(request: Request, env: EnvWithOAuth): Promise<Response> {
+  async fetch(request: Request, env: EnvWithOAuth & OptionalSecrets, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
       return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: mailerFor(env), publicUrl: env.PUBLIC_URL, review: reviewLogin(env) });
     }
-    if (url.pathname === '/request-access') return handleRequestAccess(request, { db: env.DB, contact: env.CONTACT_EMAIL });
+    if (url.pathname === '/request-access') {
+      const notify = { mailer: mailerFor(env), to: env.CONTACT_EMAIL, waitUntil: (p: Promise<unknown>) => ctx.waitUntil(p) };
+      return handleRequestAccess(request, { db: env.DB, contact: env.CONTACT_EMAIL, notify });
+    }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
     if (url.pathname === '/support') return page('Fitwell support', supportBody(env.CONTACT_EMAIL));

@@ -158,6 +158,33 @@ function Tools() {
           </nav>
         </section>
 
+        <section className="border-t bg-card/40">
+          <div data-reveal className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-14 sm:px-8 md:grid-cols-[1fr_auto] md:gap-16 md:py-20">
+            <div>
+              <h2 className="max-w-xl text-3xl sm:text-4xl">See streaks and friends work</h2>
+              <p className="mt-5 max-w-xl leading-relaxed text-muted-foreground">
+                Half a minute in the real pages, each opened by one plain request shown above it: a milestone, the share card you can make from it (story size, dark, with a name you chose to add), and the crew feed with a kudos tap.
+              </p>
+              <p className="mt-4 max-w-xl text-sm text-muted-foreground">
+                Recorded with made-up people and numbers; your assistant's wording will differ.{" "}
+                <a className="underline underline-offset-4" href="/demo/fitwell-friends.webm">Open the video file</a>.
+              </p>
+            </div>
+            <video
+              controls
+              playsInline
+              preload="none"
+              poster="/demo/fitwell-friends-poster.png"
+              width={398}
+              height={664}
+              aria-label="Fitwell streaks and friends: a milestone page, making a share card in story size and dark, and the crew feed with a kudos tap"
+              className="mx-auto h-auto w-full max-w-[320px] rounded-2xl border shadow-phone"
+            >
+              <source src="/demo/fitwell-friends.webm" type="video/webm" />
+            </video>
+          </div>
+        </section>
+
         {CATEGORIES.map((c, i) => (
           <section key={c.id} id={c.id} className={cn("scroll-mt-8 border-t", i % 2 === 1 && "bg-card/40")}>
             <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8 md:py-20">

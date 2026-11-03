@@ -28,6 +28,8 @@ A page is prerendered only if it is listed under `pages` in `site/vite.config.ts
 
 The milestone page, the share card and the crew feed screenshots come from `apps/mcp/scripts/screenshots-social.ts` (no server or database needed: the built views get fixed sample data; run `npm run build:ui` first, then `npx tsx scripts/screenshots-social.ts` from `apps/mcp`). Add a `SIZES` entry for a new image in both `routes/index.tsx` and `routes/tools.tsx`.
 
+The short video on the Tools page (`site/public/demo/fitwell-friends.webm` and its poster, 24 seconds, about 0.4 MB, served at `/demo/fitwell-friends.webm`) is recorded by `apps/mcp/scripts/demo-friends.ts`: a milestone, the share card made in story size and dark with a name, and the crew feed with a kudos tap, each under the prompt that opens it. Like the screenshots it needs no server or database, only `npm run build:ui` and Playwright's ffmpeg (`npx playwright install ffmpeg`); run `npx tsx scripts/demo-friends.ts` from `apps/mcp`. It is a plain `<video controls preload="none">` with a poster, so nothing is downloaded until someone presses play, and the CSP's `media-src 'self'` covers it.
+
 ## Changing the page
 
 **Invite form.** Step 1 of "How to join" (`InviteForm` in `site/src/routes/index.tsx`) posts to `https://mcp.fitwell.fyi/request-access` with fetch and shows the answer in place, so the visitor stays on the page. The MCP server answers JSON only to `LANDING_ORIGINS` in `apps/mcp/src/auth/requestAccess.ts`, and the CSP allows it with `connect-src https://mcp.fitwell.fyi`. Deploy the MCP server before the page, or the form cannot read the answer.

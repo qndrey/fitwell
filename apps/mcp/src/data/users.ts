@@ -62,7 +62,8 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     // Friends: what this person shared or was shown, and their connections, go from both sides.
     db.prepare('DELETE FROM share_consents WHERE owner_id = ? OR viewer_id = ?').bind(user.id, user.id),
     db.prepare('DELETE FROM shares WHERE owner_id = ? OR viewer_id = ?').bind(user.id, user.id),
-    db.prepare('DELETE FROM connections WHERE requester_id = ? OR addressee_id = ?').bind(user.id, user.id),
+    // Including requests still waiting for this person's answer, which are addressed to their email.
+    db.prepare('DELETE FROM connections WHERE requester_id = ? OR addressee_id = ? OR addressee_email = ?').bind(user.id, user.id, normalizeEmail(user.email)),
     db.prepare('DELETE FROM workouts WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM workout_templates WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM custom_foods WHERE user_id = ?').bind(user.id),

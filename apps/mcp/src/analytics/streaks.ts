@@ -55,6 +55,17 @@ export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
   return { today, result, workouts, food, goalWeightKg: goals?.goalWeightKg ?? null, frozenWeeks };
 }
 
+/**
+ * What a friend who shares consistency may see of this person: weeks of training and days and weeks of logging, as numbers only. It reads
+ * no weigh-ins and shows no goals, protein or weight goal, whatever else is stored.
+ */
+export async function loadConsistency(deps: { data: UserData; workouts: WorkoutData }) {
+  const noBody = { weights: async () => [] } as unknown as BodyData;
+  const { result } = await loadStreaks({ ...deps, body: noBody });
+  const run = (s: Streak) => ({ current: s.current, best: s.best.length, atLeast: s.atLeast });
+  return { trainingWeeks: result.training.status === 'ok' ? run(result.training.streak) : null, loggingDays: run(result.loggingDays), loggingWeeks: run(result.loggingWeeks) };
+}
+
 /** The streaks in a line each, for tools that only mention them (get_progress); get_streaks has the full result. */
 export function streakSummary(result: StreakResult) {
   const line = (s: Streak) => ({ unit: s.unit, current: s.current, best: s.best.length, atLeast: s.atLeast, next: s.next });

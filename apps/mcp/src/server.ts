@@ -20,6 +20,7 @@ import { registerCelebrationTools } from './tools/celebration';
 import { registerFriendTools } from './tools/friends';
 import { registerStreakTools } from './tools/streaks';
 import { FriendsData } from './data/friends';
+import { NicknameData } from './data/nicknames';
 import { AchievementsData } from './data/achievements';
 import { registerBodyTools } from './tools/body';
 import { registerDashboardTools } from './tools/dashboard';
@@ -64,6 +65,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const reviewNotes = new ReviewNotesData(deps.db, deps.user.id);
   const achievements = new AchievementsData(deps.db, deps.user.id);
   const friends = new FriendsData(deps.db, deps.user.id);
+  const nicknames = new NicknameData(deps.db, deps.user.id);
   // The tools Claude reads before planning or advising answer with the role to take (src/instructions/*.md).
   const server = withRoles(mcp, {
     trainer: ['search_exercises', 'list_workout_templates', 'suggest_progression', 'get_workout_history', 'show_muscle_map'],
@@ -89,7 +91,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerStreakTools(server, { data, workouts, body, achievements });
   registerCelebrationTools(server, { data, workouts, body, achievements });
   registerDeleteTool(server, { data, workouts, body, plans });
-  registerFriendTools(server, friends);
+  registerFriendTools(server, friends, nicknames);
   registerMemberInviteTools(server, { db: deps.db, userId: deps.user.id, isAdmin: deps.isAdmin === true, isReviewer: deps.isReviewer, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   return mcp;

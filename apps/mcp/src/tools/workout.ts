@@ -10,6 +10,8 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import type { InjuryData } from '../data/injuries';
+import type { ProgramData } from '../data/programs';
+import { applyDeload } from '../workout/program';
 import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
 import type { CardioBlock, StoredExercise, StoredRest, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
@@ -25,6 +27,7 @@ export interface WorkoutDeps {
   data: UserData;
   workouts: WorkoutData;
   injuries: InjuryData;
+  programs: ProgramData;
 }
 
 const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
@@ -230,7 +233,7 @@ interface History {
 export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps) {
   const lib = await loadExercises();
   const byId = new Map(lib.exercises.map((e) => [e.ref, e]));
-  const { data, workouts, injuries } = deps;
+  const { data, workouts, injuries, programs } = deps;
 
   /** The exercises of a plan that load an area the person said hurts (or that they said to avoid), with why, in their own words. Not a clearance: an exercise without a flag is not called safe. */
   const activeInjuries = async (timeZone: string) => injuries.list(todayIn(timeZone));
@@ -419,6 +422,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       inputSchema: z.object({
         name: z.string().min(1).max(60).optional(),
         template_id: z.uuid().optional(),
+        program: z.boolean().optional().describe('Start the next session of the active program (get_program says which: Week 3, Day B). A deload week is planned lighter on its own.'),
         exercises: z.array(planItem).min(1).max(15).optional(),
         cardio: z.array(cardioItem).max(4).optional().describe('With a template: replaces the template\'s cardio'),
         save_as_template: z.string().min(1).max(60).optional(),
@@ -431,7 +435,22 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       let cardioSpecs: TemplateCardio[] = [];
       let templateId: string | null = null;
       let name = args.name;
-      if (args.template_id) {
+      let programStep: { programId: string; step: number; deload: boolean; label: string } | null = null;
+      if (args.program) {
+        if (args.template_id || args.exercises) return toolError('program starts the next session of the active program: leave template_id and exercises out.');
+        const program = await programs.active();
+        if (!program) return toolError('There is no active program. Create one with create_program.');
+        const pos = await programs.position(program);
+        if (pos.done) return toolError(`The program "${program.name}" is finished: all ${pos.total} sessions are done. Start a new one with create_program.`);
+        const t = await workouts.template(pos.day.templateId);
+        if (!t) return toolError(`The saved workout for ${pos.label} no longer exists. Save it again under the same name and create the program again.`);
+        items = t.exercises;
+        cardioSpecs = t.cardio;
+        templateId = t.id;
+        name ??= `${program.name}: ${pos.label}`;
+        await workouts.touchTemplate(t.id);
+        programStep = { programId: program.id, step: pos.step, deload: pos.deload, label: pos.label };
+      } else if (args.template_id) {
         const t = await workouts.template(args.template_id);
         if (!t) return toolError('No such template. Use list_workout_templates.');
         items = t.exercises;
@@ -454,8 +473,9 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const past = await history(items.map((e) => e.id));
       const profile = await data.profile();
       const kinds = ramps(items);
+      const planned = items.map((item, i) => buildExercise(item, i, past.get(item.id)!, profile.weightKg, kinds[i], profile.gym));
       const exercises = normalizeSupersets(
-        items.map((item, i) => buildExercise(item, i, past.get(item.id)!, profile.weightKg, kinds[i], profile.gym)),
+        programStep?.deload ? applyDeload(planned, profile.gym) : planned,
         (() => {
           let n = 0;
           return () => `ss${++n}`;
@@ -463,6 +483,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       ) as StoredExercise[];
       const cardioBlocks = blocksFrom(cardioSpecs);
       const w = await workouts.create({ day: todayIn(profile.timeZone), type: 'strength', name: name ?? 'Workout', startedAt: Date.now(), finishedAt: null, exercises, cardio: null, session: null, cardioBlocks, templateId });
+      if (programStep) await programs.recordSession(programStep.programId, programStep.step, w.id, programStep.deload);
       const lines = exercises.map((e) => {
         const work = e.sets.filter((x) => x.type === 'working');
         const warm = e.sets.length - work.length;
@@ -472,7 +493,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const flags = flagsFor(items.map((e) => e.id), await activeInjuries(profile.timeZone));
       const result = json({ workout: toPlan(w, profile.gym, await bestsFor(w), await planContext(w, profile.weightKg)), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}), ...(flags.length ? { injuryFlags: flags } : {}) });
       const cardioText = cardioBlocks.length ? ` Cardio: ${cardioBlocks.map((b) => `${b.plannedMin} min ${b.activityName} (${b.when === 'before' ? 'warm-up' : 'finisher'})`).join('; ')}.` : '';
-      result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText} The player shows all of this: reply with nothing more, no summary or recap.${flags.length ? ` One exception, in one short sentence: ${flags.map((f) => `${f.exercise} (${f.why})`).join('; ')}. Offer a swap (search_exercises with similar_to); do not diagnose and do not call anything safe.` : ''}` }];
+      result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id})${programStep ? `, ${programStep.label}` : ''}: ${lines.join('; ')}.${cardioText} The player shows all of this: reply with nothing more, no summary or recap.${flags.length ? ` One exception, in one short sentence: ${flags.map((f) => `${f.exercise} (${f.why})`).join('; ')}. Offer a swap (search_exercises with similar_to); do not diagnose and do not call anything safe.` : ''}` }];
       return result;
     },
   );

@@ -191,9 +191,12 @@ export class WorkoutData {
       .prepare("SELECT * FROM workouts WHERE user_id = ? AND type = 'strength' ORDER BY day DESC, created_at DESC LIMIT ?")
       .bind(this.userId, scan)
       .all<Row>();
+    // A deload week's session is lighter on purpose: the next weights are not built from it.
+    const { results: deloads } = await this.db.prepare('SELECT ps.workout_id FROM program_sessions ps JOIN programs p ON p.id = ps.program_id WHERE p.user_id = ? AND ps.deload = 1').bind(this.userId).all<Row>();
+    const skip = new Set(deloads.map((d) => d.workout_id as string));
     const out = new Map(exerciseIds.map((id) => [id, [] as { day: string; workoutId: string; exercise: StoredExercise }[]]));
     for (const w of results.map(toWorkout)) {
-      if (w.id === exclude) continue;
+      if (w.id === exclude || skip.has(w.id)) continue;
       for (const e of w.exercises) {
         const list = out.get(e.exerciseRef);
         if (!list || list.length >= perExercise) continue;

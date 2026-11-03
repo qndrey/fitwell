@@ -157,9 +157,9 @@ describe('water, steps and training', () => {
     await env.DB.prepare("UPDATE workout_templates SET last_used_at = ? WHERE user_id = ? AND name = 'Leg day'").bind(Date.now() - 9 * 86_400_000, ana.id).run();
     const t = await view();
     expect(t.training.doneToday).toMatchObject([{ type: 'cardio', minutes: 30 }]);
-    expect(t.training.suggested).toEqual({ name: 'Leg day', daysSince: 9 });
+    expect(t.training.suggested).toEqual({ templateId: expect.any(String), name: 'Leg day', daysSince: 9 });
     await env.DB.prepare("UPDATE workout_templates SET last_used_at = NULL WHERE user_id = ? AND name = 'Push day'").bind(ana.id).run();
-    expect((await view()).training.suggested).toEqual({ name: 'Push day', daysSince: null }); // never done comes first
+    expect((await view()).training.suggested).toEqual({ templateId: expect.any(String), name: 'Push day', daysSince: null }); // never done comes first
   });
 
   it('leaves an unfinished strength workout out of what was done', async () => {

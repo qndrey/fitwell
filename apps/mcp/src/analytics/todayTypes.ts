@@ -36,6 +36,7 @@ export interface TodayView {
   training: {
     doneToday: { name: string; minutes: number | null; type: 'strength' | 'cardio' | 'session' }[];
     /** The saved workout done least recently (or never): a suggestion, not a schedule. */
-    suggested: { name: string; daysSince: number | null } | null;
+    /** The saved workout that has waited longest; `templateId` is what start_workout takes. */
+    suggested: { templateId: string; name: string; daysSince: number | null } | null;
   };
 }

@@ -19,7 +19,7 @@ const today: TodayView = {
     { entryId: 'e2', name: 'Banana', grams: 118, kcal: 105, protein: 1.3, estimated: true },
   ],
   waterMl: 750, steps: 8200,
-  training: { doneToday: [{ name: 'Push day', type: 'strength', minutes: 52 }], suggested: { name: 'Leg day', daysSince: 9 } },
+  training: { doneToday: [{ name: 'Push day', type: 'strength', minutes: 52 }], suggested: { templateId: 't-leg', name: 'Leg day', daysSince: 9 } },
 };
 const result = (t: TodayView) => ({ content: [{ type: 'text', text: 'open' }], structuredContent: { today: t } });
 const answer = (t: TodayView) => () => ({ content: [{ type: 'text', text: 'Done.' }], structuredContent: { today: t } });
@@ -85,5 +85,9 @@ describe('the Today view', () => {
     const v = await openView(todayHtml, result(today));
     await pwExpect(v.frame.getByRole('button', { name: 'Ask Claude to start Leg day' })).toBeVisible();
     expect(v.calls).toEqual([]);
+    await v.frame.getByRole('button', { name: 'Ask Claude to start Leg day' }).click();
+    await expect.poll(() => v.calls.length).toBe(1);
+    expect(v.calls[0]!.name).toBe('ui/message');
+    expect(JSON.stringify(v.calls[0]!.args)).toContain('start_workout with template_id t-leg'); // the exact template, not a name to be guessed at
   }, 30_000);
 });

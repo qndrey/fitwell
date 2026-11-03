@@ -107,7 +107,7 @@ function draw() {
             `Suggested: ${t.training.suggested.name}, `,
             t.training.suggested.daysSince === null ? 'not done yet' : `${plural(t.training.suggested.daysSince, 'day')} since you did it`,
             '. ',
-            textButton(null, 'Ask Claude to start it', () => void app.sendMessage({ role: 'user', content: [{ type: 'text', text: `Start my ${t.training.suggested!.name} workout.` }] }).catch(() => undefined), { label: `Ask Claude to start ${t.training.suggested.name}` }),
+            textButton(null, 'Ask Claude to start it', () => void app.sendMessage({ role: 'user', content: [{ type: 'text', text: `Start my ${t.training.suggested!.name} workout: call start_workout with template_id ${t.training.suggested!.templateId}.` }] }).catch(() => undefined), { label: `Ask Claude to start ${t.training.suggested.name}` }),
           )
         : null,
     ),

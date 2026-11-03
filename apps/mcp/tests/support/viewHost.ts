@@ -44,8 +44,8 @@ export async function openView(html: string, result: unknown, o: { theme?: 'ligh
       calls.push({ name, args });
       return { jsonrpc: '2.0', id: msg.id, result: o.tools?.(name, args) ?? { content: [{ type: 'text', text: 'ok' }] } };
     }
-    // A file the view asks the host to save is recorded like a tool call, under the method's own name.
-    if (msg.method === 'ui/download-file') calls.push({ name: msg.method, args: (msg.params ?? {}) as Record<string, unknown> });
+    // A file the view asks the host to save, or a message it sends to the chat, is recorded like a tool call, under the method's own name.
+    if (msg.method === 'ui/download-file' || msg.method === 'ui/message') calls.push({ name: msg.method, args: (msg.params ?? {}) as Record<string, unknown> });
     return msg.id !== undefined ? { jsonrpc: '2.0', id: msg.id, result: {} } : null;
   });
   await page.setContent(

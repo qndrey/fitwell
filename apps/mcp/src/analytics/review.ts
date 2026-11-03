@@ -81,6 +81,7 @@ export function buildWeeklyReview(i: ReviewInput): WeekReview {
     days,
     nutrition: {
       daysLogged: w.nutrition.daysLogged,
+      estimatedKcalShare: w.nutrition.estimatedKcalShare,
       average: w.nutrition.averagePerLoggedDay,
       previousAverage: pv.nutrition.averagePerLoggedDay ? { kcal: pv.nutrition.averagePerLoggedDay.kcal, protein: pv.nutrition.averagePerLoggedDay.protein } : null,
       goals: { kcal: goals.kcal, proteinG: goals.proteinG, fiberG: goals.fiberG, satFatG: goals.satFatG, addedSugarG: goals.addedSugarG },

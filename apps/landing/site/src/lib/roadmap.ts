@@ -335,12 +335,13 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "restaurant",
-    stage: "then",
+    stage: "shipped",
     theme: "logging",
-    status: "planned",
+    status: "shipped",
     title: "Restaurant estimates",
     summary: "Eating out, with an honest range.",
-    detail: "Saved as a midpoint and marked as an estimate, and your weekly review says how much of your intake was estimated.",
+    detail:
+      "A meal out is logged as a range of calories, such as 600 to 900, and shown that way: the middle counts toward your day and it is marked as an estimate. The weekly review says how much of your calories were estimates.",
   },
   {
     id: "mealplan",

@@ -53,6 +53,8 @@ export interface FoodEntry extends Nutrients {
   /** Fibre, sugars, saturated fat, salt for this amount, when the food source has them. */
   extras?: Extras;
   estimated: boolean;
+  /** For an estimate with a range (a restaurant meal): the calories could be anywhere in it; `kcal` is its middle. */
+  kcalRange?: { low: number; high: number };
   createdAt: number;
   updatedAt: number;
 }
@@ -70,6 +72,8 @@ export interface CustomFood {
 export interface DayTotal extends Nutrients {
   day: string;
   entries: number;
+  /** Calories of the entries marked as estimates. */
+  estimatedKcal: number;
   /** Fibre, sugars... summed over the entries that know them. */
   extras?: Extras;
   /** Extras some entry of the day lacks, so the day's number is a minimum. */
@@ -117,6 +121,7 @@ const toEntry = (r: Row): FoodEntry => ({
   fat: r.fat as number,
   ...extrasOf(r.extras),
   estimated: r.estimated === 1,
+  ...(typeof r.kcal_low === 'number' && typeof r.kcal_high === 'number' ? { kcalRange: { low: r.kcal_low, high: r.kcal_high } } : {}),
   createdAt: r.created_at as number,
   updatedAt: r.updated_at as number,
 });
@@ -245,10 +250,10 @@ export class UserData {
       rows.map((e) =>
         this.db
           .prepare(
-            `INSERT INTO food_entries (id, user_id, day, slot, food_ref, food_name, brand, grams, kcal, protein, carbs, fat, estimated, extras, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO food_entries (id, user_id, day, slot, food_ref, food_name, brand, grams, kcal, protein, carbs, fat, estimated, extras, kcal_low, kcal_high, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .bind(e.id, this.userId, e.day, e.slot, e.foodRef, e.foodName, e.brand, e.grams, e.kcal, e.protein, e.carbs, e.fat, e.estimated ? 1 : 0, e.extras ? JSON.stringify(e.extras) : null, now, now),
+          .bind(e.id, this.userId, e.day, e.slot, e.foodRef, e.foodName, e.brand, e.grams, e.kcal, e.protein, e.carbs, e.fat, e.estimated ? 1 : 0, e.extras ? JSON.stringify(e.extras) : null, e.kcalRange?.low ?? null, e.kcalRange?.high ?? null, now, now),
       ),
     );
     return rows;
@@ -283,11 +288,12 @@ export class UserData {
       carbs: e.carbs * k,
       fat: e.fat * k,
       ...(extras ? { extras } : {}),
+      ...(e.kcalRange ? { kcalRange: { low: e.kcalRange.low * k, high: e.kcalRange.high * k } } : {}),
       updatedAt: this.now(),
     };
     await this.db
-      .prepare('UPDATE food_entries SET day = ?, slot = ?, grams = ?, kcal = ?, protein = ?, carbs = ?, fat = ?, extras = ?, updated_at = ? WHERE user_id = ? AND id = ?')
-      .bind(next.day, next.slot, next.grams, next.kcal, next.protein, next.carbs, next.fat, next.extras ? JSON.stringify(next.extras) : null, next.updatedAt, this.userId, id)
+      .prepare('UPDATE food_entries SET day = ?, slot = ?, grams = ?, kcal = ?, protein = ?, carbs = ?, fat = ?, extras = ?, kcal_low = ?, kcal_high = ?, updated_at = ? WHERE user_id = ? AND id = ?')
+      .bind(next.day, next.slot, next.grams, next.kcal, next.protein, next.carbs, next.fat, next.extras ? JSON.stringify(next.extras) : null, next.kcalRange?.low ?? null, next.kcalRange?.high ?? null, next.updatedAt, this.userId, id)
       .run();
     return next;
   }
@@ -302,7 +308,7 @@ export class UserData {
     const more = EXTRA_KEYS.map((k) => `SUM(json_extract(extras, '$.${k}')) AS x_${k}, COUNT(json_extract(extras, '$.${k}')) AS n_${k}`).join(', ');
     const { results } = await this.db
       .prepare(
-        `SELECT day, COUNT(*) AS entries, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat, ${more}
+        `SELECT day, COUNT(*) AS entries, SUM(CASE WHEN estimated = 1 THEN kcal ELSE 0 END) AS est_kcal, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat, ${more}
          FROM food_entries WHERE user_id = ? AND day BETWEEN ? AND ? GROUP BY day ORDER BY day`,
       )
       .bind(this.userId, from, to)
@@ -315,7 +321,7 @@ export class UserData {
         if (n > 0) extras[k] = r[`x_${k}`] as number;
         if (n > 0 && n < (r.entries as number)) incomplete.push(k);
       }
-      return { day: r.day as string, entries: r.entries as number, kcal: r.kcal as number, protein: r.protein as number, carbs: r.carbs as number, fat: r.fat as number, ...(Object.keys(extras).length ? { extras } : {}), ...(incomplete.length ? { extrasIncomplete: incomplete } : {}) };
+      return { day: r.day as string, entries: r.entries as number, estimatedKcal: (r.est_kcal as number | null) ?? 0, kcal: r.kcal as number, protein: r.protein as number, carbs: r.carbs as number, fat: r.fat as number, ...(Object.keys(extras).length ? { extras } : {}), ...(incomplete.length ? { extrasIncomplete: incomplete } : {}) };
     });
   }
 

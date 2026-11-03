@@ -36,6 +36,8 @@ export interface WeekReview {
   days: { day: Day; kcal: number | null; proteinG: number | null; workout: 'strength' | 'cardio' | 'session' | null; weighIn: number | null }[];
   nutrition: {
     daysLogged: number;
+    /** Whole percent of the period's calories that were estimates; null when nothing was logged. */
+    estimatedKcalShare: number | null;
     average: { kcal: number; protein: number; carbs: number; fat: number; extras?: Extras } | null;
     previousAverage: { kcal: number; protein: number } | null;
     goals: { kcal: number | null; proteinG: number | null; fiberG: number | null; satFatG: number | null; addedSugarG: number | null };

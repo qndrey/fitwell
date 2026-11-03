@@ -14,7 +14,7 @@ export function fixture(o: { workouts?: Record<number, 'strength' | 'cardio' | '
     inProgress: false,
     daysCounted: 7,
     days: DAYS.map((day, i) => ({ day, kcal: 2300, proteinG: 140, workout: workouts[i] ?? null, weighIn: null })),
-    nutrition: { daysLogged: 7, average: { kcal: 2354, protein: 146, carbs: 260, fat: 70 }, previousAverage: { kcal: 2300, protein: 140 }, goals: { kcal: 2300, proteinG: 140, fiberG: null, satFatG: null, addedSugarG: null }, kcalWithin10Pct: 6, proteinReached: 6 },
+    nutrition: { daysLogged: 7, estimatedKcalShare: 0, average: { kcal: 2354, protein: 146, carbs: 260, fat: 70 }, previousAverage: { kcal: 2300, protein: 140 }, goals: { kcal: 2300, proteinG: 140, fiberG: null, satFatG: null, addedSugarG: null }, kcalWithin10Pct: 6, proteinReached: 6 },
     training: { strength: 2, cardio: 1, cardioMin: 35, session: 0, sessionMin: 0, previousSessions: 3, goalPerWeek: 3, records: [] },
     weight: { weighIns: 5, averageKg: 79.7, previousAverageKg: 80.1, changeKg: -0.4, goalKg: 78 },
     habits: { sleepHours: null, previousSleepHours: null, steps: null, previousSteps: null, waterMl: null, previousWaterMl: null },

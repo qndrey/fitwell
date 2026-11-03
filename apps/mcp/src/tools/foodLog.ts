@@ -16,6 +16,18 @@ import { json, toolError } from './result';
 const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
 const slot = z.enum(SLOTS as [Slot, ...Slot[]]);
 const extras = z.object({ fiber: z.number().min(0).max(100).optional(), sugar: z.number().min(0).max(100).optional(), addedSugar: z.number().min(0).max(100).optional(), satFat: z.number().min(0).max(100).optional(), transFat: z.number().min(0).max(100).optional(), salt: z.number().min(0).max(100).optional() });
+/** A restaurant meal and the like: the calories as a range (the middle is stored), the macros as best guesses for the whole portion. */
+const estimateRange = z
+  .object({
+    kcal_low: z.number().min(0).max(5000),
+    kcal_high: z.number().min(0).max(5000),
+    protein_g: z.number().min(0).max(500),
+    carbs_g: z.number().min(0).max(1000),
+    fat_g: z.number().min(0).max(500),
+  })
+  .refine((r) => r.kcal_high >= r.kcal_low, 'kcal_high must not be below kcal_low')
+  // An honest range, not "anywhere": the top is at most 2.5 times the bottom plus 50 kcal.
+  .refine((r) => r.kcal_high <= r.kcal_low * 2.5 + 50, 'The range is too wide to be an estimate: narrow it (the top at most 2.5 times the bottom).');
 const per100g = z.object({ kcal: z.number().min(0).max(900), protein: z.number().min(0).max(100), carbs: z.number().min(0).max(100), fat: z.number().min(0).max(100) });
 
 const round = (n: Nutrients) => roundForDisplay(n);
@@ -31,6 +43,7 @@ const view = (e: FoodEntry) => ({
   ...round(e),
   ...(e.extras ? { extras: roundExtras(e.extras) } : {}),
   ...(e.estimated ? { estimated: true } : {}),
+  ...(e.kcalRange ? { kcalRange: { low: Math.round(e.kcalRange.low), high: Math.round(e.kcalRange.high) } } : {}),
 });
 
 /** What is left of each goal (negative = over). Only goals that are set. */
@@ -91,7 +104,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
         'Record what the person ate. Several items in one call. Each item is either a food id from search_foods, lookup_barcode or save_custom_food ' +
         '(macros come from that source) with grams, or, only when nothing suitable exists, a name with estimated per-100 g values (stored as an estimate; say so). ' +
         "Convert portions to grams first. day defaults to today in the person's time zone, slot to the meal for the current time. Returns the day's totals, and allergyWarnings when something logged matches the person's allergies (tell them plainly). " +
-        'From a photo of a meal: name each item, find it with search_foods, estimate the grams from the plate and portion sizes, set amount_estimated, and tell the person what you assumed so they can correct it. ' +
+        'A meal out, or anything without a label or a database entry: use estimate_range (name, the calories as a range such as 500 to 800, protein, carbs and fat as best guesses for the whole portion); the middle is stored, the entry is marked as an estimate and shown with its range, and you tell the person it is an estimate and how wide. Do not give a restaurant meal an exact number. From a photo of a meal: name each item, find it with search_foods, estimate the grams from the plate and portion sizes, set amount_estimated, and tell the person what you assumed so they can correct it. ' +
         'Quicker ways: copy_from repeats what was logged on another day (one meal with its slot, or the whole day), e.g. "same breakfast as yesterday"; ' +
         'an item with recipe logs servings of a saved recipe as one entry. A meal the person eats often (their usual breakfast) can be saved once with save_recipe and logged by name.',
       inputSchema: z.object({
@@ -108,10 +121,12 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
                 grams: z.number().positive().max(5000).optional().describe('Needed except for a recipe'),
                 name: z.string().min(1).max(100).optional().describe('Only for an estimate'),
                 estimate_per100g: per100g.optional().describe('Only when no food id fits'),
+                estimate_range: estimateRange.optional().describe('For a meal out or anything without a label: the calories as a range and the macros as best guesses for the whole portion, with name and grams as your best guess of the portion. The middle is stored and the entry is marked as an estimate'),
                 amount_estimated: z.boolean().optional().describe('The grams are a guess, e.g. from a photo of the plate: stored as an estimate (shown with ~) even though the food id gives exact macros per 100 g'),
               })
-              .refine((i) => i.recipe !== undefined || i.food_id !== undefined || (i.name !== undefined && i.estimate_per100g !== undefined), 'Give food_id, recipe, or name with estimate_per100g')
-              .refine((i) => i.recipe !== undefined || i.grams !== undefined, 'grams is needed for a food or an estimate'),
+              .refine((i) => i.recipe !== undefined || i.food_id !== undefined || (i.name !== undefined && (i.estimate_per100g !== undefined || i.estimate_range !== undefined)), 'Give food_id, recipe, or name with estimate_per100g or estimate_range')
+              .refine((i) => i.recipe !== undefined || i.grams !== undefined, 'grams is needed for a food or an estimate (a guess of the portion is fine for a meal out)')
+              .refine((i) => i.estimate_range === undefined || (i.food_id === undefined && i.recipe === undefined && i.estimate_per100g === undefined), 'estimate_range is for a name on its own'),
           )
           .min(1)
           .max(20)
@@ -135,7 +150,7 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
         if (!source.length) return toolError(`Nothing was logged: there is nothing logged on ${from.day}${from.slot ? ` for ${from.slot}` : ''} to copy.`);
         for (const e of source) {
           // Copies keep the stored snapshot (name and nutrition as logged then); the allergy check runs again in case allergies changed since.
-          rows.push({ day: d, slot: args.slot ?? e.slot, foodRef: e.foodRef, foodName: e.foodName, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, ...(e.extras ? { extras: e.extras } : {}), estimated: e.estimated });
+          rows.push({ day: d, slot: args.slot ?? e.slot, foodRef: e.foodRef, foodName: e.foodName, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, ...(e.extras ? { extras: e.extras } : {}), estimated: e.estimated, ...(e.kcalRange ? { kcalRange: e.kcalRange } : {}) });
           allergyWarnings.push(...allergyNotes(e.foodName, allergyTerms, {}));
         }
       }
@@ -160,6 +175,10 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
           }
           rows.push({ day: d, slot: s, foodRef: food.id, foodName: food.name, brand: food.brand ?? null, grams: item.grams!, ...scale(food.per100g, item.grams!), ...extrasFor(food.extras, item.grams!), estimated: item.amount_estimated === true });
           allergyWarnings.push(...allergyNotes(food.name, allergyTerms, food));
+        } else if (item.estimate_range) {
+          const r = item.estimate_range;
+          rows.push({ day: d, slot: s, foodRef: null, foodName: item.name!, brand: null, grams: item.grams!, kcal: (r.kcal_low + r.kcal_high) / 2, protein: r.protein_g, carbs: r.carbs_g, fat: r.fat_g, estimated: true, kcalRange: { low: r.kcal_low, high: r.kcal_high } });
+          allergyWarnings.push(...allergyNotes(item.name!, allergyTerms, {}));
         } else {
           rows.push({ day: d, slot: s, foodRef: null, foodName: item.name!, brand: null, grams: item.grams!, ...scale(item.estimate_per100g!, item.grams!), estimated: true });
           allergyWarnings.push(...allergyNotes(item.name!, allergyTerms, {}));

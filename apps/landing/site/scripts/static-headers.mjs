@@ -3,18 +3,32 @@
 // hydration bootstrap). Rather than allow every inline script, the CSP lists each one by its hash,
 // so the page keeps "nothing inline, nothing third-party" apart from these exact scripts.
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 const dir = new URL("../.output/public/", import.meta.url);
-const html = readFileSync(new URL("index.html", dir), "utf8");
+
+// Every prerendered page (index.html, tools/index.html, ...): each carries its own inline router state, so each has its own hashes, and
+// the CSP is one for the whole site. A page missing here is a blank page in the browser (its bootstrap script is blocked).
+const pages = [];
+const walk = (d) => {
+  for (const e of readdirSync(d, { withFileTypes: true })) {
+    if (e.isDirectory()) walk(join(d, e.name));
+    else if (e.name.endsWith(".html")) pages.push(join(d, e.name));
+  }
+};
+walk(fileURLToPath(dir));
+if (pages.length === 0) throw new Error("no prerendered pages found in .output/public");
+const html = pages.map((f) => readFileSync(f, "utf8")).join("\n");
 
 // The browser hashes a script's text as parsed, not the raw bytes: the HTML parser turns CR LF into LF
 // and NUL into U+FFFD, and TanStack's router state does contain a NUL ("__root__\0").
 const parsed = (body) => body.replace(/\r\n?/g, "\n").replace(/\0/g, "�");
 
-const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+const hashes = [...new Set([...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
   ([, body]) => `'sha256-${createHash("sha256").update(parsed(body), "utf8").digest("base64")}'`,
-);
+))];
 
 const csp = [
   "default-src 'none'",
@@ -41,4 +55,4 @@ writeFileSync(
   Cache-Control: public, max-age=31536000, immutable
 `,
 );
-console.log(`_headers written with ${hashes.length} inline script hash(es)`);
+console.log(`_headers written with ${hashes.length} inline script hash(es) from ${pages.length} page(s)`);

@@ -4,9 +4,9 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { perServing, recipeExtras, type PlanData, type Recipe } from '../data/planData';
 import { todayIn } from '../data/time';
-import type { NewFoodEntry } from '../data/userData';
 import { checkPlan, SLOT_NAMES, type PlannedItem, type SlotName } from '../planning/check';
 import { type Ingredient } from '../planning/grocery';
+import { logPlannedMeals } from '../planning/logPlanned';
 import { allergenFields, FoodMemo, per100gSchema } from '../planning/resolve';
 import type { FoodDeps } from './foods';
 import { json, toolError } from './result';
@@ -209,29 +209,9 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     async ({ day: d, slot: s, again }) => {
-      const week = mondayOf(d);
-      const plan = await plans.plan(week);
-      if (!plan) return toolError(`No meal plan for the week of ${week}.`);
-      const picked = plan.items.filter((i) => i.day === d && (!s || i.slot === s) && (again || !i.loggedAt));
-      if (!picked.length) return toolError(plan.items.some((i) => i.day === d && (!s || i.slot === s)) ? 'Those meals are already logged. Use again: true to log them once more.' : `Nothing planned for ${d}${s ? ` ${s}` : ''}.`);
-      const entries: NewFoodEntry[] = picked.map((i) => ({
-        day: d,
-        slot: i.slot,
-        foodRef: i.kind === 'food' ? (i.foodId ?? null) : i.kind === 'recipe' ? `recipe:${i.recipeId}` : null,
-        foodName: i.kind === 'recipe' && i.servings !== 1 ? `${i.name} (${i.servings} servings)` : i.name,
-        brand: null,
-        grams: i.grams,
-        kcal: i.kcal,
-        protein: i.protein,
-        carbs: i.carbs,
-        fat: i.fat,
-        ...(i.extras ? { extras: i.extras } : {}),
-        estimated: i.kind === 'estimate',
-      }));
-      const added = await data.addFoodEntries(entries);
-      const now = Date.now();
-      for (const i of picked) i.loggedAt = now;
-      await plans.savePlan(week, plan.items);
+      const logged = await logPlannedMeals(data, plans, d, s, again);
+      if (!logged.ok) return toolError(logged.error);
+      const added = logged.added;
       const dayEntries = await data.foodEntries(d);
       const total = sum(dayEntries);
       const dayExtras = sumExtras(dayEntries.map((e) => e.extras)).totals;

@@ -1,0 +1,14 @@
+@import '../shared/panel.css';
+/* Today: flat cards, a calorie bar, and rows with one button each. */
+.card + .card { margin-top: var(--s2); }
+.bar { height: 8px; border-radius: 4px; background: var(--seg-off); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.bar i.over { background: var(--series-2); }
+.rows { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: var(--h-row); border-top: 1px solid var(--border); padding: 4px 0; }
+.row:first-child { border-top: 0; }
+.row .grow { display: grid; min-width: 0; }
+.row .who { font-weight: 600; overflow-wrap: anywhere; }
+.row .meta { color: var(--muted); font-size: var(--fs-small); overflow-wrap: anywhere; }
+.done { color: var(--muted); font-size: var(--fs-small); white-space: nowrap; }
+header { flex-wrap: wrap; }

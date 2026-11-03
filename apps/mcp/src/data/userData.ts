@@ -332,6 +332,18 @@ export class UserData {
     return results.map((r) => ({ foodId: r.food_ref as string, name: r.name as string, times: r.times as number, typicalGrams: Math.round(r.grams as number), kcal: Math.round(r.kcal as number), protein: Math.round((r.protein as number) * 10) / 10 }));
   }
 
+  /** Foods eaten at least twice in a period, each as its latest entry (to copy again in one tap), most often first. */
+  async quickAddCandidates(from: string, to: string, limit = 12): Promise<FoodEntry[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT *, COUNT(*) AS times, MAX(created_at) AS latest FROM food_entries WHERE user_id = ? AND day BETWEEN ? AND ?
+         GROUP BY COALESCE(food_ref, food_name) HAVING times >= 2 ORDER BY times DESC, latest DESC LIMIT ?`,
+      )
+      .bind(this.userId, from, to, limit)
+      .all<Row>();
+    return results.map(toEntry);
+  }
+
   // ---------- custom foods ----------
   async addCustomFood(food: Omit<CustomFood, 'id'>): Promise<CustomFood> {
     const id = crypto.randomUUID();

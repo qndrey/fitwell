@@ -326,12 +326,13 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "today",
-    stage: "then",
+    stage: "shipped",
     theme: "logging",
-    status: "planned",
+    status: "shipped",
     title: "Today view",
     summary: "What is left, what is planned and one-tap logging, on one screen.",
-    detail: "Remaining macros, planned meals you tick off when eaten, your usual foods as quick adds, and today's workout.",
+    detail:
+      "Calories and protein left, today's planned meals with a one-tap eaten, the foods you eat often to log again, water and steps, and what you trained. Ask what is left today and it opens.",
   },
   {
     id: "restaurant",

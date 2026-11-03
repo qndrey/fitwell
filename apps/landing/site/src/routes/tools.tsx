@@ -22,6 +22,7 @@ const SIZES: Record<string, [number, number]> = {
   energy: [796, 1216],
   milestone: [796, 842],
   crew: [796, 1570],
+  today: [796, 1834],
   sharecard: [1080, 1350],
 };
 

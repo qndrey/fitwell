@@ -78,6 +78,13 @@ export const CATEGORIES: Category[] = [
         shots: [{ name: "food", alt: "The summary after logging a lunch of oats and rye bread: calories today 549 of 2,300, then protein, carbs and fat against their goals" }],
       },
       {
+        name: "show_today",
+        kind: "opens",
+        what: "Opens today on one screen: calories and protein left against your goals, today's planned meals with a one-tap \"eaten\", the foods you eat often to log again in one tap with the amount you had last time, water and steps, and what you trained, with the workout that has waited longest as a suggestion. Nothing changes until you tap.",
+        ask: "What's left today?",
+        shots: [{ name: "today", alt: "Today on one screen: 820 kcal left of 2,300 with a bar, planned breakfast logged and dinner with an Eaten button, foods to log again such as skyr and banana with an Add button, 750 ml of water and 8,200 steps, and a push day done with leg day suggested" }],
+      },
+      {
         name: "get_food_log",
         kind: "reads",
         what: "Shows a day or several days of what you logged, and what is left of your goals.",
@@ -490,6 +497,10 @@ export const UNLISTED_TOOLS: string[] = [
   "get_muscle_map",
   "get_review_data",
   "give_kudos",
+  "get_today_data",
+  "today_eat_planned",
+  "today_quick_add",
+  "today_add_water",
   // For the owner of the service only.
   "list_invite_requests",
   "list_invitations",

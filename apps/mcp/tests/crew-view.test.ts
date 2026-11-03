@@ -13,8 +13,8 @@ const feed: CrewFeed = {
     { who: { nickname: null, email: 'cy@example.com' }, consistency: null },
   ],
   workouts: [
-    { id: 'w1', who: { nickname: 'bo.lifts', email: null }, day: '2026-11-02', type: 'strength', title: 'Push day', exercises: ['Barbell Bench Press', 'Dips'], exerciseCount: 5, sets: 18, minutes: 52, kudos: { count: 1, mine: false } },
-    { id: 'w2', who: { nickname: null, email: 'cy@example.com' }, day: '2026-11-01', type: 'cardio', title: 'Running', exercises: [], exerciseCount: 0, sets: 0, minutes: 30, kudos: { count: 0, mine: true } },
+    { id: 'w1', who: { nickname: 'bo.lifts', email: null }, day: '2026-11-02', type: 'strength', title: 'Push day', exercises: ['Barbell Bench Press', 'Dips'], exerciseCount: 5, sets: 18, minutes: 52, kudos: { count: 1, mine: false }, records: ['Barbell Bench Press'] },
+    { id: 'w2', who: { nickname: null, email: 'cy@example.com' }, day: '2026-11-01', type: 'cardio', title: 'Running', exercises: [], exerciseCount: 0, sets: 0, minutes: 30, kudos: { count: 0, mine: true }, records: [] },
   ],
   yours: [{ id: 'm1', day: '2026-10-30', title: 'Leg day', from: [{ nickname: 'bo.lifts', email: null }] }],
 };
@@ -32,6 +32,7 @@ describe('the crew feed view', () => {
     await pwExpect(v.frame.getByRole('heading', { name: 'Push day' })).toBeVisible();
     await pwExpect(v.frame.getByText('5 exercises · 18 sets · 52 min')).toBeVisible();
     await pwExpect(v.frame.getByText('Barbell Bench Press, Dips, …')).toBeVisible();
+    await pwExpect(v.frame.getByText('New best: Barbell Bench Press')).toBeVisible();
     await pwExpect(v.frame.getByText('Running')).toBeVisible();
     await pwExpect(v.frame.getByText('1 kudos')).toBeVisible();
     await pwExpect(v.frame.getByRole('heading', { name: 'Kudos on yours' })).toBeVisible();

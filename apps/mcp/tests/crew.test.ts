@@ -164,3 +164,38 @@ describe('kudos', () => {
     expect(tools.find((x) => x.name === 'show_crew_feed')?.annotations).toMatchObject({ readOnlyHint: true });
   });
 });
+
+describe('new personal bests', () => {
+  const lift = (weightKg: number, reps = 5) => JSON.stringify([{ exerciseRef: 'ex:Barbell_Bench_Press', exerciseName: 'Barbell Bench Press', sets: [{ id: 's1', type: 'working', reps, weightKg, done: true }] }]);
+
+  it('marks the exercises where a friend beat their own earlier best, by name only, and never a first time or a repeat', async () => {
+    await share(boC, 'workouts');
+    const first = await workout(bo.id, { day: addDays(today, -6), finished_at: 1_000, exercises: lift(100) });
+    const second = await workout(bo.id, { day: addDays(today, -4), finished_at: 2_000, exercises: lift(100) }); // the same again: no record
+    const third = await workout(bo.id, { day: addDays(today, -2), finished_at: 3_000, exercises: lift(107.5) });
+    const f = await feed(anaC);
+    const recordsOf = (id: string) => f.workouts.find((w) => w.id === id)!.records;
+    expect(recordsOf(first)).toEqual([]);
+    expect(recordsOf(second)).toEqual([]);
+    expect(recordsOf(third)).toEqual(['Barbell Bench Press']);
+    expect(JSON.stringify(f)).not.toMatch(/107|weightKg/); // no numbers, only that it was a best
+  });
+
+  it('is judged against the friend\'s own history only, and an exercise with no weight never counts', async () => {
+    await share(boC, 'workouts');
+    await workout(ana.id, { day: addDays(today, -6), finished_at: 1_000, exercises: lift(150) }); // Ana's own heavy lift is no part of Bo's history
+    const bodyweight = JSON.stringify([{ exerciseRef: 'ex:Dips', exerciseName: 'Dips', sets: [{ id: 's1', type: 'working', reps: 8, weightKg: 0, done: true }] }]);
+    await workout(bo.id, { day: addDays(today, -5), finished_at: 2_000, exercises: bodyweight });
+    const w = await workout(bo.id, { day: addDays(today, -4), finished_at: 3_000, exercises: lift(60) });
+    const later = await workout(bo.id, { day: addDays(today, -3), finished_at: 4_000, exercises: bodyweight });
+    const f = await feed(anaC);
+    expect(f.workouts.find((x) => x.id === w)!.records).toEqual([]); // first bench of Bo's: not a record
+    expect(f.workouts.find((x) => x.id === later)!.records).toEqual([]);
+  });
+
+  it('is not shown for what is not shared', async () => {
+    await workout(bo.id, { day: addDays(today, -6), finished_at: 1_000, exercises: lift(100) });
+    await workout(bo.id, { day: addDays(today, -2), finished_at: 3_000, exercises: lift(110) });
+    expect((await feed(anaC)).workouts).toEqual([]);
+  });
+});

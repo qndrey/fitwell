@@ -2,6 +2,8 @@
 // that category from the friend to this person. No share, no pending request and no ended friendship gives anything, and nothing here reads body data.
 import type { CrewConsistency, CrewFeed, CrewFriend, CrewPerson, CrewWorkout } from '../analytics/crewTypes';
 import { loadConsistency } from '../analytics/streaks';
+import { sessionBest } from '../workout/bests';
+import type { StoredExercise } from './workoutData';
 import { cleanText } from './transfers';
 import { UserData } from './userData';
 import { WorkoutData } from './workoutData';
@@ -43,7 +45,7 @@ export class CrewData {
   async workouts(fromDay: string): Promise<CrewWorkout[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT w.id, w.day, w.type, w.name, w.started_at, w.finished_at, w.exercises, w.cardio, w.session, u.email, p.nickname,
+        `SELECT w.id, w.user_id AS owner_id, w.day, w.type, w.finished_at AS fin, w.name, w.started_at, w.finished_at, w.exercises, w.cardio, w.session, u.email, p.nickname,
                 (SELECT COUNT(*) FROM kudos k WHERE k.workout_id = w.id) AS kudos,
                 EXISTS (SELECT 1 FROM kudos k WHERE k.workout_id = w.id AND k.giver_id = ?1) AS mine
          FROM workouts w
@@ -55,7 +57,26 @@ export class CrewData {
       )
       .bind(this.userId, fromDay, FEED_LIMIT)
       .all<Row>();
-    return results.map((r) => toCrewWorkout(r));
+    const out = results.map((r) => toCrewWorkout(r));
+    // A new personal best: the best estimated 1RM of an exercise in this workout beats the friend's earlier finished workouts (and there were some: a first time is not a record).
+    const owners = [...new Set(results.filter((r) => r.type === 'strength').map((r) => r.owner_id as string))];
+    for (const owner of owners) {
+      const { results: past } = await this.db
+        .prepare("SELECT id, finished_at, exercises FROM workouts WHERE user_id = ? AND type = 'strength' AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 400")
+        .bind(owner)
+        .all<Row>();
+      const sessions = past.map((p) => ({ id: p.id as string, at: p.finished_at as number, exercises: parse<StoredExercise[]>(p.exercises, []) }));
+      for (const [i, r] of results.entries()) {
+        if (r.owner_id !== owner || r.type !== 'strength') continue;
+        const me = sessions.find((s) => s.id === r.id);
+        if (!me) continue;
+        const best = (exs: StoredExercise[]) => new Map(exs.map((e) => [e.exerciseRef, sessionBest(e.sets)]));
+        const earlier = new Map<string, number>();
+        for (const s of sessions) if (s.at < me.at) for (const [ref, v] of best(s.exercises)) earlier.set(ref, Math.max(earlier.get(ref) ?? 0, v));
+        out[i]!.records = me.exercises.filter((e) => earlier.has(e.exerciseRef) && earlier.get(e.exerciseRef)! > 0 && sessionBest(e.sets) > earlier.get(e.exerciseRef)!).slice(0, 3).map((e) => cleanText(e.exerciseName, 40)).filter(Boolean);
+      }
+    }
+    return out;
   }
 
   /** Gives kudos on a friend's finished workout this person can see. False when they cannot (not a friend, nothing shared, not finished, or their own). */
@@ -174,5 +195,6 @@ function toCrewWorkout(r: Row): CrewWorkout {
     sets: type === 'strength' ? exercises.reduce((n, e) => n + (e.sets ?? []).filter((s) => s.done !== false).length, 0) : 0,
     minutes,
     kudos: { count: (r.kudos as number) ?? 0, mine: r.mine === 1 },
+    records: [],
   };
 }

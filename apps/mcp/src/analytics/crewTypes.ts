@@ -20,6 +20,8 @@ export interface CrewWorkout {
   sets: number;
   minutes: number | null;
   kudos: { count: number; mine: boolean };
+  /** Exercises of this workout where the friend beat their own earlier best (names only, no numbers). */
+  records: string[];
 }
 
 export interface CrewConsistency {

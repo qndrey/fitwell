@@ -83,6 +83,7 @@ function draw() {
                 h('div', { className: 'top' }, h('span', { className: 'who' }, name(w.who)), h('span', { className: 'meta' }, fmtDay(w.day, f.from.slice(0, 4) !== f.to.slice(0, 4)))),
                 h('h3', {}, w.title),
                 line(w) ? h('p', { className: 'meta' }, line(w)) : null,
+                w.records?.length > 0 ? h('p', { className: 'meta' }, `New best: ${w.records.join(', ')}`) : null,
                 w.exercises.length > 0 ? h('p', { className: 'meta' }, w.exercises.join(', ') + (w.exerciseCount > w.exercises.length ? ', …' : '')) : null,
                 h(
                   'div',

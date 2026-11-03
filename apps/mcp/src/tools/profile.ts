@@ -1,6 +1,7 @@
 import { suggestTargets, type ActivityLevel } from '@fitwell/core/domain/energy';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import type { DigestData } from '../data/digests';
 import { isTimeZone, todayIn } from '../data/time';
 import type { Goals, UserData } from '../data/userData';
 import { SETUP_GUIDE } from '../instructions';
@@ -8,8 +9,8 @@ import { json, toolError } from './result';
 
 const ACTIVITY = ['sedentary', 'light', 'moderate', 'active', 'very_active'] as const satisfies readonly ActivityLevel[];
 
-export function registerProfileTools(server: McpServer, deps: { data: UserData; email: string }) {
-  const { data } = deps;
+export function registerProfileTools(server: McpServer, deps: { data: UserData; email: string; digests: DigestData }) {
+  const { data, digests } = deps;
 
   server.registerTool(
     'get_profile',
@@ -24,7 +25,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
     // Read-only for the person's data; on a new account's first call it records that the setup was offered.
     async () => {
       const profile = await data.profile();
-      const result = { email: deps.email, today: todayIn(profile.timeZone), profile, goals: await data.goals() };
+      const result = { email: deps.email, today: todayIn(profile.timeZone), profile, goals: await data.goals(), emailDigests: await digests.settings() };
       if (!(await data.offerSetup())) return json(result);
       const res = json({ ...result, newAccount: true });
       return { ...res, content: [...res.content, { type: 'text', text: SETUP_GUIDE }] };
@@ -37,7 +38,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
       title: 'Update profile',
       description:
         "Changes the person's own profile: only the fields given change, the others stay. Use it only for values the person stated or confirmed in this conversation; never guess or infer sex, birth year, height, weight, activity level or allergies. " +
-        'The profile feeds their calorie estimates, allergy warnings, workout plates and meal plans, and is never shared. Weights in kg, heights in cm. A diet list (preferences, allergies, dislikes) replaces the previous list, so send the whole list; call get_profile first when unsure what is stored.',
+        'The profile feeds their calorie estimates, allergy warnings, workout plates and meal plans, and is never shared. Weights in kg, heights in cm. email_digests turns emails to their own address on or off: only when they ask for them (a weekly summary on Sunday evening, a reminder after 3 quiet days; both off by default, each email has an unsubscribe link). A diet list (preferences, allergies, dislikes) replaces the previous list, so send the whole list; call get_profile first when unsure what is stored.',
       inputSchema: z.object({
         time_zone: z.string().refine(isTimeZone, 'An IANA time zone, e.g. "Europe/Copenhagen"').optional(),
         units: z.enum(['metric', 'imperial']).optional().describe('How to present numbers to the person; storage is always metric'),
@@ -49,6 +50,13 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         equipment: z.array(z.string().max(40)).max(30).optional().describe('Equipment available for training, e.g. ["barbell","dumbbell","body only"]'),
         bar_kg: z.number().min(0).max(50).optional().describe('Weight of their barbell (default 20)'),
         plates_kg: z.array(z.number().positive().max(50)).min(1).max(12).optional().describe('Plate sizes they have (default 25, 20, 15, 10, 5, 2.5, 1.25)'),
+        email_digests: z
+          .object({
+            weekly_review: z.boolean().optional().describe('A summary of the week by email, Sunday evening in their time zone'),
+            inactivity_nudge: z.boolean().optional().describe('One gentle email after 3 days with nothing logged, in the evening'),
+          })
+          .optional()
+          .describe('Email digests to the address they signed in with; only change what they asked for'),
         diet: z
           .object({
             preferences: z.array(z.string().max(60)).max(20).optional(),
@@ -72,7 +80,8 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         ...((a.bar_kg !== undefined || a.plates_kg !== undefined) && { gym: { ...(await data.profile()).gym, ...(a.bar_kg !== undefined && { barKg: a.bar_kg }), ...(a.plates_kg !== undefined && { platesKg: [...new Set(a.plates_kg)].sort((x, y) => y - x) }) } }),
         ...(a.diet !== undefined && { diet: Object.fromEntries(Object.entries(a.diet).filter(([, v]) => v !== undefined)) as never }),
       });
-      return json({ profile });
+      const emailDigests = a.email_digests ? await digests.set({ ...(a.email_digests.weekly_review !== undefined && { weeklyReview: a.email_digests.weekly_review }), ...(a.email_digests.inactivity_nudge !== undefined && { inactivityNudge: a.email_digests.inactivity_nudge }) }) : await digests.settings();
+      return json({ profile, emailDigests });
     },
   );
 

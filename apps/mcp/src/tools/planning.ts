@@ -2,11 +2,11 @@ import { addDays, isDay, weekStart as mondayOf } from '@fitwell/core/domain/date
 import { roundForDisplay, scale, scaleExtras, sum, sumExtras } from '@fitwell/core/domain/nutrition';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
-import { perServing, recipeExtras, type PlanData, type Recipe } from '../data/planData';
+import { perServing, type PlanData, type Recipe } from '../data/planData';
 import { todayIn } from '../data/time';
 import { checkPlan, SLOT_NAMES, type PlannedItem, type SlotName } from '../planning/check';
-import { type Ingredient } from '../planning/grocery';
 import { logPlannedMeals } from '../planning/logPlanned';
+import { plannedRecipe } from '../planning/recipeItem';
 import { allergenFields, FoodMemo, per100gSchema } from '../planning/resolve';
 import type { FoodDeps } from './foods';
 import { json, toolError } from './result';
@@ -140,11 +140,7 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
             if (!r) return toolError(`Nothing was saved. No saved recipe ${i.recipe_id ?? `"${i.recipe_name}"`}. Use get_recipes or save_recipe first.`);
             recipes.set(key, r);
           }
-          const r = recipes.get(key)!;
-          const f = i.servings / r.servings;
-          const ingredients: Ingredient[] = r.items.map((x) => ({ ...(x.foodId ? { foodId: x.foodId } : {}), name: x.name, ...(x.group ? { group: x.group } : {}), ...allergenFields(x), grams: x.grams * f }));
-          const total = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => r.items.reduce((n, x) => n + x[k], 0) * f;
-          planned.push({ day: i.day, slot: i.slot, kind: 'recipe', name: r.name, recipeId: r.id, servings: i.servings, grams: ingredients.reduce((n, x) => n + x.grams, 0), kcal: total('kcal'), protein: total('protein'), carbs: total('carbs'), fat: total('fat'), ...(recipeExtras(r.items, f) ? { extras: recipeExtras(r.items, f) } : {}), ingredients });
+          planned.push(plannedRecipe(recipes.get(key)!, i.day, i.slot, i.servings));
         } else {
           planned.push({ day: i.day, slot: i.slot, kind: 'estimate', name: i.name!, grams: i.grams!, ...scale(i.estimate_per100g!, i.grams!), ingredients: [{ name: i.name!, grams: i.grams! }] });
         }

@@ -85,6 +85,13 @@ export const CATEGORIES: Category[] = [
         shots: [{ name: "today", alt: "Today on one screen: 820 kcal left of 2,300 with a bar, planned breakfast logged and dinner with an Eaten button, foods to log again such as skyr and banana with an Add button, 750 ml of water and 8,200 steps, and a push day done with leg day suggested" }],
       },
       {
+        name: "show_meal_plan",
+        kind: "opens",
+        what: "Opens a week of your meal plan: every day with its meals and its calories and protein against your goals, and any allergy or dislike match in plain words. Swap a meal for a saved recipe or copy another meal, repeat a day, and tick a meal as eaten, all in the view. Every change goes through the same allergy check as a plan made in chat, a meal you already ate is never changed, and two open windows cannot overwrite each other.",
+        ask: "Show my meal plan for this week.",
+        shots: [{ name: "mealplan", alt: "The meal plan for 2 to 8 November: Monday with three meals eaten, Tuesday with breakfast eaten, lunch and dinner with Eaten and Change buttons, and a panel open under the dinner to swap it for a saved recipe or copy Monday's dinner" }],
+      },
+      {
         name: "get_food_log",
         kind: "reads",
         what: "Shows a day or several days of what you logged, and what is left of your goals.",
@@ -501,6 +508,11 @@ export const UNLISTED_TOOLS: string[] = [
   "today_eat_planned",
   "today_quick_add",
   "today_add_water",
+  "get_meal_plan_data",
+  "plan_swap_recipe",
+  "plan_copy_meal",
+  "plan_repeat_day",
+  "plan_eat_meal",
   // For the owner of the service only.
   "list_invite_requests",
   "list_invitations",

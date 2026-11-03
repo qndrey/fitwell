@@ -105,8 +105,9 @@ export class PlanData {
     const now = this.now();
     await this.db
       .prepare(
+        // updated_at is the plan's version for the meal plan view's edits: every save moves it on, even two in the same millisecond.
         `INSERT INTO meal_plans (id, user_id, week_start, items, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (user_id, week_start) DO UPDATE SET items = excluded.items, updated_at = excluded.updated_at`,
+         ON CONFLICT (user_id, week_start) DO UPDATE SET items = excluded.items, updated_at = MAX(excluded.updated_at, meal_plans.updated_at + 1)`,
       )
       .bind(crypto.randomUUID(), this.userId, weekStart, JSON.stringify(items), now, now)
       .run();

@@ -18,6 +18,7 @@ import { registerReviewTools } from './tools/review';
 import { registerShoppingTools } from './tools/shopping';
 import { registerCelebrationTools } from './tools/celebration';
 import { registerFriendTools } from './tools/friends';
+import { registerMealPlanTools } from './tools/mealPlan';
 import { registerTodayTools } from './tools/today';
 import { registerStreakTools } from './tools/streaks';
 import { FriendsData } from './data/friends';
@@ -101,6 +102,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerCelebrationTools(server, { data, workouts, body, achievements });
   registerDeleteTool(server, { data, workouts, body, plans });
   registerTodayTools(server, { data, plans, workouts, body });
+  registerMealPlanTools(server, { data, plans });
   registerFriendTools(server, friends, nicknames);
   registerTransferTools(server, transfers);
   registerCrewTools(server, { data, crew });

@@ -346,12 +346,12 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "mealplan",
-    stage: "then",
+    stage: "shipped",
     theme: "logging",
-    status: "planned",
+    status: "shipped",
     title: "Meal plan view",
     summary: "Your week of meals on one screen, to swap and repeat.",
-    detail: "Swap a meal for a saved recipe, repeat a day and tick off what you ate, with the same goal and allergy checks as a plan made in chat.",
+    detail: "Swap a meal for a saved recipe, repeat a day and tick off what you ate, with the same goal and allergy checks as a plan made in chat. Ask to see your meal plan and it opens.",
   },
   {
     id: "import",

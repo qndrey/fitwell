@@ -61,6 +61,9 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     db.prepare('DELETE FROM streak_freezes WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM injuries WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM programs WHERE user_id = ?').bind(user.id),
+    // Challenges: the person's own are cancelled (every score in them goes); in others they just leave.
+    db.prepare('DELETE FROM challenges WHERE owner_id = ?').bind(user.id),
+    db.prepare('DELETE FROM challenge_members WHERE user_id = ?').bind(user.id),
     // A household the person was the last member of goes with them (its plans, ticks and invitations); in a larger one they just leave.
     db.prepare('DELETE FROM households WHERE id IN (SELECT household_id FROM household_members WHERE user_id = ?1) AND (SELECT COUNT(*) FROM household_members m WHERE m.household_id = households.id) = 1').bind(user.id),
     db.prepare('DELETE FROM household_invites WHERE inviter_id = ?1 OR invitee_id = ?1').bind(user.id),

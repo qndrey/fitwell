@@ -17,6 +17,9 @@ const DESTRUCTIVE = [
   'use_household_plan', // replaces the person's own plan of that week
   'create_program', // ends the program that was running
   'end_program', // ends the program
+  'decline_challenge', // deletes an invitation
+  'leave_challenge', // takes the person's score out
+  'cancel_challenge', // deletes the challenge and every score in it
   'log_body', // a value logged for a day replaces the one already there
   'send_friend_invite', // emails someone, which cannot be unsent
   'approve_invite_request', // the same, and deletes the request

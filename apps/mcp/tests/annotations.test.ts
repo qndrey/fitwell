@@ -10,14 +10,21 @@ const DESTRUCTIVE = [
   'delete_my_account',
   'edit_food_entry', // changes a logged entry
   'edit_workout_set', // changes a logged set
-  'invite_friend', // cancel takes back an invitation
-  'manage_invites', // remove takes back an invitation
+  'log_body', // a value logged for a day replaces the one already there
+  'send_friend_invite', // emails someone, which cannot be unsent
+  'approve_invite_request', // the same, and deletes the request
+  'cancel_friend_invite', // takes back an invitation
+  'decline_invite_request', // deletes a request
+  'remove_invitation', // takes back an invitation
   'save_meal_plan', // saving a week again replaces its plan
   'save_recipe', // saving under an existing name replaces it
   'save_workout_template', // the same
   'set_goals',
   'update_profile',
 ];
+
+/** Tools that reach outside Fitwell: Open Food Facts, a web page, or an email to someone else. */
+const OPEN_WORLD = ['search_foods', 'lookup_barcode', 'import_recipe', 'send_friend_invite', 'approve_invite_request'];
 
 async function listTools(isAdmin: boolean) {
   const { env } = createTestEnv();
@@ -27,7 +34,7 @@ async function listTools(isAdmin: boolean) {
 
 describe('tool annotations', () => {
   it('covers the admin-only tool too', async () => {
-    expect((await listTools(true)).map((t) => t.name)).toContain('manage_invites');
+    expect((await listTools(true)).map((t) => t.name)).toContain('approve_invite_request');
   });
 
   it.each([false, true])('every tool has a title and explicit hints (admin: %s)', async (isAdmin) => {
@@ -35,7 +42,9 @@ describe('tool annotations', () => {
       const a = tool.annotations ?? {};
       expect(tool.title, tool.name).toBeTruthy();
       expect(a.title, `${tool.name} annotations.title`).toBe(tool.title); // the directory reads this one
-      expect(typeof a.readOnlyHint, `${tool.name} readOnlyHint`).toBe('boolean');
+      // OpenAI's plugin scan wants all three as explicit booleans on every tool.
+      for (const hint of ['readOnlyHint', 'destructiveHint', 'openWorldHint'] as const) expect(typeof a[hint], `${tool.name} ${hint}`).toBe('boolean');
+      expect(a.openWorldHint, `${tool.name} openWorldHint`).toBe(OPEN_WORLD.includes(tool.name));
       if (a.readOnlyHint) {
         expect(a.destructiveHint, `${tool.name} is read-only`).not.toBe(true);
       } else {

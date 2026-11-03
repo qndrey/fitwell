@@ -24,7 +24,7 @@
     "MAIL_FROM": "login@fitwell.fyi",
     // Contact on the privacy notice (/privacy).
     "CONTACT_EMAIL": "hello@fitwell.fyi",
-    // Comma-separated: these people also get manage_invites (add or remove invitations from Claude).
+    // Comma-separated: these people also get the owner's invitation tools (list, approve, add or remove invitations from Claude).
     "ADMIN_EMAILS": "qndrey@proton.me"
   },
   // Created with --jurisdiction eu on 2026-10-13 (data stays in the EU). Local dev uses a local SQLite copy.

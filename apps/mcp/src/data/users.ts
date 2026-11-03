@@ -9,7 +9,7 @@ export interface User {
   created_at: number;
   consented_at: number | null;
   last_login_at: number | null;
-  /** The member who invited this person (invite_friend); null for people the owner added or approved. */
+  /** The member who invited this person (send_friend_invite); null for people the owner added or approved. */
   invited_by: string | null;
 }
 
@@ -58,6 +58,7 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     db.prepare('DELETE FROM grocery_ticks WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM review_notes WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM achievements WHERE user_id = ?').bind(user.id),
+    db.prepare('DELETE FROM streak_freezes WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM workouts WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM workout_templates WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM custom_foods WHERE user_id = ?').bind(user.id),

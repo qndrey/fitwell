@@ -359,8 +359,20 @@ export class UserData {
   }
 
   // ---------- everything, for export ----------
+  /** The Mondays of the weeks the person froze, from `from` on (a Monday or any day: earlier weeks are left out), oldest first. */
+  async streakFreezes(from: string): Promise<string[]> {
+    const { results } = await this.db.prepare('SELECT week_start FROM streak_freezes WHERE user_id = ? AND week_start >= ? ORDER BY week_start').bind(this.userId, from).all<Row>();
+    return results.map((r) => r.week_start as string);
+  }
+
+  /** Freezes the week starting on `weekStart` (a Monday), or lifts the freeze. Freezing a frozen week changes nothing. */
+  async setStreakFreeze(weekStart: string, frozen: boolean): Promise<void> {
+    if (frozen) await this.db.prepare('INSERT OR IGNORE INTO streak_freezes (user_id, week_start, created_at) VALUES (?, ?, ?)').bind(this.userId, weekStart, this.now()).run();
+    else await this.db.prepare('DELETE FROM streak_freezes WHERE user_id = ? AND week_start = ?').bind(this.userId, weekStart).run();
+  }
+
   async exportAll() {
     const { results } = await this.db.prepare('SELECT * FROM food_entries WHERE user_id = ? ORDER BY day, created_at').bind(this.userId).all<Row>();
-    return { profile: await this.profile(), goals: await this.goals(), foodEntries: results.map(toEntry), customFoods: await this.customFoods() };
+    return { profile: await this.profile(), goals: await this.goals(), foodEntries: results.map(toEntry), customFoods: await this.customFoods(), streakFreezes: await this.streakFreezes('0000-00-00') };
   }
 }

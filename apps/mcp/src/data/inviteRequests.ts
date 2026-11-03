@@ -15,12 +15,13 @@ export interface InviteRequest {
   created_at: number;
 }
 
-/** Stores a request; an address that already has one is left as it is. */
-export async function addInviteRequest(db: D1Database, r: { email: string; platform: Platform | null; ip: string; now: number }): Promise<void> {
-  await db.batch([
+/** Stores a request; an address that already has one is left as it is. True when it is a new request. */
+export async function addInviteRequest(db: D1Database, r: { email: string; platform: Platform | null; ip: string; now: number }): Promise<boolean> {
+  const [, insert] = await db.batch([
     db.prepare('DELETE FROM invite_requests WHERE created_at < ?').bind(r.now - KEEP_REQUESTS_MS),
     db.prepare('INSERT OR IGNORE INTO invite_requests (id, email, platform, ip, created_at) VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), normalizeEmail(r.email), r.platform, r.ip, r.now),
   ]);
+  return (insert?.meta.changes ?? 0) > 0;
 }
 
 export async function listInviteRequests(db: D1Database): Promise<InviteRequest[]> {

@@ -40,6 +40,45 @@ describe('the request form', () => {
     expect(await waiting()).toEqual([['new.person@example.com', 'iphone']]);
   });
 
+  describe('the owner notice', () => {
+    let notices: Mail[];
+    let fail = false;
+    const notify = { mailer: { send: async (m: Mail) => { if (fail) throw new Error('down'); notices.push(m); } }, to: 'hello@fitwell.test' };
+    const post = (fields: Record<string, string>) => {
+      const headers = { 'content-type': 'application/x-www-form-urlencoded', origin: ORIGIN, 'cf-connecting-ip': '203.0.113.9' };
+      return handleRequestAccess(new Request(`${ORIGIN}/request-access`, { method: 'POST', headers, body: new URLSearchParams(fields) }), { db: env.DB, notify });
+    };
+    beforeEach(() => {
+      notices = [];
+      fail = false;
+    });
+
+    it('emails the owner the address and device of a new request, once', async () => {
+      await post(valid);
+      await post({ ...valid, platform: 'web' });
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toMatchObject({ to: 'hello@fitwell.test', subject: 'New Fitwell invite request' });
+      expect(notices[0]!.text).toContain('new.person@example.com');
+      expect(notices[0]!.text).toContain('Uses: iphone');
+    });
+
+    it('sends nothing for a known member, a bot or a bad request', async () => {
+      await inviteUser(env.DB, 'ana@example.com');
+      await post({ ...valid, email: 'ana@example.com' });
+      await post({ ...valid, website: 'http://spam.example' });
+      await post({ ...valid, email: 'bad' });
+      await post({ ...valid, consent: '' });
+      expect(notices).toEqual([]);
+    });
+
+    it('still stores the request and answers the same when the notice cannot be sent', async () => {
+      fail = true;
+      const res = await post(valid);
+      expect(await res.text()).toContain('Your request is in');
+      expect(await waiting()).toEqual([['new.person@example.com', 'iphone']]);
+    });
+  });
+
   it('answers the same for someone already invited and stores nothing', async () => {
     await inviteUser(env.DB, 'ana@example.com');
     const res = await submit({ ...valid, email: 'ana@example.com' });
@@ -127,42 +166,42 @@ describe('the owner reviews requests from Claude', () => {
   });
 
   it('lists what is waiting', async () => {
-    const r = await call(await connect(), 'manage_invites', { action: 'requests' });
+    const r = await call(await connect(), 'list_invite_requests', {});
     expect(r.data.waiting).toEqual([{ email: 'new.person@example.com', uses: 'iphone', requestedAt: new Date().toISOString().slice(0, 10) }]);
   });
 
   it('list shows the waiting requests too, so asking about invites finds them', async () => {
-    const r = await call(await connect(), 'manage_invites', { action: 'list' });
+    const r = await call(await connect(), 'list_invitations', {});
     expect((r.data.waitingRequests as { email: string }[]).map((w) => w.email)).toEqual(['new.person@example.com']);
     expect((r.data.people as { email: string }[]).map((p) => p.email)).toEqual(['owner@example.com']);
   });
 
   it('approve invites them, emails the instructions, then removes the request', async () => {
     const c = await connect();
-    const r = await call(c, 'manage_invites', { action: 'approve', email: 'new.person@example.com' });
+    const r = await call(c, 'approve_invite_request', { email: 'new.person@example.com' });
     expect(r.data).toMatchObject({ approved: true, emailed: true });
     expect((await findUserByEmail(env.DB, 'new.person@example.com'))?.status).toBe('invited');
     expect(sent).toHaveLength(1);
     expect(sent[0]!.to).toBe('new.person@example.com');
     expect(sent[0]!.text).toContain(`${ORIGIN}/mcp`);
     expect(await countInviteRequests(env.DB)).toBe(0);
-    expect((await call(c, 'manage_invites', { action: 'approve', email: 'new.person@example.com' })).isError).toBe(true);
+    expect((await call(c, 'approve_invite_request', { email: 'new.person@example.com' })).isError).toBe(true);
   });
 
   it('keeps the request when the email fails, so approve can be tried again', async () => {
     const c = await connect();
     fail = true;
-    const r = await call(c, 'manage_invites', { action: 'approve', email: 'new.person@example.com' });
+    const r = await call(c, 'approve_invite_request', { email: 'new.person@example.com' });
     expect(r.isError).toBe(true);
     expect(r.text).toContain('request stays');
     expect(await countInviteRequests(env.DB)).toBe(1);
     fail = false;
-    expect((await call(c, 'manage_invites', { action: 'approve', email: 'new.person@example.com' })).data.approved).toBe(true);
+    expect((await call(c, 'approve_invite_request', { email: 'new.person@example.com' })).data.approved).toBe(true);
     expect(await countInviteRequests(env.DB)).toBe(0);
   });
 
   it('decline deletes the request and sends nothing', async () => {
-    const r = await call(await connect(), 'manage_invites', { action: 'decline', email: 'new.person@example.com' });
+    const r = await call(await connect(), 'decline_invite_request', { email: 'new.person@example.com' });
     expect(r.data.declined).toBe(true);
     expect(sent).toHaveLength(0);
     expect(await findUserByEmail(env.DB, 'new.person@example.com')).toBeNull();
@@ -171,12 +210,12 @@ describe('the owner reviews requests from Claude', () => {
 
   it('answers for an address with no waiting request', async () => {
     const c = await connect();
-    expect((await call(c, 'manage_invites', { action: 'approve', email: 'nobody@example.com' })).isError).toBe(true);
-    expect((await call(c, 'manage_invites', { action: 'decline', email: 'nobody@example.com' })).isError).toBe(true);
+    expect((await call(c, 'approve_invite_request', { email: 'nobody@example.com' })).isError).toBe(true);
+    expect((await call(c, 'decline_invite_request', { email: 'nobody@example.com' })).isError).toBe(true);
   });
 
   it('add also clears a waiting request for that address', async () => {
-    await call(await connect(), 'manage_invites', { action: 'add', email: 'new.person@example.com' });
+    await call(await connect(), 'add_invitation', { email: 'new.person@example.com' });
     expect(await countInviteRequests(env.DB)).toBe(0);
   });
 });

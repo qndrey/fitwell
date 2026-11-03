@@ -246,6 +246,33 @@ describe('email sign-in', () => {
     expect(text).toContain('Sign-in records are deleted after 30 days');
   });
 
+  it('serves the terms of service', async () => {
+    const res = await worker.fetch(new Request(`${ORIGIN}/terms`), env, ctx);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('Terms of service');
+    expect(text).toContain('Not medical advice');
+    expect(text).toContain('privacy@fitwell.test');
+  });
+
+  it('serves a support page with the contact address', async () => {
+    const res = await worker.fetch(new Request(`${ORIGIN}/support`), env, ctx);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('privacy@fitwell.test');
+    expect(text).toContain('/request-access');
+  });
+
+  it("answers OpenAI's domain challenge only while the secret is set", async () => {
+    const path = `${ORIGIN}/.well-known/openai-apps-challenge`;
+    expect((await worker.fetch(new Request(path), env, ctx)).status).toBe(404);
+    const withToken = { ...env, OPENAI_APPS_CHALLENGE: 'tok-123\n' } as typeof env;
+    const res = await worker.fetch(new Request(path), withToken, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/plain');
+    expect(await res.text()).toBe('tok-123');
+  });
+
   it('deletes sign-in requests older than 30 days whenever a code is asked for', async () => {
     const day = 86_400_000;
     const add = (id: string, age: number) =>

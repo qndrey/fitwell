@@ -39,7 +39,7 @@ async function member(email: string, signedInDaysAgo: number, loggedDaysAgo: num
 }
 const active = (email = 'sam@example.com') => member(email, 10, [1, 2, 3]);
 const as = async (u: User, admin = false, more: Record<string, unknown> = {}) => connectAs(env, u, undefined, { ...extra, isAdmin: admin, ...more });
-const send = async (u: User, to: string) => call(await as(u), 'invite_friend', { action: 'send', email: to });
+const send = async (u: User, to: string) => call(await as(u), 'send_friend_invite', { email: to });
 const logRows = async (id: string) => (await env.DB.prepare('SELECT COUNT(*) AS n FROM member_invites WHERE inviter_id = ?').bind(id).first<number>('n'))!;
 
 describe('who may invite', () => {
@@ -104,17 +104,17 @@ describe('who may invite', () => {
   it('lets an owner skip the activity rule only', async () => {
     const owner = await signedInUser(env, 'owner@example.com');
     const client = await as(owner, true);
-    expect((await call(client, 'invite_friend', { action: 'send', email: 'a@example.com' })).isError).toBe(false);
-    expect((await call(client, 'invite_friend', { action: 'send', email: 'b@example.com' })).isError).toBe(false);
-    expect((await call(client, 'invite_friend', { action: 'send', email: 'c@example.com' })).isError).toBe(false);
-    const fourth = await call(client, 'invite_friend', { action: 'send', email: 'd@example.com' });
+    expect((await call(client, 'send_friend_invite', { email: 'a@example.com' })).isError).toBe(false);
+    expect((await call(client, 'send_friend_invite', { email: 'b@example.com' })).isError).toBe(false);
+    expect((await call(client, 'send_friend_invite', { email: 'c@example.com' })).isError).toBe(false);
+    const fourth = await call(client, 'send_friend_invite', { email: 'd@example.com' });
     expect(fourth.isError).toBe(true);
     expect(fourth.text).toContain('3 invitations');
   });
 
   it('refuses the reviewers\' demo account however active it is', async () => {
     const demo = await active('review@example.com');
-    const r = await call(await as(demo, false, { isReviewer: true }), 'invite_friend', { action: 'send', email: 'ana@example.com' });
+    const r = await call(await as(demo, false, { isReviewer: true }), 'send_friend_invite', { email: 'ana@example.com' });
     expect(r.isError).toBe(true);
     expect(r.text).toContain('demo account');
     expect(sent).toHaveLength(0);
@@ -123,9 +123,9 @@ describe('who may invite', () => {
   it('is a tool everyone sees, and the owner one only for owners', async () => {
     const sam = await active();
     const names = async (admin: boolean) => (await (await as(sam, admin)).listTools()).tools.map((t) => t.name);
-    expect(await names(false)).toContain('invite_friend');
-    expect(await names(false)).not.toContain('manage_invites');
-    expect(await names(true)).toContain('manage_invites');
+    expect(await names(false)).toContain('send_friend_invite');
+    expect(await names(false)).not.toContain('list_invitations');
+    expect(await names(true)).toContain('list_invitations');
   });
 
   it('checks the address and refuses your own', async () => {
@@ -144,7 +144,7 @@ describe('limits', () => {
     const fourth = await send(sam, 'd@example.com');
     expect(fourth.isError).toBe(true);
     expect(fourth.text).toContain(`frees up on ${new Date(Date.now() + INVITE_WINDOW_MS).toISOString().slice(0, 10)}`);
-    await call(await as(sam), 'invite_friend', { action: 'cancel', email: 'a@example.com' });
+    await call(await as(sam), 'cancel_friend_invite', { email: 'a@example.com' });
     expect((await send(sam, 'd@example.com')).isError).toBe(true);
     expect(sent).toHaveLength(3);
     // After 30 days the oldest has aged out.
@@ -194,19 +194,19 @@ describe('addresses that are already people', () => {
     expect((await findUserByEmail(env.DB, 'already@example.com'))!.invited_by).toBeNull();
     const client = await as(sam);
     const expiresOn = new Date(Date.now() + INVITE_TTL_MS).toISOString().slice(0, 10);
-    const list = await call(client, 'invite_friend', { action: 'list' });
+    const list = await call(client, 'list_friend_invites', {});
     expect(list.data).toEqual({
       invited: ['fresh', 'already', 'owner-added'].map((n) => ({ email: `${n}@example.com`, status: 'waiting', expiresOn })),
       invitationsLeft: 0,
       unused: 3,
     });
     // Cancelling gives the same answer, and leaves the existing person alone.
-    const cancelledExisting = await call(client, 'invite_friend', { action: 'cancel', email: 'already@example.com' });
-    const cancelledNew = await call(client, 'invite_friend', { action: 'cancel', email: 'fresh@example.com' });
+    const cancelledExisting = await call(client, 'cancel_friend_invite', { email: 'already@example.com' });
+    const cancelledNew = await call(client, 'cancel_friend_invite', { email: 'fresh@example.com' });
     expect({ ...cancelledExisting.data, email: '' }).toEqual({ ...cancelledNew.data, email: '' });
     expect(await findUserByEmail(env.DB, 'already@example.com')).toMatchObject({ id: already.id, status: 'active' });
     expect(await findUserByEmail(env.DB, 'fresh@example.com')).toBeNull();
-    expect((await call(client, 'invite_friend', { action: 'list' })).data).toMatchObject({ unused: 1, invitationsLeft: 0 });
+    expect((await call(client, 'list_friend_invites', {})).data).toMatchObject({ unused: 1, invitationsLeft: 0 });
   });
 
   it('shows "joined" only for a friend who signed in through the invitation, still after 30 days', async () => {
@@ -215,7 +215,7 @@ describe('addresses that are already people', () => {
     await send(sam, 'already@example.com');
     await send(sam, 'ben@example.com');
     await recordLogin(env.DB, (await findUserByEmail(env.DB, 'ben@example.com'))!.id);
-    const status = async () => Object.fromEntries(((await call(await as(sam), 'invite_friend', { action: 'list' })).data.invited as { email: string; status: string }[]).map((p) => [p.email, p.status]));
+    const status = async () => Object.fromEntries(((await call(await as(sam), 'list_friend_invites', {})).data.invited as { email: string; status: string }[]).map((p) => [p.email, p.status]));
     expect(await status()).toEqual({ 'already@example.com': 'waiting', 'ben@example.com': 'joined' });
     await env.DB.prepare('UPDATE member_invites SET created_at = ?').bind(Date.now() - INVITE_WINDOW_MS - 1000).run();
     expect(await status()).toEqual({ 'ben@example.com': 'joined' });
@@ -228,7 +228,7 @@ describe('addresses that are already people', () => {
     expect(r.isError).toBe(false);
     expect(await listInviteRequests(env.DB)).toEqual([]);
     expect((await findUserByEmail(env.DB, 'asked@example.com'))!.invited_by).toBe(sam.id);
-    const list = await call(await as(sam), 'invite_friend', { action: 'list' });
+    const list = await call(await as(sam), 'list_friend_invites', {});
     expect((list.data.invited as { email: string }[]).map((p) => p.email)).toEqual(['asked@example.com']);
   });
 });
@@ -267,7 +267,7 @@ describe('the email', () => {
 
   it('says so when this server cannot send email', async () => {
     const sam = await active();
-    const r = await call(await connectAs(env, sam, undefined, { ...extra, mailer: undefined }), 'invite_friend', { action: 'send', email: 'ana@example.com' });
+    const r = await call(await connectAs(env, sam, undefined, { ...extra, mailer: undefined }), 'send_friend_invite', { email: 'ana@example.com' });
     expect(r.isError).toBe(true);
     expect(await logRows(sam.id)).toBe(0);
   });
@@ -281,7 +281,7 @@ describe('seeing and cancelling', () => {
     const ben = (await findUserByEmail(env.DB, 'ben@example.com'))!;
     await recordLogin(env.DB, ben.id);
     const client = await as(sam);
-    const list = await call(client, 'invite_friend', { action: 'list' });
+    const list = await call(client, 'list_friend_invites', {});
     expect(list.data).toEqual({
       invited: [
         { email: 'ana@example.com', status: 'waiting', expiresOn: new Date(Date.now() + INVITE_TTL_MS).toISOString().slice(0, 10) },
@@ -290,9 +290,9 @@ describe('seeing and cancelling', () => {
       invitationsLeft: 1,
       unused: 1,
     });
-    expect((await call(client, 'invite_friend', { action: 'cancel', email: 'ana@example.com' })).data).toEqual({ email: 'ana@example.com', cancelled: true });
+    expect((await call(client, 'cancel_friend_invite', { email: 'ana@example.com' })).data).toEqual({ email: 'ana@example.com', cancelled: true });
     expect(await findUserByEmail(env.DB, 'ana@example.com')).toBeNull();
-    expect((await call(client, 'invite_friend', { action: 'list' })).data.invitationsLeft).toBe(1);
+    expect((await call(client, 'list_friend_invites', {})).data.invitationsLeft).toBe(1);
   });
 
   it('refuses to cancel someone who joined, someone else\'s invitation, or an unknown address in the same words', async () => {
@@ -302,9 +302,9 @@ describe('seeing and cancelling', () => {
     await send(sam, 'ben@example.com');
     await recordLogin(env.DB, (await findUserByEmail(env.DB, 'ben@example.com'))!.id);
     const client = await as(sam);
-    expect((await call(client, 'invite_friend', { action: 'cancel', email: 'ben@example.com' })).text).toContain('already joined');
-    const other = await call(client, 'invite_friend', { action: 'cancel', email: 'kims@example.com' });
-    const unknown = await call(client, 'invite_friend', { action: 'cancel', email: 'nobody@example.com' });
+    expect((await call(client, 'cancel_friend_invite', { email: 'ben@example.com' })).text).toContain('already joined');
+    const other = await call(client, 'cancel_friend_invite', { email: 'kims@example.com' });
+    const unknown = await call(client, 'cancel_friend_invite', { email: 'nobody@example.com' });
     expect(other.isError && unknown.isError).toBe(true);
     expect(other.text).toBe(unknown.text);
     expect(await findUserByEmail(env.DB, 'kims@example.com')).not.toBeNull();
@@ -313,8 +313,8 @@ describe('seeing and cancelling', () => {
   it('lets someone who is not active (yet) list and cancel, never send', async () => {
     const newcomer = await member('new@example.com', 1, []);
     const client = await as(newcomer);
-    expect((await call(client, 'invite_friend', { action: 'list' })).data.invited).toEqual([]);
-    expect((await call(client, 'invite_friend', { action: 'cancel', email: 'a@example.com' })).isError).toBe(true);
+    expect((await call(client, 'list_friend_invites', {})).data.invited).toEqual([]);
+    expect((await call(client, 'cancel_friend_invite', { email: 'a@example.com' })).isError).toBe(true);
   });
 });
 
@@ -329,7 +329,7 @@ describe('expiry', () => {
     const sam = await active();
     await send(sam, 'ana@example.com');
     await backdate('ana@example.com');
-    const list = await call(await as(sam), 'invite_friend', { action: 'list' });
+    const list = await call(await as(sam), 'list_friend_invites', {});
     expect(list.data).toMatchObject({ invited: [], unused: 0 });
     expect(await findUserByEmail(env.DB, 'ana@example.com')).toBeNull();
     // The address is gone from the log too, and the send has aged out of the 30 days.
@@ -375,14 +375,14 @@ describe('the owner', () => {
     await send(sam, 'ben@example.com');
     await inviteUser(env.DB, 'added@example.com');
     const client = await as(owner, true);
-    const people = (await call(client, 'manage_invites', { action: 'list' })).data.people as { email: string; invitedBy: string | null; invitesLast30Days: number }[];
+    const people = (await call(client, 'list_invitations', {})).data.people as { email: string; invitedBy: string | null; invitesLast30Days: number }[];
     const by = Object.fromEntries(people.map((p) => [p.email, p]));
     expect(by['ana@example.com']).toMatchObject({ invitedBy: 'sam@example.com', invitesLast30Days: 0 });
     expect(by['sam@example.com']).toMatchObject({ invitedBy: null, invitesLast30Days: 2 });
     expect(by['added@example.com']).toMatchObject({ invitedBy: null, invitesLast30Days: 0 });
-    expect((await call(client, 'manage_invites', { action: 'remove', email: 'ana@example.com' })).data.removed).toBe(true);
+    expect((await call(client, 'remove_invitation', { email: 'ana@example.com' })).data.removed).toBe(true);
     expect(await logRows(sam.id)).toBe(2);
-    const mine = await call(await as(sam), 'invite_friend', { action: 'list' });
+    const mine = await call(await as(sam), 'list_friend_invites', {});
     expect((mine.data.invited as { email: string }[]).map((p) => p.email)).toEqual(['ben@example.com']);
     expect(mine.data.invitationsLeft).toBe(1);
   });
@@ -434,7 +434,7 @@ describe('export, delete and the privacy notice', () => {
     const ben = (await findUserByEmail(env.DB, 'ben@example.com'))!;
     await recordLogin(env.DB, ben.id);
     await deleteUser(env.DB, ben);
-    const list = await call(await as(sam), 'invite_friend', { action: 'list' });
+    const list = await call(await as(sam), 'list_friend_invites', {});
     expect(list.data).toMatchObject({ invited: [], invitationsLeft: 2 });
   });
 
@@ -443,7 +443,7 @@ describe('export, delete and the privacy notice', () => {
     const ana = await signedInUser(env, 'ana@example.com');
     await send(sam, 'ana@example.com');
     await deleteUser(env.DB, ana);
-    expect((await call(await as(sam), 'invite_friend', { action: 'list' })).data).toMatchObject({ invited: [], invitationsLeft: 2 });
+    expect((await call(await as(sam), 'list_friend_invites', {})).data).toMatchObject({ invited: [], invitationsLeft: 2 });
   });
 
   it('says in the privacy notice what is kept for an invitation', () => {

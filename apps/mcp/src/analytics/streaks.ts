@@ -1,5 +1,5 @@
 // Builds the streak engine's input (packages/core domain/streaks) from a person's stored rows.
-import { addDays } from '@fitwell/core/domain/dates';
+import { addDays, weekStart } from '@fitwell/core/domain/dates';
 import type { Day } from '@fitwell/core/domain/dates';
 import { computeStreaks, type OptionalStreak, type Streak, type StreakResult } from '@fitwell/core/domain/streaks';
 import type { AchievementKind } from '../data/achievements';
@@ -27,6 +27,8 @@ export interface LoadedStreaks {
   food: DayTotal[];
   /** The goal weight in kg, if one is set. */
   goalWeightKg: number | null;
+  /** The Mondays of the weeks the person froze, from the first week looked at (some may be ahead of today). */
+  frozenWeeks: Day[];
 }
 
 export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
@@ -38,7 +40,7 @@ export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
   const goalWeightSince = goals?.goalWeightKg != null ? goalSince : null;
   const weighFrom = goalWeightSince && addDays(goalWeightSince, -TREND_LEAD_DAYS) < historyFrom ? addDays(goalWeightSince, -TREND_LEAD_DAYS) : historyFrom;
 
-  const [workouts, food, weighIns] = await Promise.all([deps.workouts.between(historyFrom, today), deps.data.dayTotals(historyFrom, today), deps.body.weights(weighFrom, today)]);
+  const [workouts, food, weighIns, frozenWeeks] = await Promise.all([deps.workouts.between(historyFrom, today), deps.data.dayTotals(historyFrom, today), deps.body.weights(weighFrom, today), deps.data.streakFreezes(weekStart(historyFrom))]);
   const result = computeStreaks({
     today,
     historyFrom,
@@ -48,8 +50,9 @@ export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
     food: food.map((d) => ({ day: d.day, proteinG: d.protein })),
     weighIns: weighIns.map((w) => ({ day: w.day, kg: w.kg })),
     goals: { workoutsPerWeek: goals?.workoutsPerWeek ?? null, proteinG: goals?.proteinG ?? null, goalWeightKg: goals?.goalWeightKg ?? null, goalWeightSince },
+    freezes: frozenWeeks,
   });
-  return { today, result, workouts, food, goalWeightKg: goals?.goalWeightKg ?? null };
+  return { today, result, workouts, food, goalWeightKg: goals?.goalWeightKg ?? null, frozenWeeks };
 }
 
 /** The streaks in a line each, for tools that only mention them (get_progress); get_streaks has the full result. */

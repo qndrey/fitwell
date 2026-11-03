@@ -1,7 +1,7 @@
 // Adds an address to the invite list. Usage (from the repo root):
 //   npm run invite -w @fitwell/mcp -- someone@example.com            (local dev database)
 //   npm run invite -w @fitwell/mcp -- someone@example.com --remote   (the deployed database)
-// No email is sent to them: tell them to add the connector in Claude. (From Claude, manage_invites approve invites a waiting
+// No email is sent to them: tell them to add the connector in Claude. (From Claude, approve_invite_request invites a waiting
 // request and emails them the instructions.)
 import { execFileSync } from 'node:child_process';
 

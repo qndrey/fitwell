@@ -2,7 +2,7 @@ import { OAuthProvider, type OAuthHelpers } from '@cloudflare/workers-oauth-prov
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
 import { mailerFor } from './auth/mailer';
-import { page, privacyBody } from './auth/pages';
+import { page, privacyBody, supportBody, termsBody } from './auth/pages';
 import { handleRequestAccess } from './auth/requestAccess';
 import { ICONS } from './icons';
 import { handleImport } from './import/routes';
@@ -18,12 +18,13 @@ interface Props {
 }
 // REVIEW_LOGIN is an optional secret (wrangler secret put REVIEW_LOGIN), so it is not in the generated Env.
 // RESEND_API_KEY is an optional secret too: with it sign-in and invitation emails go through Resend (to any address), else through Cloudflare.
-type OptionalSecrets = { RESEND_API_KEY?: string };
+// OPENAI_APPS_CHALLENGE is the domain-verification token from OpenAI's plugin portal (wrangler secret put OPENAI_APPS_CHALLENGE).
+type OptionalSecrets = { RESEND_API_KEY?: string; OPENAI_APPS_CHALLENGE?: string };
 type EnvWithOAuth = Env & { OAUTH_PROVIDER: OAuthHelpers; REVIEW_LOGIN?: string } & OptionalSecrets;
 
 const adminEmails = (env: Env) => (env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
 
-/** The reviewers' fixed-code sign-in, never for an admin address (manage_invites must stay behind a real email). */
+/** The reviewers' fixed-code sign-in, never for an admin address (the owner's invitation tools must stay behind a real email). */
 function reviewLogin(env: EnvWithOAuth) {
   const review = parseReviewLogin(env.REVIEW_LOGIN);
   return review && !adminEmails(env).includes(review.email) ? review : undefined;
@@ -59,14 +60,23 @@ async function serveMcp(request: Request, env: Env & OptionalSecrets & { REVIEW_
 const LANDING_URL = 'https://fitwell.fyi/';
 
 const site = {
-  async fetch(request: Request, env: EnvWithOAuth): Promise<Response> {
+  async fetch(request: Request, env: EnvWithOAuth & OptionalSecrets, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/authorize' || url.pathname === '/authorize/link') {
       return handleAuthorize(request, { db: env.DB, oauth: env.OAUTH_PROVIDER, mailer: mailerFor(env), publicUrl: env.PUBLIC_URL, review: reviewLogin(env) });
     }
-    if (url.pathname === '/request-access') return handleRequestAccess(request, { db: env.DB, contact: env.CONTACT_EMAIL });
+    if (url.pathname === '/request-access') {
+      const notify = { mailer: mailerFor(env), to: env.CONTACT_EMAIL, waitUntil: (p: Promise<unknown>) => ctx.waitUntil(p) };
+      return handleRequestAccess(request, { db: env.DB, contact: env.CONTACT_EMAIL, notify });
+    }
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
+    if (url.pathname === '/support') return page('Fitwell support', supportBody(env.CONTACT_EMAIL));
+    if (url.pathname === '/terms') return page('Fitwell terms of service', termsBody(env.CONTACT_EMAIL));
+    // OpenAI's plugin portal proves we own the server's host: it gives a token, we answer it as plain text (only while the secret is set).
+    if (url.pathname === '/.well-known/openai-apps-challenge' && env.OPENAI_APPS_CHALLENGE) {
+      return new Response(env.OPENAI_APPS_CHALLENGE.trim(), { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+    }
     const icon = ICONS[url.pathname];
     if (icon) return new Response(Uint8Array.from(atob(icon.base64), (c) => c.charCodeAt(0)), { headers: { 'content-type': icon.type, 'cache-control': 'public, max-age=86400' } });
     // The page about Fitwell for Claude, with how to add the connector, is the landing page (apps/landing). It used to be

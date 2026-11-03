@@ -20,8 +20,8 @@ export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[
   {
     id: "next",
     label: "Next",
-    sub: "Streaks and friends",
-    blurb: "What is being built now: injuries remembered, reasons to come back, and training with people you trust.",
+    sub: "Injuries and households",
+    blurb: "What is being built now: injuries remembered, one meal plan for people who cook together, and finding Fitwell in Claude.",
   },
   {
     id: "then",
@@ -235,20 +235,30 @@ export const ITEMS: RoadmapItem[] = [
     detail: "So adding Fitwell is a click instead of a pasted address. It stays invite-only.",
   },
   {
+    id: "friends",
+    stage: "shipped",
+    theme: "friends",
+    status: "shipped",
+    title: "Friends and nicknames",
+    summary: "Connect by nickname, and choose what each friend can see.",
+    detail:
+      "Pick a nickname and share it instead of your email. Connecting shares nothing: for each friend you choose, one kind at a time, whether they see your workouts, your consistency, your templates or your body data, and you can take any of it back.",
+  },
+  {
     id: "streaks",
-    stage: "next",
+    stage: "shipped",
     theme: "streaks",
-    status: "next",
+    status: "shipped",
     title: "Streaks that forgive",
     summary: "Weeks of training and days of logging, without punishing a rest week.",
     detail:
-      "A training week counts when you hit your workout target. One rest or sick week in twelve, or a freeze you set, keeps the streak. Logging counts any day with at least one meal, so partial days do not hurt. Milestones at 1, 2, 3, 5, 7, 14, 21, 30 and 52.",
+      "A training week counts when you hit your workout target. One rest or sick week in twelve, or a freeze you set for a holiday or an illness, keeps the streak. Logging counts any day with at least one meal, so partial days do not hurt. Ask for your streaks any time, with the next milestone and how far away it is.",
   },
   {
     id: "celebrate",
-    stage: "next",
+    stage: "shipped",
     theme: "streaks",
-    status: "next",
+    status: "shipped",
     title: "Celebrations",
     summary: "A calm moment when you hit a milestone, once.",
     detail:
@@ -256,9 +266,9 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "cards",
-    stage: "next",
+    stage: "shipped",
     theme: "streaks",
-    status: "next",
+    status: "shipped",
     title: "Share cards",
     summary: "A picture of your milestone, if you want to post it.",
     detail:
@@ -266,12 +276,13 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "send",
-    stage: "next",
+    stage: "shipped",
     theme: "friends",
-    status: "next",
-    title: "Send a workout, recipe or plan",
+    status: "shipped",
+    title: "Send a workout or recipe",
     summary: "Give a friend a copy of what works for you.",
-    detail: "They get their own copy when they accept. Nothing else about you becomes visible, and sharing is off by default.",
+    detail:
+      "They get their own copy only when they accept, and it never replaces anything of theirs. Nothing else about you becomes visible. Sending a whole week's meal plan comes later.",
   },
   {
     id: "household",
@@ -284,12 +295,13 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "digests",
-    stage: "next",
+    stage: "shipped",
     theme: "logging",
-    status: "next",
+    status: "shipped",
     title: "Email digests",
     summary: "A Sunday summary and a nudge when you go quiet. Opt-in.",
-    detail: "Each digest is a separate switch, off until you turn it on, with an unsubscribe link in every email.",
+    detail:
+      "Each digest is a separate switch, off until you ask your assistant for it, with an unsubscribe link in every email. They arrive in your own evening and say plainly what you did, never what you should have.",
   },
 
   // Then
@@ -390,12 +402,13 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "feed",
-    stage: "after",
+    stage: "shipped",
     theme: "friends",
-    status: "planned",
+    status: "shipped",
     title: "Crew feed",
-    summary: "See friends' finished workouts and send kudos.",
-    detail: "Only what each friend chose to share. Body weight is never in a feed.",
+    summary: "See friends' recent workouts and send kudos.",
+    detail:
+      "Only what each friend chose to share, as counts and names: no weights, no notes, and body weight is never in it. New personal bests in the feed are next.",
   },
   {
     id: "challenges",

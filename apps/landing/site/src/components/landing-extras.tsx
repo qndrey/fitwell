@@ -31,15 +31,17 @@ export function useReveal() {
   }, []);
 }
 
+// Links work from any page of the site: "/#id" jumps within the home page and goes there from another page; "/tools" is its own page.
 const NAV = [
-  { href: "#features", label: "Features" },
-  { href: "#roadmap", label: "Roadmap" },
-  { href: "#join", label: "Join" },
+  { href: "/#features", label: "Features" },
+  { href: "/tools", label: "Tools" },
+  { href: "/#roadmap", label: "Roadmap" },
+  { href: "/#join", label: "Join" },
 ];
 
-export function SiteHeader({ children }: { children: ReactNode }) {
+export function SiteHeader({ children, page = "" }: { children: ReactNode; /** The path of a page that is itself in the nav, e.g. "/tools". */ page?: string }) {
   const [scrolled, setScrolled] = useState(false);
-  const [current, setCurrent] = useState("");
+  const [current, setCurrent] = useState(page);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -47,12 +49,13 @@ export function SiteHeader({ children }: { children: ReactNode }) {
     window.addEventListener("scroll", onScroll, { passive: true });
     const io = new IntersectionObserver(
       (entries) => {
-        for (const e of entries) if (e.isIntersecting) setCurrent(`#${e.target.id}`);
+        for (const e of entries) if (e.isIntersecting) setCurrent(`/#${e.target.id}`);
       },
       { rootMargin: "-45% 0px -50% 0px" },
     );
     NAV.forEach((n) => {
-      const el = document.querySelector(n.href);
+      if (!n.href.startsWith("/#")) return;
+      const el = document.querySelector(n.href.slice(1));
       if (el) io.observe(el);
     });
     return () => {
@@ -64,7 +67,7 @@ export function SiteHeader({ children }: { children: ReactNode }) {
   return (
     <header className={cn("sticky top-0 z-40 border-b transition-colors duration-300", scrolled ? "border-border bg-background/75 backdrop-blur-xl" : "border-transparent")}>
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
-        <a href="#top" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+        <a href="/#top" className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
           <img src="/icon-512.png" alt="" width={32} height={32} className="size-8 rounded-[22%]" />
           <span>Fitwell</span>
         </a>

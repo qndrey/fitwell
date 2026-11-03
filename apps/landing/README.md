@@ -20,6 +20,14 @@ The page is edited in this repository: `site/` is the source (TanStack Start, Re
 - Images from the Lovable days (`src/assets/*.png.asset.json`, `/__l5e/...`): a small Vite plugin in `vite.config.ts` points those at the PNG beside them. New images are plain PNG imports and need none of this.
 - Headers: `scripts/static-headers.mjs` writes `_headers` with the same strict CSP as the rest of Fitwell. TanStack's few inline bootstrap scripts are allowed by their exact hashes, which are recomputed on every build.
 
+## The Tools page (/tools)
+
+`site/src/routes/tools.tsx` is a second, prerendered page that explains every tool: its name, what it does, what to say, whether it only looks, saves, or opens a page, and screenshots of the pages it opens. The copy lives in `site/src/lib/tools.ts` (`CATEGORIES`; `UNLISTED_TOOLS` are the ones the pages call with buttons and the owner's, which are not things to ask for). `apps/mcp/tests/landing-tools.test.ts` fails when a tool is added, renamed or removed in the MCP server without this list following, and checks its "looks only" and "asks first" labels against the server's hints.
+
+A page is prerendered only if it is listed under `pages` in `site/vite.config.ts` (`crawlLinks` is off), so a new route needs an entry there. The nav (`NAV` in `components/landing-extras.tsx`) uses `/#section` links so it works from any page.
+
+The milestone page, the share card and the crew feed screenshots come from `apps/mcp/scripts/screenshots-social.ts` (no server or database needed: the built views get fixed sample data; run `npm run build:ui` first, then `npx tsx scripts/screenshots-social.ts` from `apps/mcp`). Add a `SIZES` entry for a new image in both `routes/index.tsx` and `routes/tools.tsx`.
+
 ## Changing the page
 
 **Invite form.** Step 1 of "How to join" (`InviteForm` in `site/src/routes/index.tsx`) posts to `https://mcp.fitwell.fyi/request-access` with fetch and shows the answer in place, so the visitor stays on the page. The MCP server answers JSON only to `LANDING_ORIGINS` in `apps/mcp/src/auth/requestAccess.ts`, and the CSP allows it with `connect-src https://mcp.fitwell.fyi`. Deploy the MCP server before the page, or the form cannot read the answer.

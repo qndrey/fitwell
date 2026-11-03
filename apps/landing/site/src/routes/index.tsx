@@ -13,10 +13,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
-  Monitor,
-  Moon,
+  Share2,
+  Users,
   ShieldCheck,
-  Sun,
   KeyRound,
   MapPin,
   CircleHelp,
@@ -25,6 +24,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Roadmap } from "@/components/roadmap";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { BackToTop, ChatDemo, HeroCanvas, SiteHeader, Tilt, useReveal } from "@/components/landing-extras";
 
 // Every screenshot exists in a light and a dark version (<name>-light.png, <name>-dark.png), taken from the
@@ -45,6 +45,9 @@ const SIZES: Record<string, [number, number]> = {
   lift: [796, 1836],
   shopping: [796, 1200],
   review: [796, 1216],
+  milestone: [796, 842],
+  crew: [796, 1570],
+  sharecard: [1080, 1350],
 };
 
 const TITLE = "Fitwell";
@@ -427,6 +430,28 @@ const features: Feature[] = [
     alt: "The weekly review for 5 to 11 October: the week's calories, workouts and weigh-ins, then a row of icon tabs and the what-went-well card",
     maxH: "max-h-[520px]",
   },
+  {
+    tab: "Streaks",
+    title: "Streaks that forgive a rest week",
+    bullets: [
+      "Weeks of training and days of logging, counted from what you actually did. One rest or sick week in twelve, or a freeze you set for a holiday, keeps a streak going.",
+      "A calm moment when you reach a milestone, once, and a card you can save in feed, story or square size. Your name and weight are off unless you turn them on for that card.",
+    ],
+    shot: "milestone",
+    alt: "A milestone page: a ring around the number 7 and the words 7 weeks of training, 3 workouts or more each week, 23 workouts and 341 sets, next milestone 14 weeks with 7 to go",
+    maxH: "max-h-[520px]",
+  },
+  {
+    tab: "Friends",
+    title: "Train with people you trust",
+    bullets: [
+      "Pick a nickname and share it instead of your email. Connecting shares nothing: you choose, per friend and one kind at a time, whether they see your workouts, your consistency, your templates or your body data.",
+      "A feed of friends' recent workouts, as counts and names only, with kudos. Send a friend a template or recipe: they get a copy only if they accept.",
+    ],
+    shot: "crew",
+    alt: "The crew feed: three friends with the streaks they share, their recent workouts such as Push day with 6 exercises and 18 sets and a kudos button, and kudos on your own leg day",
+    maxH: "max-h-[560px]",
+  },
 ];
 
 function FeatureCarousel() {
@@ -546,6 +571,8 @@ const little = [
   { icon: Refrigerator, title: "What can I cook?", text: "Ranks your recipes by what is in the fridge." },
   { icon: TriangleAlert, title: "Allergen warnings", text: "Warnings for packaged foods that contain your allergens." },
   { icon: Sunrise, title: "A morning brief", text: "Set up a scheduled task in your assistant for a daily summary." },
+  { icon: Users, title: "Friends by nickname", text: "Connect without sharing an email, and share only what you choose." },
+  { icon: Share2, title: "Share cards", text: "Save a picture of a milestone in feed, story or square size." },
   { icon: Download, title: "Export or delete", text: "Take everything with you, or delete your account any time." },
 ];
 
@@ -565,6 +592,14 @@ const faqs = [
   {
     q: "Can I invite a friend?",
     a: "If you already use Fitwell regularly, yes: ask your assistant to invite a friend by email address. Your friend gets one email saying you invited them and how to connect. There are a few invitations each month, so it is not for everyone at once.",
+  },
+  {
+    q: "What can my friends see?",
+    a: "Nothing, until you decide. Connecting with a friend shares nothing. For each friend you choose, one kind at a time, whether they see your workouts, your consistency (streaks, no numbers), your templates and recipes, or your body data, and you can take any of it back. Friends see counts and names, never weights or notes, and your weight only if you share body data with that friend. You can connect by nickname, so you never have to hand out your email address.",
+  },
+  {
+    q: "Will Fitwell email me?",
+    a: "Only if you ask. A Sunday summary and a nudge after a few quiet days are each a separate switch, off until you ask your assistant to turn them on, and every email has an unsubscribe link.",
   },
   {
     q: "What does it cost?",
@@ -632,49 +667,6 @@ function Questions({ items }: { items: { q: string; a: string | string[] }[] }) 
         </details>
       ))}
     </div>
-  );
-}
-
-type ThemeMode = "auto" | "light" | "dark";
-const THEME_ORDER: ThemeMode[] = ["auto", "light", "dark"];
-const THEME_LABEL: Record<ThemeMode, string> = { auto: "Match system", light: "Light", dark: "Dark" };
-
-function ThemeToggle() {
-  const [mode, setMode] = useState<ThemeMode>("auto");
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem("fitwell-theme");
-      if (stored === "light" || stored === "dark") setMode(stored);
-    } catch {
-      /* storage blocked: stay on the system theme */
-    }
-  }, []);
-
-  const choose = (next: ThemeMode) => {
-    setMode(next);
-    if (next === "auto") document.documentElement.removeAttribute("data-theme");
-    else document.documentElement.setAttribute("data-theme", next);
-    try {
-      if (next === "auto") window.localStorage.removeItem("fitwell-theme");
-      else window.localStorage.setItem("fitwell-theme", next);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const Icon = mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
-  const next = THEME_ORDER[(THEME_ORDER.indexOf(mode) + 1) % THEME_ORDER.length] ?? "auto";
-  return (
-    <button
-      type="button"
-      onClick={() => choose(next)}
-      aria-label={`Colour theme: ${THEME_LABEL[mode]}. Switch to ${THEME_LABEL[next]}.`}
-      title={`Theme: ${THEME_LABEL[mode]}`}
-      className="inline-flex size-9 items-center justify-center rounded-full border hover:bg-card"
-    >
-      <Icon className="size-4" aria-hidden />
-    </button>
   );
 }
 
@@ -759,6 +751,21 @@ function Index() {
           </div>
         </Section>
 
+        {/* Every tool */}
+        <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8 md:pb-20">
+          <div data-reveal className="flex flex-col items-start gap-5 rounded-3xl border bg-card/60 p-8 sm:flex-row sm:items-center sm:justify-between sm:p-10">
+            <div className="max-w-2xl">
+              <h2 className="text-2xl sm:text-3xl">Every tool, explained</h2>
+              <p className="mt-3 leading-relaxed text-muted-foreground">
+                What each thing your assistant can do in Fitwell is called, what it does, what to say to use it, and how it looks.
+              </p>
+            </div>
+            <a href="/tools" className="whitespace-nowrap rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
+              Browse the tools
+            </a>
+          </div>
+        </section>
+
         {/* Walkthrough: recorded by apps/mcp/scripts/demo-walkthrough.ts into public/demo */}
         <Section id="walkthrough" className="pb-16 md:pb-20">
           <div data-reveal className="grid items-center gap-10 md:grid-cols-[1fr_auto] md:gap-16">
@@ -791,7 +798,7 @@ function Index() {
         <section className="border-y bg-card/50">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 md:py-28">
             <h2 className="text-3xl sm:text-5xl" data-reveal>And a few more</h2>
-            <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {little.map(({ icon: Icon, title, text }, i) => (
                 <li
                   key={title}

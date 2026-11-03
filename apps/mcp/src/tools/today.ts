@@ -91,7 +91,7 @@ export function registerTodayTools(server: McpServer, deps: TodayDeps) {
       // The same check the suggestions go through: nothing that matches an allergy word is logged in one tap.
       const allergies = (await deps.data.profile()).diet.allergies.map((a) => a.trim().toLowerCase()).filter(Boolean);
       if (allergies.some((a) => e.foodName.toLowerCase().includes(a))) return toolError(`${e.foodName} matches an allergy on the profile, so it is not logged in one tap.`);
-      await deps.data.addFoodEntries([{ day: today.day, slot: today.slot, foodRef: e.foodRef, foodName: e.foodName, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, ...(e.extras ? { extras: e.extras } : {}), estimated: e.estimated }]);
+      await deps.data.addFoodEntries([{ day: today.day, slot: today.slot, foodRef: e.foodRef, foodName: e.foodName, brand: e.brand, grams: e.grams, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, ...(e.extras ? { extras: e.extras } : {}), estimated: e.estimated, ...(e.kcalRange ? { kcalRange: e.kcalRange } : {}) }]);
       return fresh();
     },
   );

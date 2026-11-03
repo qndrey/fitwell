@@ -85,7 +85,7 @@ export function ruleText(c: Pick<Challenge, 'metric' | 'threshold' | 'perWeek' |
 export async function scoreOf(db: D1Database, userId: string, c: Challenge, upTo: string): Promise<number> {
   const to = upTo < c.endDay ? upTo : c.endDay;
   if (to < c.startDay) return 0;
-  let days: string[] = [];
+  let days: string[];
   if (c.metric === 'training_days') {
     const { results } = await db.prepare("SELECT DISTINCT day FROM workouts WHERE user_id = ? AND day BETWEEN ? AND ? AND (type != 'strength' OR finished_at IS NOT NULL)").bind(userId, c.startDay, to).all<Row>();
     days = results.map((r) => r.day as string);

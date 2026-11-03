@@ -80,6 +80,22 @@ export class PlanData {
     return (await this.recipeByName(name))!;
   }
 
+  /** Adds a recipe under a name that is not in use; false (and nothing written) when the name is taken, in any case. It never replaces one. */
+  async addRecipe(name: string, servings: number, items: RecipeItem[], extra: { notes: string | null; sourceUrl: string | null; steps: string[] }): Promise<boolean> {
+    if (await this.recipeByName(name)) return false;
+    const now = this.now();
+    try {
+      await this.db
+        .prepare('INSERT INTO recipes (id, user_id, name, servings, items, notes, source_url, steps, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(crypto.randomUUID(), this.userId, name, servings, JSON.stringify(items), extra.notes, extra.sourceUrl, extra.steps.length ? JSON.stringify(extra.steps) : null, now, now)
+        .run();
+      return true;
+    } catch (e) {
+      if (/unique|constraint/i.test(e instanceof Error ? e.message : String(e))) return false;
+      throw e;
+    }
+  }
+
   async recipeByName(name: string): Promise<Recipe | null> {
     const r = await this.db.prepare('SELECT * FROM recipes WHERE user_id = ? AND name = ? COLLATE NOCASE').bind(this.userId, name).first<Row>();
     return r ? toRecipe(r) : null;

@@ -98,6 +98,30 @@ describe('receiving', () => {
     expect(names).toEqual(['Push day', 'Push day (from a friend)']);
   });
 
+  it('accepting can never update what the friend has, even when every name is taken', async () => {
+    await saveTemplate('Push day');
+    await call(anaC, 'send_to_friend', { connection_id: id, kind: 'template', name: 'Push day' });
+    const names = ['Push day', 'Push day (from a friend)', ...Array.from({ length: 48 }, (_, i) => `Push day (from a friend) (${i + 2})`)];
+    const own = JSON.stringify([{ id: SQUAT, sets: 5, reps: 3, restSec: 90 }]);
+    for (const n of names) await env.DB.prepare('INSERT INTO workout_templates (id, user_id, name, exercises, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 1)').bind(crypto.randomUUID(), bo.id, n, own).run();
+    const before = (await env.DB.prepare('SELECT COUNT(*) AS n, SUM(updated_at) AS u FROM workout_templates WHERE user_id = ?').bind(bo.id).first<{ n: number; u: number }>())!;
+    const item = (await received(boC))[0]!;
+    expect((await call(boC, 'accept_received_item', { transfer_id: item.transferId })).isError).toBe(true);
+    const after = (await env.DB.prepare('SELECT COUNT(*) AS n, SUM(updated_at) AS u FROM workout_templates WHERE user_id = ?').bind(bo.id).first<{ n: number; u: number }>())!;
+    expect(after).toEqual(before); // nothing added, nothing changed
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM workout_templates WHERE user_id = ? AND exercises != ?').bind(bo.id, own).first<{ n: number }>())!.n).toBe(0);
+    expect(await received(boC)).toHaveLength(1); // still there to answer later
+  });
+
+  it('a recipe is not added under a name that differs only in case', async () => {
+    await saveRecipe('Porridge');
+    await call(boC, 'save_recipe', { name: 'PORRIDGE', servings: 1, ingredients: [{ food_id: 'frida:59', grams: 50 }] });
+    await call(anaC, 'send_to_friend', { connection_id: id, kind: 'recipe', name: 'Porridge' });
+    const saved = await call(boC, 'accept_received_item', { transfer_id: (await received(boC))[0]!.transferId });
+    expect(saved.data.name).toBe('Porridge (from a friend)');
+    expect(((await call(boC, 'get_recipes', { name: 'PORRIDGE' })).data as { recipe: { servings: number } }).recipe.servings).toBe(1); // theirs, untouched
+  });
+
   it('declining hides it, tells the sender nothing, and still counts against their limit', async () => {
     await saveTemplate();
     await call(anaC, 'send_to_friend', { connection_id: id, kind: 'template', name: 'Push day' });

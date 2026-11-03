@@ -177,23 +177,25 @@ export class TransfersData {
     }
     const kind = t.kind as TransferKind;
     const from = ((t.nickname as string | null) ?? 'a friend').slice(0, 20);
-    const exists = (n: string) => (kind === 'template' ? this.workouts.templateByName(n) : this.plans.recipeByName(n));
-    // A name already in use is not replaced: the copy is "Push day (from ana_fit)", then "(2)", "(3)"...
-    let name = cleanText(snap.name, 60) || 'Received';
-    if (await exists(name)) {
-      const base = `${name.slice(0, 60 - from.length - 8)} (from ${from})`;
-      name = base;
-      for (let n = 2; (await exists(name)) && n < 50; n++) name = `${base.slice(0, 55)} (${n})`;
-    }
+    // A name already in use is never replaced: the copy is "Push day (from ana_fit)", then "(2)", "(3)"... Each name is tried with an insert that
+    // fails when the name is taken, so accepting can never update what the person has, even if every suffix is used or two answers race.
+    const wanted = cleanText(snap.name, 60) || 'Received';
+    const base = `${wanted.slice(0, 60 - from.length - 8)} (from ${from})`;
+    const names = [wanted, base, ...Array.from({ length: 48 }, (_, i) => `${base.slice(0, 55)} (${i + 2})`)];
+    let saved: string | null = null;
     if (kind === 'template') {
       const ex = Array.isArray(snap.exercises) ? (snap.exercises as TemplateExercise[]) : [];
       if (ex.length === 0 || ex.length > 15) return null;
-      await this.workouts.saveTemplate(name, ex, Array.isArray(snap.cardio) ? (snap.cardio as TemplateCardio[]) : []);
+      const cardio = Array.isArray(snap.cardio) ? (snap.cardio as TemplateCardio[]) : [];
+      for (const n of names) if (await this.workouts.addTemplate(n, ex, cardio)) { saved = n; break; }
     } else {
       const items = Array.isArray(snap.items) ? (snap.items as RecipeItem[]) : [];
       if (items.length === 0) return null;
-      await this.plans.saveRecipe(name, num(snap.servings, 1, 100, 1), items, { notes: (snap.notes as string | null) ?? null, sourceUrl: null, steps: Array.isArray(snap.steps) ? (snap.steps as string[]) : [] });
+      const extra = { notes: (snap.notes as string | null) ?? null, sourceUrl: null, steps: Array.isArray(snap.steps) ? (snap.steps as string[]) : [] };
+      for (const n of names) if (await this.plans.addRecipe(n, num(snap.servings, 1, 100, 1), items, extra)) { saved = n; break; }
     }
+    if (saved === null) return null; // every name was taken: nothing is saved and the item stays to be answered later
+    const name = saved;
     await this.db.prepare('DELETE FROM item_transfers WHERE id = ? AND recipient_id = ?').bind(transferId, this.userId).run();
     return { kind, name };
   }

@@ -234,6 +234,21 @@ export class WorkoutData {
     return (await this.templateByName(name))!;
   }
 
+  /** Adds a template under a name that is not in use; false (and nothing written) when the name is taken. It never replaces one. */
+  async addTemplate(name: string, exercises: TemplateExercise[], cardio: TemplateCardio[] = []): Promise<boolean> {
+    const now = this.now();
+    try {
+      await this.db
+        .prepare('INSERT INTO workout_templates (id, user_id, name, exercises, cardio_blocks, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .bind(crypto.randomUUID(), this.userId, name, JSON.stringify(exercises), cardio.length ? JSON.stringify(cardio) : null, now, now)
+        .run();
+      return true;
+    } catch (e) {
+      if (/unique|constraint/i.test(e instanceof Error ? e.message : String(e))) return false;
+      throw e;
+    }
+  }
+
   async templateByName(name: string): Promise<Template | null> {
     const r = await this.db.prepare('SELECT * FROM workout_templates WHERE user_id = ? AND name = ?').bind(this.userId, name).first<Row>();
     return r ? toTemplate(r) : null;

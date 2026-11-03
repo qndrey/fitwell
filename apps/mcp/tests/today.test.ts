@@ -147,6 +147,25 @@ describe('water, steps and training', () => {
     expect((await view()).waterMl).toBe(750);
   });
 
+  it('shows the water goal, clears it with null, and refuses a silly one', async () => {
+    expect((await view()).waterGoalMl).toBeNull();
+    await call(client, 'set_goals', { water_ml: 2500 });
+    await call(client, 'today_add_water', { ml: 500 });
+    expect(await view()).toMatchObject({ waterMl: 500, waterGoalMl: 2500 });
+    expect((await call(client, 'set_goals', { water_ml: 50 })).isError).toBe(true);
+    expect((await call(client, 'set_goals', { kcal: 2000 })).data).toMatchObject({ goals: { waterMl: 2500 } }); // other goals leave it alone
+    await call(client, 'set_goals', { water_ml: null });
+    expect((await view()).waterGoalMl).toBeNull();
+  });
+
+  it('get_progress counts the days the water goal was met', async () => {
+    await call(client, 'set_goals', { water_ml: 2000 });
+    await call(client, 'log_body', { day: today, water_ml: 2200 });
+    await call(client, 'log_body', { day: addDays(today, -1), water_ml: 1200 });
+    const p = (await call(client, 'get_progress', { days: 7 })).data as unknown as { dailyMetrics?: { waterGoalMl: number; waterDaysMet: number } };
+    expect(p.dailyMetrics).toMatchObject({ waterGoalMl: 2000, waterDaysMet: 1 });
+  });
+
   it('shows what was trained today, and suggests the saved workout that has waited longest, not a schedule', async () => {
     await call(client, 'update_profile', { weight_kg: 80 });
     await call(client, 'log_cardio', { activity_id: 'act:run-10', duration_min: 30, day: today });

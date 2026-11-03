@@ -32,6 +32,8 @@ export interface TodayView {
   planned: TodayMeal[];
   quickAdd: TodayQuickAdd[];
   waterMl: number;
+  /** The daily water goal in millilitres, when there is one. */
+  waterGoalMl: number | null;
   steps: number | null;
   training: {
     doneToday: { name: string; minutes: number | null; type: 'strength' | 'cardio' | 'session' }[];

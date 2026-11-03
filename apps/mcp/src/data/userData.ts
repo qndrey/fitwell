@@ -40,6 +40,8 @@ export interface Goals {
   addedSugarG: number | null;
   /** Hours of sleep to aim for a night. */
   sleepH: number | null;
+  /** Millilitres of water to drink a day. */
+  waterMl: number | null;
 }
 
 export interface FoodEntry extends Nutrients {
@@ -207,6 +209,7 @@ export class UserData {
       satFatG: (r.sat_fat_g as number | null) ?? null,
       addedSugarG: (r.added_sugar_g as number | null) ?? null,
       sleepH: (r.sleep_h as number | null) ?? null,
+      waterMl: (r.water_ml as number | null) ?? null,
     };
   }
 
@@ -217,21 +220,21 @@ export class UserData {
   }
 
   async setGoals(patch: Partial<Goals>): Promise<Goals> {
-    const empty: Goals = { kcal: null, proteinG: null, carbsG: null, fatG: null, workoutsPerWeek: null, goalWeightKg: null, fiberG: null, satFatG: null, addedSugarG: null, sleepH: null };
+    const empty: Goals = { kcal: null, proteinG: null, carbsG: null, fatG: null, workoutsPerWeek: null, goalWeightKg: null, fiberG: null, satFatG: null, addedSugarG: null, sleepH: null, waterMl: null };
     const before = await this.goals();
     const g = { ...empty, ...before, ...patch };
     // A new goal weight (not a repeat of the same one) starts its streak today, in the person's own time zone.
     const since = g.goalWeightKg === null ? null : g.goalWeightKg === (before?.goalWeightKg ?? null) ? await this.goalWeightSince() : todayIn((await this.profile()).timeZone, new Date(this.now()));
     await this.db
       .prepare(
-        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, fiber_g, sat_fat_g, added_sugar_g, sleep_h, goal_weight_since, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO goals (user_id, kcal, protein_g, carbs_g, fat_g, workouts_per_week, goal_weight_kg, fiber_g, sat_fat_g, added_sugar_g, sleep_h, water_ml, goal_weight_since, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (user_id) DO UPDATE SET kcal = excluded.kcal, protein_g = excluded.protein_g, carbs_g = excluded.carbs_g,
            fat_g = excluded.fat_g, workouts_per_week = excluded.workouts_per_week, goal_weight_kg = excluded.goal_weight_kg,
-           fiber_g = excluded.fiber_g, sat_fat_g = excluded.sat_fat_g, added_sugar_g = excluded.added_sugar_g, sleep_h = excluded.sleep_h,
+           fiber_g = excluded.fiber_g, sat_fat_g = excluded.sat_fat_g, added_sugar_g = excluded.added_sugar_g, sleep_h = excluded.sleep_h, water_ml = excluded.water_ml,
            goal_weight_since = excluded.goal_weight_since, updated_at = excluded.updated_at`,
       )
-      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, g.fiberG, g.satFatG, g.addedSugarG, g.sleepH, since, this.now())
+      .bind(this.userId, g.kcal, g.proteinG, g.carbsG, g.fatG, g.workoutsPerWeek, g.goalWeightKg, g.fiberG, g.satFatG, g.addedSugarG, g.sleepH, g.waterMl, since, this.now())
       .run();
     return g;
   }

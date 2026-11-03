@@ -61,7 +61,7 @@ export const CATEGORIES: Category[] = [
         name: "set_goals",
         kind: "saves",
         asks: true,
-        what: "Saves calorie and macro targets, a fibre target, limits for saturated fat and added sugar, sleep, workouts per week and a goal weight. Only what you name changes.",
+        what: "Saves calorie and macro targets, a fibre target, limits for saturated fat and added sugar, sleep, a daily water goal, workouts per week and a goal weight. Only what you name changes.",
         ask: "Set my goals to 2,300 kcal and 150 g of protein.",
       },
     ],

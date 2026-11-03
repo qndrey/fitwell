@@ -71,6 +71,7 @@ export async function buildToday(deps: TodayDeps, now: Date = new Date()): Promi
     planned,
     quickAdd,
     waterMl: metrics?.waterMl ?? 0,
+    waterGoalMl: goals?.waterMl ?? null,
     steps: metrics?.steps ?? null,
     training: { doneToday, suggested },
   };

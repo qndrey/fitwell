@@ -150,3 +150,4 @@ li.zonerow { display: block; padding: var(--s1) 0; border-bottom: 0; }
 .report .link, .next-up .link { min-height: var(--h-secondary); padding: 0; font-weight: 600; justify-self: start; }
 .next-up { display: grid; gap: var(--s2); padding: var(--s2) 0; }
 .next-up p { border-bottom: 0; padding: 0; }
+.injury { border-left: 3px solid var(--series-2, currentColor); padding-left: var(--s2, 8px); }

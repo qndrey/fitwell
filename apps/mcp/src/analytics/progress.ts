@@ -209,7 +209,7 @@ export function buildProgress(i: ProgressInput): Progress {
   const metrics: MetricsProgress = {
     sleep: { daily: sleep, averageHours: mean(sleep.map((x) => x.hours), 1), goalHours: g?.sleepH ?? null },
     steps: { daily: steps, average: mean(steps.map((x) => x.steps), 0) },
-    water: { daily: water, averageMl: mean(water.map((x) => x.ml), 0) },
+    water: { daily: water, averageMl: mean(water.map((x) => x.ml), 0), goalMl: g?.waterMl ?? null, daysMet: g?.waterMl ? water.filter((x) => x.ml >= g.waterMl!).length : null },
   };
 
   return { from: i.from, to: i.to, days, dataFrom, weight, nutrition, training, records, measurements: { types }, metrics, energy: buildEnergy(i, days) };
@@ -254,7 +254,7 @@ export function summarize(p: Progress) {
     records: r.exercises.map((e) => ({ name: e.name, sessions: e.sessions.length, firstE1rmKg: e.firstE1rmKg, latestE1rmKg: e.latestE1rmKg, bestE1rmKg: e.bestE1rmKg, bestDay: e.bestDay })),
     measurements: m.types.map((t) => ({ key: t.key, label: t.label, unit: t.unit, firstDay: t.firstDay, first: t.first, latestDay: t.latestDay, latest: t.latest, change: t.change })),
     energy: { ...p.energy, method: 'Average intake on fully logged days minus the weight trend (least squares) × 7700 kcal/kg; each 0.1 kg a week is about 110 kcal a day. suggest_targets with expenditure_kcal gives macros for any rate.' },
-    dailyMetrics: { sleepAverageHours: x.sleep.averageHours, sleepGoalHours: x.sleep.goalHours, nightsLogged: x.sleep.daily.length, stepsAverage: x.steps.average, stepsDaysLogged: x.steps.daily.length, waterAverageMl: x.water.averageMl, waterDaysLogged: x.water.daily.length },
+    dailyMetrics: { sleepAverageHours: x.sleep.averageHours, sleepGoalHours: x.sleep.goalHours, nightsLogged: x.sleep.daily.length, stepsAverage: x.steps.average, stepsDaysLogged: x.steps.daily.length, waterAverageMl: x.water.averageMl, waterGoalMl: x.water.goalMl, waterDaysMet: x.water.daysMet, waterDaysLogged: x.water.daily.length },
   };
 }
 

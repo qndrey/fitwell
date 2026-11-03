@@ -2,6 +2,8 @@ import type { Client } from '@modelcontextprotocol/client';
 import type { OffClient } from '@fitwell/core/off/client';
 import type { Candidate } from '@fitwell/core/schema';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { addDays } from '@fitwell/core/domain/dates';
+import { todayIn } from '../src/data/time';
 import { rankCookable } from '../src/planning/cookable';
 import { parseRecipePage, checkRecipeUrl, fetchPage } from '../src/recipes/parse';
 import { allergenTags, checkAllergens } from '../src/safety/allergens';
@@ -88,8 +90,10 @@ describe('daily metrics', () => {
   });
 
   it('draws measurement series for the dashboard', async () => {
-    await call(client, 'log_body', { day: '2026-10-01', measurements: { waist: 86 } });
-    await call(client, 'log_body', { day: '2026-10-13', measurements: { waist: 84.5 } });
+    // The dashboard looks back from the real today, so the days are dated from today too (fixed dates fall out of the window in time).
+    const today = todayIn('Europe/Copenhagen'); // the default time zone of a new profile
+    await call(client, 'log_body', { day: addDays(today, -12), measurements: { waist: 86 } });
+    await call(client, 'log_body', { day: today, measurements: { waist: 84.5 } });
     const res = await client.callTool({ name: 'show_dashboard', arguments: { days: 30 } });
     const types = (res.structuredContent as { progress: { measurements: { types: { key: string; points: { value: number }[] }[] } } }).progress.measurements.types;
     expect(types.find((t) => t.key === 'waist')!.points.map((p) => p.value)).toEqual([86, 84.5]);

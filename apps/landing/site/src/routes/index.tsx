@@ -49,6 +49,7 @@ const SIZES: Record<string, [number, number]> = {
   crew: [796, 1570],
   today: [796, 1834],
   mealplan: [796, 1702],
+  household: [796, 1046],
   sharecard: [1080, 1350],
 };
 
@@ -340,6 +341,7 @@ const features: Feature[] = [
     bullets: [
       "Describe a meal and it is logged with calories, protein, carbs, fat, fibre, sugars and salt, from 1,381 foods in the Danish national database plus packaged products via Open Food Facts.",
       "Snap a nutrition label to add a product, or log a meal from a photo, clearly marked as an estimate.",
+      "Eating out? A meal is logged as a range, such as 600 to 900 kcal, never a made-up exact number. The middle counts toward your day and the weekly review says how much of your calories were estimates.",
       "A summary card shows the day so far against your goals.",
     ],
     shot: "food",
@@ -474,6 +476,17 @@ const features: Feature[] = [
     ],
     shot: "crew",
     alt: "The crew feed: three friends with the streaks they share, their recent workouts such as Push day with 6 exercises and 18 sets and a kudos button, and kudos on your own leg day",
+    maxH: "max-h-[560px]",
+  },
+  {
+    tab: "Household",
+    title: "One plan and one shopping list for people who cook together",
+    bullets: [
+      "Invite friends to a household of up to six. The meal plan and the shopping list are shared: the list adds up everyone's portions, and ticks show for the whole household.",
+      "Each person has their own portion and keeps their own goals. Allergies, goals and what you eat stay yours: you are warned about your own allergies only, and nobody can read anyone else's.",
+    ],
+    shot: "household",
+    alt: "The household's shopping list for the week of 2 November, for 2.5 portions: 5 of 7 items left, grouped into Produce, Meat and fish, and Dairy and eggs, with broccoli and salmon ticked off",
     maxH: "max-h-[560px]",
   },
 ];
@@ -620,6 +633,14 @@ const faqs = [
   {
     q: "What can my friends see?",
     a: "Nothing, until you decide. Connecting with a friend shares nothing. For each friend you choose, one kind at a time, whether they see your workouts, your consistency (streaks, no numbers), your templates and recipes, or your body data, and you can take any of it back. Friends see counts and names, never weights or notes, and your weight only if you share body data with that friend. You can connect by nickname, so you never have to hand out your email address.",
+  },
+  {
+    q: "Can I plan meals with someone I live with?",
+    a: "Yes. Invite a friend to a household (up to six people) and you share one meal plan and one shopping list, each with your own portion. Only the plan, the portions and the shopping ticks are shared. Your goals, allergies, dislikes and what you ate stay yours: nobody in the household can see them, and a warning about an allergy is shown only to the person it is about.",
+  },
+  {
+    q: "Can it remember an injury?",
+    a: "If you tell your assistant and agree to it being saved. It keeps the body area, your own words, what to avoid and the dates. Searches, workouts and templates then flag exercises that load that area, and swaps put the others first. Fitwell does not diagnose, never calls an exercise safe, and never shows an injury to friends or on a card. It is in your export and deleted with your account.",
   },
   {
     q: "Will Fitwell email me?",

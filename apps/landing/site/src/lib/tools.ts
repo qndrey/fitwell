@@ -323,7 +323,10 @@ export const CATEGORIES: Category[] = [
         kind: "opens",
         what: "Opens the week's shopping list, grouped into sections such as Produce and Meat, that you tick off in the shop. For a household it is one list for everyone's portions together, with ticks the whole household sees.",
         ask: "Show my shopping list.",
-        shots: [{ name: "shopping", alt: "The week's shopping checklist: 9 of 12 items left, grouped into sections such as Produce and Meat, with some items ticked off" }],
+        shots: [
+          { name: "shopping", alt: "The week's shopping checklist: 9 of 12 items left, grouped into sections such as Produce and Meat, with some items ticked off" },
+          { name: "household", alt: "A household's shared shopping list for 2.5 portions: 5 of 7 items left, grouped into Produce, Meat and fish, and Dairy and eggs, with broccoli and salmon ticked off" },
+        ],
       },
       {
         name: "suggest_meals",

@@ -23,7 +23,11 @@ export interface SavedNotes {
   nutrition: { note: string; next: string | null } | null;
 }
 
+import type { MuscleVerdicts } from './muscleVerdicts';
+
 export interface WeekReview {
+  /** A verdict per muscle group trained in the period (A6); absent when the review was built without the workouts' muscles. */
+  muscles?: MuscleVerdicts;
   period: ReviewPeriod;
   /** First day: a Monday; for a month, three weeks before its last week. */
   weekStart: Day;

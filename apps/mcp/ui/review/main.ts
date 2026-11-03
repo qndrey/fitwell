@@ -9,14 +9,14 @@ import { notesCard } from '../shared/notes';
 import { icon, type IconName } from '../shared/icons';
 import { addDays, CONFIDENCE_WORD, gain, mondayOf, monthTitle, shortName, weekTitle } from './copy';
 
-type CardKey = 'week' | 'training-notes' | 'nutrition-notes' | 'food' | 'training' | 'body' | 'energy' | 'consider';
+type CardKey = 'week' | 'training-notes' | 'nutrition-notes' | 'food' | 'training' | 'muscles' | 'body' | 'energy' | 'consider';
 const state = { review: null as WeekReview | null, cardKey: 'week' as CardKey, loading: false, error: '' };
 /** What the numbers are compared with, in the review's own words. */
 const against = () => (state.review?.period === 'month' ? 'the 4 weeks before' : 'last week');
 /** The Monday of the review's last week (the week itself, or the end of a month). */
 const lastWeekOf = (r: WeekReview) => (r.period === 'month' ? addDays(r.weekStart, 21) : r.weekStart);
 /** Cards that compare with the earlier period say so in the label row. */
-const COMPARES: readonly CardKey[] = ['food', 'training', 'body'];
+const COMPARES: readonly CardKey[] = ['food', 'training', 'muscles', 'body'];
 
 const root = document.getElementById('app')!;
 const app = new App({ name: 'Fitwell weekly review', version: '0.1.0' }, {}, { autoResize: true });
@@ -109,6 +109,23 @@ function trainingCard(r: WeekReview): Built {
   };
 }
 
+function musclesCard(r: WeekReview): Built {
+  const name = 'Muscles';
+  const m = r.muscles;
+  if (!m || m.items.length === 0) return { key: 'muscles', name, body: [heading(name), empty(`No strength work logged this ${r.period === 'month' ? 'month' : 'week'}, so there is nothing to say about muscle groups yet.`)] };
+  const word = { none: 'not trained', below: 'under the range', in_range: 'in the range', high: 'above the range' } as const;
+  return {
+    key: 'muscles',
+    name,
+    say: `${m.items.length} muscle groups`,
+    body: [
+      heading(name),
+      h('p', { className: 'muted small' }, `Hard sets a week for each muscle group, against a usual ${m.range.low} to ${m.range.high}. A rough guide, not advice${m.partial ? '; the period is not over, so these are the sets so far' : ''}.`),
+      ...m.items.map((x) => hrow(x.muscle.charAt(0).toUpperCase() + x.muscle.slice(1), `${num(x.setsPerWeek, 1)} sets`, 'a week', join(word[x.level], delta(x.setsPerWeek, x.previousSetsPerWeek, 'sets', 1)))),
+    ],
+  };
+}
+
 function bodyCard(r: WeekReview): Built {
   const w = r.weight;
   const hb = r.habits;
@@ -164,7 +181,7 @@ function considerCard(r: WeekReview): Built {
   };
 }
 
-const cardsOf = (r: WeekReview): Built[] => [weekCard(r), notesBuilt('training-notes', 'Training notes', r), notesBuilt('nutrition-notes', 'Nutrition notes', r), foodCard(r), trainingCard(r), bodyCard(r), energyCard(r), considerCard(r)];
+const cardsOf = (r: WeekReview): Built[] => [weekCard(r), notesBuilt('training-notes', 'Training notes', r), notesBuilt('nutrition-notes', 'Nutrition notes', r), foodCard(r), trainingCard(r), musclesCard(r), bodyCard(r), energyCard(r), considerCard(r)];
 
 // ---------- the pager ----------
 const titleOf = (r: WeekReview) => (r.period === 'month' ? monthTitle(lastWeekOf(r), today()) : weekTitle(r.weekStart, today()));
@@ -182,7 +199,8 @@ function periodButtons(r: WeekReview) {
 }
 
 /** The glyph of each card's tab: the card's name is the tab's name, and the label row under the strip names the chosen one. */
-const TAB_ICON: Record<CardKey, IconName> = { week: 'calendar', 'training-notes': 'dumbbell', 'nutrition-notes': 'utensils', food: 'bars', training: 'trending-up', body: 'heart-pulse', energy: 'flame', consider: 'lightbulb' };
+const TAB_ICON: Record<CardKey, IconName> = { week: 'calendar', 'training-notes': 'dumbbell', 'nutrition-notes': 'utensils', food: 'bars', training: 'trending-up',
+  muscles: 'dumbbell', body: 'heart-pulse', energy: 'flame', consider: 'lightbulb' };
 
 /** Previous, this week and next, at the bottom of every card. An ended button is aria-disabled: it keeps its place and does nothing. */
 function dock(r: WeekReview) {

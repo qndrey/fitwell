@@ -5,6 +5,8 @@ import type { UserData } from '../data/userData';
 import type { WorkoutData } from '../data/workoutData';
 import { addDays, dayDiff, dayNumber, weekStart as mondayOf } from '@fitwell/core/domain/dates';
 import { bmr } from '@fitwell/core/domain/energy';
+import { buildMuscleMap } from './muscles';
+import { muscleVerdicts } from './muscleVerdicts';
 import { buildProgress, rangeStart, type Progress } from './progress';
 import { buildWeeklyReview, weekEndOf, weeksIn, type ReviewPeriod, type WeekReview } from './review';
 import type { SavedNotes } from './reviewTypes';
@@ -63,7 +65,13 @@ export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string, per
     }
   }
   const [saved, week, previous, history, plan] = await Promise.all([deps.notes.get(period, start), loadProgress(deps, counted, end), loadProgress(deps, counted, addDays(end, -7 * weeksIn(period))), loadProgress(deps, 120, end), period === 'week' ? deps.plans.plan(start) : null]);
-  return buildWeeklyReview({
+  // A verdict per muscle group: the period's sets a week against the usual range and the period before.
+  const lib = await loadExercises();
+  const musclesOf = new Map(lib.exercises.map((e) => [e.ref, { primary: e.primary, secondary: e.secondary }]));
+  const weeks = weeksIn(period);
+  const loads = await deps.workouts.between(addDays(end, -(weeks * 14 - 1)), end);
+  const map = buildMuscleMap({ workouts: loads, to: end, weeks, musclesOf: (ref) => musclesOf.get(ref) ?? { primary: [], secondary: [] } });
+  const review = buildWeeklyReview({
     weekStart: start,
     period,
     today,
@@ -73,4 +81,6 @@ export async function loadWeeklyReview(deps: ReviewDeps, weekStart?: string, per
     saved,
     plan: plan ? { meals: plan.items.filter((i) => i.day <= end).length, logged: plan.items.filter((i) => i.day <= end && i.loggedAt).length } : null,
   });
+  review.muscles = muscleVerdicts(map, counted < 7 * weeks);
+  return review;
 }

@@ -46,7 +46,7 @@ export interface TrainingProgress {
   days: { day: Day; type: 'strength' | 'cardio' | 'session' }[];
   averageStrengthMin: number | null;
   /** Hard sets a week per muscle (1 per set for a main muscle, 0.5 for a helping one, as in the muscle map), averaged over the full weeks in the period. */
-  setsPerWeekByMuscle: { muscle: string; sets: number }[];
+  setsPerWeekByMuscle: { muscle: string; sets: number; /** none, below, in_range or high against the usual 10 to 20 sets a week. */ level: 'none' | 'below' | 'in_range' | 'high' }[];
   goalWorkoutsPerWeek: number | null;
 }
 

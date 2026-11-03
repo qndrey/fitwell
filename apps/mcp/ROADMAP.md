@@ -153,7 +153,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 **Phase 8: data in and ChatGPT**
 - [ ] C1 ingest webhook with per-person token; Health Auto Export and Shortcut setup in the README; sources shown in `get_progress`.
 - [ ] C2 Strava.
-- [ ] D3 Today view; D4 restaurant estimates; D6 meal plan view.
+- [x] D3 Today view (`show_today`, `ui/today`, app-only `today_*` tools): left today, planned meals with one-tap eaten, log again, water and steps, today's training. **Left:** a saved water goal, and starting the suggested workout from the view itself (it asks Claude). [ ] D4 restaurant estimates; D6 meal plan view.
 - [ ] H2 import from Hevy, Strong, MyFitnessPal and MacroFactor exports (decision in §4).
 - [ ] G1 ChatGPT compatibility spike (by the owner) with the results table in the README; G2 fallbacks if the player does not work there; G3 host-neutral wording.
 - [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio; a year of Hevy workouts imports with "last time" values in the player and every unmatched exercise listed; a meal is swapped and a day repeated in the plan view; a ChatGPT user on a plan that allows it logs a meal and sees the dashboard, and the table says what works where.

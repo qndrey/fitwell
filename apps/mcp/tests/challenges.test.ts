@@ -92,6 +92,16 @@ describe('making one and answering', () => {
     expect((await list(anaC)).challenges[0]!.standings.map((s) => s.who).sort()).toEqual(['You', 'bo@example.com']);
   });
 
+  it('an invitation from someone who is no longer a friend can neither be seen nor accepted', async () => {
+    const conn = await befriend(anaC, boC, 'bo@example.com');
+    const id = (await make())!;
+    await call(anaC, 'invite_to_challenge', { challenge_id: id, connection_id: conn });
+    await call(anaC, 'remove_friend', { connection_id: conn });
+    expect((await list(boC)).invitations).toEqual([]);
+    expect((await call(boC, 'accept_challenge', { challenge_id: id })).isError).toBe(true);
+    expect((await list(anaC)).challenges[0]!.standings.map((s) => s.who)).toEqual(['You']);
+  });
+
   it('a decline deletes the invitation, and only the owner invites', async () => {
     const conn = await befriend(anaC, boC, 'bo@example.com');
     const id = (await make())!;

@@ -631,6 +631,10 @@ const faqs = [
     a: "If you already use Fitwell regularly, yes: ask your assistant to invite a friend by email address. Your friend gets one email saying you invited them and how to connect. There are a few invitations each month, so it is not for everyone at once.",
   },
   {
+    q: "Can I do a challenge with friends?",
+    a: "Yes, and it is built to be friendly. A challenge counts days: with a finished workout, with your protein at your own goal, or with enough steps. Only a few days a week count, so a rest day never costs a point, and it is never about weight. Only friends can be invited, nothing is read until you join, everyone sees one number per person, and you get one results email when it closes.",
+  },
+  {
     q: "What can my friends see?",
     a: "Nothing, until you decide. Connecting with a friend shares nothing. For each friend you choose, one kind at a time, whether they see your workouts, your consistency (streaks, no numbers), your templates and recipes, or your body data, and you can take any of it back. Friends see counts and names, never weights or notes, and your weight only if you share body data with that friend. You can connect by nickname, so you never have to hand out your email address.",
   },

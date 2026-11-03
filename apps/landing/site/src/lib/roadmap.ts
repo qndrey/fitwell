@@ -32,8 +32,8 @@ export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[
   {
     id: "after",
     label: "After",
-    sub: "Smarter coaching and crew",
-    blurb: "Training blocks that plan their own deloads, and friendly competition.",
+    sub: "Smarter coaching",
+    blurb: "Vitamins and minerals, and coaching that notices how ready you are.",
   },
   { id: "later", label: "Later", sub: "Ideas we are exploring", blurb: "Good ideas that are not scheduled yet. They may change or never happen." },
 ];
@@ -377,21 +377,21 @@ export const ITEMS: RoadmapItem[] = [
   // After
   {
     id: "programs",
-    stage: "after",
+    stage: "shipped",
     theme: "coaching",
-    status: "planned",
+    status: "shipped",
     title: "Programs with deloads",
     summary: "Multi-week blocks that plan their own easy week.",
-    detail: 'Linear, double progression or percentage waves, and "Week 3, Day B" offered when you start a workout.',
+    detail: 'Make a block of weeks out of your saved workouts, with a deload every few weeks planned lighter. Starting a workout from the program says "Week 3, Day B". Percentage waves are not in yet.',
   },
   {
     id: "volume",
-    stage: "after",
+    stage: "shipped",
     theme: "coaching",
-    status: "planned",
+    status: "shipped",
     title: "Weekly volume ranges",
-    summary: "Flags muscles that are under- or over-trained.",
-    detail: "The muscle map already colours each group against 10 to 20 sets a week. Next: a plain verdict for each group in your weekly review.",
+    summary: "A plain verdict for each muscle group.",
+    detail: "The weekly review says where each muscle group is against the usual 10 to 20 sets a week and what changed. The muscle map also has a strength mode: did the lifts behind each muscle get stronger?",
   },
   {
     id: "micros",
@@ -399,8 +399,8 @@ export const ITEMS: RoadmapItem[] = [
     theme: "logging",
     status: "planned",
     title: "Micronutrients",
-    summary: "Iron, B12, calcium and more, and protein per meal.",
-    detail: "Fibre, sugar and salt are already tracked. The food database has the vitamins and minerals too; they need to be added without making Fitwell slower.",
+    summary: "Iron, B12, calcium and more. Protein by meal is in.",
+    detail: "Fibre, sugar and salt are already tracked, and each day shows how your protein is spread over the meals. The food database has the vitamins and minerals too; they need to be added without making Fitwell slower.",
   },
   {
     id: "feed",
@@ -410,16 +410,16 @@ export const ITEMS: RoadmapItem[] = [
     title: "Crew feed",
     summary: "See friends' recent workouts and send kudos.",
     detail:
-      "Only what each friend chose to share, as counts and names: no weights, no notes, and body weight is never in it. New personal bests in the feed are next.",
+      "Only what each friend chose to share, as counts and names: no weights, no notes, and body weight is never in it. A workout where a friend beat their own best is marked by exercise name, never with numbers.",
   },
   {
     id: "challenges",
-    stage: "after",
+    stage: "shipped",
     theme: "friends",
-    status: "planned",
+    status: "shipped",
     title: "Challenges",
     summary: "Friendly, time-boxed and about consistency.",
-    detail: "Workouts per week or protein days, rest-day friendly, never weight or body fat. Results arrive by email when it closes.",
+    detail: "Count training days, protein days or steps days with friends, with only a few days a week counting so a rest day is free. Everyone sees one number per person, never weight, and each person gets one results email when it closes.",
   },
 
   // Later

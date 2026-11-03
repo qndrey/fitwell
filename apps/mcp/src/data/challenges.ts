@@ -179,6 +179,12 @@ export class ChallengeData {
   async accept(challengeId: string): Promise<JoinOutcome> {
     const mine = await this.mineById(challengeId);
     if (!mine || mine.status !== 'invited') return { ok: false, reason: 'not_found' };
+    // The same rule as listing an invitation: the one who invited must still be this person's friend.
+    const friend = await this.db
+      .prepare("SELECT 1 AS ok FROM connections k WHERE k.status = 'accepted' AND ((k.requester_id = ?1 AND k.addressee_id = ?2) OR (k.requester_id = ?2 AND k.addressee_id = ?1))")
+      .bind(this.userId, mine.c.ownerId)
+      .first<Row>();
+    if (!friend) return { ok: false, reason: 'not_found' };
     if (mine.c.status === 'closed' || mine.c.endDay < this.today()) return { ok: false, reason: 'over' };
     if (mine.c.metric === 'protein_days') {
       const goal = (await this.db.prepare('SELECT protein_g FROM goals WHERE user_id = ?').bind(this.userId).first<Row>())?.protein_g;

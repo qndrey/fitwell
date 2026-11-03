@@ -16,6 +16,8 @@ CREATE TABLE connections (
   CHECK (addressee_id IS NULL OR requester_id != addressee_id),
   UNIQUE (requester_id, addressee_email)
 );
+-- Two people are friends once, whoever asked first: at most one accepted row per unordered pair.
+CREATE UNIQUE INDEX connections_one_friendship ON connections (min(requester_id, addressee_id), max(requester_id, addressee_id)) WHERE status = 'accepted';
 CREATE INDEX connections_addressee_email ON connections (addressee_email);
 CREATE INDEX connections_addressee_id ON connections (addressee_id);
 

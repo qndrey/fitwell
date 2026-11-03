@@ -180,6 +180,52 @@ describe('sharing: no share means no access', () => {
   });
 });
 
+describe('a friendship is one row', () => {
+  it('asking again, from either side, changes nothing: no second row, and what is shared stays', async () => {
+    const id = await connect(anaC, boC, 'bo@example.com');
+    await call(anaC, 'set_sharing', { connection_id: id, category: 'workouts', share: true });
+    await call(boC, 'request_friend', { email: 'ana@example.com' }); // the one who was asked, asking back
+    await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    expect(await rows('connections')).toBe(1);
+    expect(await rows('shares')).toBe(1);
+    expect(await canView(env.DB, bo.id, ana.id, 'workouts')).toBe(true);
+  });
+
+  it('a request that crossed an accepted friendship is dropped when answered, and shares and consent records are not touched', async () => {
+    const id = await connect(anaC, boC, 'bo@example.com');
+    await call(anaC, 'set_sharing', { connection_id: id, category: 'workouts', share: true });
+    await env.DB.prepare("INSERT INTO connections (id, requester_id, addressee_email, status, created_at) VALUES ('crossed', ?, 'ana@example.com', 'pending', ?)").bind(bo.id, Date.now()).run();
+    expect((await call(anaC, 'accept_friend', { connection_id: 'crossed' })).isError).toBe(false);
+    expect(await rows('connections')).toBe(1);
+    expect((await list(anaC)).friends).toHaveLength(1);
+    expect(await canView(env.DB, bo.id, ana.id, 'workouts')).toBe(true);
+    expect(await rows('share_consents')).toBe(1); // only the grant: nothing was withdrawn
+  });
+
+  it('the database allows one accepted connection per pair, in either direction', async () => {
+    await connect(anaC, boC, 'bo@example.com');
+    const second = env.DB.prepare("INSERT INTO connections (id, requester_id, addressee_email, addressee_id, status, created_at) VALUES ('dup', ?, 'ana@example.com', ?, 'accepted', 1)").bind(bo.id, ana.id).run();
+    await expect(second).rejects.toThrow();
+    expect(await rows('connections')).toBe(1);
+  });
+
+  it('removing deletes every row between the two, so nothing brings the friendship back', async () => {
+    const id = await connect(anaC, boC, 'bo@example.com');
+    await env.DB.prepare("INSERT INTO connections (id, requester_id, addressee_email, status, created_at) VALUES ('stray', ?, 'ana@example.com', 'pending', ?)").bind(bo.id, Date.now()).run();
+    expect((await call(anaC, 'remove_friend', { connection_id: id })).isError).toBe(false);
+    expect(await rows('connections')).toBe(0);
+    expect((await list(anaC)).incoming).toEqual([]);
+  });
+
+  it('accepting a first request clears a leftover share and records it as withdrawn', async () => {
+    await env.DB.prepare("INSERT INTO shares (owner_id, viewer_id, category, granted_at) VALUES (?, ?, 'workouts', 1)").bind(ana.id, bo.id).run();
+    await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    await call(boC, 'accept_friend', { connection_id: (await list(boC)).incoming[0]!.connectionId });
+    expect(await rows('shares')).toBe(0);
+    expect((await env.DB.prepare("SELECT action FROM share_consents WHERE owner_id = ?").bind(ana.id).first<{ action: string }>())!.action).toBe('withdrawn');
+  });
+});
+
 describe('removing', () => {
   it('ends the friendship for both and stops everything shared either way, recording the withdrawals', async () => {
     const id = await connect(anaC, boC, 'bo@example.com');

@@ -75,15 +75,19 @@ export class FriendsData {
     const pending = (await this.db.prepare("SELECT COUNT(*) AS n FROM connections WHERE requester_id = ? AND status = 'pending'").bind(this.userId).first<Row>())?.n as number;
     if (pending >= MAX_PENDING_SENT) return { ok: false, reason: 'too_many_pending' };
     if ((await this.countFriends()) >= MAX_FRIENDS) return { ok: false, reason: 'too_many_friends' };
+    // Anything already between the two, whichever way it went and whatever its state: a friendship stays one row, and a repeat changes nothing.
+    const { results: between } = await this.db
+      .prepare('SELECT c.id, c.status, c.requester_id FROM connections c JOIN users r ON r.id = c.requester_id WHERE (c.requester_id = ?1 AND c.addressee_email = ?2) OR (c.addressee_email = ?3 AND r.email = ?2)')
+      .bind(this.userId, email, mine)
+      .all<Row>();
+    if (between.some((c) => c.status === 'accepted')) return { ok: true };
     // They already asked this person: asking back accepts (what they asked is visible to this person already, in their incoming list).
-    const theirs = await this.db
-      .prepare("SELECT c.id FROM connections c JOIN users u ON u.id = c.requester_id WHERE c.status = 'pending' AND c.addressee_email = ? AND u.email = ?")
-      .bind(mine, email)
-      .first<Row>();
+    const theirs = between.find((c) => c.requester_id !== this.userId);
     if (theirs) {
       await this.accept(theirs.id as string);
       return { ok: true };
     }
+    if (between.length > 0) return { ok: true }; // this person already asked
     await this.db.prepare("INSERT OR IGNORE INTO connections (id, requester_id, addressee_email, status, created_at) VALUES (?, ?, ?, 'pending', ?)").bind(crypto.randomUUID(), this.userId, email, this.now()).run();
     return { ok: true };
   }
@@ -145,13 +149,29 @@ export class FriendsData {
     const mine = await this.myEmail();
     const ask = await this.db.prepare("SELECT requester_id FROM connections WHERE id = ? AND status = 'pending' AND addressee_email = ?").bind(connectionId, mine).first<Row>();
     if (!ask) return false;
-    // Nothing can be shared before a connection is accepted; clearing the pair first makes sure a friendship never starts with leftovers.
     const requester = ask.requester_id as string;
-    const [, accepted] = await this.db.batch([
-      this.db.prepare('DELETE FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)').bind(this.userId, requester),
-      this.db.prepare("UPDATE connections SET status = 'accepted', addressee_id = ?, responded_at = ? WHERE id = ? AND status = 'pending' AND addressee_email = ?").bind(this.userId, this.now(), connectionId, mine),
-    ]);
-    return accepted!.meta.changes > 0;
+    const friends = await this.db
+      .prepare("SELECT 1 AS ok FROM connections WHERE status = 'accepted' AND ((requester_id = ?1 AND addressee_id = ?2) OR (requester_id = ?2 AND addressee_id = ?1))")
+      .bind(this.userId, requester)
+      .first<Row>();
+    if (friends) {
+      // Already friends (a second request crossed the first): the extra request goes, and what is shared is left exactly as it is.
+      await this.db.prepare("DELETE FROM connections WHERE id = ? AND status = 'pending'").bind(connectionId).run();
+      return true;
+    }
+    // Nothing can be shared before a friendship starts, so anything found for the pair is a leftover: it goes, and each is recorded as withdrawn.
+    const at = this.now();
+    const { results: leftovers } = await this.db.prepare('SELECT owner_id, viewer_id, category FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)').bind(this.userId, requester).all<Row>();
+    try {
+      const done = await this.db.batch([
+        ...leftovers.map((s) => this.db.prepare("INSERT INTO share_consents (owner_id, viewer_id, category, action, at) VALUES (?, ?, ?, 'withdrawn', ?)").bind(s.owner_id, s.viewer_id, s.category, at)),
+        this.db.prepare('DELETE FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)').bind(this.userId, requester),
+        this.db.prepare("UPDATE connections SET status = 'accepted', addressee_id = ?, responded_at = ? WHERE id = ? AND status = 'pending' AND addressee_email = ?").bind(this.userId, at, connectionId, mine),
+      ]);
+      return done.at(-1)!.meta.changes > 0;
+    } catch {
+      return false; // the database allows one accepted connection per pair: a racing accept lost
+    }
   }
 
   /** Declines a request addressed to this person, or takes back one this person sent. False when there is no such pending request. */
@@ -165,6 +185,8 @@ export class FriendsData {
   async remove(connectionId: string): Promise<boolean> {
     const other = await this.otherOf(connectionId);
     if (!other) return false;
+    const mine = await this.myEmail();
+    const otherEmail = ((await this.db.prepare('SELECT email FROM users WHERE id = ?').bind(other).first<Row>())?.email as string | undefined) ?? '';
     const at = this.now();
     const { results } = await this.db
       .prepare('SELECT owner_id, viewer_id, category FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)')
@@ -173,7 +195,8 @@ export class FriendsData {
     await this.db.batch([
       ...results.map((s) => this.db.prepare("INSERT INTO share_consents (owner_id, viewer_id, category, action, at) VALUES (?, ?, ?, 'withdrawn', ?)").bind(s.owner_id, s.viewer_id, s.category, at)),
       this.db.prepare('DELETE FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)').bind(this.userId, other),
-      this.db.prepare('DELETE FROM connections WHERE id = ?').bind(connectionId),
+      // Every row between the two, whatever its state or direction, so nothing is left that could bring the friendship back.
+      this.db.prepare('DELETE FROM connections WHERE id = ?1 OR (requester_id = ?2 AND addressee_id = ?3) OR (requester_id = ?3 AND addressee_id = ?2) OR (requester_id = ?2 AND addressee_email = ?4) OR (requester_id = ?3 AND addressee_email = ?5)').bind(connectionId, this.userId, other, otherEmail, mine),
     ]);
     return true;
   }

@@ -10,6 +10,7 @@ const DESTRUCTIVE = [
   'delete_my_account',
   'edit_food_entry', // changes a logged entry
   'edit_workout_set', // changes a logged set
+  'end_injury', // sets the end day of a saved injury
   'log_body', // a value logged for a day replaces the one already there
   'send_friend_invite', // emails someone, which cannot be unsent
   'approve_invite_request', // the same, and deletes the request

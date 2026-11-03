@@ -20,8 +20,8 @@ export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[
   {
     id: "next",
     label: "Next",
-    sub: "Injuries and households",
-    blurb: "What is being built now: injuries remembered, one meal plan for people who cook together, and finding Fitwell in Claude.",
+    sub: "Households",
+    blurb: "What is being built now: one meal plan for people who cook together, and finding Fitwell in Claude.",
   },
   {
     id: "then",
@@ -216,16 +216,6 @@ export const ITEMS: RoadmapItem[] = [
 
   // Next
   {
-    id: "injuries",
-    stage: "next",
-    theme: "coaching",
-    status: "next",
-    title: "Injuries remembered",
-    summary: "Tell Claude once about a sore knee, not in every chat.",
-    detail:
-      "Saved only when you agree. Exercises that load that area are flagged in plans and swaps. Fitwell does not diagnose, and this stays private like the rest of your health data.",
-  },
-  {
     id: "directory",
     stage: "next",
     theme: "start",
@@ -343,6 +333,16 @@ export const ITEMS: RoadmapItem[] = [
     summary: "Eating out, with an honest range.",
     detail:
       "A meal out is logged as a range of calories, such as 600 to 900, and shown that way: the middle counts toward your day and it is marked as an estimate. The weekly review says how much of your calories were estimates.",
+  },
+  {
+    id: "injuries",
+    stage: "shipped",
+    theme: "coaching",
+    status: "shipped",
+    title: "Injuries remembered",
+    summary: "Tell Claude once about a sore knee, not in every chat.",
+    detail:
+      "Saved only when you agree. Exercises that load that area are flagged in searches, workouts and templates, and swaps rank the others first. Fitwell does not diagnose, and this stays private like the rest of your health data: never shared with friends.",
   },
   {
     id: "mealplan",

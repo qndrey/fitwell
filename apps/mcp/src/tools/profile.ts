@@ -2,6 +2,7 @@ import { suggestTargets, type ActivityLevel } from '@fitwell/core/domain/energy'
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import type { DigestData } from '../data/digests';
+import type { InjuryData } from '../data/injuries';
 import { isTimeZone, todayIn } from '../data/time';
 import type { Goals, UserData } from '../data/userData';
 import { SETUP_GUIDE } from '../instructions';
@@ -9,15 +10,15 @@ import { json, toolError } from './result';
 
 const ACTIVITY = ['sedentary', 'light', 'moderate', 'active', 'very_active'] as const satisfies readonly ActivityLevel[];
 
-export function registerProfileTools(server: McpServer, deps: { data: UserData; email: string; digests: DigestData }) {
-  const { data, digests } = deps;
+export function registerProfileTools(server: McpServer, deps: { data: UserData; email: string; digests: DigestData; injuries: InjuryData }) {
+  const { data, digests, injuries } = deps;
 
   server.registerTool(
     'get_profile',
     {
       title: 'Profile and goals',
       description:
-        "The person's profile (time zone, units, body data, activity level, equipment, diet preferences and allergies) and goals. " +
+        "The person's profile (time zone, units, body data, activity level, equipment, diet preferences and allergies), goals and any injuries they asked to have remembered (`injuries`: avoid what they say to avoid and offer swaps; never diagnose). " +
         'Read it at the start of a conversation and before planning meals or workouts. For a new account it also carries a short setup guide, once.',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true },
@@ -25,7 +26,8 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
     // Read-only for the person's data; on a new account's first call it records that the setup was offered.
     async () => {
       const profile = await data.profile();
-      const result = { email: deps.email, today: todayIn(profile.timeZone), profile, goals: await data.goals(), emailDigests: await digests.settings() };
+      const today = todayIn(profile.timeZone);
+      const result = { email: deps.email, today, profile, goals: await data.goals(), emailDigests: await digests.settings(), injuries: await injuries.list(today) };
       if (!(await data.offerSetup())) return json(result);
       const res = json({ ...result, newAccount: true });
       return { ...res, content: [...res.content, { type: 'text', text: SETUP_GUIDE }] };

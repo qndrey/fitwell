@@ -9,10 +9,12 @@ import { estimatedOneRepMax, formatDuration, normalizeSupersets, summarizeSets }
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import type { InjuryData } from '../data/injuries';
 import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
 import type { CardioBlock, StoredExercise, StoredRest, StoredSet, TemplateCardio, TemplateExercise, Workout, WorkoutData } from '../data/workoutData';
 import workoutHtml from '../ui/generated/workout';
+import { flagExercise, unflaggedFirst } from '../training/injuries';
 import { exerciseBests, sessionBest } from '../workout/bests';
 import { SESSION_PROFILES } from '../workout/sessions';
 import { EFFORT_LABELS, WORKOUT_VIEW_URI, type ExerciseBests, type PlannedCardio, type PlannedExercise, type PlannedRest, type WorkoutPlan } from '../workout/plan';
@@ -22,6 +24,7 @@ import { json, toolError } from './result';
 export interface WorkoutDeps {
   data: UserData;
   workouts: WorkoutData;
+  injuries: InjuryData;
 }
 
 const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
@@ -224,7 +227,15 @@ interface History {
 export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps) {
   const lib = await loadExercises();
   const byId = new Map(lib.exercises.map((e) => [e.ref, e]));
-  const { data, workouts } = deps;
+  const { data, workouts, injuries } = deps;
+
+  /** The exercises of a plan that load an area the person said hurts (or that they said to avoid), with why, in their own words. Not a clearance: an exercise without a flag is not called safe. */
+  const activeInjuries = async (timeZone: string) => injuries.list(todayIn(timeZone));
+  const flagsFor = (ids: string[], hurt: Awaited<ReturnType<typeof activeInjuries>>) =>
+    ids.flatMap((id) => {
+      const e = byId.get(id);
+      return e ? flagExercise(e, hurt).map((f) => ({ exercise: e.name, area: f.area, why: f.why })) : [];
+    });
 
   /** Last time + suggestion for each exercise id. */
   async function history(ids: string[], exclude?: string) {
@@ -449,9 +460,10 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         const what = e.mode === 'time' ? `${work.length}×${work[0]!.durationSec} s` : `${work.length}×${work[0]!.targetReps}${e.load === 'bodyweight' ? '' : ` @ ${work[0]!.weightKg} kg`}`;
         return `${e.supersetId ? '[superset] ' : ''}${e.exerciseName} ${what}${warm ? ` after ${warm} warm-up sets` : ''}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`;
       });
-      const result = json({ workout: toPlan(w, profile.gym, await bestsFor(w), await planContext(w, profile.weightKg)), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}) });
+      const flags = flagsFor(items.map((e) => e.id), await activeInjuries(profile.timeZone));
+      const result = json({ workout: toPlan(w, profile.gym, await bestsFor(w), await planContext(w, profile.weightKg)), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}), ...(flags.length ? { injuryFlags: flags } : {}) });
       const cardioText = cardioBlocks.length ? ` Cardio: ${cardioBlocks.map((b) => `${b.plannedMin} min ${b.activityName} (${b.when === 'before' ? 'warm-up' : 'finisher'})`).join('; ')}.` : '';
-      result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText} The player shows all of this: reply with nothing more, no summary or recap.` }];
+      result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id}): ${lines.join('; ')}.${cardioText} The player shows all of this: reply with nothing more, no summary or recap.${flags.length ? ` One exception, in one short sentence: ${flags.map((f) => `${f.exercise} (${f.why})`).join('; ')}. Offer a swap (search_exercises with similar_to); do not diagnose and do not call anything safe.` : ''}` }];
       return result;
     },
   );
@@ -632,7 +644,10 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const target = e && byId.get(e.exerciseRef);
       if (!target) return toolError('No such exercise in this workout.');
       const inWorkout = new Set(w!.exercises.map((x) => x.exerciseRef));
-      const subs = substitutes(target, lib.exercises, { equipment: (await data.profile()).equipment, limit: 12 }).filter((x) => !inWorkout.has(x.ref)).slice(0, 8);
+      const profile = await data.profile();
+      const hurt = await activeInjuries(profile.timeZone);
+      const wide = substitutes(target, lib.exercises, { equipment: profile.equipment, limit: hurt.length ? 60 : 12 }).filter((x) => !inWorkout.has(x.ref));
+      const subs = unflaggedFirst(wide, hurt).slice(0, 8);
       return json({ substitutes: subs.map((x) => ({ id: x.ref, name: x.name, equipment: x.equipment === 'none' || x.equipment === 'body only' ? 'bodyweight' : x.equipment })) });
     },
   );
@@ -846,14 +861,18 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const unknown = exercises.filter((e) => !byId.has(e.id)).map((e) => e.id);
       if (unknown.length) return toolError(`Unknown exercise ids: ${unknown.join(', ')}.`);
       const t = await workouts.saveTemplate(name, exercises.map(templateItemOf), (cardio ?? []).map(templateCardioOf));
-      return json({ template: { id: t.id, name: t.name, exercises: t.exercises.map((e) => ({ ...e, name: byId.get(e.id)?.name })), ...(t.cardio.length ? { cardio: t.cardio } : {}) } });
+      const flags = flagsFor(t.exercises.map((e) => e.id), await activeInjuries((await data.profile()).timeZone));
+      return json({ template: { id: t.id, name: t.name, exercises: t.exercises.map((e) => ({ ...e, name: byId.get(e.id)?.name })), ...(t.cardio.length ? { cardio: t.cardio } : {}) }, ...(flags.length ? { injuryFlags: flags, note: 'Saved as asked. These exercises load an area the person said hurts: say so briefly and offer a swap; do not call anything safe.' } : {}) });
     },
   );
 
   server.registerTool(
     'list_workout_templates',
     { title: 'Workout templates', description: 'Saved workout templates, most recently used first.', inputSchema: z.object({}), annotations: { readOnlyHint: true } },
-    async () => json({ templates: (await workouts.templates()).map((t) => ({ id: t.id, name: t.name, exercises: t.exercises.map((e) => `${byId.get(e.id)?.name ?? e.id} ${e.sets}×${e.reps}${e.weightKg !== undefined ? ` @ ${e.weightKg} kg` : ''}${e.notes ? ` (${e.notes})` : ''}`), ...(t.cardio.length ? { cardio: t.cardio.map((c) => `${c.minutes} min ${ACTIVITIES.find((a) => a.id === c.activityId)?.name ?? c.activityId} (${c.when === 'before' ? 'warm-up' : 'finisher'})`) } : {}) })) }),
+    async () => {
+      const hurt = await activeInjuries((await data.profile()).timeZone);
+      return json({ templates: (await workouts.templates()).map((t) => ({ id: t.id, name: t.name, ...(flagsFor(t.exercises.map((e) => e.id), hurt).length ? { injuryFlags: flagsFor(t.exercises.map((e) => e.id), hurt) } : {}), exercises: t.exercises.map((e) => `${byId.get(e.id)?.name ?? e.id} ${e.sets}×${e.reps}${e.weightKg !== undefined ? ` @ ${e.weightKg} kg` : ''}${e.notes ? ` (${e.notes})` : ''}`), ...(t.cardio.length ? { cardio: t.cardio.map((c) => `${c.minutes} min ${ACTIVITIES.find((a) => a.id === c.activityId)?.name ?? c.activityId} (${c.when === 'before' ? 'warm-up' : 'finisher'})`) } : {}) })) });
+    },
   );
 
   const activityIds = ACTIVITIES.map((a) => a.id) as [string, ...string[]];

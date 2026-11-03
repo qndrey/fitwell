@@ -32,6 +32,19 @@ export const CATEGORIES: Category[] = [
         ask: "What do you have saved about me?",
       },
       {
+        name: "add_injury",
+        kind: "saves",
+        what: "Remembers an injury or limitation you told Claude about, so you do not repeat it in every chat: the body area, your words, what to avoid, and when it started or should be over. Claude asks before saving and never diagnoses. Exercises that load that area are then flagged in searches, workouts and templates, and swaps rank the others first. It is private health data: never shared with friends or put on a card, in your export, and gone with your account.",
+        ask: "My left shoulder pinches on overhead presses. Remember that.",
+      },
+      {
+        name: "end_injury",
+        kind: "saves",
+        asks: true,
+        what: "Marks a remembered injury as over, from today or a day you name, so its flags stop. It stays in your export until you ask to remove it.",
+        ask: "My shoulder is fine now.",
+      },
+      {
         name: "update_profile",
         kind: "saves",
         asks: true,

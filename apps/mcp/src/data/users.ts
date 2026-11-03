@@ -59,6 +59,7 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     db.prepare('DELETE FROM review_notes WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM achievements WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM streak_freezes WHERE user_id = ?').bind(user.id),
+    db.prepare('DELETE FROM injuries WHERE user_id = ?').bind(user.id),
     // Friends: what this person shared or was shown, and their connections, go from both sides.
     db.prepare('DELETE FROM nickname_lookups WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM item_transfers WHERE sender_id = ? OR recipient_id = ?').bind(user.id, user.id),

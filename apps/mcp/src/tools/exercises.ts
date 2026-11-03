@@ -3,7 +3,10 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import { demoUrl, type ExerciseGuide } from '../exercises/guide';
+import type { InjuryData } from '../data/injuries';
 import type { UserData } from '../data/userData';
+import { flagExercise, unflaggedFirst, type InjuryArea } from '../training/injuries';
+import { todayIn } from '../data/time';
 import { machineGuideFor } from '../exercises/machines';
 import { motionFor } from '../exercises/motion';
 import exerciseHtml from '../ui/generated/exercise';
@@ -16,8 +19,14 @@ const ATTRIBUTION = 'free-exercise-db (public domain, The Unlicense)';
 /** Library entries as Claude sees them (`custom` only marks a person's own exercises, which come later). */
 const view = (e: Exercise) => ({ ref: e.ref, name: e.name, category: e.category, level: e.level, equipment: e.equipment, primary: e.primary, secondary: e.secondary });
 
+/** An exercise as Claude sees it, with why it is flagged when it loads an area the person said hurts. */
+const flagged = (e: Exercise, hurt: { area: InjuryArea; avoid: string }[]) => {
+  const injuryFlags = flagExercise(e, hurt);
+  return injuryFlags.length ? { ...view(e), injuryFlags } : view(e);
+};
+
 /** Async because the muscle and equipment lists come from the dataset and become enums Claude can see. */
-export async function registerExerciseTools(server: McpServer, deps: { data: UserData }) {
+export async function registerExerciseTools(server: McpServer, deps: { data: UserData; injuries: InjuryData }) {
   const lib = await loadExercises();
   const index = prepareExercises(lib.exercises);
   const muscle = z.enum(lib.muscles as [string, ...string[]]);
@@ -53,9 +62,13 @@ export async function registerExerciseTools(server: McpServer, deps: { data: Use
       if (similar_to) {
         const target = lib.exercises.find((e) => e.ref === similar_to);
         if (!target) return toolError(`No exercise with id ${similar_to}. Search by name first.`);
-        const own = (await deps.data.profile()).equipment;
-        const subs = substitutes(target, lib.exercises, { equipment: own, excludeEquipment: exclude_equipment, limit: Math.min(limit, 15) });
-        return json({ substitutesFor: view(target), equipment: own.length ? `Only equipment in the profile (${own.join(', ')}) or bodyweight.` : 'Any equipment (none saved in the profile).', exercises: subs.map(view), source: ATTRIBUTION });
+        const profile = await deps.data.profile();
+        const own = profile.equipment;
+        const hurt = await deps.injuries.list(todayIn(profile.timeZone));
+        // With an injury saved, look wider and put what does not load the area first.
+        const wide = substitutes(target, lib.exercises, { equipment: own, excludeEquipment: exclude_equipment, limit: hurt.length ? 60 : Math.min(limit, 15) });
+        const subs = unflaggedFirst(wide, hurt).slice(0, Math.min(limit, 15));
+        return json({ substitutesFor: flagged(target, hurt), equipment: own.length ? `Only equipment in the profile (${own.join(', ')}) or bodyweight.` : 'Any equipment (none saved in the profile).', exercises: subs.map((e) => flagged(e, hurt)), ...(hurt.length ? { note: 'Exercises that do not load the area the person said hurts come first; a flag means it loads that area, and no exercise is called safe.' } : {}), source: ATTRIBUTION });
       }
       if (id) {
         const ex = lib.exercises.find((e) => e.ref === id);
@@ -65,7 +78,8 @@ export async function registerExerciseTools(server: McpServer, deps: { data: Use
       }
       // Search wider, then put plain lifts ahead of variations so the obvious choice comes first.
       const hits = plainFirst(query, searchExercises(index, lib.exercises, { query, muscle, equipment }, limit * 4)).slice(0, limit);
-      return json({ exercises: hits.map(view), source: ATTRIBUTION });
+      const hurt = await deps.injuries.list(todayIn((await deps.data.profile()).timeZone));
+      return json({ exercises: hits.map((e) => flagged(e, hurt)), ...(hurt.length ? { note: 'injuryFlags: loads an area the person said hurts, or something they said to avoid. Offer a swap; never call an exercise safe.' } : {}), source: ATTRIBUTION });
     },
   );
 

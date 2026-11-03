@@ -18,9 +18,12 @@ import { registerReviewTools } from './tools/review';
 import { registerShoppingTools } from './tools/shopping';
 import { registerCelebrationTools } from './tools/celebration';
 import { registerFriendTools } from './tools/friends';
+import { registerInjuryTools } from './tools/injuries';
+import { registerMealPlanTools } from './tools/mealPlan';
 import { registerTodayTools } from './tools/today';
 import { registerStreakTools } from './tools/streaks';
 import { FriendsData } from './data/friends';
+import { InjuryData } from './data/injuries';
 import { NicknameData } from './data/nicknames';
 import { TransfersData } from './data/transfers';
 import { DigestData } from './data/digests';
@@ -75,18 +78,20 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const transfers = new TransfersData(deps.db, deps.user.id, workouts, plans);
   const digests = new DigestData(deps.db, deps.user.id);
   const crew = new CrewData(deps.db, deps.user.id);
+  const injuries = new InjuryData(deps.db, deps.user.id);
   // The tools Claude reads before planning or advising answer with the role to take (src/instructions/*.md).
   const server = withRoles(mcp, {
     trainer: ['search_exercises', 'list_workout_templates', 'suggest_progression', 'get_workout_history', 'show_muscle_map'],
     nutritionist: ['suggest_targets', 'get_planning_context', 'suggest_meals', 'get_food_log', 'get_meal_plan'],
     progressCoach: ['get_progress', 'show_weekly_review', 'show_dashboard', 'get_streaks'],
   });
-  registerProfileTools(server, { data, email: deps.user.email, digests });
+  registerProfileTools(server, { data, email: deps.user.email, digests, injuries });
+  registerInjuryTools(server, { data, injuries });
   registerFoodTools(server, { off: deps.off, data });
   registerFoodLogTools(server, { off: deps.off, data, plans });
-  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()), ...(await reviewNotes.exportAll()), ...(await achievements.exportAll()), ...(await friends.exportAll()), ...(await transfers.exportAll()), ...(await crew.exportAll()), emailDigests: await digests.settings(), ...(await exportInvites(deps.db, deps.user.id)) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
-  await registerExerciseTools(server, { data });
-  await registerWorkoutTools(server, { data, workouts });
+  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()), ...(await reviewNotes.exportAll()), ...(await achievements.exportAll()), ...(await friends.exportAll()), ...(await transfers.exportAll()), ...(await crew.exportAll()), ...(await injuries.exportAll()), emailDigests: await digests.settings(), ...(await exportInvites(deps.db, deps.user.id)) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
+  await registerExerciseTools(server, { data, injuries });
+  await registerWorkoutTools(server, { data, workouts, injuries });
   registerBodyTools(server, { data, workouts, body });
   registerRecipeTools(server, { off: deps.off, data, plans, fetch: deps.fetch ?? fetch, userAgent: 'Fitwell/0.3 (+https://mcp.fitwell.fyi)' });
   registerPlanningTools(server, { off: deps.off, data, plans });
@@ -99,8 +104,9 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerReviewTools(server, { data, workouts, body, plans, notes: reviewNotes });
   registerStreakTools(server, { data, workouts, body, achievements });
   registerCelebrationTools(server, { data, workouts, body, achievements });
-  registerDeleteTool(server, { data, workouts, body, plans });
+  registerDeleteTool(server, { data, workouts, body, plans, injuries });
   registerTodayTools(server, { data, plans, workouts, body });
+  registerMealPlanTools(server, { data, plans });
   registerFriendTools(server, friends, nicknames);
   registerTransferTools(server, transfers);
   registerCrewTools(server, { data, crew });

@@ -132,7 +132,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 
 **Phase 6c: quick wins before phase 7**
 - [x] A5 second half: `suggestProgression` uses the logged effort when every set reached its target: every set Easy adds two steps (bodyweight: two reps), Solid or Hard one, any Max holds; sets without an effort never count as Easy, and no effort at all keeps the plain rule and reason. Misses and deloads are unchanged. The reason names the effort ("…and every one felt Easy; add 5 kg."), and the player shows it as the progression note.
-- [ ] A11 injuries and limitations in the profile (decision in §4), flagged in plans, templates and swaps.
+- [x] A11 injuries and limitations (`add_injury`, `end_injury`, migration 0026), flagged in `search_exercises`, `start_workout` and templates, and swaps rank around them (decision in §4). **Left:** flags inside the workout player itself, and flagging a meal plan is not applicable.
 - [x] H1 first session for new accounts: the setup guide in the first `get_profile` result of an account with nothing saved, offered once (migration 0016, `users.setup_offered_at`; the privacy notice says so).
 - [x] H4 invite a friend: the friend invitation tools (`send_friend_invite` and two more) for every signed-in person, limited to active people and 3 a month (`data/memberInvites.ts`, migration 0017); the privacy notice, README and landing page say so.
 - [x] Leaner finished-workout report: bests (only when there are any), the exercise lines, cardio, the muscles as a ranked list (top four, "+n more") with an upright 3D figure beside it from three muscle groups (one colour ramp by share of the top muscle, opens on the side with more of the work, drag to turn, no buttons; the same sets in list and figure), one line on what is next and the "Plan my next workout" link. Cut: the 17 chips, "No new bests", the 7-day count, "about 48 hours", echoed notes and "Sent to Claude".
@@ -153,7 +153,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 **Phase 8: data in and ChatGPT**
 - [ ] C1 ingest webhook with per-person token; Health Auto Export and Shortcut setup in the README; sources shown in `get_progress`.
 - [ ] C2 Strava.
-- [ ] D3 Today view; D4 restaurant estimates (`log_food` `estimate_range`, migration 0025: the range kept, the middle stored, the share of estimated calories in the review and `get_progress`); D6 meal plan view.
+- [x] D3 Today view; D4 restaurant estimates (`log_food` `estimate_range`, migration 0025: the range kept, the middle stored, the share of estimated calories in the review and `get_progress`); D6 meal plan view (`show_meal_plan`, app-only `plan_*` edit tools, plan version in `meal_plans.updated_at`).
 - [ ] H2 import from Hevy, Strong, MyFitnessPal and MacroFactor exports (decision in §4).
 - [ ] G1 ChatGPT compatibility spike (by the owner) with the results table in the README; G2 fallbacks if the player does not work there; G3 host-neutral wording.
 - [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio; a year of Hevy workouts imports with "last time" values in the player and every unmatched exercise listed; a meal is swapped and a day repeated in the plan view; a ChatGPT user on a plan that allows it logs a meal and sees the dashboard, and the table says what works where.

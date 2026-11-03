@@ -2,6 +2,7 @@ import { isDay } from '@fitwell/core/domain/dates';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import type { BodyData } from '../data/bodyData';
+import type { InjuryData } from '../data/injuries';
 import type { PlanData } from '../data/planData';
 import type { UserData } from '../data/userData';
 import type { WorkoutData } from '../data/workoutData';
@@ -14,23 +15,24 @@ export interface DeleteDeps {
   workouts: WorkoutData;
   body: BodyData;
   plans: PlanData;
+  injuries: InjuryData;
 }
 
 /** One tool for every "remove this", so the model reads one definition instead of seven. */
 export function registerDeleteTool(server: McpServer, deps: DeleteDeps) {
-  const { data, workouts, body, plans } = deps;
+  const { data, workouts, body, plans, injuries } = deps;
   server.registerTool(
     'delete_item',
     {
       title: 'Delete one thing',
       description:
         'Remove one stored item. kind says what, and which field identifies it: ' +
-        'food_entry (id from get_food_log), workout (id from get_workout_history; strength, session or cardio), workout_template (id), recipe (id from get_recipes; meal plans that use it keep their copy), ' +
+        'food_entry (id from get_food_log), injury (id from get_profile; removes it for good, end_injury keeps it as over), workout (id from get_workout_history; strength, session or cardio), workout_template (id), recipe (id from get_recipes; meal plans that use it keep their copy), ' +
         'meal_plan (week_start, a Monday; food already logged from it stays), weigh_in (day), measurements (day, all of that day), daily_metrics (day: sleep, steps and water). ' +
         'Only after the person asked for it.',
       inputSchema: z.object({
-        kind: z.enum(['food_entry', 'workout', 'workout_template', 'recipe', 'meal_plan', 'weigh_in', 'measurements', 'daily_metrics']),
-        id: z.uuid().optional().describe('For food_entry, workout, workout_template, recipe'),
+        kind: z.enum(['food_entry', 'injury', 'workout', 'workout_template', 'recipe', 'meal_plan', 'weigh_in', 'measurements', 'daily_metrics']),
+        id: z.uuid().optional().describe('For food_entry, injury, workout, workout_template, recipe'),
         day: day.optional().describe('For weigh_in, measurements, daily_metrics'),
         week_start: day.optional().describe('For meal_plan'),
       }),
@@ -41,6 +43,8 @@ export function registerDeleteTool(server: McpServer, deps: DeleteDeps) {
       switch (kind) {
         case 'food_entry':
           return need(id, 'id') ?? ((await data.deleteFoodEntry(id!)) ? json({ deleted: { kind, id } }) : toolError('No such entry. Use get_food_log to see the entry ids.'));
+        case 'injury':
+          return need(id, 'id') ?? ((await injuries.remove(id!)) ? json({ deleted: { kind, id } }) : toolError('No such injury.'));
         case 'workout':
           return need(id, 'id') ?? ((await workouts.delete(id!)) ? json({ deleted: { kind, id } }) : toolError('No such workout. Use get_workout_history to see ids.'));
         case 'workout_template':

@@ -1,0 +1,21 @@
+@import '../shared/panel.css';
+/* Meal plan: a flat card per day, a row per meal, and a small panel that opens under the row or the day being changed. */
+.card + .card { margin-top: var(--s2); }
+.rows { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: var(--h-row); border-top: 1px solid var(--border); padding: 4px 0; }
+.row:first-child { border-top: 0; }
+.row .grow { display: grid; min-width: 0; }
+.row .who { font-weight: 600; overflow-wrap: anywhere; }
+.row .meta { color: var(--muted); font-size: var(--fs-small); overflow-wrap: anywhere; }
+.row .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+.done { color: var(--muted); font-size: var(--fs-small); white-space: nowrap; }
+.day-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s2); }
+.day-head h2 { margin: 0; }
+.day-head .past { color: var(--muted); font-weight: 400; }
+.tag { font-size: var(--fs-small); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 6px; white-space: nowrap; }
+.picker { display: grid; gap: 4px; padding: var(--s2); border: 1px solid var(--border); border-radius: var(--radius-sm); list-style: none; }
+.picker button { color: var(--text); }
+.picker h3 { margin: 0; font-size: var(--fs-small); font-weight: 600; color: var(--muted); }
+.picker .opts { display: flex; flex-wrap: wrap; gap: 2px; }
+.warn { border: 1px solid var(--series-2); border-radius: var(--radius-sm); padding: var(--s2); display: grid; gap: 2px; }
+header { flex-wrap: wrap; }

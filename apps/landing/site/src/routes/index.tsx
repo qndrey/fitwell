@@ -48,6 +48,7 @@ const SIZES: Record<string, [number, number]> = {
   milestone: [796, 842],
   crew: [796, 1570],
   today: [796, 1834],
+  mealplan: [796, 1702],
   sharecard: [1080, 1350],
 };
 
@@ -353,6 +354,17 @@ const features: Feature[] = [
     ],
     shot: "today",
     alt: "Today on one screen: 820 kcal left of 2,300 with a bar, a planned breakfast logged and dinner with an Eaten button, foods to log again such as skyr and banana, water and steps, and a push day done",
+    maxH: "max-h-[560px]",
+  },
+  {
+    tab: "Meal plan",
+    title: "Your week of meals, on one screen",
+    bullets: [
+      "Every day with its meals and its calories and protein against your goals, and an allergy match said in plain words.",
+      "Swap a meal for a saved recipe, repeat a day and tick what you ate. A change that would bring in an allergy is refused.",
+    ],
+    shot: "mealplan",
+    alt: "The meal plan for 2 to 8 November: Monday with three meals eaten, Tuesday with breakfast eaten and a panel open under the dinner to swap it for a saved recipe or copy Monday's dinner",
     maxH: "max-h-[560px]",
   },
   {

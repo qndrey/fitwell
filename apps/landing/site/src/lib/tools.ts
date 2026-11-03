@@ -32,6 +32,19 @@ export const CATEGORIES: Category[] = [
         ask: "What do you have saved about me?",
       },
       {
+        name: "add_injury",
+        kind: "saves",
+        what: "Remembers an injury or limitation you told Claude about, so you do not repeat it in every chat: the body area, your words, what to avoid, and when it started or should be over. Claude asks before saving and never diagnoses. Exercises that load that area are then flagged in searches, workouts and templates, and swaps rank the others first. It is private health data: never shared with friends or put on a card, in your export, and gone with your account.",
+        ask: "My left shoulder pinches on overhead presses. Remember that.",
+      },
+      {
+        name: "end_injury",
+        kind: "saves",
+        asks: true,
+        what: "Marks a remembered injury as over, from today or a day you name, so its flags stop. It stays in your export until you ask to remove it.",
+        ask: "My shoulder is fine now.",
+      },
+      {
         name: "update_profile",
         kind: "saves",
         asks: true,
@@ -83,6 +96,13 @@ export const CATEGORIES: Category[] = [
         what: "Opens today on one screen: calories and protein left against your goals, today's planned meals with a one-tap \"eaten\", the foods you eat often to log again in one tap with the amount you had last time, water and steps, and what you trained, with the workout that has waited longest as a suggestion. Nothing changes until you tap.",
         ask: "What's left today?",
         shots: [{ name: "today", alt: "Today on one screen: 820 kcal left of 2,300 with a bar, planned breakfast logged and dinner with an Eaten button, foods to log again such as skyr and banana with an Add button, 750 ml of water and 8,200 steps, and a push day done with leg day suggested" }],
+      },
+      {
+        name: "show_meal_plan",
+        kind: "opens",
+        what: "Opens a week of your meal plan: every day with its meals and its calories and protein against your goals, and any allergy or dislike match in plain words. Swap a meal for a saved recipe or copy another meal, repeat a day, and tick a meal as eaten, all in the view. Every change goes through the same allergy check as a plan made in chat, a meal you already ate is never changed, and two open windows cannot overwrite each other.",
+        ask: "Show my meal plan for this week.",
+        shots: [{ name: "mealplan", alt: "The meal plan for 2 to 8 November: Monday with three meals eaten, Tuesday with breakfast eaten, lunch and dinner with Eaten and Change buttons, and a panel open under the dinner to swap it for a saved recipe or copy Monday's dinner" }],
       },
       {
         name: "get_food_log",
@@ -501,6 +521,11 @@ export const UNLISTED_TOOLS: string[] = [
   "today_eat_planned",
   "today_quick_add",
   "today_add_water",
+  "get_meal_plan_data",
+  "plan_swap_recipe",
+  "plan_copy_meal",
+  "plan_repeat_day",
+  "plan_eat_meal",
   // For the owner of the service only.
   "list_invite_requests",
   "list_invitations",

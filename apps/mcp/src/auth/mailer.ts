@@ -3,6 +3,8 @@ export interface Mail {
   subject: string;
   text: string;
   html: string;
+  /** Extra headers, e.g. List-Unsubscribe on the digests. */
+  headers?: Record<string, string>;
 }
 
 export interface Mailer {
@@ -17,7 +19,7 @@ export interface Mailer {
 export function cloudflareMailer(env: Pick<Env, 'EMAIL' | 'MAIL_FROM'>): Mailer {
   return {
     async send(mail) {
-      await env.EMAIL.send({ from: { name: 'Fitwell', email: env.MAIL_FROM }, to: mail.to, subject: mail.subject, text: mail.text, html: mail.html });
+      await env.EMAIL.send({ from: { name: 'Fitwell', email: env.MAIL_FROM }, to: mail.to, subject: mail.subject, text: mail.text, html: mail.html, ...(mail.headers ? { headers: mail.headers } : {}) });
     },
   };
 }
@@ -29,7 +31,7 @@ export function resendMailer(env: { MAIL_FROM: string; RESEND_API_KEY: string },
       const res = await doFetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ from: `Fitwell <${env.MAIL_FROM}>`, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+        body: JSON.stringify({ from: `Fitwell <${env.MAIL_FROM}>`, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.headers ? { headers: mail.headers } : {}) }),
       });
       if (!res.ok) throw new Error(`Resend answered ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
     },

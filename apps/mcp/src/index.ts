@@ -4,6 +4,8 @@ import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
 import { mailerFor } from './auth/mailer';
 import { page, privacyBody, supportBody, termsBody } from './auth/pages';
 import { handleRequestAccess } from './auth/requestAccess';
+import { runDigests } from './digests/run';
+import { handleUnsubscribe } from './digests/unsubscribe';
 import { ICONS } from './icons';
 import { handleImport } from './import/routes';
 import { cachedOff } from './data/offCache';
@@ -69,6 +71,7 @@ const site = {
       const notify = { mailer: mailerFor(env), to: env.CONTACT_EMAIL, waitUntil: (p: Promise<unknown>) => ctx.waitUntil(p) };
       return handleRequestAccess(request, { db: env.DB, contact: env.CONTACT_EMAIL, notify });
     }
+    if (url.pathname === '/unsubscribe') return handleUnsubscribe(request, { db: env.DB });
     if (url.pathname === '/import' || url.pathname === '/import/chunk' || url.pathname === '/import/finish') return handleImport(request, { db: env.DB });
     if (url.pathname === '/privacy') return page('Fitwell privacy notice', privacyBody(env.CONTACT_EMAIL));
     if (url.pathname === '/support') return page('Fitwell support', supportBody(env.CONTACT_EMAIL));
@@ -126,5 +129,14 @@ export default {
       return serveMcp(request, env, user);
     }
     return oauthProvider(env).fetch(request, env, ctx);
+  },
+  // The hourly cron (wrangler.jsonc triggers): sends the email digests that are due in each person's own local time.
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const reviewEmail = parseReviewLogin((env as EnvWithOAuth).REVIEW_LOGIN)?.email;
+    ctx.waitUntil(
+      runDigests({ db: env.DB, mailer: mailerFor(env as EnvWithOAuth), publicUrl: env.PUBLIC_URL, skip: (email) => email === DEV_EMAIL || email.toLowerCase() === reviewEmail }).then((r) => {
+        if (r.weekly || r.nudge || r.failed) console.log('digests', JSON.stringify(r));
+      }),
+    );
   },
 } satisfies ExportedHandler<Env>;

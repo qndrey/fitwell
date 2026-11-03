@@ -16,6 +16,8 @@ interface Entry extends Totals {
   brand?: string;
   grams: number;
   estimated?: boolean;
+  /** An estimate with a range (a meal out): the calories could be anywhere in it; kcal is its middle. */
+  kcalRange?: { low: number; high: number };
 }
 /** What log_food returns as structured content. */
 interface Logged {
@@ -128,7 +130,7 @@ function draw() {
       h(
         'ul',
         { className: 'items', 'aria-label': 'Logged foods' },
-        ...logged.map((e) => h('li', {}, h('span', { className: 'nm' }, `${e.estimated ? '~' : ''}${e.food} · ${num(e.grams)} g`), h('span', { className: 'kc' }, `${num(e.kcal)} kcal`))),
+        ...logged.map((e) => h('li', {}, h('span', { className: 'nm' }, `${e.estimated ? '~' : ''}${e.food} · ${num(e.grams)} g`), h('span', { className: 'kc' }, e.kcalRange ? `~${num(e.kcal)} kcal (${num(e.kcalRange.low)} to ${num(e.kcalRange.high)})` : `${num(e.kcal)} kcal`))),
       ),
       allergyWarnings?.length ? h('div', { className: 'warn', role: 'alert' }, ...allergyWarnings.map((w) => h('span', {}, w))) : null,
     ),

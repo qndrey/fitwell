@@ -73,7 +73,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "log_food",
         kind: "opens",
-        what: "Logs one or several foods with calories, protein, carbs, fat, fibre, sugars and salt, then shows the day so far against your goals. It can repeat yesterday's breakfast, log a saved recipe, or log an estimate from a photo, clearly marked.",
+        what: "Logs one or several foods with calories, protein, carbs, fat, fibre, sugars and salt, then shows the day so far against your goals. It can repeat yesterday's breakfast, log a saved recipe, or log an estimate from a photo, clearly marked. A meal out is logged as a range, such as 600 to 900 kcal, and shown with that range, never as a made-up exact number; the weekly review says how much of your calories were estimates.",
         ask: "Same breakfast as yesterday.",
         shots: [{ name: "food", alt: "The summary after logging a lunch of oats and rye bread: calories today 549 of 2,300, then protein, carbs and fat against their goals" }],
       },

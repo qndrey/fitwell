@@ -83,6 +83,8 @@ function foodCard(r: WeekReview): Built {
       e?.sugar !== undefined && hrow('Sugar', g(e.sugar, 1), null, e.addedSugar !== undefined ? `${g(e.addedSugar, 1)} added${n.goals.addedSugarG ? `, limit ${g(n.goals.addedSugarG)}` : ''}` : null),
       e?.satFat !== undefined && hrow('Sat. fat', g(e.satFat, 1), n.goals.satFatG ? `limit ${g(n.goals.satFatG)}` : null),
       e?.salt !== undefined && hrow('Salt', g(e.salt, 1)),
+      // Only when some calories were estimates: how much of the picture is a guess (a restaurant meal, a photo of a plate).
+      n.estimatedKcalShare ? hrow('Estimated', `${n.estimatedKcalShare} % of calories`, null, 'restaurant meals and guesses, not label or database values') : null,
       hrow('Days logged', `${n.daysLogged} of ${r.daysCounted}`, null, n.kcalWithin10Pct !== null ? `within 10 % of the calorie goal on ${n.kcalWithin10Pct} ${n.kcalWithin10Pct === 1 ? 'day' : 'days'}` : null),
     ],
   };

@@ -22,6 +22,8 @@ export interface NutritionProgress {
   /** `extras` (fibre, sugars, saturated fat, salt in g) only where a logged food had them. */
   daily: { day: Day; kcal: number; protein: number; carbs: number; fat: number; extras?: Extras }[];
   daysLogged: number;
+  /** The share of the period's calories that came from estimates (a restaurant meal, a photo of a plate, a guess), in whole percent; null when nothing was logged. */
+  estimatedKcalShare: number | null;
   /** Average per logged day for each week (Monday first) that has logged days; the first and last week may be partial. */
   weeks: { week: Day; kcal: number; protein: number; daysLogged: number }[];
   /** Average protein per logged day over the period, per kg of the latest 7-day average weight; null without either. */

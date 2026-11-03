@@ -110,6 +110,17 @@ describe('log again', () => {
     expect(log.entries[0]!.food).toMatch(/oats/i);
   });
 
+  it('keeps the range of a meal out when it is logged again in one tap, and shows it', async () => {
+    const meal = { name: 'Pasta at Luigi', grams: 450, estimate_range: { kcal_low: 600, kcal_high: 900, protein_g: 30, carbs_g: 85, fat_g: 35 } };
+    await call(client, 'log_food', { day: addDays(today, -3), items: [meal] });
+    await call(client, 'log_food', { day: addDays(today, -2), items: [meal] });
+    const t = await view();
+    expect(t.quickAdd[0]).toMatchObject({ name: 'Pasta at Luigi', kcal: 750, estimated: true, kcalRange: { low: 600, high: 900 } });
+    await call(client, 'today_quick_add', { entry_id: t.quickAdd[0]!.entryId });
+    const log = (await call(client, 'get_food_log', { day: today })).data as { entries: { kcal: number; estimated?: boolean; kcalRange?: { low: number; high: number } }[] };
+    expect(log.entries).toMatchObject([{ kcal: 750, estimated: true, kcalRange: { low: 600, high: 900 } }]);
+  });
+
   it('never suggests or logs something that matches an allergy word, and cannot copy another person\'s entry', async () => {
     await food(addDays(today, -3), OATS, 80);
     await food(addDays(today, -2), OATS, 90);

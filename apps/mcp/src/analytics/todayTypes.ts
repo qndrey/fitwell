@@ -17,6 +17,8 @@ export interface TodayQuickAdd {
   kcal: number;
   protein: number;
   estimated: boolean;
+  /** An estimate with a range (a meal out): the calories could be anywhere in it; kcal is its middle. */
+  kcalRange?: { low: number; high: number };
 }
 
 export interface TodayView {

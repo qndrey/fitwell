@@ -11,6 +11,10 @@ const DESTRUCTIVE = [
   'edit_food_entry', // changes a logged entry
   'edit_workout_set', // changes a logged set
   'end_injury', // sets the end day of a saved injury
+  'decline_household_invite', // deletes an invitation
+  'leave_household', // ends a membership; the last one out deletes the household's plans
+  'set_household_portion', // replaces the portion
+  'use_household_plan', // replaces the person's own plan of that week
   'log_body', // a value logged for a day replaces the one already there
   'send_friend_invite', // emails someone, which cannot be unsent
   'approve_invite_request', // the same, and deletes the request

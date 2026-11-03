@@ -46,11 +46,14 @@ describe('the meal plan view', () => {
     await v.frame.getByRole('button', { name: 'Swap Lentil stew for Porridge' }).click();
     await pwExpect(v.frame.getByText('Dinner: Porridge')).toBeVisible();
     await pwExpect(v.frame.getByText(/ALLERGY/)).toHaveCount(0);
+    await expect.poll(() => v.calls.length).toBe(1);
     expect(v.calls).toEqual([{ name: 'plan_swap_recipe', args: { week_start: '2026-11-02', version: 7, index: 2, recipe_id: 'r1' } }]);
     await v.frame.getByRole('button', { name: 'Log Chicken and rice as eaten' }).click();
+    await expect.poll(() => v.calls.length).toBe(2);
     expect(v.calls[1]).toEqual({ name: 'plan_eat_meal', args: { week_start: '2026-11-02', version: 8, index: 1 } }); // the version of the fresh week
     await v.frame.getByRole('button', { name: 'Repeat Tue on another day' }).click();
     await v.frame.getByRole('button', { name: 'Make Thu the same as Tue' }).click();
+    await expect.poll(() => v.calls.length).toBe(3);
     expect(v.calls[2]).toMatchObject({ name: 'plan_repeat_day', args: { from_day: '2026-11-03', to_day: '2026-11-05' } });
   }, 30_000);
 

@@ -1,5 +1,5 @@
 // The colour of each muscle level on the body model and in the lists. Pure (no DOM), so the tests can reach it.
-import type { MuscleLevel, MuscleLoad, MuscleMap } from '../../src/analytics/muscleTypes';
+import type { MuscleLevel, MuscleLoad, MuscleMap, StrengthTrend } from '../../src/analytics/muscleTypes';
 
 /**
  * One colour per level, readable on the skin tone in either theme; never the only signal (the lists say the level in words).
@@ -33,11 +33,21 @@ export const RECOVERY_HEAT: Record<'light' | 'dark', Record<Recovery, number>> =
   dark: { recent: 0xf0ebe2, days: 0xb9b2a7, week: 0x7f796f, none: 0x4a4641 },
 };
 
-/** What the colours and rows show: weekly hard sets against the range, or how long ago each muscle was trained. */
-export type MapMode = 'sets' | 'recovery';
+/** The strength mode: how the estimated 1RM of the lifts that mainly work a muscle changed. Blue for stronger, amber for lower, grey for about the same: a plain direction, never a verdict. */
+export type StrengthKey = StrengthTrend;
+export const STRENGTH_ORDER: StrengthKey[] = ['up', 'same', 'down', 'none'];
+export const STRENGTH_LABEL: Record<StrengthKey, string> = { up: 'Estimated 1RM up', same: 'About the same', down: 'Estimated 1RM down', none: 'No lift to compare' };
+export const STRENGTH_HEAT: Record<'light' | 'dark', Record<StrengthKey, number>> = {
+  light: { up: 0x2a6fd0, same: 0x8a847b, down: 0xc77a1c, none: 0xdcd8d0 },
+  dark: { up: 0x6ea8ff, same: 0x9a948a, down: 0xf0a040, none: 0x4a4641 },
+};
+export const trendOf = (m: MuscleLoad): StrengthKey => m.strength?.trend ?? 'none';
+
+/** What the colours and rows show: weekly hard sets against the range, how long ago each muscle was trained, or how its lifts' strength changed. */
+export type MapMode = 'sets' | 'recovery' | 'strength';
 
 export const heatColours = (map: MuscleMap, dark: boolean, mode: MapMode = 'sets'): Map<string, number> =>
-  new Map(map.muscles.map((m) => [m.muscle, mode === 'recovery' ? RECOVERY_HEAT[dark ? 'dark' : 'light'][recoveryOf(map.to, m.lastTrained)] : HEAT[dark ? 'dark' : 'light'][m.level]]));
+  new Map(map.muscles.map((m) => [m.muscle, mode === 'recovery' ? RECOVERY_HEAT[dark ? 'dark' : 'light'][recoveryOf(map.to, m.lastTrained)] : mode === 'strength' ? STRENGTH_HEAT[dark ? 'dark' : 'light'][trendOf(m)] : HEAT[dark ? 'dark' : 'light'][m.level]]));
 
 /** "+1.5 vs the 4 weeks before", "same as the week before"; nothing without an earlier period. Neutral: no colour says more or less is better. */
 export function deltaText(m: MuscleLoad, weeks: number): string | null {

@@ -2,7 +2,8 @@
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import { sessionMuscleCredit } from '../workout/sessions';
 import type { Workout } from '../data/workoutData';
-import { MUSCLE_GROUPS, WEEKLY_SET_RANGE, type MuscleLevel, type MuscleLoad, type MuscleMap } from './muscleTypes';
+import { sessionBest } from '../workout/bests';
+import { MUSCLE_GROUPS, STRENGTH_SAME_PCT, WEEKLY_SET_RANGE, type MuscleLevel, type MuscleLoad, type MuscleMap, type StrengthTrend } from './muscleTypes';
 
 export { MUSCLE_GROUPS, WEEKLY_SET_RANGE, type MuscleLevel, type MuscleLoad, type MuscleMap } from './muscleTypes';
 
@@ -55,16 +56,48 @@ function tally(i: MuscleMapInput, from: Day, to: Day) {
   return { sets, last, byExercise, strength, classes };
 }
 
+/** The best estimated 1RM of each library exercise among the finished strength workouts of a period. */
+function bestByExercise(i: MuscleMapInput, from: Day, to: Day): Map<string, number> {
+  const best = new Map<string, number>();
+  for (const w of i.workouts) {
+    if (w.type !== 'strength' || w.finishedAt === null || w.day < from || w.day > to) continue;
+    for (const e of w.exercises) {
+      const v = sessionBest(e.sets);
+      if (v > 0) best.set(e.exerciseRef, Math.max(best.get(e.exerciseRef) ?? 0, v));
+    }
+  }
+  return best;
+}
+
+/** Per muscle: the mean percent change of the best estimated 1RM over the lifts that mainly work it and were lifted (with weight) in both periods. */
+function strengthByMuscle(i: MuscleMapInput, from: Day, to: Day): Map<string, { trend: StrengthTrend; changePct: number | null; lifts: number }> {
+  const now = bestByExercise(i, from, to);
+  const before = bestByExercise(i, addDays(from, -(i.weeks * 7)), addDays(from, -1));
+  const changes = new Map<string, number[]>();
+  for (const [ref, v] of now) {
+    const was = before.get(ref);
+    if (!was) continue;
+    for (const m of i.musclesOf(ref).primary) changes.set(m, [...(changes.get(m) ?? []), ((v - was) / was) * 100]);
+  }
+  return new Map(
+    [...changes].map(([m, xs]) => {
+      const pct = Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10;
+      return [m, { trend: Math.abs(pct) < STRENGTH_SAME_PCT ? 'same' : pct > 0 ? 'up' : 'down', changePct: pct, lifts: xs.length }] as const;
+    }),
+  );
+}
+
 export function buildMuscleMap(i: MuscleMapInput): MuscleMap {
   const from = addDays(i.to, -(i.weeks * 7 - 1));
   const { sets, last, byExercise, strength, classes } = tally(i, from, i.to);
   const prev = tally(i, addDays(from, -(i.weeks * 7)), addDays(from, -1));
   const previousSessions = prev.strength.length + prev.classes.length;
+  const strengthOf = strengthByMuscle(i, from, i.to);
   const r1 = (n: number) => Math.round(n * 10) / 10;
   const muscles = MUSCLE_GROUPS.map((muscle): MuscleLoad => {
     const perWeek = r1((sets.get(muscle) ?? 0) / i.weeks);
     const top = [...(byExercise.get(muscle) ?? [])].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
-    return { muscle, setsPerWeek: perWeek, previousSetsPerWeek: previousSessions ? r1((prev.sets.get(muscle) ?? 0) / i.weeks) : null, level: levelFor(perWeek), lastTrained: last.get(muscle) ?? null, topExercises: top.map(([name, n]) => ({ name, sets: r1(n) })) };
+    return { muscle, strength: strengthOf.get(muscle) ?? { trend: 'none', changePct: null, lifts: 0 }, setsPerWeek: perWeek, previousSetsPerWeek: previousSessions ? r1((prev.sets.get(muscle) ?? 0) / i.weeks) : null, level: levelFor(perWeek), lastTrained: last.get(muscle) ?? null, topExercises: top.map(([name, n]) => ({ name, sets: r1(n) })) };
   });
   return { from, to: i.to, weeks: i.weeks, sessions: strength.length, previousSessions, otherSessions: classes.length, range: { ...WEEKLY_SET_RANGE }, muscles };
 }
@@ -87,5 +120,9 @@ export function describeMuscleMap(m: MuscleMap): string {
       return list ? `${label}: ${list}.` : '';
     }).filter(Boolean).join('\n'),
   ];
+  // Strength: which muscles' lifts got stronger or weaker by estimated 1RM against the period before (only where a lift was done in both).
+  const trend = (t: 'up' | 'down') => m.muscles.filter((x) => x.strength?.trend === t).map((x) => `${x.muscle} ${x.strength!.changePct! > 0 ? '+' : ''}${x.strength!.changePct} %`).join(', ');
+  const [up, down] = [trend('up'), trend('down')];
+  if (up || down) lines.push(`Strength (best estimated 1RM of the lifts that mainly work each muscle, against the period before): ${up ? `up: ${up}` : ''}${up && down ? '; ' : ''}${down ? `down: ${down}` : ''}. Muscles not listed had no lift done in both periods or changed under 2 %.`);
   return lines.join('\n');
 }

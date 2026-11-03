@@ -2,6 +2,7 @@
 import type { Client } from '@modelcontextprotocol/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { canView, MAX_PENDING_SENT, type FriendList } from '../src/data/friends';
+import { LOOKUPS_PER_HOUR } from '../src/data/nicknames';
 import { deleteUser, inviteUser, type User } from '../src/data/users';
 import { createTestEnv } from './support/env';
 import { call, connectAs, signedInUser } from './support/mcp';
@@ -41,11 +42,11 @@ describe('requesting', () => {
     const outgoing = (await list(anaC)).outgoing;
     expect(outgoing.map((o) => o.email)).toEqual(['bo@example.com', 'nobody@example.com', 'dee@example.com']);
     // Each entry has the same shape and no profile data, whoever it is.
-    for (const o of outgoing) expect(Object.keys(o).sort()).toEqual(['connectionId', 'email', 'name', 'sentOn']);
-    expect(outgoing.every((o) => o.name === null)).toBe(true);
+    for (const o of outgoing) expect(Object.keys(o).sort()).toEqual(['connectionId', 'email', 'nickname', 'sentOn']);
+    expect(outgoing.every((o) => o.nickname === null)).toBe(true);
     expect(JSON.stringify(outgoing)).not.toContain(bo.id);
     expect(JSON.stringify(outgoing)).not.toContain(invited.id);
-    // The person asked sees it, with the name of the one who asked.
+    // The person asked sees it, with the address of the one who asked (they have no nickname).
     expect((await list(boC)).incoming).toMatchObject([{ email: 'ana@example.com', sentOn: new Date().toISOString().slice(0, 10) }]);
   });
 
@@ -267,5 +268,73 @@ describe('export and delete', () => {
     expect(await rows('connections')).toBe(1);
     expect(await rows('shares')).toBe(1);
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM share_consents WHERE owner_id = ? OR viewer_id = ?').bind(ana.id, ana.id).first<{ n: number }>())!.n).toBe(0);
+  });
+});
+
+describe('nicknames', () => {
+  const nick = async (c: Client, nickname: string | null) => call(c, 'set_nickname', { nickname });
+  const mine = async (c: Client) => ((await call(c, 'list_friends')).data as { nickname: string | null }).nickname;
+
+  it('are unique across the system ignoring case, validated, and can be changed or cleared', async () => {
+    expect((await nick(anaC, 'Ana_Fit')).data).toEqual({ nickname: 'Ana_Fit' });
+    expect(await mine(anaC)).toBe('Ana_Fit');
+    const taken = await nick(boC, 'ana_fit'); // another case of the same
+    expect(taken.isError).toBe(true);
+    expect(taken.text).toContain('taken');
+    expect((await nick(anaC, 'ANA_FIT')).isError).toBe(false); // one's own, in another case
+    for (const bad of ['ab', 'a'.repeat(21), 'has space', '-leading', 'ana@example.com', 'Fitwell', 'ADMIN', '<b>x</b>']) expect((await nick(boC, bad)).isError, bad).toBe(true);
+    expect((await nick(boC, 'bo.lifts')).isError).toBe(false);
+    expect((await nick(anaC, null)).data).toEqual({ nickname: null });
+    expect((await nick(boC, 'ana_fit')).isError).toBe(false); // free again
+    expect(await mine(anaC)).toBeNull();
+  });
+
+  it('ask by nickname: needs one of your own, an unknown one is said to be unknown, and the asked sees a nickname and never an email', async () => {
+    await nick(boC, 'bo.lifts');
+    expect((await call(anaC, 'request_friend', { nickname: 'bo.lifts' })).text).toContain('nickname of their own');
+    await nick(anaC, 'ana_fit');
+    expect((await call(anaC, 'request_friend', { nickname: 'nobody_here' })).text).toContain('No one has that nickname');
+    expect((await call(anaC, 'request_friend', { nickname: 'ANA_FIT' })).text).toContain('own');
+    expect((await call(anaC, 'request_friend', { nickname: 'BO.LIFTS' })).isError).toBe(false); // any case
+    expect((await call(anaC, 'request_friend', { nickname: 'bo.lifts', email: 'bo@example.com' })).isError).toBe(true); // exactly one
+    expect((await call(anaC, 'request_friend', {})).isError).toBe(true);
+    // Ana never sees Bo's email; Bo sees Ana's nickname, not her email.
+    const outgoing = (await list(anaC)).outgoing;
+    expect(outgoing).toMatchObject([{ nickname: 'bo.lifts', email: null }]);
+    expect(JSON.stringify(await list(anaC))).not.toContain('bo@example.com');
+    expect((await list(boC)).incoming).toMatchObject([{ nickname: 'ana_fit', email: null }]);
+    expect(JSON.stringify(await list(boC))).not.toContain('ana@example.com');
+    await call(boC, 'accept_friend', { connection_id: (await list(boC)).incoming[0]!.connectionId });
+    expect((await list(anaC)).friends).toMatchObject([{ nickname: 'bo.lifts', email: null }]);
+    expect((await list(boC)).friends).toMatchObject([{ nickname: 'ana_fit', email: null }]);
+    const exported = JSON.stringify((await call(anaC, 'export_my_data')).data.friends);
+    expect(exported).toContain('bo.lifts');
+    expect(exported).not.toContain('bo@example.com');
+  });
+
+  it('asking by email does not reveal a nickname, and a friend asked by email is shown by nickname once they have one', async () => {
+    await nick(boC, 'bo.lifts');
+    await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    expect((await list(anaC)).outgoing).toMatchObject([{ nickname: null, email: 'bo@example.com' }]); // the same as for any address
+    await call(boC, 'accept_friend', { connection_id: (await list(boC)).incoming[0]!.connectionId });
+    expect((await list(anaC)).friends).toMatchObject([{ nickname: 'bo.lifts', email: null }]);
+  });
+
+  it('limits nickname lookups to a few an hour, and the limit does not depend on the nickname', async () => {
+    await nick(anaC, 'ana_fit');
+    for (let i = 0; i < LOOKUPS_PER_HOUR; i++) expect((await call(anaC, 'request_friend', { nickname: `guess${i}` })).text).toContain('No one has that nickname');
+    const over = await call(anaC, 'request_friend', { nickname: 'bo.lifts' });
+    expect(over.text).toContain('lot of nickname lookups');
+    expect(await rows('connections')).toBe(0);
+    await env.DB.prepare('UPDATE nickname_lookups SET at = ?').bind(Date.now() - 2 * 3_600_000).run();
+    expect((await call(anaC, 'request_friend', { nickname: 'bo.lifts' })).text).toContain('No one has that nickname'); // Bo has none yet; the window has passed
+  });
+
+  it('a person who has not signed in has no nickname to find, and deleting an account frees its nickname and lookups', async () => {
+    await nick(anaC, 'ana_fit');
+    await call(anaC, 'request_friend', { nickname: 'nobody_here' });
+    await deleteUser(env.DB, ana);
+    expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM nickname_lookups').first<{ n: number }>())!.n).toBe(0);
+    expect((await nick(boC, 'ana_fit')).isError).toBe(false);
   });
 });

@@ -2,6 +2,7 @@
 // Every query is bound to the signed-in person's id. A request is addressed to the email the person typed and is stored without looking
 // up whether that address has an account, so asking (and listing what was asked) cannot be used to find out who is a member; the person
 // at that address sees it when they next ask. A name is shown only for someone who asked you or is already your friend.
+import { checkNickname, NicknameData } from './nicknames';
 import { normalizeEmail } from './users';
 
 export const SHARE_CATEGORIES = ['workouts', 'consistency', 'templates', 'body'] as const;
@@ -18,8 +19,9 @@ const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 export interface FriendView {
   /** The connection's id: what the other tools take. */
   connectionId: string;
-  email: string;
-  name: string | null;
+  /** How the friend is shown: by nickname when they have one (then there is no email), else by email. */
+  nickname: string | null;
+  email: string | null;
   /** What this person lets the friend see, and what the friend lets this person see. */
   iShare: ShareCategory[];
   theyShare: ShareCategory[];
@@ -27,9 +29,9 @@ export interface FriendView {
 
 export interface RequestView {
   connectionId: string;
-  email: string;
-  /** Only for a request someone sent this person; never for one this person sent. */
-  name: string | null;
+  /** Incoming: the one who asked, by nickname when they have one (then no email). Outgoing: the nickname asked, or the address typed. */
+  nickname: string | null;
+  email: string | null;
   /** The day it was sent. */
   sentOn: string;
 }
@@ -42,7 +44,9 @@ export interface FriendList {
   outgoing: RequestView[];
 }
 
-export type RequestOutcome = { ok: true } | { ok: false; reason: 'self' | 'invalid_email' | 'too_many_pending' | 'too_many_friends' };
+export type RequestOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'self' | 'invalid_email' | 'too_many_pending' | 'too_many_friends' | 'invalid_nickname' | 'own_nickname_needed' | 'too_many_lookups' | 'unknown_nickname' };
 
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
@@ -68,6 +72,27 @@ export class FriendsData {
   async request(rawEmail: string): Promise<RequestOutcome> {
     const email = normalizeEmail(rawEmail);
     if (email.length > 254 || !EMAIL.test(email)) return { ok: false, reason: 'invalid_email' };
+    return this.send(email, false);
+  }
+
+  /**
+   * Asks the member with this nickname to connect. A nickname is meant to be shared, so an unknown one is said to be unknown; to keep members
+   * from being found by guessing, lookups are limited to a few an hour, and the person must have a nickname of their own (so the one asked
+   * is shown a nickname, never this person's email). The one asked is never shown to this person by email.
+   */
+  async requestByNickname(rawNickname: string): Promise<RequestOutcome> {
+    const nick = checkNickname(rawNickname);
+    if (!nick.ok) return { ok: false, reason: 'invalid_nickname' };
+    const nicknames = new NicknameData(this.db, this.userId, this.now);
+    if ((await nicknames.get()) === null) return { ok: false, reason: 'own_nickname_needed' };
+    const found = await nicknames.find(nick.value);
+    if (found === false) return { ok: false, reason: 'too_many_lookups' };
+    if (found === null) return { ok: false, reason: 'unknown_nickname' };
+    if (found.id === this.userId) return { ok: false, reason: 'self' };
+    return this.send(found.email, true);
+  }
+
+  private async send(email: string, viaNickname: boolean): Promise<RequestOutcome> {
     const mine = await this.myEmail();
     if (mine === email) return { ok: false, reason: 'self' };
     await this.prune();
@@ -88,8 +113,35 @@ export class FriendsData {
       return { ok: true };
     }
     if (between.length > 0) return { ok: true }; // this person already asked
-    await this.db.prepare("INSERT OR IGNORE INTO connections (id, requester_id, addressee_email, status, created_at) VALUES (?, ?, ?, 'pending', ?)").bind(crypto.randomUUID(), this.userId, email, this.now()).run();
+    await this.db
+      .prepare("INSERT OR IGNORE INTO connections (id, requester_id, addressee_email, via_nickname, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)")
+      .bind(crypto.randomUUID(), this.userId, email, viaNickname ? 1 : 0, this.now())
+      .run();
     return { ok: true };
+  }
+
+  /** Every connection this person is part of (or has a request waiting for), with the nicknames needed to show the other side. */
+  private async rows(): Promise<Row[]> {
+    const mine = await this.myEmail();
+    const { results } = await this.db
+      .prepare(
+        `SELECT c.id, c.requester_id, c.addressee_id, c.addressee_email, c.status, c.via_nickname, c.created_at, c.responded_at,
+                r.email AS requester_email, rp.nickname AS requester_nick, ap.nickname AS addressee_nick
+         FROM connections c JOIN users r ON r.id = c.requester_id LEFT JOIN profiles rp ON rp.user_id = r.id
+              LEFT JOIN users a ON a.email = c.addressee_email LEFT JOIN profiles ap ON ap.user_id = a.id
+         WHERE c.requester_id = ?1 OR c.addressee_id = ?1 OR c.addressee_email = ?2 ORDER BY c.created_at`,
+      )
+      .bind(this.userId, mine)
+      .all<Row>();
+    return results;
+  }
+
+  /** How the other side of a row is shown to this person: a nickname when they have one (and then never an email); an outgoing request by nickname is only a nickname. */
+  private shown(r: Row): { nickname: string | null; email: string | null } {
+    const sentByMe = r.requester_id === this.userId;
+    if (r.status === 'pending' && sentByMe) return r.via_nickname === 1 ? { nickname: (r.addressee_nick as string | null) ?? null, email: null } : { nickname: null, email: r.addressee_email as string };
+    const nickname = ((sentByMe ? r.addressee_nick : r.requester_nick) as string | null) ?? null;
+    return { nickname, email: nickname ? null : ((sentByMe ? r.addressee_email : r.requester_email) as string) };
   }
 
   private async countFriends(): Promise<number> {
@@ -98,32 +150,19 @@ export class FriendsData {
 
   async list(): Promise<FriendList> {
     await this.prune();
-    const mine = await this.myEmail();
-    const { results } = await this.db
-      .prepare(
-        `SELECT c.id, c.requester_id, c.addressee_id, c.addressee_email, c.status, c.created_at, r.email AS requester_email, r.name AS requester_name, a.email AS addressee_account_email, a.name AS addressee_name
-         FROM connections c JOIN users r ON r.id = c.requester_id LEFT JOIN users a ON a.id = c.addressee_id
-         WHERE c.requester_id = ?1 OR c.addressee_id = ?1 OR c.addressee_email = ?2 ORDER BY c.created_at`,
-      )
-      .bind(this.userId, mine)
-      .all<Row>();
+    const results = await this.rows();
     const given = await this.shares('SELECT viewer_id AS other, category FROM shares WHERE owner_id = ?');
     const received = await this.shares('SELECT owner_id AS other, category FROM shares WHERE viewer_id = ?');
     const out: FriendList = { friends: [], incoming: [], outgoing: [] };
     for (const r of results) {
       const sentOn = day(r.created_at as number);
       const sentByMe = r.requester_id === this.userId;
+      const view = { connectionId: r.id as string, ...this.shown(r) };
       if (r.status === 'accepted') {
         const other = (sentByMe ? r.addressee_id : r.requester_id) as string;
-        out.friends.push({
-          connectionId: r.id as string,
-          email: (sentByMe ? r.addressee_account_email : r.requester_email) as string,
-          name: ((sentByMe ? r.addressee_name : r.requester_name) as string | null) ?? null,
-          iShare: given.get(other) ?? [],
-          theyShare: received.get(other) ?? [],
-        });
-      } else if (sentByMe) out.outgoing.push({ connectionId: r.id as string, email: r.addressee_email as string, name: null, sentOn });
-      else out.incoming.push({ connectionId: r.id as string, email: r.requester_email as string, name: (r.requester_name as string | null) ?? null, sentOn });
+        out.friends.push({ ...view, iShare: given.get(other) ?? [], theyShare: received.get(other) ?? [] });
+      } else if (sentByMe) out.outgoing.push({ ...view, sentOn });
+      else out.incoming.push({ ...view, sentOn });
     }
     return out;
   }
@@ -231,23 +270,21 @@ export class FriendsData {
 
   /** What the person agreed to and withdrew, for their own copy. */
   async exportAll() {
-    const mine = await this.myEmail();
-    const [connections, shares, consents] = await Promise.all([
-      this.db
-        .prepare(
-          `SELECT c.status, c.created_at, c.responded_at, c.requester_id = ?1 AS sent, CASE WHEN c.requester_id = ?1 THEN c.addressee_email ELSE r.email END AS other
-           FROM connections c JOIN users r ON r.id = c.requester_id WHERE c.requester_id = ?1 OR c.addressee_id = ?1 OR c.addressee_email = ?2 ORDER BY c.created_at`,
-        )
-        .bind(this.userId, mine)
-        .all<Row>(),
-      this.db.prepare('SELECT s.owner_id = ?1 AS mine, u.email, s.category, s.granted_at FROM shares s JOIN users u ON u.id = CASE WHEN s.owner_id = ?1 THEN s.viewer_id ELSE s.owner_id END WHERE s.owner_id = ?1 OR s.viewer_id = ?1 ORDER BY s.granted_at').bind(this.userId).all<Row>(),
-      this.db.prepare('SELECT u.email, k.category, k.action, k.at FROM share_consents k JOIN users u ON u.id = k.viewer_id WHERE k.owner_id = ? ORDER BY k.id').bind(this.userId).all<Row>(),
+    const label = (nickname: unknown, email: unknown) => (nickname as string | null) ?? (email as string | null) ?? 'unknown';
+    const [rows, shares, consents] = await Promise.all([
+      this.rows(),
+      this.db.prepare('SELECT s.owner_id = ?1 AS mine, u.email, p.nickname, s.category, s.granted_at FROM shares s JOIN users u ON u.id = CASE WHEN s.owner_id = ?1 THEN s.viewer_id ELSE s.owner_id END LEFT JOIN profiles p ON p.user_id = u.id WHERE s.owner_id = ?1 OR s.viewer_id = ?1 ORDER BY s.granted_at').bind(this.userId).all<Row>(),
+      this.db.prepare('SELECT u.email, p.nickname, k.category, k.action, k.at FROM share_consents k JOIN users u ON u.id = k.viewer_id LEFT JOIN profiles p ON p.user_id = u.id WHERE k.owner_id = ? ORDER BY k.id').bind(this.userId).all<Row>(),
     ]);
+    // People are named as they are shown in list_friends: by nickname when they have one, so the export never gives an email the person only knew by nickname.
     return {
       friends: {
-        connections: connections.results.map((r) => ({ with: r.other, status: r.status, sentByMe: r.sent === 1, createdAt: r.created_at, respondedAt: r.responded_at ?? null })),
-        sharing: shares.results.map((r) => ({ with: r.email, direction: r.mine === 1 ? 'iShare' : 'theyShare', category: r.category, since: r.granted_at })),
-        consents: consents.results.map((r) => ({ with: r.email, category: r.category, action: r.action, at: r.at })),
+        connections: rows.map((r) => {
+          const w = this.shown(r);
+          return { with: label(w.nickname, w.email), status: r.status, sentByMe: r.requester_id === this.userId, createdAt: r.created_at, respondedAt: r.responded_at ?? null };
+        }),
+        sharing: shares.results.map((r) => ({ with: label(r.nickname, r.email), direction: r.mine === 1 ? 'iShare' : 'theyShare', category: r.category, since: r.granted_at })),
+        consents: consents.results.map((r) => ({ with: label(r.nickname, r.email), category: r.category, action: r.action, at: r.at })),
       },
     };
   }

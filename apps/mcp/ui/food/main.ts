@@ -29,6 +29,8 @@ interface Logged {
   extrasIncomplete?: ExtraKey[];
   goals: { kcal: number | null; proteinG: number | null; carbsG: number | null; fatG: number | null; fiberG?: number | null; satFatG?: number | null; addedSugarG?: number | null } | null;
   allergyWarnings?: string[];
+  /** Protein by meal, for the meals that have food in the day. */
+  meals?: { slot: string; kcal: number; protein: number }[];
 }
 
 const root = document.getElementById('app')!;
@@ -123,6 +125,7 @@ function draw() {
         goal ? h('div', { className: 'bar', role: 'img', 'aria-label': `${Math.round((totals.kcal / goal) * 100)} % of the calorie goal` }, bar(Math.round((totals.kcal / goal) * 100), 'var(--accent)')) : null,
       ),
       h('div', { className: 'macros' }, macro('Protein', totals.protein, goals?.proteinG ?? null, '--protein'), macro('Carbs', totals.carbs, goals?.carbsG ?? null, '--carbs'), macro('Fat', totals.fat, goals?.fatG ?? null, '--fat')),
+      (state.meals?.length ?? 0) > 1 ? h('p', { className: 'stats-line', 'aria-label': 'Protein by meal' }, `Protein by meal: ${state.meals!.map((m) => `${m.slot} ${num(m.protein, 1)} g`).join(' · ')}`) : null,
             noExtraGoals
         ? h('div', { className: 'stats-line', 'aria-label': 'More nutrients' }, h('p', {}, extrasLine(extras, state.extrasIncomplete ?? [])), h('p', { className: 'note' }, NO_LIMITS))
         : h('div', { className: 'stats', 'aria-label': 'More nutrients' }, ...moreStats(extras, goals, some)),

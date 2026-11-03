@@ -83,3 +83,18 @@ describe('foods from a label', () => {
     expect((await call(client, 'save_custom_food', { name: 'X', per100g: { kcal: 100, protein: 5, carbs: 15, fat: 2 }, per_serving: { grams: 40, kcal: 40, protein: 2, carbs: 6, fat: 1 } })).isError).toBe(true);
   });
 });
+
+describe('protein by meal', () => {
+  it('splits the day\'s protein over the meals that have food, in the order of the day, in the day summary', async () => {
+    const { env } = createTestEnv();
+    const c = await connectAs(env, await signedInUser(env, 'ana@example.com'));
+    await call(c, 'log_food', { day: '2026-10-12', slot: 'dinner', items: [{ food_id: RYE, grams: 200 }] });
+    await call(c, 'log_food', { day: '2026-10-12', slot: 'breakfast', items: [{ food_id: RYE, grams: 100 }] });
+    const day = (await call(c, 'get_food_log', { day: '2026-10-12' })).data as unknown as { meals: { slot: string; kcal: number; protein: number }[]; totals: { protein: number } };
+    expect(day.meals.map((m) => m.slot)).toEqual(['breakfast', 'dinner']); // no lunch row for a lunch with nothing in it
+    expect(day.meals[0]).toMatchObject({ kcal: 209, protein: 5.8 });
+    expect(day.meals[1]).toMatchObject({ kcal: 418, protein: 11.6 });
+    expect(day.meals.reduce((n, m) => n + m.protein, 0)).toBeCloseTo(day.totals.protein, 0);
+    expect(((await call(c, 'get_food_log', { day: '2026-10-20' })).data as unknown as { meals: unknown[] }).meals).toEqual([]);
+  });
+});

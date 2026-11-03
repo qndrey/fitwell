@@ -155,6 +155,7 @@ function toPlan(w: Workout, gym?: Gym, bests?: Map<string, ExerciseBests>, ctx?:
         ...(e.note ? { note: e.note } : {}),
         ...(e.notes ? { notes: e.notes } : {}),
         ...(e.lastNotes ? { lastNotes: e.lastNotes } : {}),
+        ...(ctx?.injuryOf(e.exerciseRef) ? { injury: ctx.injuryOf(e.exerciseRef) } : {}),
       }),
     ),
     ...(restOf(w) ? { rest: restOf(w) } : {}),
@@ -182,6 +183,8 @@ interface PlanContext {
   weightKg: number | null | undefined;
   last: Map<string, { minutes: number; distanceKm?: number }>;
   musclesOf: (exerciseRef: string) => [string, number][] | undefined;
+  /** Why an exercise loads an area the person said hurts, or undefined. */
+  injuryOf: (exerciseRef: string) => string | undefined;
 }
 
 const lastCardioText = (c: { minutes: number; distanceKm?: number }) => `${c.minutes} min${c.distanceKm ? ` · ${r1(c.distanceKm)} km` : ''}`;
@@ -322,7 +325,13 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
 
   /** Body weight, the last time of each cardio block's activity (nothing is read for a workout without cardio) and the muscles. */
   async function planContext(w: Workout, weightKg: number | null | undefined): Promise<PlanContext> {
-    return { weightKg, musclesOf, last: w.cardioBlocks.length ? await workouts.lastCardio([...new Set(w.cardioBlocks.map((b) => b.activityRef))], w.id) : new Map() };
+    const hurt = await activeInjuries((await data.profile()).timeZone);
+    const injuryOf = (ref: string) => {
+      const e = byId.get(ref);
+      const why = e ? flagExercise(e, hurt).map((f) => f.why) : [];
+      return why.length ? [...new Set(why)].join('; ') : undefined;
+    };
+    return { weightKg, musclesOf, injuryOf, last: w.cardioBlocks.length ? await workouts.lastCardio([...new Set(w.cardioBlocks.map((b) => b.activityRef))], w.id) : new Map() };
   }
 
   /** The record cue's side of the comparison, per exercise uid: weighted, rep-based exercises with an earlier working set only. */

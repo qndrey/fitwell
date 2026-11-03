@@ -87,7 +87,7 @@ export interface MeasurementProgress {
 export interface MetricsProgress {
   sleep: { daily: { day: Day; hours: number }[]; averageHours: number | null; /** The person's sleep goal in hours a night; null when they have none. */ goalHours: number | null };
   steps: { daily: { day: Day; steps: number }[]; average: number | null };
-  water: { daily: { day: Day; ml: number }[]; averageMl: number | null };
+  water: { daily: { day: Day; ml: number }[]; averageMl: number | null; goalMl: number | null; /** Logged days at or over the goal. */ daysMet: number | null };
 }
 
 /** Energy expenditure measured from the person's own intake and weight trend (last 28 days of the period). */

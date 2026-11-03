@@ -2250,6 +2250,7 @@ function exerciseBody(i: number, ex: PlannedExercise): Child[] {
       h('ol', { className: 'sets', 'aria-label': 'Sets' }, ...rows, !first && zone && h('li', { className: 'zonerow' }, zone)),
       !readOnly && effortRow(ex),
       showHint && h('p', { className: 'muted small' }, stepsHint(d)),
+      ex.injury && h('p', { className: 'small injury' }, `Flagged for what you told Fitwell about an injury: ${ex.injury}. Swap it or ask Claude for options; Fitwell cannot say whether it is right for you.`),
       ex.lastNotes && !ex.notes && h('p', { className: 'muted small' }, `Last note: ${ex.lastNotes}`),
       (ex.notes || state.noteSaved === ex.uid) && h('p', { className: 'small' }, ex.notes ? `Note: ${ex.notes}` : 'Note removed', state.noteSaved === ex.uid && h('span', { className: 'muted' }, ' · saved')),
       swappedFrom &&

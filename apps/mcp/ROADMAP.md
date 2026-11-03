@@ -136,7 +136,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 - [x] H1 first session for new accounts: the setup guide in the first `get_profile` result of an account with nothing saved, offered once (migration 0016, `users.setup_offered_at`; the privacy notice says so).
 - [x] H4 invite a friend: the friend invitation tools (`send_friend_invite` and two more) for every signed-in person, limited to active people and 3 a month (`data/memberInvites.ts`, migration 0017); the privacy notice, README and landing page say so.
 - [x] Leaner finished-workout report: bests (only when there are any), the exercise lines, cardio, the muscles as a ranked list (top four, "+n more") with an upright 3D figure beside it from three muscle groups (one colour ramp by share of the top muscle, opens on the side with more of the work, drag to turn, no buttons; the same sets in list and figure), one line on what is next and the "Plan my next workout" link. Cut: the 17 chips, "No new bests", the 7-day count, "about 48 hours", echoed notes and "Sent to Claude".
-- [ ] H3 Claude Connectors Directory submission.
+- [x] H3 Claude Connectors Directory submission: submitted 2026-11-03, waiting for review. **Left:** react to review feedback.
 - [ ] Exit: a squat logged Easy at the target reps gets more weight next time, with the reason; "my left knee hurts on lunges" is saved once and the next leg plan flags lunges and offers swaps; a newly approved person goes from the email to goals set and a first meal logged in one chat.
 
 **Phase 7: friends v1 and streaks**
@@ -164,7 +164,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 - [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
 
 **Phase 10 and later**
-- [ ] A8 readiness, A9; C3 direct device APIs; B5, B6; D5; F6 streak nudges; G4 ChatGPT directory listing; G5 Gemini when it supports MCP Apps.
+- [ ] A8 readiness, A9; C3 direct device APIs; B5, B6; D5; F6 streak nudges; G4 ChatGPT directory listing (submitted to OpenAI's app directory 2026-11-03, waiting for review: answer review feedback); G5 Gemini when it supports MCP Apps.
 - [ ] Progress photos (needs R2 storage and its own privacy decision).
 
 ## 4. Decisions to make before phase 7

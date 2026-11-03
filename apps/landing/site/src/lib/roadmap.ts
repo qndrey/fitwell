@@ -221,7 +221,7 @@ export const ITEMS: RoadmapItem[] = [
     theme: "start",
     status: "next",
     title: "Find Fitwell in Claude",
-    summary: "A listing in Claude's connector directory.",
+    summary: "A listing in Claude's connector directory, submitted and waiting for review.",
     detail: "So adding Fitwell is a click instead of a pasted address. It stays invite-only.",
   },
   {
@@ -475,7 +475,7 @@ export const ITEMS: RoadmapItem[] = [
     status: "exploring",
     title: "ChatGPT listing and Gemini",
     summary: "Listed in other chats' directories once Fitwell works well there.",
-    detail: "Gemini does not support these interactive views yet, so only text answers would work there.",
+    detail: "Fitwell is submitted to OpenAI's app directory and waiting for review. Gemini does not support these interactive views yet, so only text answers would work there.",
   },
 ];
 

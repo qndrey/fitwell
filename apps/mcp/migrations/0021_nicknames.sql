@@ -12,11 +12,13 @@ CREATE TABLE connections_new (
   requester_id    TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   addressee_email TEXT NOT NULL,
   addressee_id    TEXT REFERENCES users (id) ON DELETE CASCADE,
-  status          TEXT NOT NULL CHECK (status IN ('pending', 'accepted')),
+  -- 'declined' is hidden from the person asked but looks like a waiting request to the one who asked, so what the asked person does with a request
+  -- (decline it, ignore it, answer a duplicate) never shows the asker whether an address was theirs. Both expire like a waiting request.
+  status          TEXT NOT NULL CHECK (status IN ('pending', 'declined', 'accepted')),
   created_at      INTEGER NOT NULL,
   responded_at    INTEGER,
   via_nickname    INTEGER NOT NULL DEFAULT 0,
-  CHECK (status = 'pending' OR addressee_id IS NOT NULL),
+  CHECK (status != 'accepted' OR addressee_id IS NOT NULL),
   CHECK (addressee_id IS NULL OR requester_id != addressee_id),
   UNIQUE (requester_id, addressee_email, via_nickname)
 );

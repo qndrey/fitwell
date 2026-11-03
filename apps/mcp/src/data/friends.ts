@@ -62,7 +62,7 @@ export class FriendsData {
   }
 
   private async prune(): Promise<void> {
-    await this.db.prepare("DELETE FROM connections WHERE status = 'pending' AND created_at <= ?").bind(this.now() - REQUEST_TTL_MS).run();
+    await this.db.prepare("DELETE FROM connections WHERE status IN ('pending', 'declined') AND created_at <= ?").bind(this.now() - REQUEST_TTL_MS).run();
   }
 
   /**
@@ -97,7 +97,7 @@ export class FriendsData {
     if (mine === email) return { ok: false, reason: 'self' };
     await this.prune();
     // The limits are about this person only, so they are checked before and without regard to who is asked.
-    const pending = (await this.db.prepare("SELECT COUNT(*) AS n FROM connections WHERE requester_id = ? AND status = 'pending'").bind(this.userId).first<Row>())?.n as number;
+    const pending = (await this.db.prepare("SELECT COUNT(*) AS n FROM connections WHERE requester_id = ? AND status IN ('pending', 'declined')").bind(this.userId).first<Row>())?.n as number;
     if (pending >= MAX_PENDING_SENT) return { ok: false, reason: 'too_many_pending' };
     if ((await this.countFriends()) >= MAX_FRIENDS) return { ok: false, reason: 'too_many_friends' };
     // Only this person's own earlier request the same way is a repeat (they know they made it). Nothing else about the two changes what happens:
@@ -131,7 +131,7 @@ export class FriendsData {
   /** How the other side of a row is shown to this person: a nickname when they have one (and then never an email); an outgoing request by nickname is only a nickname. */
   private shown(r: Row): { nickname: string | null; email: string | null } {
     const sentByMe = r.requester_id === this.userId;
-    if (r.status === 'pending' && sentByMe) return r.via_nickname === 1 ? { nickname: (r.addressee_nick as string | null) ?? null, email: null } : { nickname: null, email: r.addressee_email as string };
+    if (r.status !== 'accepted' && sentByMe) return r.via_nickname === 1 ? { nickname: (r.addressee_nick as string | null) ?? null, email: null } : { nickname: null, email: r.addressee_email as string };
     const nickname = ((sentByMe ? r.addressee_nick : r.requester_nick) as string | null) ?? null;
     return { nickname, email: nickname ? null : ((sentByMe ? r.addressee_email : r.requester_email) as string) };
   }
@@ -153,8 +153,8 @@ export class FriendsData {
       if (r.status === 'accepted') {
         const other = (sentByMe ? r.addressee_id : r.requester_id) as string;
         out.friends.push({ ...view, iShare: given.get(other) ?? [], theyShare: received.get(other) ?? [] });
-      } else if (sentByMe) out.outgoing.push({ ...view, sentOn });
-      else out.incoming.push({ ...view, sentOn });
+      } else if (sentByMe) out.outgoing.push({ ...view, sentOn }); // a declined request still looks waiting to the one who asked
+      else if (r.status === 'pending') out.incoming.push({ ...view, sentOn });
     }
     return out;
   }
@@ -187,7 +187,7 @@ export class FriendsData {
       .first<Row>();
     if (friends) {
       // Already friends (a second request crossed the first): the extra request goes, and what is shared is left exactly as it is.
-      await this.dropRequestsBetween(requester);
+      await this.hideRequestsBetween(requester);
       return true;
     }
     // Nothing can be shared before a friendship starts, so anything found for the pair is a leftover: it goes, and each is recorded as withdrawn.
@@ -200,19 +200,23 @@ export class FriendsData {
         this.db.prepare("UPDATE connections SET status = 'accepted', addressee_id = ?, responded_at = ? WHERE id = ? AND status = 'pending' AND addressee_email = ?").bind(this.userId, at, connectionId, mine),
       ]);
       const accepted = done.at(-1)!.meta.changes > 0;
-      if (accepted) await this.dropRequestsBetween(requester);
+      if (accepted) await this.hideRequestsBetween(requester);
       return accepted;
     } catch {
       return false; // the database allows one accepted connection per pair: a racing accept lost
     }
   }
 
-  /** Deletes every request still waiting between this person and another, either way: once they are friends (or one answered), the rest are leftovers. */
-  private async dropRequestsBetween(otherId: string): Promise<void> {
+  /**
+   * Hides every request still waiting between this person and another, either way: once they are friends (or one was answered) the rest are
+   * leftovers the person should not be asked about. They are marked, not deleted: the one who asked keeps seeing theirs exactly as before
+   * until it expires, because what this person does must not show them whether an address they typed is this person's.
+   */
+  private async hideRequestsBetween(otherId: string): Promise<void> {
     const mine = await this.myEmail();
     const otherEmail = ((await this.db.prepare('SELECT email FROM users WHERE id = ?').bind(otherId).first<Row>())?.email as string | undefined) ?? '';
     await this.db
-      .prepare("DELETE FROM connections WHERE status = 'pending' AND ((requester_id = ?1 AND addressee_email = ?2) OR (requester_id = ?3 AND addressee_email = ?4))")
+      .prepare("UPDATE connections SET status = 'declined' WHERE status = 'pending' AND ((requester_id = ?1 AND addressee_email = ?2) OR (requester_id = ?3 AND addressee_email = ?4))")
       .bind(otherId, mine, this.userId, otherEmail)
       .run();
   }
@@ -220,12 +224,12 @@ export class FriendsData {
   /** Declines a request addressed to this person, or takes back one this person sent. False when there is no such pending request. */
   async decline(connectionId: string): Promise<boolean> {
     const mine = await this.myEmail();
-    const ask = await this.db.prepare("SELECT requester_id FROM connections WHERE id = ? AND status = 'pending' AND (addressee_email = ? OR requester_id = ?)").bind(connectionId, mine, this.userId).first<Row>();
-    if (!ask) return false;
-    await this.db.prepare('DELETE FROM connections WHERE id = ?').bind(connectionId).run();
-    // Declining someone who asked twice (by email and by nickname) answers both.
-    if (ask.requester_id !== this.userId) await this.dropRequestsBetween(ask.requester_id as string);
-    return true;
+    // Taking back a request this person sent removes it (their own entry). Declining one sent to them only hides it from them: the one who
+    // asked sees no change, so a decline cannot tell them an address was this person's.
+    const own = await this.db.prepare("DELETE FROM connections WHERE id = ? AND status IN ('pending', 'declined') AND requester_id = ?").bind(connectionId, this.userId).run();
+    if (own.meta.changes > 0) return true;
+    const r = await this.db.prepare("UPDATE connections SET status = 'declined' WHERE id = ? AND status = 'pending' AND addressee_email = ?").bind(connectionId, mine).run();
+    return r.meta.changes > 0;
   }
 
   /** Ends an accepted connection for both people: what either shared with the other stops being shared, and each withdrawal is recorded. */
@@ -242,8 +246,10 @@ export class FriendsData {
     await this.db.batch([
       ...results.map((s) => this.db.prepare("INSERT INTO share_consents (owner_id, viewer_id, category, action, at) VALUES (?, ?, ?, 'withdrawn', ?)").bind(s.owner_id, s.viewer_id, s.category, at)),
       this.db.prepare('DELETE FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)').bind(this.userId, other),
-      // Every row between the two, whatever its state or direction, so nothing is left that could bring the friendship back.
-      this.db.prepare('DELETE FROM connections WHERE id = ?1 OR (requester_id = ?2 AND addressee_id = ?3) OR (requester_id = ?3 AND addressee_id = ?2) OR (requester_id = ?2 AND addressee_email = ?4) OR (requester_id = ?3 AND addressee_email = ?5)').bind(connectionId, this.userId, other, otherEmail, mine),
+      // The friendship goes. Requests left over between the two are hidden from whoever they were sent to, not deleted: they would otherwise
+      // show their sender that an address was this friend's, and a hidden request cannot bring the friendship back (nobody can answer it).
+      this.db.prepare('DELETE FROM connections WHERE id = ? AND status = ?').bind(connectionId, 'accepted'),
+      this.db.prepare("UPDATE connections SET status = 'declined' WHERE status = 'pending' AND ((requester_id = ?1 AND addressee_email = ?2) OR (requester_id = ?3 AND addressee_email = ?4))").bind(other, mine, this.userId, otherEmail),
     ]);
     return true;
   }
@@ -287,9 +293,9 @@ export class FriendsData {
     // People are named as they are shown in list_friends: by nickname when they have one, so the export never gives an email the person only knew by nickname.
     return {
       friends: {
-        connections: rows.map((r) => {
+        connections: rows.filter((r) => r.status !== 'declined' || r.requester_id === this.userId).map((r) => {
           const w = this.shown(r);
-          return { with: label(w.nickname, w.email), status: r.status, sentByMe: r.requester_id === this.userId, createdAt: r.created_at, respondedAt: r.responded_at ?? null };
+          return { with: label(w.nickname, w.email), status: r.status === 'declined' ? 'pending' : r.status, sentByMe: r.requester_id === this.userId, createdAt: r.created_at, respondedAt: r.responded_at ?? null };
         }),
         sharing: shares.results.map((r) => ({ with: label(r.nickname, r.email), direction: r.mine === 1 ? 'iShare' : 'theyShare', category: r.category, since: r.granted_at })),
         consents: consents.results.map((r) => ({ with: label(r.nickname, r.email), category: r.category, action: r.action, at: r.at })),

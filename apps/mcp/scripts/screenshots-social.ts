@@ -1,4 +1,4 @@
-// The milestone page, the share card, the crew feed, the Today view and the meal plan view for the Tools page (apps/landing/site/src/assets), from the built views with sample people and
+// The milestone page, the share card, the crew feed, the Today view, the meal plan view and the household's shared shopping list for the Tools page (apps/landing/site/src/assets), from the built views with sample people and
 // numbers, the way Claude embeds them (398 CSS px wide, images 2x). No running server or database is needed: the views get fixed sample data.
 // Needs `npm run build:ui` first. Run: npx tsx scripts/screenshots-social.ts
 import { writeFileSync } from 'node:fs';
@@ -10,6 +10,8 @@ import crewHtml from '../src/ui/generated/crew';
 import mealplanHtml from '../src/ui/generated/mealplan';
 import todayHtml from '../src/ui/generated/today';
 import type { MealPlanView } from '../src/analytics/mealPlanTypes';
+import shoppingHtml from '../src/ui/generated/shopping';
+import type { ShoppingData } from '../src/planning/shoppingTypes';
 import type { TodayView } from '../src/analytics/todayTypes';
 import { closeAll, launch, openView } from '../tests/support/viewHost';
 
@@ -70,6 +72,16 @@ const mealPlan: MealPlanView = {
   recipes: [{ id: 'r1', name: 'Chicken and rice', kcalPerServing: 740 }, { id: 'r2', name: 'Lentil stew', kcalPerServing: 520 }],
 };
 
+const item = (key: string, name: string, grams: number, buy: string, usedIn: string[], checked = false) => ({ key, name, grams, buy, usedIn, checked });
+const household: ShoppingData = {
+  weekStart: '2026-11-02', people: 2.5, household: true, meals: 9, itemCount: 7, leftToBuy: 5, leftOut: [], notes: [],
+  sections: [
+    { aisle: 'Produce', items: [item('broccoli', 'Broccoli, raw', 900, '1 kg', ['Tue dinner', 'Thu dinner'], true), item('potato', 'Potato, raw', 1200, '1.2 kg', ['Mon dinner', 'Wed dinner']), item('banana', 'Banana', 450, '4 bananas', ['Mon breakfast', 'Fri breakfast'])] },
+    { aisle: 'Meat and fish', items: [item('chicken', 'Chicken, breast, raw', 750, '800 g', ['Tue lunch', 'Thu lunch']), item('salmon', 'Salmon, raw', 500, '500 g', ['Mon dinner'], true)] },
+    { aisle: 'Dairy and eggs', items: [item('skyr', 'Skyr, plain', 1000, '1 kg', ['Mon breakfast', 'Wed breakfast']), item('oats', 'Oats, rolled', 400, '500 g', ['Daily breakfast'])] },
+  ],
+};
+
 await launch();
 for (const theme of ['light', 'dark'] as const) {
   // The milestone page, after its ring has drawn.
@@ -105,8 +117,15 @@ for (const theme of ['light', 'dark'] as const) {
   const planBottom = await p.frame.locator('section[aria-label="Tue 3 Nov"]').evaluate((e) => Math.ceil(e.getBoundingClientRect().bottom + 12));
   await p.page.screenshot({ path: join(OUT, `mealplan-${theme}.png`), clip: { x: 0, y: 0, width: 398, height: planBottom } });
 
+  // The household's shared shopping list: one list for everyone's portions, ticks the whole household sees.
+  const g = await openView(shoppingHtml, result({ shopping: household }), { width: 398, theme, scale: 2 });
+  await g.page.emulateMedia({ colorScheme: theme });
+  await g.page.waitForTimeout(500);
+  const shopBottom = await g.frame.locator('main').evaluate((e) => Math.ceil(Math.max(...[...e.children].map((c) => c.getBoundingClientRect().bottom)) + 12));
+  await g.page.screenshot({ path: join(OUT, `household-${theme}.png`), clip: { x: 0, y: 0, width: 398, height: shopBottom } });
+
   const crewBottom = await c.frame.locator('section[aria-label="Kudos on your workouts"]').evaluate((e) => Math.ceil(e.getBoundingClientRect().bottom + 12));
   await c.page.screenshot({ path: join(OUT, `crew-${theme}.png`), clip: { x: 0, y: 0, width: 398, height: crewBottom } });
 }
 await closeAll();
-console.log('wrote milestone, sharecard, crew, today and mealplan in light and dark to', OUT);
+console.log('wrote milestone, sharecard, crew, today, mealplan and household in light and dark to', OUT);

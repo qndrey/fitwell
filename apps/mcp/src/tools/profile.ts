@@ -121,7 +121,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
     'set_goals',
     {
       title: 'Set goals',
-      description: 'Save daily calorie and macro targets, a fibre target, limits for saturated fat and added sugar, hours of sleep a night, workouts per week and goal weight; only the ones given change. Use null to clear one.',
+      description: 'Save daily calorie and macro targets, a fibre target, limits for saturated fat and added sugar, hours of sleep a night, a daily water goal, workouts per week and goal weight; only the ones given change. Use null to clear one.',
       inputSchema: z.object({
         kcal: z.number().min(800).max(6000).nullable().optional(),
         protein_g: z.number().min(0).max(500).nullable().optional(),
@@ -133,6 +133,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         sat_fat_g: z.number().min(0).max(100).nullable().optional().describe('Daily limit for saturated fat'),
         added_sugar_g: z.number().min(0).max(200).nullable().optional().describe('Daily limit for added sugar'),
         sleep_h: z.number().min(4).max(12).nullable().optional().describe('Hours of sleep to aim for a night (4 to 12); the dashboard draws it as a line. Only set it when the person asks for a sleep goal.'),
+        water_ml: z.number().int().min(500).max(10000).nullable().optional().describe('Millilitres of water to drink a day; Today shows how much is left. Only set it when the person asks for a water goal.'),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
@@ -148,6 +149,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         ...(a.sat_fat_g !== undefined && { satFatG: a.sat_fat_g }),
         ...(a.added_sugar_g !== undefined && { addedSugarG: a.added_sugar_g }),
         ...(a.sleep_h !== undefined && { sleepH: a.sleep_h }),
+        ...(a.water_ml !== undefined && { waterMl: a.water_ml }),
       };
       const goals = await data.setGoals(patch);
       // Deterministic sanity check: do the macros add up to the calorie target?

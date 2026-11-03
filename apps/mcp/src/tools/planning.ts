@@ -2,11 +2,13 @@ import { addDays, isDay, weekStart as mondayOf } from '@fitwell/core/domain/date
 import { roundForDisplay, scale, scaleExtras, sum, sumExtras } from '@fitwell/core/domain/nutrition';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
+import type { HouseholdData } from '../data/households';
 import { perServing, type PlanData, type Recipe } from '../data/planData';
 import { todayIn } from '../data/time';
 import { checkPlan, SLOT_NAMES, type PlannedItem, type SlotName } from '../planning/check';
 import { logPlannedMeals } from '../planning/logPlanned';
 import { plannedRecipe } from '../planning/recipeItem';
+import { scaleItem } from '../planning/scalePlan';
 import { allergenFields, FoodMemo, per100gSchema } from '../planning/resolve';
 import type { FoodDeps } from './foods';
 import { json, toolError } from './result';
@@ -57,20 +59,20 @@ const editable = (i: PlannedItem) =>
 /** Recipes that come up more than once: cook them together once. */
 function batchCooking(items: PlannedItem[]) {
   const by = new Map<string, { name: string; servings: number; meals: string[]; ingredients: Map<string, number> }>();
-  for (const it of items.filter((i) => i.kind === 'recipe' && i.recipeId)) {
-    const b = by.get(it.recipeId!) ?? { name: it.name, servings: 0, meals: [], ingredients: new Map<string, number>() };
+  for (const it of items.filter((i) => i.kind === 'recipe')) {
+    const b = by.get(it.recipeId ?? it.name) ?? { name: it.name, servings: 0, meals: [], ingredients: new Map<string, number>() };
     b.servings += it.servings ?? 1;
     b.meals.push(label(it));
     for (const ing of it.ingredients) b.ingredients.set(ing.name, (b.ingredients.get(ing.name) ?? 0) + ing.grams);
-    by.set(it.recipeId!, b);
+    by.set(it.recipeId ?? it.name, b);
   }
   return [...by.values()]
     .filter((b) => b.meals.length >= 2)
     .map((b) => ({ recipe: b.name, cookServings: b.servings, meals: b.meals, ingredients: [...b.ingredients].map(([name, g]) => ({ name, grams: r0(g) })).sort((x, y) => y.grams - x.grams) }));
 }
 
-export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plans: PlanData }) {
-  const { data, plans } = deps;
+export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plans: PlanData; households: HouseholdData }) {
+  const { data, plans, households } = deps;
   const today = async () => todayIn((await data.profile()).timeZone);
 
   async function resolveWeek(given: string | undefined): Promise<string | { error: string }> {
@@ -115,10 +117,11 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
         'Save the plan for a week (week_start is a Monday; default the coming Monday). Each item is a food (food_id + grams), a saved recipe (recipe_id or recipe_name + servings), or, only if nothing fits, a named estimate. ' +
         'Values come from the foods\' own data. Use foods in the form they are bought and weighed (rice, pasta and meat raw), so the grocery list is right. Saving a week again replaces its plan. The reply checks every day against the calorie and protein goals and every item against allergies and dislikes, ' +
         'with plain-language problems: fix them and save again BEFORE presenting the plan, and never present a plan with an ALLERGY warning.',
-      inputSchema: z.object({ week_start: day.optional(), items: z.array(planItem).min(1).max(120) }),
+      inputSchema: z.object({ week_start: day.optional(), items: z.array(planItem).min(1).max(120), household: z.boolean().default(false).describe('Save it as the household\'s shared plan (amounts for one standard portion) instead of the person\'s own') }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
-    async ({ week_start, items }) => {
+    async ({ week_start, items, household }) => {
+      if (household && !(await households.mine())) return toolError('They are not in a household. Invite a friend with invite_to_household first, or save the plan without household.');
       const week = await resolveWeek(week_start);
       if (typeof week !== 'string') return toolError(week.error);
       const days = weekDaysOf(week);
@@ -150,16 +153,27 @@ export function registerPlanningTools(server: McpServer, deps: FoodDeps & { plan
       // A revised plan keeps the "already logged" mark of meals that did not change, so nothing is logged twice.
       const keyOf = (p: PlannedItem) => `${p.day}|${p.slot}|${p.kind}|${p.foodId ?? p.recipeId ?? p.name}|${p.servings ?? Math.round(p.grams)}`;
       const logged = new Map<string, number[]>();
-      for (const o of (await plans.plan(week))?.items ?? []) if (o.loggedAt) logged.set(keyOf(o), [...(logged.get(keyOf(o)) ?? []), o.loggedAt]);
+      if (!household) for (const o of (await plans.plan(week))?.items ?? []) if (o.loggedAt) logged.set(keyOf(o), [...(logged.get(keyOf(o)) ?? []), o.loggedAt]);
       for (const p of planned) {
         const marks = logged.get(keyOf(p));
         if (marks?.length) p.loggedAt = marks.shift();
       }
 
-      await plans.savePlan(week, planned);
+      let shared: { followed: boolean } | undefined;
+      let forMe = planned;
+      if (household) {
+        // The shared plan is for one standard portion; what the person is told (goals, allergies, dislikes) is about their own portion, and only theirs: nobody else's rules are read.
+        await households.savePlan(week, planned);
+        const followed = !(await plans.plan(week)) || (await plans.followsHousehold(week));
+        if (followed) await plans.useHouseholdPlan(week);
+        shared = { followed };
+        forMe = followed ? (await plans.plan(week))!.items : planned.map((i) => scaleItem(i, 1));
+      } else {
+        await plans.savePlan(week, planned);
+      }
       const profile = await data.profile();
-      const check = checkPlan(days, planned, await data.goals(), profile.diet.allergies, profile.diet.dislikes);
-      return json({ saved: { weekStart: week, items: planned.length }, ok: check.problems.length === 0, problems: check.problems, warnings: check.warnings, ...(check.notes.length ? { notes: check.notes } : {}), days: check.days, ...(check.problems.length ? { next: 'Fix the problems and call save_meal_plan again with the whole week.' } : {}) });
+      const check = checkPlan(days, forMe, await data.goals(), profile.diet.allergies, profile.diet.dislikes);
+      return json({ saved: { weekStart: week, items: planned.length, ...(shared ? { household: true, yourPlanFollowsIt: shared.followed } : {}) }, ...(shared && !shared.followed ? { note: 'Saved for the household. This person already has a plan of their own for that week, which is unchanged: use_household_plan replaces it with the shared one, only if they want that.' } : {}), ok: check.problems.length === 0, problems: check.problems, warnings: check.warnings, ...(check.notes.length ? { notes: check.notes } : {}), days: check.days, ...(check.problems.length ? { next: 'Fix the problems and call save_meal_plan again with the whole week.' } : {}) });
     },
   );
 

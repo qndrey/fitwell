@@ -10,7 +10,7 @@ export type LogPlanned = { ok: true; added: FoodEntry[] } | { ok: false; error: 
 export const foodEntryFor = (i: PlannedItem): NewFoodEntry => ({
   day: i.day,
   slot: i.slot,
-  foodRef: i.kind === 'food' ? (i.foodId ?? null) : i.kind === 'recipe' ? `recipe:${i.recipeId}` : null,
+  foodRef: i.kind === 'food' ? (i.foodId ?? null) : i.kind === 'recipe' && i.recipeId ? `recipe:${i.recipeId}` : null,
   foodName: i.kind === 'recipe' && i.servings !== 1 ? `${i.name} (${i.servings} servings)` : i.name,
   brand: null,
   grams: i.grams,

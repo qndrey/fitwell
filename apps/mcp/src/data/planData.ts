@@ -2,6 +2,8 @@
 import { sumExtras, type Extras } from '@fitwell/core/domain/nutrition';
 import type { PlannedItem } from '../planning/check';
 import type { Ingredient } from '../planning/grocery';
+import { scaleItem } from '../planning/scalePlan';
+import { sharedItem } from './households';
 
 /** An ingredient with its nutrition as it was when the recipe was saved. */
 export interface RecipeItem extends Ingredient {
@@ -36,6 +38,10 @@ export interface Plan {
 }
 
 type Row = Record<string, unknown>;
+/** Which planned item is which across a rebuild: the day, meal and food, not the amount (a portion change keeps what was eaten). Items that repeat are told apart by their order. */
+const looseKey = (p: PlannedItem) => `${p.day}|${p.slot}|${p.kind}|${p.foodId ?? p.name}`;
+const withoutMarks = (items: PlannedItem[]) => JSON.stringify(items.map(({ loggedAt: _l, ...rest }) => (void _l, rest)));
+
 const parse = <T>(v: unknown, fallback: T): T => {
   try {
     return typeof v === 'string' ? (JSON.parse(v) as T) : fallback;
@@ -103,6 +109,9 @@ export class PlanData {
   /** One plan per week: saving a week again replaces it. */
   async savePlan(weekStart: string, items: PlannedItem[]): Promise<Plan> {
     const now = this.now();
+    // A plan that follows the household's stays linked while only what was eaten changes; any other change makes it this person's own.
+    const before = await this.db.prepare('SELECT items, household_id FROM meal_plans WHERE user_id = ? AND week_start = ?').bind(this.userId, weekStart).first<Row>();
+    const unlink = !!before?.household_id && withoutMarks(parse<PlannedItem[]>(before.items, [])) !== withoutMarks(items);
     await this.db
       .prepare(
         // updated_at is the plan's version for the meal plan view's edits: every save moves it on, even two in the same millisecond.
@@ -111,12 +120,77 @@ export class PlanData {
       )
       .bind(crypto.randomUUID(), this.userId, weekStart, JSON.stringify(items), now, now)
       .run();
+    if (unlink) await this.db.prepare('UPDATE meal_plans SET household_id = NULL, household_synced_at = NULL, household_portion = NULL WHERE user_id = ? AND week_start = ?').bind(this.userId, weekStart).run();
     return (await this.plan(weekStart))!;
   }
 
+  /** The week's plan. A copy that follows the household's plan (B2) is rebuilt first when the household plan or this person's portion has changed. */
   async plan(weekStart: string): Promise<Plan | null> {
     const r = await this.db.prepare('SELECT * FROM meal_plans WHERE user_id = ? AND week_start = ?').bind(this.userId, weekStart).first<Row>();
-    return r ? toPlan(r) : null;
+    if (!r) return null;
+    return r.household_id ? ((await this.refreshLinked(r)) ?? toPlan(r)) : toPlan(r);
+  }
+
+  /** The household's plan of the week, scaled to this person's portion, with what they already ate carried over where the same meal is still planned. */
+  private async fromHousehold(householdId: string, weekStart: string, own: PlannedItem[]): Promise<{ items: PlannedItem[]; syncedAt: number; portion: number } | null> {
+    const me = await this.db.prepare('SELECT household_id, portion FROM household_members WHERE user_id = ?').bind(this.userId).first<Row>();
+    if (!me || me.household_id !== householdId) return null;
+    const hp = await this.db.prepare('SELECT items, updated_at FROM household_plans WHERE household_id = ? AND week_start = ?').bind(householdId, weekStart).first<Row>();
+    if (!hp) return null;
+    const portion = me.portion as number;
+    const eaten = new Map<string, number[]>();
+    for (const o of own) if (o.loggedAt) eaten.set(looseKey(o), [...(eaten.get(looseKey(o)) ?? []), o.loggedAt]);
+    const items = parse<PlannedItem[]>(hp.items, []).map(sharedItem).map((i) => scaleItem(i, portion));
+    for (const i of items) {
+      const marks = eaten.get(looseKey(i));
+      if (marks?.length) i.loggedAt = marks.shift();
+    }
+    return { items, syncedAt: hp.updated_at as number, portion };
+  }
+
+  private async refreshLinked(r: Row): Promise<Plan | null> {
+    const plan = toPlan(r);
+    const householdId = r.household_id as string;
+    const me = await this.db.prepare('SELECT household_id, portion FROM household_members WHERE user_id = ?').bind(this.userId).first<Row>();
+    if (!me || me.household_id !== householdId) {
+      await this.db.prepare('UPDATE meal_plans SET household_id = NULL, household_synced_at = NULL, household_portion = NULL WHERE id = ?').bind(plan.id).run();
+      return plan;
+    }
+    const hp = await this.db.prepare('SELECT updated_at FROM household_plans WHERE household_id = ? AND week_start = ?').bind(householdId, plan.weekStart).first<Row>();
+    if (!hp || ((hp.updated_at as number) <= ((r.household_synced_at as number | null) ?? 0) && me.portion === r.household_portion)) return plan;
+    const next = await this.fromHousehold(householdId, plan.weekStart, plan.items);
+    if (!next) return plan;
+    await this.db
+      .prepare('UPDATE meal_plans SET items = ?, updated_at = MAX(?, updated_at + 1), household_synced_at = ?, household_portion = ? WHERE id = ?')
+      .bind(JSON.stringify(next.items), this.now(), next.syncedAt, next.portion, plan.id)
+      .run();
+    return (await this.db.prepare('SELECT * FROM meal_plans WHERE id = ?').bind(plan.id).first<Row>().then((x) => (x ? toPlan(x) : null))) ?? plan;
+  }
+
+  /** Makes this person's plan of the week a copy of the household's, scaled to their portion, and keeps it following the household's plan from now on (replacing any plan of their own for that week). */
+  async useHouseholdPlan(weekStart: string): Promise<'not_a_member' | 'no_household_plan' | Plan> {
+    const me = await this.db.prepare('SELECT household_id FROM household_members WHERE user_id = ?').bind(this.userId).first<Row>();
+    if (!me) return 'not_a_member';
+    const householdId = me.household_id as string;
+    const existing = await this.db.prepare('SELECT * FROM meal_plans WHERE user_id = ? AND week_start = ?').bind(this.userId, weekStart).first<Row>();
+    const next = await this.fromHousehold(householdId, weekStart, existing ? toPlan(existing).items : []);
+    if (!next) return 'no_household_plan';
+    const now = this.now();
+    await this.db
+      .prepare(
+        `INSERT INTO meal_plans (id, user_id, week_start, items, created_at, updated_at, household_id, household_synced_at, household_portion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (user_id, week_start) DO UPDATE SET items = excluded.items, updated_at = MAX(excluded.updated_at, meal_plans.updated_at + 1),
+           household_id = excluded.household_id, household_synced_at = excluded.household_synced_at, household_portion = excluded.household_portion`,
+      )
+      .bind(crypto.randomUUID(), this.userId, weekStart, JSON.stringify(next.items), now, now, householdId, next.syncedAt, next.portion)
+      .run();
+    return (await this.plan(weekStart))!;
+  }
+
+  /** Whether this person's plan of the week follows the household's. */
+  async followsHousehold(weekStart: string): Promise<boolean> {
+    const r = await this.db.prepare('SELECT household_id FROM meal_plans WHERE user_id = ? AND week_start = ?').bind(this.userId, weekStart).first<Row>();
+    return !!r?.household_id;
   }
 
   /** Weeks that have a plan, newest first. */

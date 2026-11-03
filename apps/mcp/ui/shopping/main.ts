@@ -41,7 +41,7 @@ function draw() {
   const { total, done } = counts(d);
   const sections = d.sections.map((s) => ({ ...s, items: state.hideDone ? s.items.filter((i) => !i.checked) : s.items })).filter((s) => s.items.length > 0);
   const parts: Child[] = [
-    h('header', {}, h('h1', {}, 'Shopping list'), h('span', { className: 'muted small' }, `Week of ${fmtDay(d.weekStart)}${d.people !== 1 ? ` · for ${d.people}` : ''}`)),
+    h('header', {}, h('h1', {}, 'Shopping list'), h('span', { className: 'muted small' }, `Week of ${fmtDay(d.weekStart)}${d.household ? ` · household, ${d.people} ${d.people === 1 ? 'portion' : 'portions'}` : d.people !== 1 ? ` · for ${d.people}` : ''}`)),
     h(
       'div',
       { className: 'summary' },
@@ -79,7 +79,7 @@ async function toggle(d: ShoppingData, item: { key: string; checked: boolean }) 
   state.error = '';
   render();
   try {
-    const res = await app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, key: item.key, checked: next } });
+    const res = await app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, key: item.key, checked: next, ...(d.household ? { household: true } : {}) } });
     if (res.isError) throw new Error('rejected');
   } catch {
     item.checked = !next;
@@ -116,7 +116,7 @@ async function undoClear() {
   notice.textContent = 'Ticks restored.';
   render();
   try {
-    const results = await Promise.all(items.map((i) => app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, key: i.key, checked: true } })));
+    const results = await Promise.all(items.map((i) => app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, key: i.key, checked: true, ...(d.household ? { household: true } : {}) } })));
     if (results.some((r) => r.isError)) throw new Error('rejected');
   } catch {
     for (const i of items) i.checked = false;
@@ -134,7 +134,7 @@ async function clearAll(d: ShoppingData) {
   hideUndo();
   render();
   try {
-    const res = await app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, clear: true } });
+    const res = await app.callServerTool({ name: 'set_grocery_checked', arguments: { week_start: d.weekStart, clear: true, ...(d.household ? { household: true } : {}) } });
     if (res.isError) throw new Error('rejected');
     showUndo(d.weekStart, cleared);
   } catch {

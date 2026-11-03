@@ -60,6 +60,10 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     db.prepare('DELETE FROM achievements WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM streak_freezes WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM injuries WHERE user_id = ?').bind(user.id),
+    // A household the person was the last member of goes with them (its plans, ticks and invitations); in a larger one they just leave.
+    db.prepare('DELETE FROM households WHERE id IN (SELECT household_id FROM household_members WHERE user_id = ?1) AND (SELECT COUNT(*) FROM household_members m WHERE m.household_id = households.id) = 1').bind(user.id),
+    db.prepare('DELETE FROM household_invites WHERE inviter_id = ?1 OR invitee_id = ?1').bind(user.id),
+    db.prepare('DELETE FROM household_members WHERE user_id = ?').bind(user.id),
     // Friends: what this person shared or was shown, and their connections, go from both sides.
     db.prepare('DELETE FROM nickname_lookups WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM item_transfers WHERE sender_id = ? OR recipient_id = ?').bind(user.id, user.id),

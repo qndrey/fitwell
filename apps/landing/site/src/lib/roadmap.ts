@@ -20,8 +20,8 @@ export const STAGES: { id: StageId; label: string; sub: string; blurb: string }[
   {
     id: "next",
     label: "Next",
-    sub: "Households",
-    blurb: "What is being built now: one meal plan for people who cook together, and finding Fitwell in Claude.",
+    sub: "Finding Fitwell",
+    blurb: "What is being built now: finding Fitwell in Claude.",
   },
   {
     id: "then",
@@ -276,12 +276,12 @@ export const ITEMS: RoadmapItem[] = [
   },
   {
     id: "household",
-    stage: "next",
+    stage: "shipped",
     theme: "friends",
-    status: "next",
+    status: "shipped",
     title: "Household meal plan",
     summary: "One plan and one shopping list for people who cook together.",
-    detail: "Everyone keeps their own goals and portions, and the grocery list scales to the household.",
+    detail: "Invite friends to a household of up to six. The plan and the shopping list are shared, and each person has their own portion. Goals, allergies and what you eat stay yours: you are warned about your own allergies only, and nobody can read anyone else's.",
   },
   {
     id: "digests",

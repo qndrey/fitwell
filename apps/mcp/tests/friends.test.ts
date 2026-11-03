@@ -30,20 +30,44 @@ async function connect(from: Client, to: Client, toEmail: string) {
 const rows = async (table: string) => (await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>())!.n;
 
 describe('requesting', () => {
-  it('answers the same for a member and for an address with no account, and only a member gets a request', async () => {
+  it('cannot tell a member from an address with no account: same answer, same list, nothing but the typed address', async () => {
     const member = await call(anaC, 'request_friend', { email: 'bo@example.com' });
     const stranger = await call(anaC, 'request_friend', { email: 'nobody@example.com' });
+    const invited = await inviteUser(env.DB, 'dee@example.com'); // invited, never signed in
+    const dee = await call(anaC, 'request_friend', { email: 'dee@example.com' });
     expect(member.isError).toBe(false);
-    expect(member.data).toEqual(stranger.data);
-    expect(await rows('connections')).toBe(1);
+    expect(stranger.data).toEqual(member.data);
+    expect(dee.data).toEqual(member.data);
+    const outgoing = (await list(anaC)).outgoing;
+    expect(outgoing.map((o) => o.email)).toEqual(['bo@example.com', 'nobody@example.com', 'dee@example.com']);
+    // Each entry has the same shape and no profile data, whoever it is.
+    for (const o of outgoing) expect(Object.keys(o).sort()).toEqual(['connectionId', 'email', 'name', 'sentOn']);
+    expect(outgoing.every((o) => o.name === null)).toBe(true);
+    expect(JSON.stringify(outgoing)).not.toContain(bo.id);
+    expect(JSON.stringify(outgoing)).not.toContain(invited.id);
+    // The person asked sees it, with the name of the one who asked.
     expect((await list(boC)).incoming).toMatchObject([{ email: 'ana@example.com', sentOn: new Date().toISOString().slice(0, 10) }]);
-    expect((await list(anaC)).outgoing).toMatchObject([{ email: 'bo@example.com' }]);
   });
 
-  it('is not made to someone who has not signed in yet, to oneself, or to a bad address', async () => {
-    await inviteUser(env.DB, 'dee@example.com'); // invited, never signed in
-    await call(anaC, 'request_friend', { email: 'dee@example.com' });
+  it('the limits do not depend on who is asked', async () => {
+    for (let i = 0; i < MAX_PENDING_SENT; i++) await call(anaC, 'request_friend', { email: `${i % 2 ? 'ghost' : 'friend'}${i}@example.com` }); // members and not
+    const members = await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    const stranger = await call(anaC, 'request_friend', { email: 'nobody@example.com' });
+    expect(members).toEqual(stranger);
+    expect(members.isError).toBe(true);
+  });
+
+  it('a request waits for the person at the address, even if they join later, and is deleted after 30 days', async () => {
+    await call(anaC, 'request_friend', { email: 'late@example.com' });
+    const late = await signedInUser(env, 'late@example.com');
+    const lateC = await connectAs(env, late);
+    expect((await list(lateC)).incoming).toMatchObject([{ email: 'ana@example.com' }]);
+    await env.DB.prepare('UPDATE connections SET created_at = ?').bind(Date.now() - 31 * 86_400_000).run();
+    expect((await list(lateC)).incoming).toEqual([]);
     expect(await rows('connections')).toBe(0);
+  });
+
+  it('is not made to oneself or to a bad address', async () => {
     expect((await call(anaC, 'request_friend', { email: 'Ana@Example.com' })).text).toContain('own address');
     expect((await call(anaC, 'request_friend', { email: 'not an address' })).isError).toBe(true);
     expect(await rows('connections')).toBe(0);
@@ -132,6 +156,17 @@ describe('sharing: no share means no access', () => {
     expect(await canView(env.DB, cy.id, bo.id, 'body')).toBe(false);
     expect(await rows('shares')).toBe(1);
     expect((await list(cyC)).friends).toEqual([]);
+  });
+
+  it('a share left over from nowhere is cleared when a friendship starts, and one cannot be written for a connection that is not accepted', async () => {
+    await env.DB.prepare("INSERT INTO shares (owner_id, viewer_id, category, granted_at) VALUES (?, ?, 'workouts', 1)").bind(ana.id, bo.id).run();
+    expect(await canView(env.DB, bo.id, ana.id, 'workouts')).toBe(false); // no connection: a stray row grants nothing
+    await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    const pendingId = (await list(anaC)).outgoing[0]!.connectionId;
+    expect((await call(anaC, 'set_sharing', { connection_id: pendingId, category: 'body', share: true })).isError).toBe(true);
+    await call(boC, 'accept_friend', { connection_id: pendingId });
+    expect(await rows('shares')).toBe(0);
+    expect((await list(boC)).friends[0]).toMatchObject({ theyShare: [] });
   });
 
   it('records every grant and withdrawal, once each', async () => {

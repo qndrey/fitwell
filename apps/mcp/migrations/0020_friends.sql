@@ -1,18 +1,23 @@
 -- Friends (B foundation): who is connected to whom, and what each person lets a friend see. Nothing is shared by default.
 -- Additive and safe to apply before the code is deployed.
 
--- One row per pair that has asked or agreed to connect. A declined or removed connection is deleted, not kept.
+-- One row per request or friendship. A request is addressed to an email address and is made without looking up whether the address has an
+-- account, so asking cannot be used to find out who is a member. addressee_id is filled in when the person at that address accepts.
+-- A declined, taken-back, expired or removed connection is deleted, not kept.
 CREATE TABLE connections (
-  id           TEXT PRIMARY KEY,
-  requester_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  addressee_id TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  status       TEXT NOT NULL CHECK (status IN ('pending', 'accepted')),
-  created_at   INTEGER NOT NULL,
-  responded_at INTEGER,
-  CHECK (requester_id != addressee_id),
-  UNIQUE (requester_id, addressee_id)
+  id              TEXT PRIMARY KEY,
+  requester_id    TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  addressee_email TEXT NOT NULL,
+  addressee_id    TEXT REFERENCES users (id) ON DELETE CASCADE,
+  status          TEXT NOT NULL CHECK (status IN ('pending', 'accepted')),
+  created_at      INTEGER NOT NULL,
+  responded_at    INTEGER,
+  CHECK (status = 'pending' OR addressee_id IS NOT NULL),
+  CHECK (addressee_id IS NULL OR requester_id != addressee_id),
+  UNIQUE (requester_id, addressee_email)
 );
-CREATE INDEX connections_addressee ON connections (addressee_id);
+CREATE INDEX connections_addressee_email ON connections (addressee_email);
+CREATE INDEX connections_addressee_id ON connections (addressee_id);
 
 -- What `owner` lets `viewer` see: one row per category. Only between accepted connections, and gone when the connection is.
 -- workouts: finished workouts and records. consistency: streaks and whether they trained, no numbers. templates: templates and recipes.

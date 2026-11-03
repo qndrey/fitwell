@@ -121,7 +121,8 @@ describe('membership', () => {
     await call(boC, 'set_household_portion', { portion: 0.5 });
     const seenByAna = await call(anaC, 'list_household');
     expect((seenByAna.data as unknown as { household: HouseholdInfo }).household.members[1]).toMatchObject({ email: 'bo@example.com', portion: 0.5, you: false });
-    expect(JSON.stringify(seenByAna.data) + seenByAna.text).not.toMatch(/peanut|77|1800/);
+    expect(Object.keys((seenByAna.data as unknown as { household: HouseholdInfo }).household.members[1]!).sort()).toEqual(['email', 'nickname', 'portion', 'you']); // nothing else of a member
+    expect(JSON.stringify(seenByAna.data) + seenByAna.text).not.toMatch(/peanut|\b77\b|\b1800\b/);
   });
 
   it('leaving takes the household away when the last one leaves, and leaves each person\'s own copy', async () => {

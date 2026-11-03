@@ -100,19 +100,11 @@ export class FriendsData {
     const pending = (await this.db.prepare("SELECT COUNT(*) AS n FROM connections WHERE requester_id = ? AND status = 'pending'").bind(this.userId).first<Row>())?.n as number;
     if (pending >= MAX_PENDING_SENT) return { ok: false, reason: 'too_many_pending' };
     if ((await this.countFriends()) >= MAX_FRIENDS) return { ok: false, reason: 'too_many_friends' };
-    // Anything already between the two, whichever way it went and whatever its state: a friendship stays one row, and a repeat changes nothing.
-    const { results: between } = await this.db
-      .prepare('SELECT c.id, c.status, c.requester_id FROM connections c JOIN users r ON r.id = c.requester_id WHERE (c.requester_id = ?1 AND c.addressee_email = ?2) OR (c.addressee_email = ?3 AND r.email = ?2)')
-      .bind(this.userId, email, mine)
-      .all<Row>();
-    if (between.some((c) => c.status === 'accepted')) return { ok: true };
-    // They already asked this person: asking back accepts (what they asked is visible to this person already, in their incoming list).
-    const theirs = between.find((c) => c.requester_id !== this.userId);
-    if (theirs) {
-      await this.accept(theirs.id as string);
-      return { ok: true };
-    }
-    if (between.length > 0) return { ok: true }; // this person already asked
+    // Only this person's own earlier request the same way is a repeat (they know they made it). Nothing else about the two changes what happens:
+    // not an existing friendship, not a request the other person made, not a request made the other way (email or nickname), so a guessed
+    // address can never be tested against a nickname by watching whether a new request appears or the two get connected.
+    const repeat = await this.db.prepare('SELECT 1 AS ok FROM connections WHERE requester_id = ? AND addressee_email = ? AND via_nickname = ?').bind(this.userId, email, viaNickname ? 1 : 0).first<Row>();
+    if (repeat) return { ok: true };
     await this.db
       .prepare("INSERT OR IGNORE INTO connections (id, requester_id, addressee_email, via_nickname, status, created_at) VALUES (?, ?, ?, ?, 'pending', ?)")
       .bind(crypto.randomUUID(), this.userId, email, viaNickname ? 1 : 0, this.now())
@@ -195,7 +187,7 @@ export class FriendsData {
       .first<Row>();
     if (friends) {
       // Already friends (a second request crossed the first): the extra request goes, and what is shared is left exactly as it is.
-      await this.db.prepare("DELETE FROM connections WHERE id = ? AND status = 'pending'").bind(connectionId).run();
+      await this.dropRequestsBetween(requester);
       return true;
     }
     // Nothing can be shared before a friendship starts, so anything found for the pair is a leftover: it goes, and each is recorded as withdrawn.
@@ -207,17 +199,33 @@ export class FriendsData {
         this.db.prepare('DELETE FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)').bind(this.userId, requester),
         this.db.prepare("UPDATE connections SET status = 'accepted', addressee_id = ?, responded_at = ? WHERE id = ? AND status = 'pending' AND addressee_email = ?").bind(this.userId, at, connectionId, mine),
       ]);
-      return done.at(-1)!.meta.changes > 0;
+      const accepted = done.at(-1)!.meta.changes > 0;
+      if (accepted) await this.dropRequestsBetween(requester);
+      return accepted;
     } catch {
       return false; // the database allows one accepted connection per pair: a racing accept lost
     }
   }
 
+  /** Deletes every request still waiting between this person and another, either way: once they are friends (or one answered), the rest are leftovers. */
+  private async dropRequestsBetween(otherId: string): Promise<void> {
+    const mine = await this.myEmail();
+    const otherEmail = ((await this.db.prepare('SELECT email FROM users WHERE id = ?').bind(otherId).first<Row>())?.email as string | undefined) ?? '';
+    await this.db
+      .prepare("DELETE FROM connections WHERE status = 'pending' AND ((requester_id = ?1 AND addressee_email = ?2) OR (requester_id = ?3 AND addressee_email = ?4))")
+      .bind(otherId, mine, this.userId, otherEmail)
+      .run();
+  }
+
   /** Declines a request addressed to this person, or takes back one this person sent. False when there is no such pending request. */
   async decline(connectionId: string): Promise<boolean> {
     const mine = await this.myEmail();
-    const r = await this.db.prepare("DELETE FROM connections WHERE id = ? AND status = 'pending' AND (addressee_email = ? OR requester_id = ?)").bind(connectionId, mine, this.userId).run();
-    return r.meta.changes > 0;
+    const ask = await this.db.prepare("SELECT requester_id FROM connections WHERE id = ? AND status = 'pending' AND (addressee_email = ? OR requester_id = ?)").bind(connectionId, mine, this.userId).first<Row>();
+    if (!ask) return false;
+    await this.db.prepare('DELETE FROM connections WHERE id = ?').bind(connectionId).run();
+    // Declining someone who asked twice (by email and by nickname) answers both.
+    if (ask.requester_id !== this.userId) await this.dropRequestsBetween(ask.requester_id as string);
+    return true;
   }
 
   /** Ends an accepted connection for both people: what either shared with the other stops being shared, and each withdrawal is recorded. */

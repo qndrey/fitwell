@@ -74,14 +74,18 @@ describe('requesting', () => {
     expect(await rows('connections')).toBe(0);
   });
 
-  it('asking someone who already asked back connects the two, and asking twice changes nothing', async () => {
+  it('asking twice the same way changes nothing; asking back is a request of its own, and answering one clears the other', async () => {
     await call(anaC, 'request_friend', { email: 'bo@example.com' });
     await call(anaC, 'request_friend', { email: 'bo@example.com' });
     expect(await rows('connections')).toBe(1);
     await call(boC, 'request_friend', { email: 'ana@example.com' });
-    expect(await rows('connections')).toBe(1);
+    expect(await rows('connections')).toBe(2); // nothing connects them behind their backs
+    expect((await list(anaC)).friends).toEqual([]);
+    await call(boC, 'accept_friend', { connection_id: (await list(boC)).incoming[0]!.connectionId });
+    expect(await rows('connections')).toBe(1); // Bo's own request to Ana is a leftover and goes
     expect((await list(anaC)).friends).toMatchObject([{ email: 'bo@example.com', iShare: [], theyShare: [] }]);
     expect((await list(boC)).friends).toMatchObject([{ email: 'ana@example.com' }]);
+    expect((await list(anaC)).incoming).toEqual([]);
   });
 
   it(`allows at most ${MAX_PENDING_SENT} waiting requests`, async () => {
@@ -182,13 +186,16 @@ describe('sharing: no share means no access', () => {
 });
 
 describe('a friendship is one row', () => {
-  it('asking again, from either side, changes nothing: no second row, and what is shared stays', async () => {
+  it('asking an existing friend creates a request like any other, which is dropped when answered, and what is shared stays', async () => {
     const id = await connect(anaC, boC, 'bo@example.com');
     await call(anaC, 'set_sharing', { connection_id: id, category: 'workouts', share: true });
-    await call(boC, 'request_friend', { email: 'ana@example.com' }); // the one who was asked, asking back
-    await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    await call(boC, 'request_friend', { email: 'ana@example.com' }); // looks like any request, so it cannot tell a friend from anyone else
+    expect(await rows('connections')).toBe(2);
+    expect(await canView(env.DB, bo.id, ana.id, 'workouts')).toBe(true);
+    expect((await call(anaC, 'accept_friend', { connection_id: (await list(anaC)).incoming[0]!.connectionId })).isError).toBe(false);
     expect(await rows('connections')).toBe(1);
     expect(await rows('shares')).toBe(1);
+    expect(await rows('share_consents')).toBe(1); // only the grant
     expect(await canView(env.DB, bo.id, ana.id, 'workouts')).toBe(true);
   });
 
@@ -336,5 +343,39 @@ describe('nicknames', () => {
     await deleteUser(env.DB, ana);
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM nickname_lookups').first<{ n: number }>())!.n).toBe(0);
     expect((await nick(boC, 'ana_fit')).isError).toBe(false);
+  });
+});
+
+describe('a nickname cannot be tested against an email', () => {
+  const outgoing = async (c: Client) => (await list(c)).outgoing.length;
+  beforeEach(async () => {
+    await call(anaC, 'set_nickname', { nickname: 'ana_fit' });
+    await call(boC, 'set_nickname', { nickname: 'bo.lifts' });
+  });
+
+  it('asking by email after asking by nickname looks the same whether or not the address is that person\'s', async () => {
+    await call(anaC, 'request_friend', { nickname: 'bo.lifts' });
+    expect(await outgoing(anaC)).toBe(1);
+    await call(anaC, 'request_friend', { email: 'wrong@example.com' }); // not Bo's
+    await call(anaC, 'request_friend', { email: 'bo@example.com' }); // Bo's
+    expect(await outgoing(anaC)).toBe(3); // each is a new request: no difference to see
+    expect((await list(anaC)).outgoing.map((o) => o.email ?? o.nickname).sort()).toEqual(['bo.lifts', 'bo@example.com', 'wrong@example.com']);
+  });
+
+  it('asking by email for someone who asked this person by nickname does not connect them or show a difference', async () => {
+    await call(boC, 'request_friend', { nickname: 'ana_fit' }); // Ana sees "bo.lifts", not an email
+    await call(anaC, 'request_friend', { email: 'cy@example.com' });
+    await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    expect((await list(anaC)).friends).toEqual([]);
+    expect((await list(anaC)).incoming).toMatchObject([{ nickname: 'bo.lifts', email: null }]);
+    expect(await outgoing(anaC)).toBe(2);
+  });
+
+  it('declining someone who asked twice answers both', async () => {
+    await call(anaC, 'request_friend', { nickname: 'bo.lifts' });
+    await call(anaC, 'request_friend', { email: 'bo@example.com' });
+    expect((await list(boC)).incoming).toHaveLength(2);
+    await call(boC, 'decline_friend', { connection_id: (await list(boC)).incoming[0]!.connectionId });
+    expect(await rows('connections')).toBe(0);
   });
 });

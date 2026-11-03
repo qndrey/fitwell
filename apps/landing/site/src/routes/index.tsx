@@ -47,6 +47,7 @@ const SIZES: Record<string, [number, number]> = {
   review: [796, 1216],
   milestone: [796, 842],
   crew: [796, 1570],
+  today: [796, 1834],
   sharecard: [1080, 1350],
 };
 
@@ -342,6 +343,17 @@ const features: Feature[] = [
     ],
     shot: "food",
     alt: "The summary the assistant shows after logging a lunch of oats and rye bread: calories today 549 of 2,300, protein, carbs and fat against their goals, then saturated fat, trans fat, sugar, added sugar, fiber and salt, and the two foods",
+  },
+  {
+    tab: "Today",
+    title: "What's left today, on one screen",
+    bullets: [
+      "Calories and protein left, today's planned meals with a one-tap eaten, and the foods you eat often to log again with the amount you had last time.",
+      "Water and steps, what you trained, and the workout that has waited longest as a suggestion. Nothing changes until you tap.",
+    ],
+    shot: "today",
+    alt: "Today on one screen: 820 kcal left of 2,300 with a bar, a planned breakfast logged and dinner with an Eaten button, foods to log again such as skyr and banana, water and steps, and a push day done",
+    maxH: "max-h-[560px]",
   },
   {
     tab: "Your burn",

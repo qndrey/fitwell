@@ -1,4 +1,4 @@
-// The milestone page, the share card and the crew feed for the Tools page (apps/landing/site/src/assets), from the built views with sample people and
+// The milestone page, the share card, the crew feed and the Today view for the Tools page (apps/landing/site/src/assets), from the built views with sample people and
 // numbers, the way Claude embeds them (398 CSS px wide, images 2x). No running server or database is needed: the views get fixed sample data.
 // Needs `npm run build:ui` first. Run: npx tsx scripts/screenshots-social.ts
 import { writeFileSync } from 'node:fs';
@@ -7,6 +7,8 @@ import type { CrewFeed } from '../src/analytics/crewTypes';
 import type { Celebration } from '../src/analytics/celebrationTypes';
 import celebrationHtml from '../src/ui/generated/celebration';
 import crewHtml from '../src/ui/generated/crew';
+import todayHtml from '../src/ui/generated/today';
+import type { TodayView } from '../src/analytics/todayTypes';
 import { closeAll, launch, openView } from '../tests/support/viewHost';
 
 const OUT = process.env.SHOTS_OUT ?? '../landing/site/src/assets';
@@ -31,6 +33,24 @@ const feed: CrewFeed = {
   yours: [{ id: 'm1', day: '2026-10-30', title: 'Leg day', from: [{ nickname: 'bo.lifts', email: null }, { nickname: 'cy', email: null }] }],
 };
 
+const todayView: TodayView = {
+  day: '2026-11-03', slot: 'dinner',
+  goals: { kcal: 2300, proteinG: 150 },
+  eaten: { kcal: 1480, protein: 92.5, carbs: 160, fat: 48 },
+  remaining: { kcal: 820, protein: 57.5 },
+  planned: [
+    { slot: 'breakfast', items: [{ name: 'Oats with milk', kcal: 420, logged: true }], kcal: 420, allLogged: true },
+    { slot: 'dinner', items: [{ name: 'Chicken and rice', kcal: 640, logged: false }, { name: 'Broccoli', kcal: 60, logged: false }], kcal: 700, allLogged: false },
+  ],
+  quickAdd: [
+    { entryId: 'e1', name: 'Skyr, plain', grams: 200, kcal: 130, protein: 22, estimated: false },
+    { entryId: 'e2', name: 'Banana', grams: 118, kcal: 105, protein: 1.3, estimated: false },
+    { entryId: 'e3', name: 'Rye bread, light', grams: 60, kcal: 125, protein: 3.5, estimated: false },
+  ],
+  waterMl: 750, steps: 8200,
+  training: { doneToday: [{ name: 'Push day', type: 'strength', minutes: 52 }], suggested: { name: 'Leg day', daysSince: 9 } },
+};
+
 await launch();
 for (const theme of ['light', 'dark'] as const) {
   // The milestone page, after its ring has drawn.
@@ -51,8 +71,15 @@ for (const theme of ['light', 'dark'] as const) {
   const c = await openView(crewHtml, result({ feed }), { width: 398, theme, scale: 2 });
   await c.page.emulateMedia({ colorScheme: theme });
   await c.page.waitForTimeout(500);
+  // Today.
+  const t = await openView(todayHtml, result({ today: todayView }), { width: 398, theme, scale: 2 });
+  await t.page.emulateMedia({ colorScheme: theme });
+  await t.page.waitForTimeout(500);
+  const todayBottom = await t.frame.locator('section[aria-label="Training"]').evaluate((e) => Math.ceil(e.getBoundingClientRect().bottom + 12));
+  await t.page.screenshot({ path: join(OUT, `today-${theme}.png`), clip: { x: 0, y: 0, width: 398, height: todayBottom } });
+
   const crewBottom = await c.frame.locator('section[aria-label="Kudos on your workouts"]').evaluate((e) => Math.ceil(e.getBoundingClientRect().bottom + 12));
   await c.page.screenshot({ path: join(OUT, `crew-${theme}.png`), clip: { x: 0, y: 0, width: 398, height: crewBottom } });
 }
 await closeAll();
-console.log('wrote milestone, sharecard and crew in light and dark to', OUT);
+console.log('wrote milestone, sharecard, crew and today in light and dark to', OUT);

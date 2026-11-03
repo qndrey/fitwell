@@ -14,6 +14,8 @@ const DESTRUCTIVE = [
   'send_friend_invite', // emails someone, which cannot be unsent
   'approve_invite_request', // the same, and deletes the request
   'cancel_friend_invite', // takes back an invitation
+  'decline_friend', // deletes a friend request
+  'remove_friend', // ends a connection and everything shared through it
   'decline_invite_request', // deletes a request
   'remove_invitation', // takes back an invitation
   'save_meal_plan', // saving a week again replaces its plan

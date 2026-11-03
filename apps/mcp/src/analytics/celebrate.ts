@@ -75,6 +75,7 @@ export function buildCelebrations(shown: Achievement[], loaded: LoadedStreaks): 
       achievedAt: a.achievedAt,
       ...text(a.kind, a.threshold, streak),
       atLeast: live && streak.atLeast,
+      goalKg: a.kind === 'goal_weight' ? loaded.goalWeightKg : null,
       took: live ? took(a.kind, streak.startedOn!, a.achievedAt, workouts, food) : [],
       next: live ? { ...streak.next, unit: streak.unit } : null,
     };

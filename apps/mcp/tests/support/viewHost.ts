@@ -27,13 +27,13 @@ export async function closeAll() {
   browser = null;
 }
 
-export async function openView(html: string, result: unknown, o: { theme?: 'light' | 'dark'; width?: number; tools?: (name: string, args: Record<string, unknown>) => unknown } = {}): Promise<OpenedView> {
+export async function openView(html: string, result: unknown, o: { theme?: 'light' | 'dark'; width?: number; tools?: (name: string, args: Record<string, unknown>) => unknown; hostCapabilities?: Record<string, unknown> } = {}): Promise<OpenedView> {
   const context = await browser!.newContext({ viewport: { width: o.width ?? 398, height: 1000 } });
   contexts.push(context);
   const page = await context.newPage();
   const calls: OpenedView['calls'] = [];
   await page.exposeFunction('__toHost', async (msg: { id?: number; method: string; params?: Record<string, unknown> }) => {
-    if (msg.method === 'ui/initialize') return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: '2026-01-26', hostInfo: { name: 'test-host', version: '1' }, hostCapabilities: {}, hostContext: { theme: o.theme ?? 'light', displayMode: 'inline', platform: 'web' } } };
+    if (msg.method === 'ui/initialize') return { jsonrpc: '2.0', id: msg.id, result: { protocolVersion: '2026-01-26', hostInfo: { name: 'test-host', version: '1' }, hostCapabilities: o.hostCapabilities ?? {}, hostContext: { theme: o.theme ?? 'light', displayMode: 'inline', platform: 'web' } } };
     if (msg.method === 'ui/notifications/initialized') {
       setTimeout(() => void page.evaluate((r) => (globalThis as unknown as HostWindow).window.__send({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: r }), result), 0);
       return null;
@@ -44,6 +44,8 @@ export async function openView(html: string, result: unknown, o: { theme?: 'ligh
       calls.push({ name, args });
       return { jsonrpc: '2.0', id: msg.id, result: o.tools?.(name, args) ?? { content: [{ type: 'text', text: 'ok' }] } };
     }
+    // A file the view asks the host to save is recorded like a tool call, under the method's own name.
+    if (msg.method === 'ui/download-file') calls.push({ name: msg.method, args: (msg.params ?? {}) as Record<string, unknown> });
     return msg.id !== undefined ? { jsonrpc: '2.0', id: msg.id, result: {} } : null;
   });
   await page.setContent(

@@ -49,7 +49,7 @@ describe('show_celebration', () => {
     expect(r.text).toContain('3 days of logging');
     expect(celebrations(r)).toEqual([
       {
-        kind: 'logging_days', threshold: 3, achievedAt: today, title: '3 days of logging', detail: 'Food logged every day', atLeast: false,
+        kind: 'logging_days', threshold: 3, achievedAt: today, title: '3 days of logging', detail: 'Food logged every day', atLeast: false, goalKg: null,
         took: [{ label: 'Days logged', value: 3 }, { label: 'Entries', value: 3 }], next: { threshold: 5, remaining: 2, unit: 'day' },
       },
     ]);
@@ -85,7 +85,7 @@ describe('the milestone view', () => {
   beforeAll(launch, 60_000);
   afterAll(closeAll);
   const result = (celebrations: Celebration[]) => ({ content: [{ type: 'text', text: 'open' }], structuredContent: { celebrations } });
-  const week: Celebration = { kind: 'training_weeks', threshold: 7, achievedAt: '2026-10-20', title: '7 weeks of training', detail: '3 workouts or more each week', atLeast: false, took: [{ label: 'Workouts', value: 21 }, { label: 'Sets', value: 310 }], next: { threshold: 14, remaining: 7, unit: 'week' } };
+  const week: Celebration = { kind: 'training_weeks', threshold: 7, achievedAt: '2026-10-20', title: '7 weeks of training', detail: '3 workouts or more each week', atLeast: false, goalKg: null, took: [{ label: 'Workouts', value: 21 }, { label: 'Sets', value: 310 }], next: { threshold: 14, remaining: 7, unit: 'week' } };
 
   it('shows the number, what it took and what is next', async () => {
     const v = await openView(celebrationHtml, result([week]));
@@ -103,7 +103,7 @@ describe('the milestone view', () => {
   }, 30_000);
 
   it('draws the goal weight as a tick, with no weight on it', async () => {
-    const goal: Celebration = { kind: 'goal_weight', threshold: 1, achievedAt: '2026-10-20', title: 'Goal weight reached', detail: 'Seven days in a row at your goal, by the trend', atLeast: false, took: [], next: null };
+    const goal: Celebration = { kind: 'goal_weight', threshold: 1, achievedAt: '2026-10-20', title: 'Goal weight reached', detail: 'Seven days in a row at your goal, by the trend', atLeast: false, goalKg: 75, took: [], next: null };
     const v = await openView(celebrationHtml, result([goal]));
     await pwExpect(v.frame.getByRole('heading', { name: 'Goal weight reached' })).toBeVisible();
     expect(await v.frame.locator('body').innerText()).not.toMatch(/\bkg\b/);

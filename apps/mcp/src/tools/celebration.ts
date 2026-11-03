@@ -16,7 +16,11 @@ export interface CelebrationDeps extends StreakDeps {
 }
 
 export function registerCelebrationTools(server: McpServer, deps: CelebrationDeps) {
-  registerAppResource(server, 'Milestone', CELEBRATION_VIEW_URI, { description: 'A streak milestone or the goal weight reached: the number, what it took and what is next.' }, async () => ({
+  registerAppResource(server, 'Milestone', CELEBRATION_VIEW_URI, {
+    description: 'A streak milestone or the goal weight reached: the number, what it took and what is next, and a share card the person can make.',
+    // The card can be copied to the clipboard; where the host does not grant this the view shows the picture to press and hold.
+    _meta: { ui: { permissions: { clipboardWrite: {} } } },
+  }, async () => ({
     contents: [{ uri: CELEBRATION_VIEW_URI, mimeType: RESOURCE_MIME_TYPE, text: celebrationHtml }],
   }));
 
@@ -29,7 +33,8 @@ export function registerCelebrationTools(server: McpServer, deps: CelebrationDep
         'Opens a calm page for a new milestone: 7 weeks of training, 30 days of logging, the goal weight reached. It shows the number, what it took and what is next. ' +
         'Each milestone is shown once: it picks up what the person has not seen from the last week (the highest per streak) and marks it seen, so a second call right after shows nothing. ' +
         'Call it after finish_workout, log_cardio or log_session, after the first food log of a day, or when you open the weekly review, and only if get_streaks reports newAchievements or you expect a milestone. ' +
-        'When there is nothing new it says so and opens nothing worth showing: do not announce it. Say anything you need to before calling it and write nothing after it.',
+        'The page has a "Make a card" button for a picture to share (feed, story or square; light or dark), drawn on their device: nothing is stored or posted, and their name and weight are on it only if they turn them on. ' +
+        'When there is nothing new it says so and opens nothing worth showing: do not announce it. Say anything you need to before calling it and write nothing after it, except that if they ask for a caption for the card you can suggest one in the reply: warm, short, about the milestone, never their weight.',
       inputSchema: z.object({}),
       // It marks what it shows as seen, so a repeat call changes the answer.
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },

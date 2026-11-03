@@ -14,6 +14,8 @@ export interface Celebration {
   detail: string | null;
   /** The run reaches the first day Fitwell looked at, so the number is a minimum. */
   atLeast: boolean;
+  /** The goal weight in kg, for the goal-weight milestone only; null otherwise. Kept off a share card unless the person turns it on for that card. */
+  goalKg: number | null;
   /** What it took, in the person's own numbers. */
   took: { label: string; value: number }[];
   /** The next milestone of the same streak; null for the goal weight or a run that has ended since. */

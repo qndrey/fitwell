@@ -20,3 +20,13 @@
 @media (prefers-reduced-motion: reduce) {
   .ring, .badge-number { animation: none; }
 }
+
+/* The card maker: choices, a preview that is the picture itself (scaled), and the actions. */
+.share { display: grid; gap: var(--s2); width: 100%; text-align: left; margin-top: var(--s2); }
+.share h2 { margin: 0; font-size: var(--fs-body); }
+.checks { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); font-size: var(--fs-small); }
+.check { display: inline-flex; align-items: center; gap: 6px; min-height: var(--h-row); }
+.check input { width: 18px; height: 18px; margin: 0; }
+.name-input { font: inherit; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); min-height: var(--h-row); box-sizing: border-box; }
+.card-canvas, .card-image { width: 100%; height: auto; max-height: 70vh; object-fit: contain; border: 1px solid var(--border); border-radius: var(--radius-sm); display: block; }
+.share-actions { display: flex; gap: var(--s3); }

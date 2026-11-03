@@ -2,7 +2,8 @@ import { App, applyDocumentTheme, applyHostFonts, applyHostStyleVariables, type 
 import type { Celebration, CelebrationResult } from '../../src/analytics/celebrationTypes';
 import { fmtDay } from '../shared/chart';
 import { h, svg } from '../shared/dom';
-import { icon } from '../shared/icons';
+import { icon, textButton } from '../shared/icons';
+import { sharePanel } from './share';
 
 const state = { celebrations: null as Celebration[] | null, error: '' };
 
@@ -29,8 +30,19 @@ function badge(c: Celebration) {
   );
 }
 
+/** The card panels people opened, kept across redraws (a theme change redraws the page) so their choices are not lost. */
+const panels = new Map<string, HTMLElement>();
+const opened = new Set<string>();
+
 function card(c: Celebration) {
   const unit = c.next?.unit;
+  const key = `${c.kind}:${c.threshold}`;
+  const toggle = textButton(null, 'Make a card', () => {
+    if (opened.has(key)) opened.delete(key);
+    else opened.add(key);
+    render();
+  }, { pressed: opened.has(key) });
+  if (opened.has(key) && !panels.has(key)) panels.set(key, sharePanel(c, app));
   return h(
     'section',
     { className: 'card celebrate', 'aria-label': c.title },
@@ -45,6 +57,8 @@ function card(c: Celebration) {
       ),
     c.next && unit && h('p', { className: 'next' }, `Next: ${plural(c.next.threshold, unit)}, ${c.next.remaining === 1 ? `one ${unit} to go` : `${c.next.remaining} ${unit}s to go`}.`),
     h('p', { className: 'muted small center-text' }, c.atLeast ? `Reached ${fmtDay(c.achievedAt, false)}. Fitwell has your logs from before this, so the real number may be higher.` : `Reached ${fmtDay(c.achievedAt, false)}.`),
+    toggle,
+    opened.has(key) && panels.get(key),
   );
 }
 

@@ -25,6 +25,8 @@ export interface LoadedStreaks {
   /** The rows the result was worked out from, for what the celebration says it took. */
   workouts: Workout[];
   food: DayTotal[];
+  /** The goal weight in kg, if one is set. */
+  goalWeightKg: number | null;
   /** The Mondays of the weeks the person froze, from the first week looked at (some may be ahead of today). */
   frozenWeeks: Day[];
 }
@@ -50,7 +52,7 @@ export async function loadStreaks(deps: StreakDeps): Promise<LoadedStreaks> {
     goals: { workoutsPerWeek: goals?.workoutsPerWeek ?? null, proteinG: goals?.proteinG ?? null, goalWeightKg: goals?.goalWeightKg ?? null, goalWeightSince },
     freezes: frozenWeeks,
   });
-  return { today, result, workouts, food, frozenWeeks };
+  return { today, result, workouts, food, goalWeightKg: goals?.goalWeightKg ?? null, frozenWeeks };
 }
 
 /** The streaks in a line each, for tools that only mention them (get_progress); get_streaks has the full result. */

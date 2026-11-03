@@ -68,7 +68,7 @@ function again(q: TodayQuickAdd) {
   return h(
     'li',
     { className: 'row' },
-    h('div', { className: 'grow' }, h('span', { className: 'who' }, q.name), h('span', { className: 'meta' }, `${q.estimated ? '~' : ''}${q.grams} g · ${q.kcal} kcal · ${q.protein} g protein`)),
+    h('div', { className: 'grow' }, h('span', { className: 'who' }, q.name), h('span', { className: 'meta' }, `${q.estimated ? '~' : ''}${q.grams} g · ${q.kcalRange ? `${q.kcal} kcal (${q.kcalRange.low} to ${q.kcalRange.high})` : `${q.kcal} kcal`} · ${q.protein} g protein`)),
     textButton(null, 'Add', () => void act(key, 'today_quick_add', { entry_id: q.entryId }), { disabled: state.busy.has(key), label: `Log ${q.name} again` }),
   );
 }

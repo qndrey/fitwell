@@ -48,7 +48,7 @@ export async function buildToday(deps: TodayDeps, now: Date = new Date()): Promi
   const quickAdd = candidates
     .filter((e) => !allergies.some((a) => e.foodName.toLowerCase().includes(a)))
     .slice(0, QUICK_ADD_SHOWN)
-    .map((e) => ({ entryId: e.id, name: e.foodName, grams: r0(e.grams), kcal: r0(e.kcal), protein: r1(e.protein), estimated: e.estimated }));
+    .map((e) => ({ entryId: e.id, name: e.foodName, grams: r0(e.grams), kcal: r0(e.kcal), protein: r1(e.protein), estimated: e.estimated, ...(e.kcalRange ? { kcalRange: { low: r0(e.kcalRange.low), high: r0(e.kcalRange.high) } } : {}) }));
 
   const doneToday = workouts
     .filter((w) => w.type !== 'strength' || w.finishedAt !== null)

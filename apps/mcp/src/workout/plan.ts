@@ -56,6 +56,8 @@ export interface PlannedExercise {
   notes?: string;
   /** The note from the previous session with this exercise. */
   lastNotes?: string;
+  /** Why this exercise is flagged for an injury the person asked to have remembered ("loads the shoulder"); never says it is unsafe, and shown only to them. */
+  injury?: string;
 }
 
 /** Cardio inside the workout: a warm-up before the lifting or a finisher after it. */

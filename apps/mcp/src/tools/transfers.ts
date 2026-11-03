@@ -14,12 +14,12 @@ export function registerTransferTools(server: McpServer, transfers: TransfersDat
       title: 'Send a template or recipe to a friend',
       description:
         "Sends a copy of one of the person's saved workout templates or recipes (by name) to a friend (connection_id from list_friends). The friend decides: they get a copy only when they accept, it is a snapshot (later changes to either are not shared, and the friend sees nothing else of the person's), and links and the person's own foods are left out. " +
-        `At most ${MAX_SENT} waiting at once and ${MAX_SENT_TO_ONE} to one friend; sending the same item again while it waits is one transfer. The person is not told whether it was accepted or declined. Weekly meal plans cannot be sent yet. ` +
+        `At most ${MAX_SENT} waiting at once and ${MAX_SENT_TO_ONE} to one friend; sending the same item again while it waits is one transfer. The person is not told whether it was accepted or declined. A whole week's meal plan is sent with kind meal_plan and name the Monday of the week (YYYY-MM-DD): the friend gets the meals and amounts as planned, nothing eaten, nothing of the person's recipes or own foods. ` +
         RULES,
       inputSchema: z.object({
         connection_id: z.string().min(1).max(64).describe('The friend: the connection id from list_friends'),
-        kind: z.enum(TRANSFER_KINDS).describe('template (a saved workout) or recipe'),
-        name: z.string().min(1).max(60).describe("The name of the person's own template or recipe"),
+        kind: z.enum(TRANSFER_KINDS).describe('template (a saved workout), recipe or meal_plan'),
+        name: z.string().min(1).max(60).describe("The name of the person's own template or recipe; for meal_plan the Monday of the week, YYYY-MM-DD"),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
@@ -29,7 +29,7 @@ export function registerTransferTools(server: McpServer, transfers: TransfersDat
       return toolError(
         {
           not_friends: 'There is no friend with that id. Check list_friends.',
-          not_found: `There is no ${kind} called "${name}". Check ${kind === 'template' ? 'list_workout_templates' : 'get_recipes'}.`,
+          not_found: kind === 'meal_plan' ? `There is no meal plan for the week of ${name} (name must be a Monday with a saved plan).` : `There is no ${kind} called "${name}". Check ${kind === 'template' ? 'list_workout_templates' : 'get_recipes'}.`,
           too_many: `At most ${MAX_SENT} items can be out at once; they expire after 30 days.`,
           too_many_to_one: `At most ${MAX_SENT_TO_ONE} items to one friend at a time; wait before sending more.`,
           too_big: 'That item is too large to send.',
@@ -55,12 +55,13 @@ export function registerTransferTools(server: McpServer, transfers: TransfersDat
     'accept_received_item',
     {
       title: 'Accept an item a friend sent',
-      description: `Saves a copy of a received template or recipe as the person's own. It never replaces one they have: if the name is taken the copy is named "<name> (from <friend>)". Then they can use it like any of their own. ${RULES}`,
-      inputSchema: z.object({ transfer_id: z.string().min(1).max(64).describe('The transfer id from list_received_items') }),
+      description: `Saves a copy of a received template, recipe or meal plan as the person's own (a meal plan goes into a week they pick, with week_start, and only one where they have no plan). It never replaces one they have: if the name is taken the copy is named "<name> (from <friend>)". Then they can use it like any of their own. ${RULES}`,
+      inputSchema: z.object({ transfer_id: z.string().min(1).max(64).describe('The transfer id from list_received_items'), week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('For a received meal plan: the Monday of the week to put it in; the person must have no plan of their own that week') }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    async ({ transfer_id }) => {
-      const saved = await transfers.accept(transfer_id);
+    async ({ transfer_id, week_start }) => {
+      const saved = await transfers.accept(transfer_id, week_start);
+      if (saved && 'needs' in saved) return toolError(saved.needs === 'week' ? 'A meal plan needs a week: ask which Monday (YYYY-MM-DD) to put it in, then accept again with week_start.' : 'They already have a plan for that week, and it is not replaced. Pick another week.');
       return saved ? json({ saved: true, kind: saved.kind, name: saved.name }) : toolError('There is no waiting item with that id (or it can no longer be accepted). Check list_received_items.');
     },
   );

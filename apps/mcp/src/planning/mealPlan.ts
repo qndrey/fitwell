@@ -2,6 +2,7 @@
 // allergies and dislikes afterwards, and an edit that would bring an allergy match into the plan is refused (an allergy is never presented).
 import { addDays } from '@fitwell/core/domain/dates';
 import type { MealPlanView, PlanDay } from '../analytics/mealPlanTypes';
+import type { HouseholdData } from '../data/households';
 import type { PlanData } from '../data/planData';
 import { todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
@@ -12,6 +13,8 @@ import { plannedRecipe, servingKcal } from './recipeItem';
 export interface MealPlanDeps {
   data: UserData;
   plans: PlanData;
+  /** For the household's side-by-side portions (B2). */
+  households?: HouseholdData;
 }
 
 /** A copy of a planned item for another place: not eaten there. */
@@ -53,6 +56,10 @@ export async function buildMealPlan(deps: MealPlanDeps, week: string, now: Date 
       vsGoal: { kcal: c?.vsGoal.kcal ?? null, protein: c?.vsGoal.protein ?? null },
     };
   });
+  // A week that follows the household's plan shows what each member's portion comes to, so cooking for different portions is clear at a glance.
+  const info = deps.households && (await deps.plans.followsHousehold(week)) ? await deps.households.info() : null;
+  const mine = info?.members.find((m) => m.you)?.portion ?? 1;
+  if (info) for (const d of days) for (const m of d.meals) m.memberKcal = info.members.map((x) => r0((m.kcal / mine) * x.portion));
   const recipes = (await deps.plans.recipes()).slice(0, 40).map((r) => ({ id: r.id, name: r.name, kcalPerServing: servingKcal(r) }));
   return {
     weekStart: week,
@@ -60,6 +67,7 @@ export async function buildMealPlan(deps: MealPlanDeps, week: string, now: Date 
     version: plan.updatedAt,
     goals: { kcal: goals?.kcal ?? null, proteinG: goals?.proteinG ?? null },
     days,
+    ...(info ? { household: { members: info.members.map((m) => ({ label: m.nickname ?? m.email ?? 'member', portion: m.portion, you: m.you })) } } : {}),
     warnings: check.warnings.map(warningText),
     problems: check.problems.filter((p) => !/^(ALLERGY|Disliked food)/.test(p)),
     recipes,

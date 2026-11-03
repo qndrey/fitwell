@@ -1,6 +1,8 @@
+import { addDays } from '@fitwell/core/domain/dates';
 import type { Client } from '@modelcontextprotocol/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Progress } from '../src/analytics/types';
+import { todayIn } from '../src/data/time';
 import type { User } from '../src/data/users';
 import { createTestEnv } from './support/env';
 import { call, connectAs, signedInUser } from './support/mcp';
@@ -201,7 +203,9 @@ describe('progress and dashboard', () => {
   });
 
   it('opens the dashboard with the full series as structured data and a short text for the model', async () => {
-    await logWeights();
+    // The dashboard looks back from the real today, so the weigh-ins are dated from today too (a fixed date falls out of the window in time).
+    const today = todayIn('Europe/Copenhagen'); // the default time zone of a new profile
+    for (let i = 0; i < 7; i++) await call(client, 'log_body', { weight_kg: 80.6 + i * 0.4, day: addDays(today, -2 * i) });
     const { tools } = await client.listTools();
     const show = tools.find((t) => t.name === 'show_dashboard')!;
     expect((show._meta as { ui?: { resourceUri?: string } }).ui?.resourceUri).toBe('ui://fitwell/dashboard.html');

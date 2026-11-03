@@ -27,8 +27,8 @@ export async function closeAll() {
   browser = null;
 }
 
-export async function openView(html: string, result: unknown, o: { theme?: 'light' | 'dark'; width?: number; tools?: (name: string, args: Record<string, unknown>) => unknown; hostCapabilities?: Record<string, unknown> } = {}): Promise<OpenedView> {
-  const context = await browser!.newContext({ viewport: { width: o.width ?? 398, height: 1000 } });
+export async function openView(html: string, result: unknown, o: { theme?: 'light' | 'dark'; width?: number; tools?: (name: string, args: Record<string, unknown>) => unknown; hostCapabilities?: Record<string, unknown>; scale?: number } = {}): Promise<OpenedView> {
+  const context = await browser!.newContext({ viewport: { width: o.width ?? 398, height: 1000 }, deviceScaleFactor: o.scale ?? 1 });
   contexts.push(context);
   const page = await context.newPage();
   const calls: OpenedView['calls'] = [];

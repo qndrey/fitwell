@@ -51,7 +51,7 @@ const todayView: TodayView = {
     { entryId: 'e2', name: 'Banana', grams: 118, kcal: 105, protein: 1.3, estimated: false },
     { entryId: 'e3', name: 'Rye bread, light', grams: 60, kcal: 125, protein: 3.5, estimated: false },
   ],
-  waterMl: 750, steps: 8200,
+  waterMl: 750, waterGoalMl: 2000, steps: 8200,
   training: { doneToday: [{ name: 'Push day', type: 'strength', minutes: 52 }], suggested: { templateId: 't-leg', name: 'Leg day', daysSince: 9 } },
 };
 

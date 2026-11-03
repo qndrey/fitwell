@@ -18,7 +18,7 @@ const today: TodayView = {
     { entryId: 'e1', name: 'Skyr, plain', grams: 200, kcal: 130, protein: 22, estimated: false },
     { entryId: 'e2', name: 'Banana', grams: 118, kcal: 105, protein: 1.3, estimated: true },
   ],
-  waterMl: 750, steps: 8200,
+  waterMl: 750, waterGoalMl: 2000, steps: 8200,
   training: { doneToday: [{ name: 'Push day', type: 'strength', minutes: 52 }], suggested: { templateId: 't-leg', name: 'Leg day', daysSince: 9 } },
 };
 const result = (t: TodayView) => ({ content: [{ type: 'text', text: 'open' }], structuredContent: { today: t } });
@@ -40,6 +40,8 @@ describe('the Today view', () => {
     await pwExpect(v.frame.getByText('200 g · 130 kcal · 22 g protein')).toBeVisible();
     await pwExpect(v.frame.getByText('~118 g · 105 kcal')).toBeVisible(); // an estimate is marked
     await pwExpect(v.frame.getByText(/750 ml/)).toBeVisible();
+    await pwExpect(v.frame.getByText('of 2,000 water')).toBeVisible();
+    await pwExpect(v.frame.getByRole('img', { name: '38 % of the water goal' })).toBeVisible();
     await pwExpect(v.frame.getByText(/8,200/)).toBeVisible();
     await pwExpect(v.frame.getByText('Push day')).toBeVisible();
     await pwExpect(v.frame.getByText(/Suggested: Leg day, 9 days since you did it/)).toBeVisible();

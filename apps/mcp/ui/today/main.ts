@@ -92,7 +92,8 @@ function draw() {
       'section',
       { className: 'card', 'aria-label': 'Water and steps' },
       h('h2', {}, 'Water and steps'),
-      h('p', { className: 'headline' }, `${t.waterMl.toLocaleString('en-US')} ml `, h('small', {}, 'water'), t.steps !== null ? h('span', {}, `  ${t.steps.toLocaleString('en-US')} `) : null, t.steps !== null ? h('small', {}, 'steps') : null),
+      h('p', { className: 'headline' }, `${t.waterMl.toLocaleString('en-US')} ml `, h('small', {}, t.waterGoalMl ? `of ${t.waterGoalMl.toLocaleString('en-US')} water` : 'water'), t.steps !== null ? h('span', {}, `  ${t.steps.toLocaleString('en-US')} `) : null, t.steps !== null ? h('small', {}, 'steps') : null),
+      t.waterGoalMl ? h('div', { className: 'bar', role: 'img', 'aria-label': `${Math.min(100, Math.round((t.waterMl / t.waterGoalMl) * 100))} % of the water goal` }, h('i', { css: { width: `${Math.min(100, Math.round((t.waterMl / t.waterGoalMl) * 100))}%` } })) : null,
       h('div', { className: 'choices' }, ...[250, 500].map((ml) => textButton(null, `+${ml} ml`, () => void act(`water:${ml}`, 'today_add_water', { ml }), { disabled: state.busy.has(`water:${ml}`), label: `Add ${ml} millilitres of water` }))),
     ),
     h(

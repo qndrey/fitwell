@@ -246,6 +246,7 @@ export class FriendsData {
     await this.db.batch([
       ...results.map((s) => this.db.prepare("INSERT INTO share_consents (owner_id, viewer_id, category, action, at) VALUES (?, ?, ?, 'withdrawn', ?)").bind(s.owner_id, s.viewer_id, s.category, at)),
       this.db.prepare('DELETE FROM shares WHERE (owner_id = ?1 AND viewer_id = ?2) OR (owner_id = ?2 AND viewer_id = ?1)').bind(this.userId, other),
+      this.db.prepare('DELETE FROM kudos WHERE (giver_id = ?1 AND owner_id = ?2) OR (giver_id = ?2 AND owner_id = ?1)').bind(this.userId, other),
       // The friendship goes. Requests left over between the two are hidden from whoever they were sent to, not deleted: they would otherwise
       // show their sender that an address was this friend's, and a hidden request cannot bring the friendship back (nobody can answer it).
       this.db.prepare('DELETE FROM connections WHERE id = ? AND status = ?').bind(connectionId, 'accepted'),

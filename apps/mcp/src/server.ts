@@ -23,6 +23,8 @@ import { FriendsData } from './data/friends';
 import { NicknameData } from './data/nicknames';
 import { TransfersData } from './data/transfers';
 import { DigestData } from './data/digests';
+import { CrewData } from './data/crew';
+import { registerCrewTools } from './tools/crew';
 import { registerTransferTools } from './tools/transfers';
 import { AchievementsData } from './data/achievements';
 import { registerBodyTools } from './tools/body';
@@ -71,6 +73,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const nicknames = new NicknameData(deps.db, deps.user.id);
   const transfers = new TransfersData(deps.db, deps.user.id, workouts, plans);
   const digests = new DigestData(deps.db, deps.user.id);
+  const crew = new CrewData(deps.db, deps.user.id);
   // The tools Claude reads before planning or advising answer with the role to take (src/instructions/*.md).
   const server = withRoles(mcp, {
     trainer: ['search_exercises', 'list_workout_templates', 'suggest_progression', 'get_workout_history', 'show_muscle_map'],
@@ -80,7 +83,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerProfileTools(server, { data, email: deps.user.email, digests });
   registerFoodTools(server, { off: deps.off, data });
   registerFoodLogTools(server, { off: deps.off, data, plans });
-  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()), ...(await reviewNotes.exportAll()), ...(await achievements.exportAll()), ...(await friends.exportAll()), ...(await transfers.exportAll()), emailDigests: await digests.settings(), ...(await exportInvites(deps.db, deps.user.id)) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
+  registerAccountTools(server, { data, extraExport: async () => ({ ...(await workouts.exportAll()), ...(await body.exportAll()), ...(await plans.exportAll()), ...(await reviewNotes.exportAll()), ...(await achievements.exportAll()), ...(await friends.exportAll()), ...(await transfers.exportAll()), ...(await crew.exportAll()), emailDigests: await digests.settings(), ...(await exportInvites(deps.db, deps.user.id)) }), email: deps.user.email, deleteAccount: deps.deleteAccount });
   await registerExerciseTools(server, { data });
   await registerWorkoutTools(server, { data, workouts });
   registerBodyTools(server, { data, workouts, body });
@@ -98,6 +101,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerDeleteTool(server, { data, workouts, body, plans });
   registerFriendTools(server, friends, nicknames);
   registerTransferTools(server, transfers);
+  registerCrewTools(server, { data, crew });
   registerMemberInviteTools(server, { db: deps.db, userId: deps.user.id, isAdmin: deps.isAdmin === true, isReviewer: deps.isReviewer, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   return mcp;

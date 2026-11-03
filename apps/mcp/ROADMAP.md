@@ -160,7 +160,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 
 **Phase 9: coaching v2 and crew**
 - [ ] A4 programs with deloads; A6 a verdict per muscle group in the review; A10 strength mode; A7 vitamins and minerals, protein per meal.
-- [ ] B3 crew feed; B4 challenges; F5 streaks in both (consistency only).
+- [x] B3 crew feed (`show_crew_feed`, `ui/crew`, `give_kudos`; migration 0023): friends' last two weeks of finished workouts and their streaks as each friend shares them, with kudos. **Left:** records (a new personal best) in the feed. [ ] B4 challenges; F5 streaks in both (consistency only).
 - [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
 
 **Phase 10 and later**

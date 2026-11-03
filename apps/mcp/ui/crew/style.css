@@ -1,0 +1,14 @@
+@import '../shared/panel.css';
+/* The crew feed: friends and what each shares, then their recent workouts, calm and flat like the other pages. */
+.who { font-weight: 600; }
+.friends { display: grid; gap: var(--s2); margin: 0; padding: 0; list-style: none; }
+.friends li { display: flex; flex-wrap: wrap; gap: 2px var(--s3); align-items: baseline; }
+.friends .stat { color: var(--muted); font-size: var(--fs-small); }
+.feed { display: grid; gap: var(--s3); margin: 0; padding: 0; list-style: none; }
+.workout { background: var(--surface); border-radius: var(--radius); padding: var(--s3); display: grid; gap: 4px; }
+.workout .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); }
+.workout h3 { margin: 0; font-size: var(--fs-body); }
+.workout .meta { color: var(--muted); font-size: var(--fs-small); }
+.kudos { display: flex; align-items: center; gap: var(--s2); }
+.kudos .count { color: var(--muted); font-size: var(--fs-small); }
+.empty { text-align: center; }

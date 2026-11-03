@@ -2,6 +2,7 @@
 import { expect as pwExpect } from 'playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import celebration from '../src/ui/generated/celebration';
+import crew from '../src/ui/generated/crew';
 import exercise from '../src/ui/generated/exercise';
 import food from '../src/ui/generated/food';
 import lift from '../src/ui/generated/lift';
@@ -15,6 +16,7 @@ const failed = { isError: true, content: [{ type: 'text', text: 'failed' }] };
 const VIEWS: [string, string, RegExp][] = [
   ['lift', lift, /Loading|could not/],
   ['milestone', celebration, /could not be opened/],
+  ['crew feed', crew, /could not be opened/],
   ['exercise guide', exercise, /could not be opened/],
   ['shopping list', shopping, /could not be opened/],
   ['food summary', food, /Nothing was logged/],

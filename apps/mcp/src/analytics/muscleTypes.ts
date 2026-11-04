@@ -13,7 +13,14 @@ export const WEEKLY_SET_RANGE = { low: 10, high: 20 } as const;
 /** none: not trained; below: under the range; in_range; high: over it. */
 export type MuscleLevel = 'none' | 'below' | 'in_range' | 'high';
 
+/** How the estimated 1RM of the lifts that mainly work a muscle changed against the period before: stronger, about the same, lower, or nothing to compare. */
+export type StrengthTrend = 'up' | 'same' | 'down' | 'none';
+/** A change under this many percent counts as about the same. */
+export const STRENGTH_SAME_PCT = 2;
+
 export interface MuscleLoad {
+  /** The strength mode (A10): the average change of the best estimated 1RM, over the lifts that mainly work this muscle and were done in both periods. */
+  strength?: { trend: StrengthTrend; changePct: number | null; lifts: number };
   muscle: string;
   /** Working sets a week, averaged over the period: 1 for a set where the muscle is a main one, 0.5 where it helps. */
   setsPerWeek: number;

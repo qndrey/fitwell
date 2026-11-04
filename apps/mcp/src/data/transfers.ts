@@ -1,10 +1,13 @@
 // Sending a workout template or a recipe to a friend (B1). Between accepted friends only, the recipient decides, and what they get is a copy:
 // the sender sees nothing of theirs afterwards and the recipient sees nothing more of the sender's. Text from another person is cleaned on the
 // way (no markup, no links, no control characters, bounded lengths) and what points back to the sender (own foods, the source page) is dropped.
+import { addDays, isDay, weekStart as mondayOf } from '@fitwell/core/domain/dates';
+import { EXTRA_KEYS, type Extras } from '@fitwell/core/domain/nutrition';
+import { SLOT_NAMES, type PlannedItem } from '../planning/check';
 import type { PlanData, Recipe, RecipeItem } from './planData';
 import type { Template, TemplateCardio, TemplateExercise, WorkoutData } from './workoutData';
 
-export const TRANSFER_KINDS = ['template', 'recipe'] as const;
+export const TRANSFER_KINDS = ['template', 'recipe', 'meal_plan'] as const;
 export type TransferKind = (typeof TRANSFER_KINDS)[number];
 
 /** Sent and not yet gone: at most this many in all, and this many to one friend, counting declined ones (which look waiting to the sender). */
@@ -66,7 +69,61 @@ function cleanRecipe(r: Recipe) {
   return { name: cleanText(r.name, 60), servings: num(r.servings, 1, 100, 1), items, notes: r.notes ? cleanText(r.notes, 500) : null, steps: r.steps.slice(0, 40).map((s) => cleanText(s, 400)).filter(Boolean) };
 }
 
+/** A planned meal as it travels: the day becomes its place in the week, and everything that points to the sender (their recipes and own foods, what they ate) is left behind. */
+function cleanPlanItem(i: PlannedItem, week: string): Record<string, unknown> | null {
+  const dayIndex = Math.round((Date.parse(`${i.day}T00:00:00Z`) - Date.parse(`${week}T00:00:00Z`)) / 86_400_000);
+  if (!(dayIndex >= 0 && dayIndex <= 6) || !SLOT_NAMES.includes(i.slot)) return null;
+  const extras = i.extras ? Object.fromEntries(EXTRA_KEYS.flatMap((k) => (typeof i.extras![k] === 'number' ? [[k, num(i.extras![k], 0, 100_000, 0)]] : []))) : undefined;
+  return {
+    dayIndex,
+    slot: i.slot,
+    kind: i.kind === 'estimate' ? 'estimate' : i.kind,
+    name: cleanText(i.name, 100) || 'Meal',
+    ...(i.kind === 'food' && typeof i.foodId === 'string' && i.foodId.startsWith('frida:') ? { foodId: i.foodId } : {}),
+    ...(i.servings !== undefined ? { servings: num(i.servings, 0.01, 100, 1) } : {}),
+    grams: num(i.grams, 0, 20_000, 0),
+    kcal: num(i.kcal, 0, 20_000, 0),
+    protein: num(i.protein, 0, 2_000, 0),
+    carbs: num(i.carbs, 0, 4_000, 0),
+    fat: num(i.fat, 0, 2_000, 0),
+    ...(extras && Object.keys(extras).length ? { extras } : {}),
+    ingredients: i.ingredients.slice(0, 40).map((g) => ({ name: cleanText(g.name, 100) || 'Ingredient', grams: num(g.grams, 0, 20_000, 0), ...(typeof g.foodId === 'string' && g.foodId.startsWith('frida:') ? { foodId: g.foodId } : {}) })),
+  };
+}
+
+/** The items of a received meal plan, placed in `week` (a Monday): nothing the sender could use to point at their own data, and nothing eaten. */
+function plannedFrom(snap: Record<string, unknown>, week: string): PlannedItem[] | null {
+  const raw = Array.isArray(snap.items) ? (snap.items as Record<string, unknown>[]) : [];
+  if (raw.length === 0 || raw.length > 120) return null;
+  const out: PlannedItem[] = [];
+  for (const r of raw) {
+    const idx = num(r.dayIndex, 0, 6, -1);
+    if (idx < 0 || !SLOT_NAMES.includes(r.slot as never)) return null;
+    out.push({
+      day: addDays(week, Math.floor(idx)),
+      slot: r.slot as PlannedItem['slot'],
+      kind: r.kind === 'recipe' ? 'recipe' : r.kind === 'estimate' ? 'estimate' : 'food',
+      name: cleanText(r.name, 100) || 'Meal',
+      ...(typeof r.foodId === 'string' && r.foodId.startsWith('frida:') ? { foodId: r.foodId } : {}),
+      ...(r.servings !== undefined ? { servings: num(r.servings, 0.01, 100, 1) } : {}),
+      grams: num(r.grams, 0, 20_000, 0),
+      kcal: num(r.kcal, 0, 20_000, 0),
+      protein: num(r.protein, 0, 2_000, 0),
+      carbs: num(r.carbs, 0, 4_000, 0),
+      fat: num(r.fat, 0, 2_000, 0),
+      ...(r.extras && typeof r.extras === 'object' ? { extras: Object.fromEntries(EXTRA_KEYS.flatMap((k) => (typeof (r.extras as Extras)[k] === 'number' ? [[k, num((r.extras as Extras)[k], 0, 100_000, 0)]] : []))) as Extras } : {}),
+      ingredients: (Array.isArray(r.ingredients) ? (r.ingredients as Record<string, unknown>[]) : []).slice(0, 40).map((g) => ({ name: cleanText(g.name, 100) || 'Ingredient', grams: num(g.grams, 0, 20_000, 0), ...(typeof g.foodId === 'string' && g.foodId.startsWith('frida:') ? { foodId: g.foodId } : {}) })),
+    });
+  }
+  return out;
+}
+
 const summaryOf = (kind: TransferKind, snapshot: Record<string, unknown>): string => {
+  if (kind === 'meal_plan') {
+    const items = Array.isArray(snapshot.items) ? (snapshot.items as { dayIndex?: number }[]) : [];
+    const days = new Set(items.map((i) => i.dayIndex)).size;
+    return `${items.length} ${items.length === 1 ? 'meal' : 'meals'} over ${days} ${days === 1 ? 'day' : 'days'}`;
+  }
   if (kind === 'template') {
     const ex = (snapshot.exercises as unknown[] | undefined)?.length ?? 0;
     const cardio = (snapshot.cardio as unknown[] | undefined)?.length ?? 0;
@@ -109,7 +166,12 @@ export class TransfersData {
     if (!friend) return { ok: false, reason: 'not_friends' };
     await this.prune();
     let snapshot: Record<string, unknown> | null = null;
-    if (kind === 'template') {
+    if (kind === 'meal_plan') {
+      // name is the Monday of the week of the sender's own plan.
+      const plan = isDay(name) && mondayOf(name) === name ? await this.plans.plan(name) : null;
+      const items = plan ? plan.items.map((i) => cleanPlanItem(i, name)).filter((i): i is Record<string, unknown> => i !== null) : [];
+      if (items.length) snapshot = { name: `Meal plan, week of ${name}`, items };
+    } else if (kind === 'template') {
       const t = await this.workouts.templateByName(name);
       if (t) snapshot = cleanTemplate(t);
     } else {
@@ -159,7 +221,7 @@ export class TransfersData {
   }
 
   /** Copies a received item into this person's own templates or recipes, never replacing one they have (a taken name gets a suffix), and removes the transfer. */
-  async accept(transferId: string): Promise<{ kind: TransferKind; name: string } | null> {
+  async accept(transferId: string, weekStart?: string): Promise<{ kind: TransferKind; name: string } | { needs: 'week' | 'free_week' } | null> {
     const t = await this.db
       .prepare(
         `SELECT t.kind, t.name, t.snapshot, u.email, p.nickname FROM item_transfers t JOIN users u ON u.id = t.sender_id LEFT JOIN profiles p ON p.user_id = u.id
@@ -176,6 +238,16 @@ export class TransfersData {
       return null;
     }
     const kind = t.kind as TransferKind;
+    if (kind === 'meal_plan') {
+      // A plan lands in a week the person picks (a Monday), and only in one where they have no plan: nothing of theirs is replaced.
+      if (!weekStart || !isDay(weekStart) || mondayOf(weekStart) !== weekStart) return { needs: 'week' };
+      if (await this.plans.plan(weekStart)) return { needs: 'free_week' };
+      const items = plannedFrom(snap, weekStart);
+      if (!items) return null;
+      await this.plans.savePlan(weekStart, items);
+      await this.db.prepare('DELETE FROM item_transfers WHERE id = ? AND recipient_id = ?').bind(transferId, this.userId).run();
+      return { kind, name: `Meal plan, week of ${weekStart}` };
+    }
     const from = ((t.nickname as string | null) ?? 'a friend').slice(0, 20);
     const exists = (n: string) => (kind === 'template' ? this.workouts.templateByName(n) : this.plans.recipeByName(n));
     // A name already in use is not replaced: the copy is "Push day (from ana_fit)", then "(2)", "(3)"...

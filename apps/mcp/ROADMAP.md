@@ -159,8 +159,8 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 - [ ] Exit: a day of Apple Health steps, sleep and weight appears without typing; a Strava run shows up as cardio; a year of Hevy workouts imports with "last time" values in the player and every unmatched exercise listed; a meal is swapped and a day repeated in the plan view; a ChatGPT user on a plan that allows it logs a meal and sees the dashboard, and the table says what works where.
 
 **Phase 9: coaching v2 and crew**
-- [ ] A4 programs with deloads; A6 a verdict per muscle group in the review; A10 strength mode; A7 vitamins and minerals, protein per meal.
-- [x] B3 crew feed (`show_crew_feed`, `ui/crew`, `give_kudos`; migration 0023): friends' last two weeks of finished workouts and their streaks as each friend shares them, with kudos. **Left:** records (a new personal best) in the feed. [ ] B4 challenges; F5 streaks in both (consistency only).
+- [x] A4 programs with deloads (`create_program`, `get_program`, `end_program`, `start_workout` `program`, migration 0030; **left:** percentage waves and other schemes); A6 a verdict per muscle group (`review.muscles`, a Muscles card, `get_progress` levels); A10 strength mode (e1RM change per muscle in the muscle map); A7 protein by meal (`get_food_log` `meals`). **Left of A7:** vitamins and minerals: they need the Frida 5.5 spreadsheet (`data/raw/frida/`, see `packages/core/data/README.md`) to extend `build-foods.ts`.
+- [x] B3 crew feed (`show_crew_feed`, `ui/crew`, `give_kudos`; migration 0023): friends' last two weeks of finished workouts and their streaks as each friend shares them, with kudos. Records (a new personal best, by exercise name) are in the feed. [x] B4 challenges (`create_challenge` and six more, migration 0031, the cron closes them and emails results); F5 streaks in both (consistency only, as shared). **Left:** a leaderboard view.
 - [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
 
 **Phase 10 and later**

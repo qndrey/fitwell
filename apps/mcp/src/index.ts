@@ -4,6 +4,7 @@ import { handleAuthorize, parseReviewLogin, SCOPE } from './auth/login';
 import { mailerFor } from './auth/mailer';
 import { page, privacyBody, supportBody, termsBody } from './auth/pages';
 import { handleRequestAccess } from './auth/requestAccess';
+import { runChallenges } from './digests/challenges';
 import { runDigests } from './digests/run';
 import { handleUnsubscribe } from './digests/unsubscribe';
 import { ICONS } from './icons';
@@ -133,6 +134,12 @@ export default {
   // The hourly cron (wrangler.jsonc triggers): sends the email digests that are due in each person's own local time.
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const reviewEmail = parseReviewLogin((env as EnvWithOAuth).REVIEW_LOGIN)?.email;
+    const skip = (email: string) => email === DEV_EMAIL || email.toLowerCase() === reviewEmail;
+    ctx.waitUntil(
+      runChallenges({ db: env.DB, mailer: mailerFor(env as EnvWithOAuth), publicUrl: env.PUBLIC_URL, skip }).then((r) => {
+        if (r.closed || r.emailed || r.failed) console.log('challenges', JSON.stringify(r));
+      }),
+    );
     ctx.waitUntil(
       runDigests({ db: env.DB, mailer: mailerFor(env as EnvWithOAuth), publicUrl: env.PUBLIC_URL, skip: (email) => email === DEV_EMAIL || email.toLowerCase() === reviewEmail }).then((r) => {
         if (r.weekly || r.nudge || r.failed) console.log('digests', JSON.stringify(r));

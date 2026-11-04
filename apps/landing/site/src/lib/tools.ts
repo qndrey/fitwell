@@ -146,7 +146,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "start_workout",
         kind: "opens",
-        what: "Opens the workout player: one exercise per card with big buttons and a rest timer. It supports supersets, timed sets, warm-up ramps with the plates to load on each side, and swapping an exercise. Everything you do in the player (log a set, change the rest, add a note, log a cardio block, swap an exercise) is a button, not something you type.",
+        what: "Opens the workout player: one exercise per card with big buttons and a rest timer. It can start the next session of your training program, planned lighter in a deload week. An exercise that loads an area you told Fitwell about is flagged on its card. It supports supersets, timed sets, warm-up ramps with the plates to load on each side, and swapping an exercise. Everything you do in the player (log a set, change the rest, add a note, log a cardio block, swap an exercise) is a button, not something you type.",
         ask: "Start my push day.",
         shots: [
           { name: "warmup", alt: "A warm-up set of barbell squats: warm-up 2 of 4, 5 reps at 50 kg, 15 kg each side on a 20 kg bar" },
@@ -244,9 +244,29 @@ export const CATEGORIES: Category[] = [
         shots: [{ name: "dashboard", alt: "The progress dashboard for 90 days: the weight trend with the weigh-ins, the 7-day average and the goal on a chart, and a row of icon tabs for the other cards" }],
       },
       {
+        name: "create_program",
+        kind: "saves",
+        asks: true,
+        what: "Makes a block of 2 to 16 weeks out of your saved workouts, with the days in order and an optional deload every few weeks. The deload week is about 60 % of the sets at about 90 % of the weight, and the weights afterwards carry on from your last normal session. It ends the program that was running, so it asks first.",
+        ask: "Make a 6-week block of push, legs and pull with a deload every fourth week.",
+      },
+      {
+        name: "get_program",
+        kind: "reads",
+        what: "Shows your program and what comes next, such as Week 3, Day B, and whether that is a deload week.",
+        ask: "What is my next session?",
+      },
+      {
+        name: "end_program",
+        kind: "saves",
+        asks: true,
+        what: "Ends the program. The workouts you did stay.",
+        ask: "Stop my program.",
+      },
+      {
         name: "show_muscle_map",
         kind: "opens",
-        what: "Opens a 3D body coloured by hard sets per week for each muscle, against the usual 10 to 20, over 1, 4 or 12 weeks.",
+        what: "Opens a 3D body coloured by hard sets per week for each muscle, against the usual 10 to 20, over 1, 4 or 12 weeks. Switch it to days since each muscle was trained, or to strength: whether the estimated one-rep max of the lifts that mainly work each muscle went up, stayed the same or went down since the period before.",
         ask: "Which muscles am I training?",
         shots: [{ name: "muscles", alt: "The muscle map for 4 weeks: a 3D body coloured by weekly hard sets, with a legend: not trained, under 10, 10 to 20, over 20" }],
       },
@@ -260,7 +280,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "show_weekly_review",
         kind: "opens",
-        what: "Opens your week or month next to the one before: food, training, weight, sleep and meals, what went well, a few neutral suggestions, and a check-in on your real calorie burn. Claude can add a short written note that stays with that week.",
+        what: "Opens your week or month next to the one before: food, training, weight, sleep and meals, what went well, a few neutral suggestions, and a check-in on your real calorie burn. Each muscle group gets a plain verdict against the usual range, and Claude can add a short written note that stays with that week.",
         ask: "How did my week go?",
         shots: [
           { name: "review", alt: "The weekly review for 5 to 11 October: the week's calories, workouts and weigh-ins, then a row of icon tabs and the what-went-well card" },
@@ -462,16 +482,61 @@ export const CATEGORIES: Category[] = [
         ask: "Let bo.lifts see my workouts.",
       },
       {
+        name: "create_challenge",
+        kind: "saves",
+        what: "Starts a friendly challenge of 1 to 8 weeks that counts days: with a finished workout, with protein at or over each person's own goal, or with enough steps. Only a set number of days a week count, so a rest day never costs a point, and it is never about weight.",
+        ask: "Start a 4-week challenge with bo.lifts: four training days a week.",
+      },
+      {
+        name: "invite_to_challenge",
+        kind: "saves",
+        what: "Invites a friend to a challenge you made. They decide, and nothing of theirs is read until they accept.",
+        ask: "Invite bo.lifts to the challenge.",
+      },
+      {
+        name: "list_challenges",
+        kind: "reads",
+        what: "Shows your challenges with the rule, the dates and everyone's days counted, and invitations waiting for you. Each person is shown as a name or nickname and one number; a person who is not your friend appears as a participant unless they have a nickname.",
+        ask: "How is the challenge going?",
+      },
+      {
+        name: "accept_challenge",
+        kind: "saves",
+        what: "Joins a challenge you were invited to. Your days that meet the rule count and show to the others as one number, and you get one results email when it closes.",
+        ask: "Join Ana's challenge.",
+      },
+      {
+        name: "decline_challenge",
+        kind: "saves",
+        asks: true,
+        what: "Turns down a challenge invitation and deletes it.",
+        ask: "No thanks to that challenge.",
+      },
+      {
+        name: "leave_challenge",
+        kind: "saves",
+        asks: true,
+        what: "Leaves a challenge you joined. Your score goes with you.",
+        ask: "Leave the challenge.",
+      },
+      {
+        name: "cancel_challenge",
+        kind: "saves",
+        asks: true,
+        what: "Cancels a challenge you made. It and every score in it are deleted for everyone.",
+        ask: "Cancel my challenge.",
+      },
+      {
         name: "show_crew_feed",
         kind: "opens",
-        what: "Opens your friends' recent workouts and streaks, only for what each friend shares with you, with a kudos button and the kudos on your own workouts.",
+        what: "Opens your friends' recent workouts and streaks, only for what each friend shares with you, with a kudos button and the kudos on your own workouts. A workout where a friend beat their own best shows by exercise name, never with numbers.",
         ask: "What have my friends been up to?",
         shots: [{ name: "crew", alt: "The crew feed: three friends with the streaks they share, their recent workouts such as Push day with 6 exercises and 18 sets, a kudos button, and kudos on your own leg day" }],
       },
       {
         name: "send_to_friend",
         kind: "saves",
-        what: "Sends a friend a copy of one of your saved workouts or recipes. They get it only if they accept, it never replaces anything of theirs, and nothing else about you becomes visible.",
+        what: "Sends a friend a copy of one of your saved workouts or recipes, or a whole week of your meal plan. They get it only if they accept, it never replaces anything of theirs, and nothing else about you becomes visible.",
         ask: "Send my push day to bo.lifts.",
       },
       {

@@ -2,7 +2,9 @@
 // text and links from another person cleaned, nothing told back to the sender, and export and delete.
 import type { Client } from '@modelcontextprotocol/client';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { addDays, weekStart } from '@fitwell/core/domain/dates';
 import type { FriendList } from '../src/data/friends';
+import { todayIn } from '../src/data/time';
 import { MAX_SENT, MAX_SENT_TO_ONE, type ReceivedItem } from '../src/data/transfers';
 import { deleteUser, type User } from '../src/data/users';
 import { createTestEnv } from './support/env';
@@ -143,6 +145,69 @@ describe('receiving', () => {
     expect(items.find((i) => i.name === 'Grandma jam')).toMatchObject({ kcal: 50 });
     expect(items.find((i) => i.name === 'Grandma jam')?.foodId).toBeUndefined();
     expect(items.find((i) => i.foodId === 'frida:59')).toBeTruthy();
+  });
+});
+
+describe('a whole week\'s meal plan', () => {
+  const week = weekStart(todayIn('Europe/Copenhagen'));
+  const next = addDays(week, 7);
+  const planItems = [{ day: week, slot: 'breakfast', food_id: 'frida:59', grams: 80 }, { day: addDays(week, 2), slot: 'dinner', recipe_name: 'Porridge', servings: 2 }];
+  const savePlan = async () => {
+    await saveRecipe();
+    await call(anaC, 'save_meal_plan', { week_start: week, items: planItems });
+  };
+  const send = (name = week) => call(anaC, 'send_to_friend', { connection_id: id, kind: 'meal_plan', name });
+  const mealsOf = async (c: Client, w: string) => {
+    const r = await call(c, 'get_meal_plan', { week_start: w });
+    return r.isError ? null : (r.data as unknown as { days: { day: string; meals: { name: string; grams: number; logged?: boolean; recipeId?: string }[] }[] });
+  };
+
+  it('is sent by its Monday, listed with a summary, and accepted into a week the friend picks, with the days moved and nothing eaten', async () => {
+    await savePlan();
+    await call(anaC, 'log_planned_meal', { day: week }); // Ana ate Monday's breakfast
+    expect((await send()).data).toMatchObject({ sent: true });
+    expect((await received(boC))[0]).toMatchObject({ kind: 'meal_plan', name: `Meal plan, week of ${week}`, summary: '2 meals over 2 days' });
+    const item = (await received(boC))[0]!;
+    expect((await call(boC, 'accept_received_item', { transfer_id: item.transferId })).text).toContain('needs a week');
+    expect((await call(boC, 'accept_received_item', { transfer_id: item.transferId, week_start: addDays(next, 1) })).isError).toBe(true); // not a Monday
+    expect((await call(boC, 'accept_received_item', { transfer_id: item.transferId, week_start: next })).data).toMatchObject({ saved: true, kind: 'meal_plan' });
+    const mine = (await mealsOf(boC, next))!;
+    expect(mine.days.find((d) => d.day === next)!.meals).toMatchObject([{ grams: 80 }]);
+    expect(mine.days.find((d) => d.day === addDays(next, 2))!.meals).toMatchObject([{ name: 'Porridge' }]);
+    expect(JSON.stringify(mine)).not.toMatch(/"logged"|recipeId/); // nothing eaten, nothing pointing to Ana's recipes
+    expect(await received(boC)).toEqual([]);
+    expect((await mealsOf(anaC, week))!.days[0]!.meals[0]!.logged).toBe(true); // Ana's own plan is untouched
+  });
+
+  it('never replaces a plan the friend has, and is checked against the friend\'s own allergies', async () => {
+    await savePlan();
+    await call(boC, 'save_meal_plan', { week_start: next, items: [{ day: next, slot: 'lunch', food_id: 'frida:413', grams: 50 }] });
+    await send();
+    const item = (await received(boC))[0]!;
+    expect((await call(boC, 'accept_received_item', { transfer_id: item.transferId, week_start: next })).text).toContain('already have a plan');
+    expect((await mealsOf(boC, next))!.days.flatMap((d) => d.meals)).toHaveLength(1); // Bo's own, unchanged
+    expect((await received(boC)).length).toBe(1); // still waiting
+    await call(boC, 'update_profile', { diet: { allergies: ['oat'] } });
+    const later = addDays(next, 7);
+    await call(boC, 'accept_received_item', { transfer_id: item.transferId, week_start: later });
+    expect(JSON.stringify((await call(boC, 'get_meal_plan', { week_start: later })).data)).toMatch(/allergy/i);
+  });
+
+  it('is refused for a week without a plan or a day that is not a Monday, and not to someone who is not a friend', async () => {
+    await savePlan();
+    expect((await send(next)).isError).toBe(true);
+    expect((await send(addDays(week, 1))).isError).toBe(true);
+    expect((await call(anaC, 'send_to_friend', { connection_id: 'nope', kind: 'meal_plan', name: week })).isError).toBe(true);
+    expect((await call(cyC, 'send_to_friend', { connection_id: id, kind: 'meal_plan', name: week })).isError).toBe(true); // Cy is not on Ana and Bo's connection
+    expect(await received(boC)).toEqual([]);
+  });
+
+  it('cleans what another person wrote into the plan', async () => {
+    await call(anaC, 'save_recipe', { name: '<b>Evil</b> https://evil.example/x', servings: 1, ingredients: [{ food_id: 'frida:59', grams: 50 }] });
+    await call(anaC, 'save_meal_plan', { week_start: week, items: [{ day: week, slot: 'dinner', recipe_name: '<b>Evil</b> https://evil.example/x', servings: 1 }] });
+    await send();
+    await call(boC, 'accept_received_item', { transfer_id: (await received(boC))[0]!.transferId, week_start: next });
+    expect((await mealsOf(boC, next))!.days[0]!.meals[0]!.name).toBe('Evil');
   });
 });
 

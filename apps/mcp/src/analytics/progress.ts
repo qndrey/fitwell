@@ -1,6 +1,6 @@
 // Progress numbers for Claude and for the dashboard, from a person's stored rows. Pure: no I/O.
 import { sessionMuscleCredit } from '../workout/sessions';
-import { muscleCredit } from './muscles';
+import { levelFor, muscleCredit } from './muscles';
 import { PRESETS } from '@fitwell/core/data/measurements';
 import { addDays, dayNumber, type Day } from '@fitwell/core/domain/dates';
 import { distanceFromGoal } from '@fitwell/core/domain/body';
@@ -174,7 +174,7 @@ export function buildProgress(i: ProgressInput): Progress {
     perWeek: r1(counted.reduce((n, x) => n + workoutsIn(x), 0) / weekCount),
     days: [...strength.map((w) => ({ day: w.day, type: 'strength' as const })), ...cardio.map((w) => ({ day: w.day, type: 'cardio' as const })), ...sessions.map((w) => ({ day: w.day, type: 'session' as const }))].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0)),
     averageStrengthMin: timed.length ? r0(timed.reduce((a, b) => a + b, 0) / timed.length) : null,
-    setsPerWeekByMuscle: [...muscleTotals].map(([muscle, sets]) => ({ muscle, sets: r1(sets / weekCount) })).sort((a, b) => b.sets - a.sets),
+    setsPerWeekByMuscle: [...muscleTotals].map(([muscle, sets]) => ({ muscle, sets: r1(sets / weekCount), level: levelFor(r1(sets / weekCount)) })).sort((a, b) => b.sets - a.sets),
     goalWorkoutsPerWeek: g?.workoutsPerWeek ?? null,
   };
 

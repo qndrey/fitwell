@@ -7,6 +7,7 @@ import * as z from 'zod';
 import { perServing, recipeExtras, type PlanData } from '../data/planData';
 import { slotAt, todayIn } from '../data/time';
 import type { FoodEntry, Goals, NewFoodEntry } from '../data/userData';
+import { SLOT_NAMES } from '../planning/check';
 import { checkAllergens } from '../safety/allergens';
 import foodHtml from '../ui/generated/food';
 import { FOOD_VIEW_URI } from '../workout/plan';
@@ -88,7 +89,12 @@ export function registerFoodLogTools(server: McpServer, deps: FoodLogDeps) {
     const goals = await data.goals();
     const more = sumExtras(entries.map((e) => e.extras));
     // extras: fibre, sugars, saturated fat... summed over the entries that know them; extrasIncomplete lists the ones some entry lacks (the total is then a minimum).
-    return { day: d, entries: entries.map(view), totals: round(total), extras: roundExtras(more.totals), ...(more.incomplete.length ? { extrasIncomplete: more.incomplete } : {}), remaining: remaining(total, goals), goals };
+    // Protein by meal, in the order of the day: protein works best spread over the day, so the split is shown (no target is claimed for a single meal).
+    const meals = SLOT_NAMES.flatMap((s) => {
+      const of = entries.filter((e) => e.slot === s);
+      return of.length ? [{ slot: s, kcal: Math.round(sum(of).kcal), protein: Math.round(sum(of).protein * 10) / 10 }] : [];
+    });
+    return { day: d, entries: entries.map(view), totals: round(total), meals, extras: roundExtras(more.totals), ...(more.incomplete.length ? { extrasIncomplete: more.incomplete } : {}), remaining: remaining(total, goals), goals };
   }
 
   registerAppResource(server, 'Food log summary', FOOD_VIEW_URI, { description: 'What was just logged and the day so far against calorie and macro goals.' }, async () => ({

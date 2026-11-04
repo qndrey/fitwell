@@ -30,9 +30,9 @@ const feed: CrewFeed = {
     { who: { nickname: 'cy', email: null }, consistency: null },
   ],
   workouts: [
-    { id: 'w1', who: { nickname: 'bo.lifts', email: null }, day: '2026-11-02', type: 'strength', title: 'Push day', exercises: ['Barbell Bench Press', 'Overhead Press', 'Dips', 'Triceps Pushdown'], exerciseCount: 6, sets: 18, minutes: 52, kudos: { count: 2, mine: false } },
-    { id: 'w2', who: { nickname: 'cy', email: null }, day: '2026-11-01', type: 'cardio', title: 'Running', exercises: [], exerciseCount: 0, sets: 0, minutes: 30, kudos: { count: 0, mine: true } },
-    { id: 'w3', who: { nickname: 'ana_fit', email: null }, day: '2026-10-30', type: 'session', title: 'Pilates', exercises: [], exerciseCount: 0, sets: 0, minutes: 45, kudos: { count: 1, mine: false } },
+    { id: 'w1', who: { nickname: 'bo.lifts', email: null }, day: '2026-11-02', type: 'strength', title: 'Push day', exercises: ['Barbell Bench Press', 'Overhead Press', 'Dips', 'Triceps Pushdown'], exerciseCount: 6, sets: 18, minutes: 52, kudos: { count: 2, mine: false }, records: ['Barbell Bench Press'] },
+    { id: 'w2', who: { nickname: 'cy', email: null }, day: '2026-11-01', type: 'cardio', title: 'Running', exercises: [], exerciseCount: 0, sets: 0, minutes: 30, kudos: { count: 0, mine: true }, records: [] },
+    { id: 'w3', who: { nickname: 'ana_fit', email: null }, day: '2026-10-30', type: 'session', title: 'Pilates', exercises: [], exerciseCount: 0, sets: 0, minutes: 45, kudos: { count: 1, mine: false }, records: [] },
   ],
   yours: [{ id: 'm1', day: '2026-10-30', title: 'Leg day', from: [{ nickname: 'bo.lifts', email: null }, { nickname: 'cy', email: null }] }],
 };

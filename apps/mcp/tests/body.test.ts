@@ -190,7 +190,7 @@ describe('progress and dashboard', () => {
 
     const p = (await call(client, 'get_progress', { days: 30 })).data as {
       nutrition: { daysLogged: number; adherence: { kcalWithin10Pct: number; proteinReached: number; ofDays: number } };
-      training: { sessions: { strength: number; cardio: number }; goalWorkoutsPerWeek: number; setsPerWeekByMuscle: { muscle: string; sets: number }[] };
+      training: { sessions: { strength: number; cardio: number }; goalWorkoutsPerWeek: number; setsPerWeekByMuscle: { muscle: string; sets: number; level: string }[] };
       records: { name: string; bestE1rmKg: number }[];
     };
     expect(p.nutrition.daysLogged).toBe(4);
@@ -199,6 +199,7 @@ describe('progress and dashboard', () => {
     expect(p.nutrition.adherence.proteinReached).toBe(0); // 55 g, 58 g, 5.8 g and 55.7 g are all under 90 % of the 100 g goal
     expect(p.training).toMatchObject({ sessions: { strength: 1, cardio: 1 }, goalWorkoutsPerWeek: 3 });
     expect(p.training.setsPerWeekByMuscle.find((m) => m.muscle === 'quadriceps')!.sets).toBeGreaterThan(0);
+    expect(['below', 'in_range', 'high']).toContain(p.training.setsPerWeekByMuscle.find((m) => m.muscle === 'quadriceps')!.level); // the verdict against the usual range
     expect(p.records[0]).toMatchObject({ name: 'Barbell Squat', bestE1rmKg: 93.3 });
   });
 

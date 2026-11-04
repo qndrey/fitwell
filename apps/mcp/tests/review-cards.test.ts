@@ -75,7 +75,7 @@ describe('review cards: height and dock (AC1, AC2)', () => {
       const v = await open(r, { width });
       await v.frame.locator('section.pcard').first().waitFor();
       const first = await sizes(v);
-      expect(first.cards).toHaveLength(8);
+      expect(first.cards).toHaveLength(9);
       expect(Math.min(...first.cards)).toBe(440); // --track-h
       expect(first.inner).toBe(0);
       for (const [key, name] of keys(period)) {
@@ -155,7 +155,7 @@ describe('review cards: paging (AC3)', () => {
     await v.frame.locator('section.pcard').first().waitFor();
     await v.frame.locator('section.pcard:not([inert])').getByRole('button', { name: 'Previous week' }).click();
     await pwExpect(v.frame.getByText('Could not load that week. Try again.')).toBeVisible();
-    await pwExpect(v.frame.locator('section.pcard')).toHaveCount(8);
+    await pwExpect(v.frame.locator('section.pcard')).toHaveCount(9);
     await pwExpect(v.frame.getByRole('button', { name: 'Week', exact: true })).toBeEnabled();
   }, 60_000);
 });
@@ -167,7 +167,7 @@ describe('review cards: structure (AC4)', () => {
     const v = await open(r);
     await v.frame.locator('section.pcard').first().waitFor();
     for (const sel of ['.tiles', '.tabs', 'section.card', 'footer', '.nav']) await pwExpect(v.frame.locator(sel)).toHaveCount(0);
-    await pwExpect(v.frame.locator('.counter')).toHaveText('1 of 8');
+    await pwExpect(v.frame.locator('.counter')).toHaveText('1 of 9');
     await pwExpect(v.frame.locator('section.pcard[data-key="week"] svg.chart')).toHaveCount(1);
     await pwExpect(v.frame.locator('.labelrow strong')).toHaveText('The week');
     await pwExpect(v.frame.locator('.labelrow')).toContainText('Last week');
@@ -193,15 +193,15 @@ describe('review cards: structure (AC4)', () => {
     const v = await open(await review({ week_start: LAST_WEEK }));
     await v.frame.locator('section.pcard').first().waitFor();
     const tabs = v.frame.locator('.strip.icons > .tab');
-    await pwExpect(tabs).toHaveCount(8);
-    await pwExpect(tabs.first()).toHaveAttribute('aria-label', 'The week, 1 of 8');
+    await pwExpect(tabs).toHaveCount(9);
+    await pwExpect(tabs.first()).toHaveAttribute('aria-label', 'The week, 1 of 9');
     for (const t of await tabs.all()) {
       expect((await t.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       await pwExpect(t.locator('svg.icon')).toHaveAttribute('aria-hidden', 'true');
     }
     expect(await v.frame.locator('.strip').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
-    await pwExpect(v.frame.locator('[data-key=dock-prev] svg.icon')).toHaveCount(8); // the dock is on every card
-    await pwExpect(v.frame.locator('[data-key=dock-next] svg.icon')).toHaveCount(8);
+    await pwExpect(v.frame.locator('[data-key=dock-prev] svg.icon')).toHaveCount(9); // the dock is on every card
+    await pwExpect(v.frame.locator('[data-key=dock-next] svg.icon')).toHaveCount(9);
     const border = await v.frame.locator('[data-key=dock-this]').first().evaluate((e) => (globalThis as unknown as { getComputedStyle(el: unknown): { borderTopWidth: string } }).getComputedStyle(e).borderTopWidth);
     expect(border).toBe('0px'); // nothing is outlined
   }, 60_000);

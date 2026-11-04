@@ -1,7 +1,7 @@
 import type { MuscleLevel, MuscleLoad, MuscleMap } from '../../src/analytics/muscleTypes';
 import { h } from './dom';
 import { textButton } from './icons';
-import { daysBetween, deltaText, HEAT, RECOVERY_HEAT, RECOVERY_LABEL, RECOVERY_ORDER, recoveryOf, type MapMode } from './muscleHeat';
+import { daysBetween, deltaText, HEAT, RECOVERY_HEAT, RECOVERY_LABEL, RECOVERY_ORDER, recoveryOf, STRENGTH_HEAT, STRENGTH_LABEL, STRENGTH_ORDER, trendOf, type MapMode } from './muscleHeat';
 
 export { deltaText, heatColours, type MapMode } from './muscleHeat';
 
@@ -19,6 +19,13 @@ function swatch(colour: string): HTMLElement {
   return el;
 }
 
+/** "+4.2 % estimated 1RM over 2 lifts", or why there is nothing to compare. */
+function strengthText(m: MuscleLoad): string {
+  const s = m.strength;
+  if (!s || s.changePct === null) return 'no lift to compare';
+  return `${s.changePct > 0 ? '+' : s.changePct < 0 ? '−' : ''}${Math.abs(s.changePct).toLocaleString('en-GB', { maximumFractionDigits: 1 })} % over ${s.lifts} ${s.lifts === 1 ? 'lift' : 'lifts'}`;
+}
+
 function row(m: MuscleLoad, map: MuscleMap, colour: string, mode: MapMode): HTMLElement {
   const last = m.lastTrained ? (daysAgo(map.to, m.lastTrained) === 0 ? 'trained today' : `last trained ${daysAgo(map.to, m.lastTrained)} days ago`) : 'not trained as a main muscle';
   const delta = mode === 'sets' ? deltaText(m, map.weeks) : null;
@@ -33,10 +40,10 @@ function row(m: MuscleLoad, map: MuscleMap, colour: string, mode: MapMode): HTML
         {},
         swatch(colour),
         h('span', { className: 'name' }, cap(m.muscle)),
-        h('span', { className: 'sets' }, mode === 'recovery' ? (m.lastTrained ? ago(daysAgo(map.to, m.lastTrained)) : 'not in this period') : `${m.setsPerWeek} sets a week`),
+        h('span', { className: 'sets' }, mode === 'recovery' ? (m.lastTrained ? ago(daysAgo(map.to, m.lastTrained)) : 'not in this period') : mode === 'strength' ? strengthText(m) : `${m.setsPerWeek} sets a week`),
         delta && h('span', { className: 'delta' }, delta),
       ),
-      h('p', { className: 'muted small' }, cap(last), mode === 'recovery' ? `. ${m.setsPerWeek} sets a week` : '', m.topExercises.length ? `. Most from ${m.topExercises.map((e) => `${e.name} (${e.sets})`).join(', ')}.` : '.'),
+      h('p', { className: 'muted small' }, cap(last), mode === 'recovery' || mode === 'strength' ? `. ${m.setsPerWeek} sets a week` : '', m.topExercises.length ? `. Most from ${m.topExercises.map((e) => `${e.name} (${e.sets})`).join(', ')}.` : '.'),
     ),
   );
 }
@@ -50,8 +57,11 @@ export function renderMuscleMap(map: MuscleMap, dark: boolean, figure: HTMLEleme
     { className: 'choices', role: 'group', 'aria-label': 'Period' },
     ...[1, 4, 12].map((w) => textButton(null, `${w}w`, () => map.weeks !== w && onWeeks(w), { pressed: map.weeks === w, disabled: loading, label: w === 1 ? '1 week' : `${w} weeks` })),
   );
+  const strengthColours = STRENGTH_HEAT[dark ? 'dark' : 'light'];
   const legend =
-    mode === 'recovery'
+    mode === 'strength'
+      ? h('p', { className: 'legend' }, ...STRENGTH_ORDER.map((l) => h('span', { className: 'key' }, swatch(hex(strengthColours[l])), STRENGTH_LABEL[l])))
+      : mode === 'recovery'
       ? h('p', { className: 'legend' }, ...RECOVERY_ORDER.map((l) => h('span', { className: 'key' }, swatch(hex(recoveryColours[l])), RECOVERY_LABEL[l])))
       : h(
           'p',
@@ -61,7 +71,14 @@ export function renderMuscleMap(map: MuscleMap, dark: boolean, figure: HTMLEleme
           ),
         );
   const groups =
-    mode === 'recovery'
+    mode === 'strength'
+      ? STRENGTH_ORDER.map((t) => {
+          const ms = map.muscles.filter((m) => trendOf(m) === t);
+          if (!ms.length) return null;
+          const pct = (m: MuscleLoad) => m.strength?.changePct ?? -Infinity;
+          return h('div', { className: 'group' }, h('h3', {}, `${STRENGTH_LABEL[t]} (${ms.length})`), h('ul', { className: 'muscles' }, ...[...ms].sort((a, b) => pct(b) - pct(a) || a.muscle.localeCompare(b.muscle)).map((m) => row(m, map, hex(strengthColours[t]), mode))));
+        })
+      : mode === 'recovery'
       ? RECOVERY_ORDER.map((r) => {
           const ms = map.muscles.filter((m) => recoveryOf(map.to, m.lastTrained) === r);
           if (!ms.length) return null;
@@ -77,7 +94,7 @@ export function renderMuscleMap(map: MuscleMap, dark: boolean, figure: HTMLEleme
     'section',
     { className: 'guide musclemap', 'aria-label': 'Muscles trained' },
     h('div', { className: 'head' }, h('h2', {}, 'Muscles trained'), seg),
-    h('p', { className: 'muted small' }, `${mode === 'recovery' ? 'Days since each muscle was trained as a main muscle' : 'Hard sets a week'}, ${fmtDay(map.from)} to ${fmtDay(map.to)} · ${map.sessions} strength session${map.sessions === 1 ? '' : 's'}${loading ? ' · updating…' : ''}`),
+    h('p', { className: 'muted small' }, `${mode === 'recovery' ? 'Days since each muscle was trained as a main muscle' : mode === 'strength' ? 'Change in the best estimated 1RM of the lifts that mainly work each muscle, against the period before' : 'Hard sets a week'}, ${fmtDay(map.from)} to ${fmtDay(map.to)} · ${map.sessions} strength session${map.sessions === 1 ? '' : 's'}${loading ? ' · updating…' : ''}`),
     figure,
     legend,
     ...groups,

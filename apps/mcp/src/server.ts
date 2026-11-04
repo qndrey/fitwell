@@ -118,7 +118,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerCelebrationTools(server, { data, workouts, body, achievements });
   registerDeleteTool(server, { data, workouts, body, plans, injuries });
   registerTodayTools(server, { data, plans, workouts, body });
-  registerMealPlanTools(server, { data, plans });
+  registerMealPlanTools(server, { data, plans, households });
   registerFriendTools(server, friends, nicknames);
   registerTransferTools(server, transfers);
   registerCrewTools(server, { data, crew });

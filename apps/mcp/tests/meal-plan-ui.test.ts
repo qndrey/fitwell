@@ -57,6 +57,15 @@ describe('the meal plan view', () => {
     expect(v.calls[2]).toMatchObject({ name: 'plan_repeat_day', args: { from_day: '2026-11-03', to_day: '2026-11-05' } });
   }, 30_000);
 
+  it('shows each member\'s portion for a household week, and says that changing a meal makes the week one\'s own', async () => {
+    const household: MealPlanView = { ...plan, household: { members: [{ label: 'ana@example.com', portion: 1, you: true }, { label: 'bo.lifts', portion: 0.5, you: false }] }, days: plan.days.map((d) => ({ ...d, meals: d.meals.map((m) => ({ ...m, memberKcal: [m.kcal, Math.round(m.kcal / 2)] })) })) };
+    const v = await openView(mealplanHtml, result(household));
+    await pwExpect(v.frame.getByText('You (1): 860 kcal · bo.lifts (0.5): 430 kcal')).toBeVisible();
+    await pwExpect(v.frame.getByText(/Follows your household's plan, for you \(1\), bo.lifts \(0.5\)\. Changing a meal makes this week yours alone/)).toBeVisible();
+    const plain = await openView(mealplanHtml, result(plan));
+    await pwExpect(plain.frame.getByText(/Follows your household/)).toHaveCount(0);
+  }, 30_000);
+
   it('only copies a meal of the same kind, and a day with an eaten meal cannot be replaced', async () => {
     const v = await openView(mealplanHtml, result(plan));
     await v.frame.getByRole('button', { name: 'Change Chicken and rice' }).click();

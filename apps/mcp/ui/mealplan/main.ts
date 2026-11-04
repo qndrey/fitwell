@@ -55,7 +55,7 @@ function mealRow(plan: MealPlanView, d: PlanDay, m: PlanMeal) {
     h(
       'li',
       { className: 'row' },
-      h('div', { className: 'grow' }, h('span', { className: 'who' }, `${cap(m.slot)}: ${m.name}${m.servings !== null && m.servings !== 1 ? ` (${m.servings} servings)` : ''}`), h('span', { className: 'meta' }, `${n(m.kcal)} kcal · ${n(m.protein)} g protein${m.kind === 'estimate' ? ' · estimate' : ''}`)),
+      h('div', { className: 'grow' }, h('span', { className: 'who' }, `${cap(m.slot)}: ${m.name}${m.servings !== null && m.servings !== 1 ? ` (${m.servings} servings)` : ''}`), h('span', { className: 'meta' }, `${n(m.kcal)} kcal · ${n(m.protein)} g protein${m.kind === 'estimate' ? ' · estimate' : ''}`), plan.household && m.memberKcal ? h('span', { className: 'meta' }, plan.household.members.map((x, k) => `${x.you ? 'You' : x.label} (${x.portion}): ${n(m.memberKcal![k]!)} kcal`).join(' · ')) : null),
       m.logged
         ? h('span', { className: 'done' }, '✓ Eaten')
         : h(
@@ -145,6 +145,7 @@ function draw() {
   const parts: (Node | null)[] = [
     h('header', {}, h('h1', {}, 'Meal plan'), h('span', { className: 'muted small' }, `${fmtDay(p.weekStart, false)} to ${fmtDay(last, false)}${goals ? ` · goal ${goals} a day` : ''}`)),
     state.error ? h('p', { className: 'error', role: 'alert' }, state.error) : null,
+    p.household ? h('p', { className: 'muted small' }, `Follows your household's plan, for ${p.household.members.map((x) => `${x.you ? 'you' : x.label} (${x.portion})`).join(', ')}. Changing a meal makes this week yours alone.`) : null,
     p.warnings.length > 0 ? h('section', { className: 'warn', role: 'alert', 'aria-label': 'Allergies and dislikes' }, ...p.warnings.map((w) => h('span', {}, w))) : null,
     ...p.days.map((d) => dayCard(p, d)),
     p.problems.length > 0 ? h('section', { className: 'card', 'aria-label': 'Notes' }, h('h2', {}, 'Notes'), ...p.problems.map((x) => h('p', { className: 'muted small' }, x))) : null,

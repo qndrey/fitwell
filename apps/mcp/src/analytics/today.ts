@@ -60,7 +60,7 @@ export async function buildToday(deps: TodayDeps, now: Date = new Date()): Promi
   // A suggestion, not a plan: the saved workout that has waited longest.
   const sorted = [...templates].sort((a, b) => (a.lastUsedAt ?? 0) - (b.lastUsedAt ?? 0));
   const next = sorted[0];
-  const suggested = next ? { name: next.name, daysSince: next.lastUsedAt === null ? null : Math.max(0, Math.floor((now.getTime() - next.lastUsedAt) / DAY_MS)) } : null;
+  const suggested = next ? { templateId: next.id, name: next.name, daysSince: next.lastUsedAt === null ? null : Math.max(0, Math.floor((now.getTime() - next.lastUsedAt) / DAY_MS)) } : null;
 
   return {
     day,

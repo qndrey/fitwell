@@ -52,7 +52,7 @@ const todayView: TodayView = {
     { entryId: 'e3', name: 'Rye bread, light', grams: 60, kcal: 125, protein: 3.5, estimated: false },
   ],
   waterMl: 750, waterGoalMl: 2000, steps: 8200,
-  training: { doneToday: [{ name: 'Push day', type: 'strength', minutes: 52 }], suggested: { name: 'Leg day', daysSince: 9 } },
+  training: { doneToday: [{ name: 'Push day', type: 'strength', minutes: 52 }], suggested: { templateId: 't-leg', name: 'Leg day', daysSince: 9 } },
 };
 
 const meal = (index: number, slot: MealPlanView['days'][number]['meals'][number]['slot'], name: string, kcal: number, protein: number, logged = false, servings: number | null = null) => ({ index, slot, name, kind: servings ? ('recipe' as const) : ('food' as const), servings, kcal, protein, logged });

@@ -261,6 +261,39 @@ describe('the shared plan', () => {
   });
 });
 
+describe('the plan view', () => {
+  const planView = async (c: Client) => ((await call(c, 'show_meal_plan', { week_start: week })).data as unknown as { mealPlan: MealPlanView }).mealPlan;
+
+  it('shows each member\'s portion side by side for a week that follows the household, and only names and portions', async () => {
+    await join();
+    await call(boC, 'set_household_portion', { portion: 0.5 });
+    await call(boC, 'update_profile', { diet: { allergies: ['peanut'] } });
+    await call(boC, 'set_goals', { kcal: 1800 });
+    await shared(anaC);
+    const v = await planView(anaC);
+    expect(v.household!.members).toEqual([{ label: 'ana@example.com', portion: 1, you: true }, { label: 'bo@example.com', portion: 0.5, you: false }]);
+    expect(v.days[1]!.meals[0]).toMatchObject({ kcal: 418, memberKcal: [418, 209] }); // 200 g of rye bread for Ana, half for Bo
+    expect(JSON.stringify(v)).not.toMatch(/peanut|1800/);
+    await call(boC, 'use_household_plan', { week_start: week });
+    const b = await planView(boC);
+    expect(b.household!.members.map((m) => m.you)).toEqual([false, true]);
+    expect(b.days[1]!.meals[0]).toMatchObject({ kcal: 209, memberKcal: [418, 209] }); // the same numbers from Bo's side
+  });
+
+  it('is plain for a week of one\'s own, and once the copy is changed by hand', async () => {
+    await join();
+    await call(anaC, 'save_meal_plan', { week_start: week, items: items() });
+    expect((await planView(anaC)).household).toBeUndefined();
+    await shared(anaC);
+    expect((await planView(anaC)).household).toBeUndefined(); // her own plan was kept
+    await call(anaC, 'use_household_plan', { week_start: week });
+    const v = await planView(anaC);
+    expect(v.household).toBeDefined();
+    await call(anaC, 'plan_copy_meal', { week_start: week, version: v.version, index: 1, copy_from: 0 });
+    expect((await planView(anaC)).household).toBeUndefined();
+  });
+});
+
 describe('the shared grocery list', () => {
   const list = async (c: Client) => ((await call(c, 'show_grocery_list', { week_start: week, household: true })).data as unknown as { shopping: ShoppingData }).shopping;
 

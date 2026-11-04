@@ -12,6 +12,8 @@ export interface PlanMeal {
   protein: number;
   /** Already added to the food log, so it cannot be changed. */
   logged: boolean;
+  /** In a household week: the calories of this meal at each member's portion, in the order of `household.members`. */
+  memberKcal?: number[];
 }
 
 export interface PlanDay {
@@ -37,6 +39,8 @@ export interface MealPlanView {
   warnings: string[];
   /** The other problems of the plan (a day well under the goal, an empty day). */
   problems: string[];
+  /** When this week follows the household's plan: who cooks, at what portion. Only names and portions: nothing else of a member is ever in it. */
+  household?: { members: { label: string; portion: number; you: boolean }[] };
   /** Saved recipes a meal can be swapped for. */
   recipes: { id: string; name: string; kcalPerServing: number }[];
 }

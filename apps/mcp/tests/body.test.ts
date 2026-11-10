@@ -188,7 +188,7 @@ describe('progress and dashboard', () => {
     await call(client, 'log_past_workout', { day: '2026-10-13', exercises: [{ id: 'ex:Barbell_Squat', sets: [{ reps: 5, weight_kg: 80 }, { reps: 5, weight_kg: 80 }] }] });
     await call(client, 'log_cardio', { activity_id: 'act:run-10', duration_min: 30 });
 
-    const p = (await call(client, 'get_progress', { days: 30 })).data as {
+    const p = (await call(client, 'get_progress', { days: 90 })).data as {
       nutrition: { daysLogged: number; adherence: { kcalWithin10Pct: number; proteinReached: number; ofDays: number } };
       training: { sessions: { strength: number; cardio: number }; goalWorkoutsPerWeek: number; setsPerWeekByMuscle: { muscle: string; sets: number; level: string }[] };
       records: { name: string; bestE1rmKg: number }[];

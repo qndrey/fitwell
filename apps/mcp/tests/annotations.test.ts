@@ -34,6 +34,12 @@ const DESTRUCTIVE = [
   'save_workout_template', // the same
   'set_goals',
   'update_profile',
+  'set_exercise_note', // an empty note removes the saved one
+  'plan_swap_recipe', // replaces a planned meal
+  'plan_copy_meal', // the same
+  'plan_repeat_day', // replaces a day's planned meals
+  'set_nickname', // overwrites or clears the nickname
+  'set_sharing', // shows data to a friend, which cannot be undone
 ];
 
 /** Tools that reach outside Fitwell: Open Food Facts, a web page, or an email to someone else. */

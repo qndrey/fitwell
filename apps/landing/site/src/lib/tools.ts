@@ -27,7 +27,7 @@ export const CATEGORIES: Category[] = [
     tools: [
       {
         name: "get_profile",
-        kind: "reads",
+        kind: "saves",
         what: "Shows what is saved about you: time zone, units, body data, activity level, equipment, diet and allergies, your goals, and which emails you have turned on.",
         ask: "What do you have saved about me?",
       },
@@ -394,6 +394,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "set_nickname",
         kind: "saves",
+        asks: true,
         what: "Gives you a nickname that is unique across Fitwell and shown to friends instead of your email.",
         ask: "Make my nickname ana_fit.",
       },
@@ -478,6 +479,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "set_sharing",
         kind: "saves",
+        asks: true,
         what: "Lets one friend see one kind of your data (workouts, consistency, templates or body), or stops. Each grant and withdrawal is recorded.",
         ask: "Let bo.lifts see my workouts.",
       },

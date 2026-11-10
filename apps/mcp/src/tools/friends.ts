@@ -78,7 +78,7 @@ export function registerFriendTools(server: McpServer, friends: FriendsData, nic
         'Sets or clears (null) the person\'s nickname: a name friends see instead of an email address, unique across Fitwell (ignoring case), 3 to 20 letters, digits, dots, dashes or underscores. ' +
         'They can give it to people they want as friends, who then ask by nickname without ever seeing an email. It is shown to friends and to people whose request they have not answered, and to anyone who types it exactly. Only set one the person chose. A taken nickname is refused: ask for another.',
       inputSchema: z.object({ nickname: z.string().max(40).nullable().describe('The nickname, or null to remove it') }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ nickname }) => {
       if (nickname === null) {
@@ -137,7 +137,7 @@ export function registerFriendTools(server: McpServer, friends: FriendsData, nic
         category: z.enum(SHARE_CATEGORIES).describe('Which kind of data'),
         share: z.boolean().describe('true to share it with this friend, false to stop'),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ connection_id, category, share }) => (await friends.setSharing(connection_id, category, share) ? json({ category, sharedWithThisFriend: share }) : toolError('There is no accepted friend with that id. Check list_friends.')),
   );

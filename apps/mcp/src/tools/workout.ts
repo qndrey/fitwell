@@ -637,7 +637,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       title: 'Save an exercise note',
       description: 'Called by the workout player when the person writes a note for an exercise. An empty note removes it.',
       inputSchema: z.object({ workoutId: z.uuid(), exerciseId: z.string().max(20), notes: z.string().max(300) }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       _meta: { ui: { resourceUri: WORKOUT_VIEW_URI, visibility: ['app'] } },
     },
     async ({ workoutId, exerciseId, notes }) => {

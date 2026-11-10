@@ -21,7 +21,7 @@ export function registerProfileTools(server: McpServer, deps: { data: UserData; 
         "The person's profile (time zone, units, body data, activity level, equipment, diet preferences and allergies), goals and any injuries they asked to have remembered (`injuries`: avoid what they say to avoid and offer swaps; never diagnose). " +
         'Read it at the start of a conversation and before planning meals or workouts. For a new account it also carries a short setup guide, once.',
       inputSchema: z.object({}),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true }, // not read-only: a new account's first call records that the setup guide was offered
     },
     // Read-only for the person's data; on a new account's first call it records that the setup was offered.
     async () => {

@@ -170,11 +170,13 @@ describe('progress and dashboard', () => {
   });
 
   it('averages nutrition per week and protein per kg of trend weight', async () => {
-    // 1000 g rye bread = 2090 kcal, 58 g protein. Two logged days in the week of Monday 12 Oct, one in the next.
-    for (const [day, grams] of [['2026-10-12', 1000], ['2026-10-14', 500], ['2026-10-20', 1000]] as const) await call(client, 'log_food', { day, items: [{ food_id: 'frida:413', grams }] });
-    for (const day of ['2026-10-12', '2026-10-13', '2026-10-14']) await call(client, 'log_body', { day, weight_kg: 80 });
+    // 1000 g rye bread = 2090 kcal, 58 g protein. Two logged days in the week of a Monday, one in the next. The report looks back
+    // from the real today, so the days are counted from the Monday two weeks ago (a fixed date falls out of the window in time).
+    const monday = addD(mondayOfWeek(today), -14);
+    for (const [off, grams] of [[0, 1000], [2, 500], [8, 1000]] as const) await call(client, 'log_food', { day: addD(monday, off), items: [{ food_id: 'frida:413', grams }] });
+    for (const off of [0, 1, 2]) await call(client, 'log_body', { day: addD(monday, off), weight_kg: 80 });
     const p = ((await call(client, 'get_dashboard_data', { days: 90 })).data as unknown as { progress: { nutrition: { weeks: { week: string; kcal: number; protein: number; daysLogged: number }[]; proteinPerKg: number | null } } }).progress.nutrition;
-    expect(p.weeks).toEqual([{ week: '2026-10-12', kcal: 1568, protein: 43.5, daysLogged: 2 }, { week: '2026-10-19', kcal: 2090, protein: 58, daysLogged: 1 }]);
+    expect(p.weeks).toEqual([{ week: monday, kcal: 1568, protein: 43.5, daysLogged: 2 }, { week: addD(monday, 7), kcal: 2090, protein: 58, daysLogged: 1 }]);
     expect(p.proteinPerKg).toBe(0.6); // (58 + 29 + 58) / 3 = 48.3 g a day over 80 kg
     const summary = (await call(client, 'get_progress', { days: 90 })).data as { nutrition: { proteinPerKg: number | null } };
     expect(summary.nutrition.proteinPerKg).toBe(0.6);
@@ -182,10 +184,12 @@ describe('progress and dashboard', () => {
 
   it('summarises food against goals, training and records', async () => {
     await call(client, 'set_goals', { kcal: 2000, protein_g: 100, workouts_per_week: 3 });
-    // 100 g rye bread = 209 kcal, 5.8 g protein per 100 g. Three days around the calorie goal, one far off.
-    for (const [day, grams] of [['2026-10-10', 950], ['2026-10-11', 1000], ['2026-10-12', 100], ['2026-10-13', 960]] as const) await call(client, 'log_food', { day, items: [{ food_id: 'frida:413', grams }] });
+    // 100 g rye bread = 209 kcal, 5.8 g protein per 100 g. Three days around the calorie goal, one far off. The report looks back from
+    // the real today, so the days are in last week (a fixed date falls out of the 30 days in time).
+    const lastMonday = addD(mondayOfWeek(today), -7);
+    for (const [off, grams] of [[0, 950], [1, 1000], [2, 100], [3, 960]] as const) await call(client, 'log_food', { day: addD(lastMonday, off), items: [{ food_id: 'frida:413', grams }] });
     // On a day of a full week: sets per muscle are averaged over full weeks, and the week in progress is not one.
-    await call(client, 'log_past_workout', { day: '2026-10-13', exercises: [{ id: 'ex:Barbell_Squat', sets: [{ reps: 5, weight_kg: 80 }, { reps: 5, weight_kg: 80 }] }] });
+    await call(client, 'log_past_workout', { day: addD(lastMonday, 3), exercises: [{ id: 'ex:Barbell_Squat', sets: [{ reps: 5, weight_kg: 80 }, { reps: 5, weight_kg: 80 }] }] });
     await call(client, 'log_cardio', { activity_id: 'act:run-10', duration_min: 30 });
 
     const p = (await call(client, 'get_progress', { days: 90 })).data as {

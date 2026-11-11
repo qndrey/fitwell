@@ -46,6 +46,7 @@ import {
 import { facePull, crossover, pushdown, seatedRow, straightArm } from './motionCable';
 import { armMachine, calf, chestPress, hipMachine, kneeMachine, legPress, lyingCurl, machineRow, pecDeck } from './motionMachines';
 export * from './motionKit';
+export * from './hands';
 
 // ---------- squat ----------
 
@@ -66,12 +67,13 @@ function squat(p: number, v: Variant, b: Body): Skeleton {
   // On a Smith machine the bar line is fixed, so the feet are set a little in front of it.
   const midfootX = b.midfoot - (v.rails ? 0.07 : 0);
 
-  // Where the load sits on the trunk, so the lean can put it over the mid-foot.
+  // Where the load sits on the trunk, so the lean can put it over the mid-foot. In the rack the bar lies on top of the front of the shoulders,
+  // 5 cm above the shoulder joints.
   const front = v.load === 'barbell-front';
   const loadAt = (lean: number) => {
     const t = vec(Math.sin(lean), Math.cos(lean), 0);
     return front
-      ? add(add(hipC, mul(t, trunkOf(b))), mul(vec(Math.cos(lean), -Math.sin(lean), 0), 0.07))
+      ? add(add(hipC, mul(t, trunkOf(b) + 0.05)), mul(vec(Math.cos(lean), -Math.sin(lean), 0), 0.07))
       : add(add(hipC, mul(t, trunkOf(b) + 0.01)), mul(vec(-Math.cos(lean), Math.sin(lean), 0), 0.055));
   };
   const lean = loadAt(0).x >= midfootX ? 0 : Math.min(SQUAT.leanMax, bisect((l) => loadAt(l).x - midfootX, 0, SQUAT.leanMax));
@@ -189,7 +191,8 @@ function press(p: number, v: Variant, b: Body): Skeleton {
   const sc = body.shoulderC;
 
   const yLock = sc.y + armOf(b) - 0.015;
-  const yRack = sc.y + (barbell ? 0.01 : 0.11);
+  // Racked, a barbell lies on top of the front of the shoulders (as in the front squat), which lets the forearms stand upright under it.
+  const yRack = sc.y + (barbell ? 0.045 : 0.11);
   const y = lerp(yLock, yRack, p);
   const h = y - yRack;
   // The bar starts in front of the collarbones, swings out around the face, and ends straight above the shoulders
@@ -332,7 +335,7 @@ function pushup(p: number, v: Variant, b: Body): Skeleton {
   const toe = vec(0, 0, 0);
   const ankle0 = vec(toe.x - 0.06, 0.15, 0);
   const lengthOfBody = b.shin + b.thigh + trunkOf(b);
-  const wristY = 0.065;
+  const wristY = 0.025; // the wrist joint of a hand pressed flat on the floor
   const dz = gz - b.shoulderHalf;
   const shoulderTop = wristY + Math.sqrt(Math.max(0, (b.upperArm + b.forearm - 0.006) ** 2 - dz * dz));
   const shoulderY = lerp(shoulderTop, 0.17, p);
@@ -521,9 +524,6 @@ export function relaxed(body: Body = BODY, t = 0): Skeleton {
   }
   return assemble(b, { ...trunk, ...lower, ...out }, hipC);
 }
-
-/** How tightly the hands close for a movement: flat on the floor for a push-up, loosely with nothing in them, around a bar or handle otherwise. */
-export const gripFor = (s: MotionSpec) => (s.pattern === 'pushup' ? 0 : s.variant.load === 'none' && s.pattern !== 'pull' ? 0.35 : 1);
 
 export function motionFor(name: string): MotionSpec | null {
   return MOTIONS[name] ?? null;

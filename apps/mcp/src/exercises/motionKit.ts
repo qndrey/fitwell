@@ -215,8 +215,11 @@ export function carry(b: Body, v: Variant, body: ReturnType<typeof upperBody>, h
       armParts = armsWithBentWrist(b, body.shoulderC, hands(0.36, bar), vec(0, -1, 0), vec(-0.5, -1, 0.4));
       break;
     case 'barbell-front':
-      // The bar rests on the front of the shoulders, held by the fingers; the elbows point forward at about shoulder height.
-      armParts = armsWithBentWrist(b, body.shoulderC, hands(0.28, bar), vec(-0.3, -0.95, 0), vec(1, 0.35, 0.15));
+      // The rack: the bar lies on the front of the shoulders and on upturned palms, the hands a little wider than the shoulders. The
+      // shoulders are pushed forward (6 cm), which brings the elbows far enough in front of the bar for the forearms to fold back to
+      // it: the wrists are in front of the bar and just below it, the elbows forward at about shoulder height and a little inside
+      // the hands. With the wrists straight under the bar, as this was before, the hands had to bend further than a wrist goes.
+      armParts = armsWithBentWrist(b, add(body.shoulderC, mul(nFwd, 0.06)), hands(0.34, bar), vec(0.9, -0.3, 0.3), vec(1, -0.3, -0.2));
       break;
     case 'goblet':
       bar = add(add(hipC, mul(t, 0.38)), mul(nFwd, 0.14));

@@ -1,8 +1,9 @@
 // The animated 3D figure for the exercise guide and the workout player. One player per view (phones limit how many
 // WebGL contexts a page may hold); `show` swaps the exercise. Drag to turn the figure around. Returns null when WebGL is not
 // available, so callers simply leave the figure out.
-import { Color, DirectionalLight, Group, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
-import { BREATH_SECONDS, gripFor, progressAt, relaxed, skeletonAt, type MotionSpec } from '../../src/exercises/motion';
+import { CircleGeometry, Color, DirectionalLight, Group, HemisphereLight, Mesh, PerspectiveCamera, Scene, ShaderMaterial, WebGLRenderer } from 'three';
+import { defaultSide } from './sessionHeat';
+import { BREATH_SECONDS, handsFor, progressAt, relaxed, skeletonAt, type MotionSpec, type Skeleton } from '../../src/exercises/motion';
 import bodyGz from '../assets/body.glb.gz';
 import { h } from './dom';
 import { icon, iconButton, type IconName } from './icons';
@@ -109,10 +110,39 @@ export function createMotionPlayer(): MotionPlayer | null {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 
   const scene = new Scene();
-  scene.add(new HemisphereLight(0xffffff, 0xc9bcb0, 1.05));
-  const sun = new DirectionalLight(0xffffff, 1.5);
-  sun.position.set(2.5, 4, 3.5);
-  scene.add(sun);
+  // The lights turn with the camera, so the figure is lit the same from every side: a key light from above and beside the
+  // camera, and a weaker one from behind that picks out the edge.
+  scene.add(new HemisphereLight(0xffffff, 0xc9bcb0, 0.8));
+  const keyLight = new DirectionalLight(0xffffff, 1.7);
+  const rimLight = new DirectionalLight(0xffffff, 0.7);
+  scene.add(keyLight, keyLight.target, rimLight, rimLight.target);
+  // A soft shadow on the floor under the figure, so it stands on the floor rather than in front of it.
+  const shadow = new Mesh(
+    new CircleGeometry(1, 40),
+    new ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: { uAlpha: { value: isDarkTheme() ? 0.38 : 0.2 } },
+      vertexShader: 'varying vec2 vP; void main() { vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform float uAlpha; varying vec2 vP; void main() { float d = 1.0 - smoothstep(0.0, 1.0, length(vP)); gl_FragColor = vec4(0.0, 0.0, 0.0, uAlpha * d * d); }',
+    }),
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.004;
+  shadow.renderOrder = 1;
+  shadow.visible = false;
+  scene.add(shadow);
+  /** Puts the shadow under the figure: as long and as wide as the body is over the floor. */
+  function castShadow(k: Skeleton): void {
+    const over = [k.headTop, k.hipL, k.hipR, k.ankleL, k.ankleR, k.toeL, k.toeR, k.shoulderL, k.shoulderR];
+    const xs = over.map((j) => j.x);
+    const zs = over.map((j) => j.z);
+    const [x0, x1, z0, z1] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+    shadow.position.x = (x0 + x1) / 2;
+    shadow.position.z = (z0 + z1) / 2;
+    shadow.scale.set((x1 - x0) / 2 + 0.2, (z1 - z0) / 2 + 0.16, 1);
+    shadow.visible = true;
+  }
   const camera = new PerspectiveCamera(28, 4 / 3, 0.1, 30);
   const materials = makeMaterials(readPalette());
   let props: Props | null = null;
@@ -190,8 +220,15 @@ export function createMotionPlayer(): MotionPlayer | null {
 
   const sideView = (side: 'front' | 'back'): View => ({ az: side === 'front' ? Math.PI / 2 : -Math.PI / 2, el: 0.06 });
 
-  /** The side for a movement, the front for the standing figure; a lying figure is first seen from the side too. */
-  const defaultView = (): View => (current ? { az: 0, el: 0.06 } : { az: Math.PI / 2, el: 0.06 });
+  /**
+   * The side for a movement (a lying figure is first seen from the side too). The standing figure is seen from the front, or
+   * from behind when the muscles it shows are mostly there (the main ones count double).
+   */
+  const defaultView = (): View => {
+    if (current) return { az: 0, el: 0.06 };
+    const shown = [...worked.primary.map((muscle) => ({ muscle, sets: 2 })), ...worked.secondary.map((muscle) => ({ muscle, sets: 1 }))];
+    return sideView(heat ? 'front' : defaultSide(shown));
+  };
 
   function frame(): void {
     const key = current?.pattern === 'pull' && !current.variant.seated ? 'pullup' : current?.pattern;
@@ -204,6 +241,13 @@ export function createMotionPlayer(): MotionPlayer | null {
     const flat = Math.cos(view.el);
     camera.position.set(target.x + d * Math.sin(view.az) * flat, target.y + d * Math.sin(view.el), d * Math.cos(view.az) * flat);
     camera.lookAt(target.x, target.y, 0);
+    const light = (l: DirectionalLight, az: number, el: number) => {
+      l.position.set(target.x + 6 * Math.sin(az) * Math.cos(el), target.y + 6 * Math.sin(el), 6 * Math.cos(az) * Math.cos(el));
+      l.target.position.set(target.x, target.y, 0);
+      l.target.updateMatrixWorld();
+    };
+    light(keyLight, view.az + 0.55, Math.max(0, view.el) + 0.6);
+    light(rimLight, view.az + Math.PI - 0.6, 0.5);
     canvas.setAttribute('role', 'img');
     canvas.setAttribute('aria-label', `${current ? `Animation of ${label}` : heat ? label : `The muscles worked by ${label}`}. Drag or use the arrow keys to turn it.`);
   }
@@ -213,13 +257,16 @@ export function createMotionPlayer(): MotionPlayer | null {
     if (!current) {
       // At ease: the arms hang, and the figure breathes.
       const seconds = reduced ? 0 : now();
-      human.update(relaxed(human.body, seconds), 0.25, 'inward');
+      const at = relaxed(human.body, seconds);
+      human.update(at, handsFor(null, at));
+      castShadow(at);
       human.setBreath(reduced ? 0 : Math.sin((2 * Math.PI * seconds) / BREATH_SECONDS));
       renderer.render(scene, camera);
       return;
     }
     const k = skeletonAt(current, p, human.body);
-    human.update(k, gripFor(current), current.variant.palm);
+    human.update(k, handsFor(current, k));
+    castShadow(k);
     props?.update(k);
     renderer.render(scene, camera);
   }
@@ -409,6 +456,7 @@ export function createMotionPlayer(): MotionPlayer | null {
       if (!paused) setPaused(true);
     },
     setTheme() {
+      shadow.material.uniforms.uAlpha!.value = isDarkTheme() ? 0.38 : 0.2;
       setPalette(materials, readPalette());
       human?.setPalette(readPalette());
       draw(currentP());
@@ -445,6 +493,10 @@ export function createMotionPlayer(): MotionPlayer | null {
     /** Whether the body has loaded. */
     bodyReady() {
       return human !== null;
+    },
+    /** The parts the body's muscles are divided into (empty until the body has loaded). */
+    heads() {
+      return human?.heads ?? [];
     },
   };
   return player;

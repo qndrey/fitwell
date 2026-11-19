@@ -44,6 +44,7 @@ Foundation (with B1): a `connections` table (requester, addressee, status) and a
 | B4 | Challenges: time-boxed, opt-in, consistency-based (workouts per week, protein days, steps), rest-day friendly, leaderboard view; a cron closes them and emails results | B3, cron | M | Phase 9 |
 | B5 | Accountability buddy: opt-in weekly email to a chosen friend | E1 digests | S | Phase 10+ |
 | B6 | Train together: same template, side-by-side summary | B3 | M | Phase 10+ |
+| B7 | **Coach and trainee** (idea, 2026-11-19): any member can coach. The coach invites a trainee (as `request_friend`); on accepting, the trainee picks what the coach may see (workouts by default; body or food only if turned on), and either side can end it. `assign_workout` sends a template, an inline plan or a program with an optional date and coach notes per exercise; it appears on the trainee's Today ("From Sam: Push day, Tue") and "start today's workout" picks it up, weights left to the progression rule unless the coach set them. The coach sees assigned against done (sets, effort, the trainee's notes, records) and a roster view with each trainee's adherence this week; a coach role in `instructions/` for reviewing a trainee. A cap on trainees per coach; Fitwell does not verify coaches and has no billing. About 6–7 tools (link, accept, end, assign, list, trainee summary, roster view) and one migration (a coaching table, `assigned_for` on transfers) | `connections`/`shares`/`canView` (0020), `item_transfers` (0022), programs (0030), the player's coach note, effort and notes on sets, Today view, crew feed's share check | L | Phase 10+ |
 
 ### C. Wearables and data in
 One ingest path: values are normalised into `daily_metrics` (extended with resting HR, HRV, sleep stages) and cardio `workouts`, de-duplicated by source and external id, with the source stored on each value. A value typed by the person always wins. Only normalised values are kept, never raw payloads.
@@ -164,7 +165,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 - [ ] Exit: a 4-week block with a deload runs from "start today's workout"; a 4-week challenge closes and emails results.
 
 **Phase 10 and later**
-- [ ] A8 readiness, A9; C3 direct device APIs; B5, B6; D5; F6 streak nudges; G4 ChatGPT directory listing (submitted to OpenAI's app directory 2026-11-03, waiting for review: answer review feedback); G5 Gemini when it supports MCP Apps.
+- [ ] A8 readiness, A9; C3 direct device APIs; B5, B6, B7 coach and trainee (decisions in §4); D5; F6 streak nudges; G4 ChatGPT directory listing (submitted to OpenAI's app directory 2026-11-03, waiting for review: answer review feedback); G5 Gemini when it supports MCP Apps.
 - [ ] Progress photos (needs R2 storage and its own privacy decision).
 
 ## 4. Decisions to make before phase 7
@@ -175,6 +176,7 @@ Since 2026-10-24 people can ask for an invite at `/request-access` and the owner
 - **Imports from other apps (H2).** Proposal: the file is read in the person's browser, never through the chat, and only converted records are kept (no raw file); imported foods are marked estimates; nothing already in the account is overwritten, as with the Fitwell backup.
 - **Streak rules (agreed 2026-10-18).** Weekly streaks for training (a week counts when the workout target is met; one rest or sick week per 12 weeks, or a freeze the person sets, keeps the streak), daily plus weekly-target streaks for logging ("logged" means at least one meal, not a full day, so partial days do not punish); milestones 1, 2, 3, 5, 7, 14, 21, 30, 52. A weight goal is a milestone celebrated when it is reached (by the trend, after 7 days at or past the goal); it never feeds a streak.
 - **Share cards (agreed 2026-10-18).** Drawn in the view only; name and numbers chosen per card; weight and body data off by default and never in the default caption; a small "Fitwell" line the person can remove (just "Fitwell", not "Fitwell for Claude").
+- **Coach and trainee (B7), open.** (a) Do assigned workouts land on the trainee's Today automatically, or wait to be accepted? Proposal: the trainee agrees once when linking ("let this coach add workouts to my plan"), then they arrive automatically and can be dismissed. (b) Can any member coach, or only people the owner approves (as invite requests)? (c) What the coach sees follows the `shares` categories; body and food stay off unless the trainee turns them on, and never appear in a feed.
 - **ChatGPT scope (agreed 2026-10-18).** The owner tests in ChatGPT first (the G1 checklist, on a plan that allows write tools) before any support is promised; G2 to G4 depend on those results. Claude remains the primary, documented host.
 
 ## 5. Research notes

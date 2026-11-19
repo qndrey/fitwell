@@ -460,6 +460,16 @@ export const ITEMS: RoadmapItem[] = [
     detail: "Opt-in on both sides, and nothing is shared unless you picked it.",
   },
   {
+    id: "coach",
+    stage: "later",
+    theme: "friends",
+    status: "exploring",
+    title: "Coach and trainee",
+    summary: "A coach sends you workouts and sees how they went.",
+    detail:
+      "Your coach plans a workout or a whole program, it shows up on your Today, and you run it in the player. They see what you did, how hard it felt and your notes. You choose what else they may see, and either of you can end it at any time.",
+  },
+  {
     id: "photos",
     stage: "later",
     theme: "logging",

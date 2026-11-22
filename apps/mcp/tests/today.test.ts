@@ -64,10 +64,12 @@ describe('planned meals', () => {
   const plan = (items: Record<string, unknown>[]) => call(client, 'save_meal_plan', { week_start: weekStart(today), items });
 
   it('lists today\'s planned meals by meal, logs one on a tap with the planned amounts, and says so', async () => {
+    // Another day of the same week, whichever day today is: tomorrow on a Sunday would be next week, where this plan cannot hold it.
+    const otherDay = today === weekStart(today) ? addDays(today, 1) : addDays(today, -1);
     await plan([
       { day: today, slot: 'breakfast', food_id: OATS, grams: 80 },
       { day: today, slot: 'lunch', food_id: RYE, grams: 120 },
-      { day: addDays(today, 1), slot: 'lunch', food_id: RYE, grams: 100 }, // another day: not shown
+      { day: otherDay, slot: 'lunch', food_id: RYE, grams: 100 }, // another day: not shown
     ]);
     let t = await view();
     expect(t.planned.map((m) => m.slot)).toEqual(['breakfast', 'lunch']);

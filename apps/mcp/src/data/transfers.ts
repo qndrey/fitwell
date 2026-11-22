@@ -44,7 +44,7 @@ export function cleanText(value: unknown, max: number): string {
 
 const num = (v: unknown, min: number, max: number, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback);
 
-function cleanTemplate(t: Template) {
+export function cleanTemplate(t: Template) {
   const exercises = t.exercises.slice(0, 15).map((e): TemplateExercise => ({
     id: e.id,
     sets: num(e.sets, 1, 20, 3),

@@ -101,6 +101,27 @@ function draw() {
       { className: 'card', 'aria-label': 'Training' },
       h('h2', {}, 'Training'),
       done.length > 0 ? h('ul', { className: 'rows' }, ...done.map((w) => h('li', { className: 'row' }, h('div', { className: 'grow' }, h('span', { className: 'who' }, w.name), h('span', { className: 'meta' }, `${cap(w.type)}${w.minutes ? ` · ${w.minutes} min` : ''}`))))) : h('p', { className: 'muted' }, 'Nothing logged today yet.'),
+      (t.training.assigned ?? []).length > 0
+        ? h(
+            'ul',
+            { className: 'rows', 'aria-label': 'From your coach' },
+            ...t.training.assigned!.map((a) =>
+              h(
+                'li',
+                { className: 'row' },
+                h(
+                  'div',
+                  { className: 'grow' },
+                  h('span', { className: 'who' }, a.name),
+                  h('span', { className: 'meta' }, `From ${a.from} · ${a.summary}${a.dueOn ? (a.dueOn < t.day ? ` · was due ${fmtDay(a.dueOn, false)}` : ' · today') : ''}${a.started ? ' · started' : ''}`),
+                  // The coach's note is another person's text: drawn as text, never as markup.
+                  a.note ? h('span', { className: 'meta' }, `“${a.note}”`) : null,
+                ),
+                textButton(null, a.started ? 'Ask Claude to open it' : 'Ask Claude to start it', () => void app.sendMessage({ role: 'user', content: [{ type: 'text', text: `Start the workout my coach assigned: call start_workout with assignment_id ${a.assignmentId}.` }] }).catch(() => undefined), { label: `Ask Claude to start ${a.name}` }),
+              ),
+            ),
+          )
+        : null,
       t.training.suggested
         ? h(
             'p',

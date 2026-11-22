@@ -10,6 +10,7 @@ import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from '@model
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod';
 import type { InjuryData } from '../data/injuries';
+import type { CoachingData } from '../data/coaching';
 import type { ProgramData } from '../data/programs';
 import { applyDeload } from '../workout/program';
 import { todayIn } from '../data/time';
@@ -28,6 +29,7 @@ export interface WorkoutDeps {
   workouts: WorkoutData;
   injuries: InjuryData;
   programs: ProgramData;
+  coaching: CoachingData;
 }
 
 const day = z.string().refine(isDay, 'Use YYYY-MM-DD');
@@ -233,7 +235,7 @@ interface History {
 export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps) {
   const lib = await loadExercises();
   const byId = new Map(lib.exercises.map((e) => [e.ref, e]));
-  const { data, workouts, injuries, programs } = deps;
+  const { data, workouts, injuries, programs, coaching } = deps;
 
   /** The exercises of a plan that load an area the person said hurts (or that they said to avoid), with why, in their own words. Not a clearance: an exercise without a flag is not called safe. */
   const activeInjuries = async (timeZone: string) => injuries.list(todayIn(timeZone));
@@ -422,6 +424,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       inputSchema: z.object({
         name: z.string().min(1).max(60).optional(),
         template_id: z.uuid().optional(),
+        assignment_id: z.uuid().optional().describe('Start a workout a coach assigned (list_assignments, toDo). It is opened as it was assigned, with weights filled from the person\'s own history; leave template_id, program and exercises out.'),
         program: z.boolean().optional().describe('Start the next session of the active program (get_program says which: Week 3, Day B). A deload week is planned lighter on its own.'),
         exercises: z.array(planItem).min(1).max(15).optional(),
         cardio: z.array(cardioItem).max(4).optional().describe('With a template: replaces the template\'s cardio'),
@@ -435,6 +438,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       let cardioSpecs: TemplateCardio[] = [];
       let templateId: string | null = null;
       let name = args.name;
+      let assignmentId: string | null = null;
       let programStep: { programId: string; step: number; deload: boolean; label: string } | null = null;
       if (args.program) {
         if (args.template_id || args.exercises) return toolError('program starts the next session of the active program: leave template_id and exercises out.');
@@ -450,6 +454,14 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         name ??= `${program.name}: ${pos.label}`;
         await workouts.touchTemplate(t.id);
         programStep = { programId: program.id, step: pos.step, deload: pos.deload, label: pos.label };
+      } else if (args.assignment_id) {
+        if (args.template_id || args.exercises) return toolError('assignment_id starts a workout a coach assigned: leave template_id and exercises out.');
+        const a = await coaching.claim(args.assignment_id);
+        if (!a) return toolError('No such assigned workout, or it is already finished or dismissed. Use list_assignments.');
+        items = a.exercises;
+        cardioSpecs = a.cardio;
+        name ??= a.name;
+        assignmentId = args.assignment_id;
       } else if (args.template_id) {
         const t = await workouts.template(args.template_id);
         if (!t) return toolError('No such template. Use list_workout_templates.');
@@ -483,6 +495,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       ) as StoredExercise[];
       const cardioBlocks = blocksFrom(cardioSpecs);
       const w = await workouts.create({ day: todayIn(profile.timeZone), type: 'strength', name: name ?? 'Workout', startedAt: Date.now(), finishedAt: null, exercises, cardio: null, session: null, cardioBlocks, templateId });
+      if (assignmentId) await coaching.markStarted(assignmentId, w.id);
       if (programStep) await programs.recordSession(programStep.programId, programStep.step, w.id, programStep.deload);
       const lines = exercises.map((e) => {
         const work = e.sets.filter((x) => x.type === 'working');

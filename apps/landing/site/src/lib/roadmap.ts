@@ -422,6 +422,17 @@ export const ITEMS: RoadmapItem[] = [
     detail: "Count training days, protein days or steps days with friends, with only a few days a week counting so a rest day is free. Everyone sees one number per person, never weight, and each person gets one results email when it closes.",
   },
 
+  {
+    id: "coach",
+    stage: "shipped",
+    theme: "friends",
+    status: "shipped",
+    title: "Coach and trainee",
+    summary: "A friend sends you workouts and sees how they went.",
+    detail:
+      "A friend offers to coach you; you accept and choose what they see. They assign a saved workout, it shows on your Today, and you run it in the player with weights from your own history. They always see whether it was done or skipped; the sets, effort and notes only if you said yes, and never your food, weight or other workouts. Either of you can end it at any time.",
+  },
+
   // Later
   {
     id: "readiness",
@@ -458,16 +469,6 @@ export const ITEMS: RoadmapItem[] = [
     title: "Buddy and train together",
     summary: "A weekly note to someone you chose, and side-by-side sessions.",
     detail: "Opt-in on both sides, and nothing is shared unless you picked it.",
-  },
-  {
-    id: "coach",
-    stage: "later",
-    theme: "friends",
-    status: "exploring",
-    title: "Coach and trainee",
-    summary: "A coach sends you workouts and sees how they went.",
-    detail:
-      "Your coach plans a workout or a whole program, it shows up on your Today, and you run it in the player. They see what you did, how hard it felt and your notes. You choose what else they may see, and either of you can end it at any time.",
   },
   {
     id: "photos",

@@ -263,8 +263,8 @@ describe('the reminder email', () => {
 
   it('is off until the trainee asks, shown in get_profile, and nothing is sent without it', async () => {
     await assign(TODAY);
-    expect((await call(boC, 'get_profile')).data.emailDigests).toMatchObject({ assignmentReminder: false });
-    expect(await run(WED_08_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, failed: 0 });
+    expect((await call(boC, 'get_profile')).data.emailDigests).toMatchObject({ assignmentReminder: false, coachSummary: false });
+    expect(await run(WED_08_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, coach: 0, failed: 0 });
     expect(sent).toEqual([]);
     expect((await optIn()).data.emailDigests).toMatchObject({ assignmentReminder: true });
   });
@@ -273,7 +273,7 @@ describe('the reminder email', () => {
     await optIn();
     await call(anaC, 'assign_workout', { coaching_id: coachingId, template: 'Push day', on: TODAY, note: 'secret note text' });
     expect(await run(WED_19_CPH)).toMatchObject({ assigned: 0 }); // not in the evening
-    expect(await run(WED_08_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 1, failed: 0 });
+    expect(await run(WED_08_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 1, coach: 0, failed: 0 });
     expect(await run(WED_08_CPH + 600_000)).toMatchObject({ assigned: 0 }); // once a day
     expect(sent).toHaveLength(1);
     const m = sent[0]!;
@@ -306,13 +306,13 @@ describe('the reminder email', () => {
     await assign(TODAY);
     let fail = true;
     mailer = { async send(m) { if (fail) throw new Error('down'); sent.push(m); } };
-    expect(await run(WED_08_CPH)).toMatchObject({ assigned: 0, failed: 1 });
+    expect(await run(WED_08_CPH)).toMatchObject({ assigned: 0, coach: 0, failed: 1 });
     fail = false;
     expect(await run(WED_08_CPH + 600_000)).toMatchObject({ assigned: 1 });
     const url = new URL(sent[0]!.text.match(/Unsubscribe: (\S+)/)![1]!);
     const res = await handleUnsubscribe(new Request(url, { method: 'POST' }), { db: env.DB });
     expect(res.status).toBe(200);
-    expect((await call(boC, 'get_profile')).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false });
+    expect((await call(boC, 'get_profile')).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
   });
 
   it('goes with the account, and the digest log still accepts the older kinds after the migration rebuilt it', async () => {
@@ -322,5 +322,80 @@ describe('the reminder email', () => {
     await env.DB.prepare("INSERT INTO digest_log (user_id, kind, period, sent_at) VALUES (?, 'weekly', '2026-11-02', 1)").bind(bo.id).run();
     await deleteUser(env.DB, bo);
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM digest_log').first()).toEqual({ n: 0 });
+  });
+});
+
+describe('the coach summary email', () => {
+  const MON_08_CPH = Date.parse('2026-11-02T07:00:00Z'); // Monday 08:00 in Copenhagen (UTC+1)
+  const TUE_08_CPH = Date.parse('2026-11-03T07:00:00Z');
+  const MON_19_CPH = Date.parse('2026-11-02T18:00:00Z');
+  let sent: Mail[];
+  let mailer: Mailer;
+  beforeEach(() => {
+    sent = [];
+    mailer = { async send(m) { sent.push(m); } };
+  });
+  const run = (now: number) => runDigests({ db: env.DB, mailer, publicUrl: 'https://mcp.fitwell.test', now: () => now });
+  const optIn = () => call(anaC, 'update_profile', { email_digests: { coach_summary: true } });
+
+  it('is off until the coach asks, and shown in get_profile', async () => {
+    expect((await call(anaC, 'get_profile')).data.emailDigests).toMatchObject({ coachSummary: false });
+    expect(await run(MON_08_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, coach: 0, failed: 0 });
+    expect((await optIn()).data.emailDigests).toMatchObject({ coachSummary: true });
+    expect(sent).toEqual([]);
+  });
+
+  it('goes out once on Monday morning with each trainee\'s numbers, and food only for one who shares it, never a note', async () => {
+    await optIn();
+    const cyCoaching = await coach(anaC, cyC, await befriend(anaC, cyC, 'cy@example.com'), { share_food: true });
+    const a = ((await call(anaC, 'assign_workout', { coaching_id: coachingId, template: 'Push day', on: '2026-10-30', note: 'secret note text' })).data as { assignmentId: string }).assignmentId;
+    await call(anaC, 'assign_workout', { coaching_id: coachingId, template: 'Leg day', on: '2026-10-31' }); // overdue
+    await finish((await call(boC, 'start_workout', { assignment_id: a })).data.workout as WorkoutPlan);
+    await call(cyC, 'log_food', { day: '2026-11-01', items: [{ food_id: 'frida:59', grams: 300 }] });
+    await call(cyC, 'set_goals', { kcal: 2400 });
+    expect(await run(TUE_08_CPH)).toMatchObject({ coach: 0 }); // not on a Tuesday
+    expect(await run(MON_19_CPH)).toMatchObject({ coach: 0 }); // not in the evening
+    expect(await run(MON_08_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, coach: 1, failed: 0 });
+    expect(await run(MON_08_CPH + 600_000)).toMatchObject({ coach: 0 }); // once a week
+    expect(sent).toHaveLength(1);
+    const m = sent[0]!;
+    expect(m.to).toBe('ana@example.com');
+    expect(m.subject).toBe('Your trainees in Fitwell, 2 Nov');
+    expect(m.text).toContain('bo@example.com: 1 of 2 assigned workouts done (50 % of what came due), 1 overdue.');
+    expect(m.text).toContain('cy@example.com: no workout assigned in the last 4 weeks.');
+    expect(m.text).toMatch(/Food, last 7 days: logged 1, averaging \d[\d,]* of 2,400 kcal/);
+    expect(m.text.match(/Food, last 7 days/g)).toHaveLength(1); // Bo does not share food
+    expect(m.text).not.toContain('secret note text');
+    expect(m.text).not.toMatch(/rye|frida/i);
+    expect(m.text).toMatch(/Unsubscribe: https:\/\/mcp\.fitwell\.test\/unsubscribe\?u=.+&t=.+&k=coach/);
+    expect(m.headers?.['List-Unsubscribe']).toContain('k=coach');
+    expect(cyCoaching).toBeTruthy();
+  });
+
+  it('is not sent to someone nobody has accepted coaching from, and a hostile name stays text', async () => {
+    await optIn();
+    await call(boC, 'end_coaching', { coaching_id: coachingId });
+    await call(anaC, 'offer_coaching', { connection_id: ((await call(anaC, 'list_friends')).data as unknown as FriendList).friends[0]!.connectionId });
+    expect(await run(MON_08_CPH)).toMatchObject({ coach: 0 }); // an unanswered offer is nothing to report
+    expect(sent).toEqual([]);
+    const id = ((await call(boC, 'list_coaching')).data as unknown as { asTrainee: { coachingId: string }[] }).asTrainee[0]!.coachingId;
+    await call(boC, 'accept_coaching', { coaching_id: id, share_results: false });
+    await call(boC, 'set_nickname', { nickname: 'bo_<b>x' }).catch(() => undefined);
+    await env.DB.prepare("UPDATE profiles SET nickname = '<b>bold</b>' WHERE user_id = ?").bind(bo.id).run();
+    expect(await run(MON_08_CPH)).toMatchObject({ coach: 1 });
+    expect(sent[0]!.html).not.toContain('<b>bold</b>');
+    expect(sent[0]!.html).toContain('&#60;b&#62;bold');
+  });
+
+  it('is switched off by its own link, leaving the other emails as they were, and is retried after a failed send', async () => {
+    await call(anaC, 'update_profile', { email_digests: { weekly_review: true, coach_summary: true } });
+    let fail = true;
+    mailer = { async send(m) { if (fail) throw new Error('down'); sent.push(m); } };
+    expect(await run(MON_08_CPH)).toMatchObject({ coach: 0, failed: 1 });
+    fail = false;
+    expect(await run(MON_08_CPH + 600_000)).toMatchObject({ coach: 1 });
+    const res = await handleUnsubscribe(new Request(new URL(sent[0]!.text.match(/Unsubscribe: (\S+)/)![1]!), { method: 'POST' }), { db: env.DB });
+    expect(res.status).toBe(200);
+    expect((await call(anaC, 'get_profile')).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
   });
 });

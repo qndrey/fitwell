@@ -142,7 +142,7 @@ export default {
     );
     ctx.waitUntil(
       runDigests({ db: env.DB, mailer: mailerFor(env as EnvWithOAuth), publicUrl: env.PUBLIC_URL, skip: (email) => email === DEV_EMAIL || email.toLowerCase() === reviewEmail }).then((r) => {
-        if (r.weekly || r.nudge || r.assigned || r.failed) console.log('digests', JSON.stringify(r));
+        if (r.weekly || r.nudge || r.assigned || r.coach || r.failed) console.log('digests', JSON.stringify(r));
       }),
     );
   },

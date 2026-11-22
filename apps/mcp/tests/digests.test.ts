@@ -46,13 +46,13 @@ const BANNED = /cheat|guilty|\bbad\b|lazy|behind|off track|missed|failed|healthy
 describe('opt-in', () => {
   it('is off for everyone until they ask, shows in get_profile, and nothing is sent without it', async () => {
     await logWeek(anaC);
-    expect((await call(anaC, 'get_profile')).data.emailDigests).toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false });
-    expect(await run(SUNDAY_18_30_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, failed: 0 });
+    expect((await call(anaC, 'get_profile')).data.emailDigests).toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
+    expect(await run(SUNDAY_18_30_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, coach: 0, failed: 0 });
     expect(sent).toEqual([]);
-    expect((await optIn(anaC, { weekly_review: true })).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false });
-    expect((await call(anaC, 'get_profile')).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false });
-    expect((await call(anaC, 'update_profile', { units: 'imperial' })).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false }); // other changes leave it
-    expect((await optIn(anaC, { weekly_review: false })).data.emailDigests).toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false });
+    expect((await optIn(anaC, { weekly_review: true })).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
+    expect((await call(anaC, 'get_profile')).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
+    expect((await call(anaC, 'update_profile', { units: 'imperial' })).data.emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false, coachSummary: false }); // other changes leave it
+    expect((await optIn(anaC, { weekly_review: false })).data.emailDigests).toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
   });
 });
 
@@ -63,7 +63,7 @@ describe('the weekly summary', () => {
   });
 
   it('goes out on Sunday evening in the person\'s time, once, with facts and an unsubscribe link', async () => {
-    expect(await run(SUNDAY_18_30_CPH)).toEqual({ weekly: 1, nudge: 0, assigned: 0, failed: 0 });
+    expect(await run(SUNDAY_18_30_CPH)).toEqual({ weekly: 1, nudge: 0, assigned: 0, coach: 0, failed: 0 });
     expect(sent).toHaveLength(1);
     const m = sent[0]!;
     expect(m.to).toBe('ana@example.com');
@@ -102,14 +102,14 @@ describe('the weekly summary', () => {
 
   it('is retried by the next run when the email could not be sent', async () => {
     failNext = true;
-    expect(await run(SUNDAY_18_30_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, failed: 1 });
+    expect(await run(SUNDAY_18_30_CPH)).toEqual({ weekly: 0, nudge: 0, assigned: 0, coach: 0, failed: 1 });
     expect(sent).toEqual([]);
     failNext = false;
     expect(await run(SUNDAY_18_30_CPH + 3_600_000)).toMatchObject({ weekly: 1, failed: 0 });
   });
 
   it('never goes to the skipped addresses (the reviewers\' demo account, the local dev person)', async () => {
-    expect(await run(SUNDAY_18_30_CPH, (e) => e === 'ana@example.com')).toEqual({ weekly: 0, nudge: 0, assigned: 0, failed: 0 });
+    expect(await run(SUNDAY_18_30_CPH, (e) => e === 'ana@example.com')).toEqual({ weekly: 0, nudge: 0, assigned: 0, coach: 0, failed: 0 });
     expect(sent).toEqual([]);
   });
 });
@@ -164,27 +164,27 @@ describe('unsubscribe', () => {
     const page = await get(url);
     expect(page.status).toBe(200);
     expect(await page.text()).toContain('<button type="submit">Unsubscribe</button>');
-    expect(await settings()).toEqual({ weeklyReview: true, inactivityNudge: true, assignmentReminder: false });
+    expect(await settings()).toEqual({ weeklyReview: true, inactivityNudge: true, assignmentReminder: false, coachSummary: false });
     const done = await post(url);
     expect(done.status).toBe(200);
     expect(await done.text()).toContain('You are unsubscribed');
-    expect(await settings()).toEqual({ weeklyReview: false, inactivityNudge: true, assignmentReminder: false });
-    expect(await settings()).not.toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false });
+    expect(await settings()).toEqual({ weeklyReview: false, inactivityNudge: true, assignmentReminder: false, coachSummary: false });
+    expect(await settings()).not.toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
     await post(await link('all'));
-    expect(await settings()).toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false });
+    expect(await settings()).toEqual({ weeklyReview: false, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
   });
 
   it('a mail app\'s one-click POST works, and a wrong secret, another person\'s or a missing one does nothing', async () => {
     const url = await link('nudge');
     expect((await post(url, 'List-Unsubscribe=One-Click')).status).toBe(200);
-    expect(await settings()).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false });
+    expect(await settings()).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
     await optIn(anaC, { inactivity_nudge: true });
     const bad = url.replace(/t=[^&]+/, 't=0000');
     expect((await post(bad)).status).toBe(400);
     expect((await post(url.replace(ana.id, 'someone-else'))).status).toBe(400);
     expect((await post('https://mcp.fitwell.test/unsubscribe')).status).toBe(400);
     expect((await get(bad)).status).toBe(400);
-    expect(await settings()).toEqual({ weeklyReview: true, inactivityNudge: true, assignmentReminder: false });
+    expect(await settings()).toEqual({ weeklyReview: true, inactivityNudge: true, assignmentReminder: false, coachSummary: false });
     expect((await handleUnsubscribe(new Request(url, { method: 'PUT' }), { db: env.DB })).status).toBe(405);
   });
 
@@ -197,7 +197,7 @@ describe('unsubscribe', () => {
 describe('the cron when the database is not ready', () => {
   it('says so and stops with one failure instead of throwing every hour (for example before the migration is applied)', async () => {
     const broken = { prepare() { throw new Error('no such column: p.digest_weekly'); } } as unknown as D1Database;
-    expect(await runDigests({ db: broken, mailer, publicUrl: 'https://mcp.fitwell.test', now: () => SUNDAY_18_30_CPH })).toEqual({ weekly: 0, nudge: 0, assigned: 0, failed: 1 });
+    expect(await runDigests({ db: broken, mailer, publicUrl: 'https://mcp.fitwell.test', now: () => SUNDAY_18_30_CPH })).toEqual({ weekly: 0, nudge: 0, assigned: 0, coach: 0, failed: 1 });
     expect(sent).toEqual([]);
   });
 });
@@ -207,7 +207,7 @@ describe('the account', () => {
     await logWeek(anaC);
     await optIn(anaC, { weekly_review: true });
     await run(SUNDAY_18_30_CPH);
-    expect(((await call(anaC, 'export_my_data')).data as { emailDigests: unknown }).emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false });
+    expect(((await call(anaC, 'export_my_data')).data as { emailDigests: unknown }).emailDigests).toEqual({ weeklyReview: true, inactivityNudge: false, assignmentReminder: false, coachSummary: false });
     await deleteUser(env.DB, ana);
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM digest_log').first<{ n: number }>())!.n).toBe(0);
     await expect(worker.scheduled!({ cron: '0 * * * *', scheduledTime: Date.now(), type: 'scheduled', noRetry() {} } as unknown as ScheduledController, env, ctx)).resolves.toBeUndefined();

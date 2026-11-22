@@ -50,6 +50,7 @@ const SIZES: Record<string, [number, number]> = {
   today: [796, 1866],
   mealplan: [796, 1702],
   household: [796, 1046],
+  coach: [796, 1254],
   sharecard: [1080, 1350],
 };
 
@@ -479,6 +480,17 @@ const features: Feature[] = [
     maxH: "max-h-[560px]",
   },
   {
+    tab: "Coaching",
+    title: "Let a friend coach you, or coach one",
+    bullets: [
+      "A coach assigns a saved workout or a whole program. It waits on your Today with their note, and you run it in the player with weights from your own history. They can also propose calorie and macro targets, which change nothing until you accept, and send a week of meals that is checked against your allergies.",
+      "You decide what a coach sees: always whether a workout was done or skipped, and only if you say so, how the sets went and your daily calorie and macro totals, never what you ate. A coach opens one roster with every trainee's progress. Reminders by email are optional.",
+    ],
+    shot: "coach",
+    alt: "The coaching roster: bo.lifts with 75 % of what came due done, one workout overdue and a program 7 of 16 sessions in; cy with 100 % done, shared food averages and targets waiting; and di, whose offer has not been answered yet",
+    maxH: "max-h-[560px]",
+  },
+  {
     tab: "Household",
     title: "One plan and one shopping list for people who cook together",
     bullets: [
@@ -639,6 +651,10 @@ const faqs = [
     a: "Nothing, until you decide. Connecting with a friend shares nothing. For each friend you choose, one kind at a time, whether they see your workouts, your consistency (streaks, no numbers), your templates and recipes, or your body data, and you can take any of it back. Friends see counts and names, never weights or notes, and your weight only if you share body data with that friend. You can connect by nickname, so you never have to hand out your email address.",
   },
   {
+    q: "Can a friend coach me?",
+    a: "Yes, if you want. A friend offers, you accept, and you choose two things separately: whether they see how the workouts they assign went (sets, effort and notes of those workouts only), and whether they see your daily calorie and macro totals, never what you ate. They always see whether an assigned workout was done, skipped or is overdue. They never see your weight, your other workouts or anything else you log, a plan or target they send changes nothing until you accept it, and either of you can end it at any time. Fitwell does not check that a coach is qualified, and none of it is medical advice.",
+  },
+  {
     q: "Can I plan meals with someone I live with?",
     a: "Yes. Invite a friend to a household (up to six people) and you share one meal plan and one shopping list, each with your own portion. Only the plan, the portions and the shopping ticks are shared. Your goals, allergies, dislikes and what you ate stay yours: nobody in the household can see them, and a warning about an allergy is shown only to the person it is about.",
   },
@@ -648,7 +664,7 @@ const faqs = [
   },
   {
     q: "Will Fitwell email me?",
-    a: "Only if you ask. A Sunday summary and a nudge after a few quiet days are each a separate switch, off until you ask your assistant to turn them on, and every email has an unsubscribe link.",
+    a: "Only if you ask. A Sunday summary, a nudge after a few quiet days, a morning reminder when a workout your coach assigned is due, and a Monday summary of your trainees if you coach are each a separate switch, off until you ask your assistant to turn them on, and every email has an unsubscribe link.",
   },
   {
     q: "What does it cost?",

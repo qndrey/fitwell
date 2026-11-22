@@ -289,9 +289,9 @@ export const ITEMS: RoadmapItem[] = [
     theme: "logging",
     status: "shipped",
     title: "Email digests",
-    summary: "A Sunday summary and a nudge when you go quiet. Opt-in.",
+    summary: "A Sunday summary, a nudge when you go quiet, and coaching reminders. Opt-in.",
     detail:
-      "Each digest is a separate switch, off until you ask your assistant for it, with an unsubscribe link in every email. They arrive in your own evening and say plainly what you did, never what you should have.",
+      "Each digest is a separate switch, off until you ask your assistant for it, with an unsubscribe link in every email. They say plainly what happened, never what you should have done. A morning reminder when a workout your coach assigned is due, and a Monday summary of their trainees for a coach, are two more switches.",
   },
 
   // Then
@@ -430,7 +430,7 @@ export const ITEMS: RoadmapItem[] = [
     title: "Coach and trainee",
     summary: "A friend sends you workouts, programs, meal plans and targets, and sees how it went.",
     detail:
-      "A friend offers to coach you; you accept and choose what they see. They assign a saved workout or a whole program, it shows on your Today (with their note in the player), and you run it with weights from your own history. If you ask for it, one morning email tells you when an assigned workout is due. They can also propose calorie and macro targets (nothing changes unless you accept) and send a week of meals, which is checked against your allergies. They always see whether a workout was done or skipped; the sets, effort and notes only if you said yes, and your daily calorie and macro totals only if you said yes separately (never what you ate). They never see your weight or other workouts. Either of you can end it at any time.",
+      "A friend offers to coach you; you accept and choose what they see. They assign a saved workout or a whole program, it shows on your Today (with their note in the player), and you run it with weights from your own history. If you ask for it, one morning email tells you when an assigned workout is due. They can also propose calorie and macro targets (nothing changes unless you accept) and send a week of meals, which is checked against your allergies. They always see whether a workout was done or skipped, and one roster shows a coach every trainee; the sets, effort and notes only if you said yes, and your daily calorie and macro totals only if you said yes separately (never what you ate). They never see your weight or other workouts. Either of you can end it at any time.",
   },
 
   // Later

@@ -25,6 +25,7 @@ const SIZES: Record<string, [number, number]> = {
   today: [796, 1866],
   mealplan: [796, 1702],
   household: [796, 1046],
+  coach: [796, 1254],
   sharecard: [1080, 1350],
 };
 
@@ -208,7 +209,7 @@ function Tools() {
           <div className="mx-auto max-w-6xl px-5 py-14 sm:px-8 md:py-20">
             <h2 className="text-3xl sm:text-4xl">Emails, if you want them</h2>
             <p className="mt-4 max-w-3xl leading-relaxed text-muted-foreground">
-              Two optional emails, both off until you ask your assistant to turn them on: a Sunday summary of your week, and one nudge after a few quiet days. They arrive in your own evening, say plainly what you did, never what you should have, and every one has an unsubscribe link.
+              Four optional emails, each off until you ask your assistant to turn it on: a Sunday summary of your week, one nudge after a few quiet days, a morning reminder when a workout your coach assigned is due, and a Monday summary of your trainees if you coach. They arrive at a sensible hour in your own day, say plainly what happened, never what you should have done, and every one has an unsubscribe link.
             </p>
             <p className="mt-6">
               <a href="/#join" className="inline-block rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">

@@ -1,6 +1,7 @@
 // The digest emails (E1): plain facts about the person's own week, in a neutral tone: no praise, no pressure, no shaming of a quiet week.
 import type { Mail } from '../auth/mailer';
 import type { Progress } from '../analytics/types';
+import type { CoachRoster, RosterTrainee } from '../analytics/coachTypes';
 import type { DigestKind } from '../data/digests';
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -105,4 +106,39 @@ export function assignedMail(i: AssignedInput): Mail {
   ];
   const { text, html } = wrap(lines, ['You get this because you turned on reminders for assigned workouts in Fitwell. To change that, ask Claude, or use the link below.'], i.url);
   return { to: i.to, subject: i.items.length === 1 ? `Fitwell: ${first.name} is ${first.dueOn === i.today ? 'due today' : 'waiting'}` : `Fitwell: ${i.items.length} workouts from your coach`, text, html, headers: headers(i.url) };
+}
+
+export interface CoachInput {
+  to: string;
+  roster: CoachRoster;
+  url: string;
+}
+
+const traineeName = (t: RosterTrainee) => t.who.nickname ?? t.who.email ?? 'a trainee';
+
+/** One line of facts per trainee, only what the roster already shows the coach (so only what each trainee shares): no praise, no blame. */
+function traineeLines(t: RosterTrainee): string[] {
+  const w = t.workouts;
+  const parts = [w.assigned === 0 ? 'no workout assigned in the last 4 weeks' : `${w.done} of ${w.assigned} assigned workouts done${w.adherencePct === null ? '' : ` (${w.adherencePct} % of what came due)`}`];
+  if (w.skipped) parts.push(`${w.skipped} skipped`);
+  if (w.overdue) parts.push(`${w.overdue} overdue`);
+  const lines = [`${traineeName(t)}: ${parts.join(', ')}.`];
+  if (t.lastDone) lines.push(`  Last finished ${short(t.lastDone)}${t.next ? `; next: ${t.next.name}${t.next.dueOn ? `, due ${short(t.next.dueOn)}` : ''}` : ''}.`);
+  else if (t.next) lines.push(`  Next: ${t.next.name}${t.next.dueOn ? `, due ${short(t.next.dueOn)}` : ''}.`);
+  if (t.program && t.program.sessionsDone !== null && t.program.status === 'running') lines.push(`  Program "${t.program.name}": ${t.program.sessionsDone} of ${t.program.sessionsTotal} sessions done.`);
+  if (t.shareFood) lines.push(t.food && t.food.loggedDays > 0 ? `  Food, last 7 days: logged ${t.food.loggedDays}, averaging ${n0(t.food.kcal ?? 0)}${t.food.goalKcal ? ` of ${n0(t.food.goalKcal)}` : ''} kcal and ${n0(t.food.proteinG ?? 0)}${t.food.goalProteinG ? ` of ${n0(t.food.goalProteinG)}` : ''} g protein.` : '  Food, last 7 days: nothing logged.');
+  return lines;
+}
+
+/** True when there is nothing to tell a coach: nobody has accepted. */
+export const noTrainees = (r: CoachRoster): boolean => r.trainees.every((t) => t.status !== 'active');
+
+/** The Monday email to a coach: where each trainee stands. Names come from other people and are only ever shown. */
+export function coachMail(i: CoachInput): Mail {
+  const active = i.roster.trainees.filter((t) => t.status === 'active');
+  const lines = [`Your trainees, as of ${weekdayOf(i.roster.today)} ${short(i.roster.today)}.`, ''];
+  for (const t of active) lines.push(...traineeLines(t), '');
+  lines.push('For the detail and what to change, ask Claude to show your trainees.');
+  const { text, html } = wrap(lines, ['You get this because you turned on the weekly summary of your trainees in Fitwell. Each trainee decides what you see, so a number here is only what they share. To change that, ask Claude, or use the link below.'], i.url);
+  return { to: i.to, subject: `Your trainees in Fitwell, ${short(i.roster.today)}`, text, html, headers: headers(i.url) };
 }

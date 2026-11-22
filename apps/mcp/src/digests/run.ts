@@ -1,5 +1,5 @@
 // The cron job behind the email digests (E1): once an hour it looks at each person who turned a digest on and sends what is due in their own local time.
-// Assigned-workout reminder (B7): in the local morning, once a day, only when an assigned workout is due and not started. Weekly summary: Sunday evening, once a week. Nudge: after 3 or more days without a log, in the evening, once per lapse (not again until they log and lapse anew).
+// Coach summary (B7): Monday morning, once a week, only for a coach whose trainees have accepted. Assigned-workout reminder (B7): in the local morning, once a day, only when an assigned workout is due and not started. Weekly summary: Sunday evening, once a week. Nudge: after 3 or more days without a log, in the evening, once per lapse (not again until they log and lapse anew).
 import { addDays, dayNumber, weekStart } from '@fitwell/core/domain/dates';
 import type { Day } from '@fitwell/core/domain/dates';
 import { loadProgress } from '../analytics/load';
@@ -12,7 +12,8 @@ import { ProgramData } from '../data/programs';
 import { todayIn } from '../data/time';
 import { UserData } from '../data/userData';
 import { WorkoutData } from '../data/workoutData';
-import { assignedMail, nudgeMail, quietWeek, unsubscribeUrl, weeklyMail } from './compose';
+import { buildRoster } from '../analytics/coach';
+import { assignedMail, coachMail, noTrainees, nudgeMail, quietWeek, unsubscribeUrl, weeklyMail } from './compose';
 
 /** Local evening: digests go out from 18:00 to 21:59, so a missed hourly run is made up within the evening and nothing arrives at night. */
 export const SEND_FROM_HOUR = 18;
@@ -39,6 +40,7 @@ export interface DigestRun {
   weekly: number;
   nudge: number;
   assigned: number;
+  coach: number;
   failed: number;
 }
 
@@ -56,7 +58,7 @@ function localClock(timeZone: string, now: number): { hour: number; weekday: num
 
 export async function runDigests(deps: DigestDeps): Promise<DigestRun> {
   const now = deps.now?.() ?? Date.now();
-  const out: DigestRun = { weekly: 0, nudge: 0, assigned: 0, failed: 0 };
+  const out: DigestRun = { weekly: 0, nudge: 0, assigned: 0, coach: 0, failed: 0 };
   let people: Awaited<ReturnType<typeof recipients>>;
   try {
     people = await recipients(deps.db);
@@ -111,8 +113,16 @@ export async function runDigests(deps: DigestDeps): Promise<DigestRun> {
           }
         }
       }
+      if (morning && r.coach && weekday === 1) {
+        // Monday morning, once a week: only for someone who has trainees who accepted.
+        const monday = weekStart(today);
+        await send('coach', monday, async () => {
+          const roster = await buildRoster(new CoachingData(deps.db, r.id, workouts, new ProgramData(deps.db, r.id), () => now), today);
+          return noTrainees(roster) ? null : coachMail({ to: r.email, roster, url: unsubscribeUrl(deps.publicUrl, r.id, r.token, 'coach') });
+        });
+      }
       if (morning && r.assigned) {
-        const coaching = new CoachingData(deps.db, r.id, workouts, new ProgramData(deps.db, r.id));
+        const coaching = new CoachingData(deps.db, r.id, workouts, new ProgramData(deps.db, r.id), () => now);
         const oldest = addDays(today, -REMIND_OVERDUE_DAYS);
         const due = (await coaching.toDo(today)).filter((a) => a.dueOn !== null && a.dueOn >= oldest && !a.started);
         if (due.length) {

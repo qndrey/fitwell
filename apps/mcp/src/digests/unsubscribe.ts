@@ -17,11 +17,11 @@ export async function handleUnsubscribe(request: Request, deps: { db: D1Database
     if (!(await unsubscribe(deps.db, u, t, kind))) return invalid();
     // A mail app's one-click request wants a plain success; a person pressing the button sees the page.
     if ((await request.text()).includes('List-Unsubscribe=One-Click')) return new Response('Unsubscribed', { status: 200 });
-    return page('Unsubscribed', `<h1>You are unsubscribed</h1><p>Fitwell will not send you ${kind === 'weekly' ? 'the weekly summary' : kind === 'nudge' ? 'reminders' : kind === 'assigned' ? 'reminders about assigned workouts' : 'these emails'} any more. You can turn them on again by asking Claude.</p>`);
+    return page('Unsubscribed', `<h1>You are unsubscribed</h1><p>Fitwell will not send you ${kind === 'weekly' ? 'the weekly summary' : kind === 'nudge' ? 'reminders' : kind === 'assigned' ? 'reminders about assigned workouts' : kind === 'coach' ? 'the weekly summary of your trainees' : 'these emails'} any more. You can turn them on again by asking Claude.</p>`);
   }
   if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers: { allow: 'GET, POST' } });
   if (!(await validToken(deps.db, u, t))) return invalid(); // a link that cannot work says so now, not after the button
-  const what = kind === 'weekly' ? 'the weekly summary' : kind === 'nudge' ? 'reminders' : kind === 'assigned' ? 'reminders about assigned workouts' : 'these emails';
+  const what = kind === 'weekly' ? 'the weekly summary' : kind === 'nudge' ? 'reminders' : kind === 'assigned' ? 'reminders about assigned workouts' : kind === 'coach' ? 'the weekly summary of your trainees' : 'these emails';
   return page(
     'Unsubscribe',
     `<h1>Stop ${what}?</h1><p>Press the button to stop Fitwell emailing you ${what}.</p><form method="post" action="/unsubscribe?u=${encodeURIComponent(u)}&amp;t=${encodeURIComponent(t)}&amp;k=${escape(kind)}"><button type="submit">Unsubscribe</button></form>`,

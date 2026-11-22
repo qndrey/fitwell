@@ -29,6 +29,7 @@ const DESTRUCTIVE = [
   'decline_received_item', // discards what a friend sent
   'end_coaching', // ends the coaching and removes the workouts assigned through it
   'dismiss_assignment', // takes an assigned workout off the list for good
+  'accept_assigned_program', // ends the program the person was on
   'answer_coach_targets', // accepting replaces the person's calorie and macro goals, and either answer discards the proposal
   'decline_invite_request', // deletes a request
   'remove_invitation', // takes back an invitation

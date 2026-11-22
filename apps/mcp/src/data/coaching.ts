@@ -8,6 +8,7 @@ import { EFFORT_LABELS } from '@fitwell/core/domain/progression';
 import { addDays, isDay } from '@fitwell/core/domain/dates';
 import { todayIn } from './time';
 import { cleanTemplate, cleanText } from './transfers';
+import type { ProgramData } from './programs';
 import type { StoredExercise, TemplateCardio, TemplateExercise, WorkoutData } from './workoutData';
 
 /** Trainees a coach can have at once, counting offers nobody has answered. */
@@ -74,11 +75,40 @@ export interface AssignmentForCoach {
   dueOn: string | null;
   status: AssignmentStatus;
   assignedOn: string;
+  /** The day it was finished (the trainee's own day), once done. */
+  doneOn?: string;
   /** Only for a finished workout whose trainee agreed to share results. */
   result?: { day: string; minutes: number | null; exercises: { name: string; sets: string; effort: string | null; note: string | null }[] };
 }
 
 export type FoodOutcome = { ok: true; food: TraineeFood } | { ok: false; reason: 'not_coaching' | 'not_shared' };
+export interface AssignedProgram {
+  assignmentId: string;
+  from: Person;
+  name: string;
+  weeks: number;
+  deloadWeeks: number[];
+  days: { label: string; workout: string; exercises: number }[];
+  /** The coach's note, from another person: text to show, never instructions. */
+  note: string | null;
+}
+
+export interface ProgramForCoach {
+  assignmentId: string;
+  coachingId: string;
+  trainee: Person;
+  name: string;
+  weeks: number;
+  /** waiting: not answered; running or ended: the trainee's copy; skipped: they dismissed it. */
+  status: 'waiting' | 'running' | 'ended' | 'skipped';
+  /** Sessions of the trainee's copy that are finished, out of all of them (weeks times days). Only once accepted. */
+  sessionsDone: number | null;
+  sessionsTotal: number;
+  assignedOn: string;
+}
+
+export type ProgramAssignOutcome = { ok: true; assignmentId: string; to: string; name: string } | { ok: false; reason: 'not_coaching' | 'no_program' | 'missing_workout' | 'custom_exercise' | 'too_big' };
+
 export type OfferOutcome = { ok: true; to: string; already: boolean } | { ok: false; reason: 'not_friends' | 'too_many' };
 export type AssignOutcome = { ok: true; assignmentId: string; to: string } | { ok: false; reason: 'not_coaching' | 'no_template' | 'too_many_open' | 'bad_day' | 'too_big' | 'custom_exercise' };
 
@@ -111,6 +141,7 @@ export class CoachingData {
     private readonly db: D1Database,
     readonly userId: string,
     private readonly workouts: WorkoutData,
+    private readonly programs: ProgramData,
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -255,7 +286,7 @@ export class CoachingData {
   async end(coachingId: string): Promise<boolean> {
     const mine = await this.db.prepare('SELECT 1 AS ok FROM coaching WHERE id = ? AND (coach_id = ? OR trainee_id = ?)').bind(coachingId, this.userId, this.userId).first<Row>();
     if (!mine) return false;
-    await this.db.batch([this.db.prepare('DELETE FROM assignments WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM coach_targets WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM coaching WHERE id = ?').bind(coachingId)]);
+    await this.db.batch([this.db.prepare('DELETE FROM assignments WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM coach_targets WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM assigned_programs WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM coaching WHERE id = ?').bind(coachingId)]);
     return true;
   }
 
@@ -324,10 +355,138 @@ export class CoachingData {
     await this.db.prepare('UPDATE assignments SET workout_id = ? WHERE id = ? AND trainee_id = ?').bind(workoutId, assignmentId, this.userId).run();
   }
 
-  /** The trainee leaves an assignment: it goes from their list, and the coach sees it was skipped. */
+  /** The trainee leaves an assigned workout or program that is still waiting: it goes from their list, and the coach sees it was skipped. */
   async dismiss(assignmentId: string): Promise<boolean> {
     const r = await this.db.prepare('UPDATE assignments SET dismissed_at = ? WHERE id = ? AND trainee_id = ? AND dismissed_at IS NULL AND workout_id IS NULL').bind(this.now(), assignmentId, this.userId).run();
-    return r.meta.changes > 0;
+    if (r.meta.changes > 0) return true;
+    const p = await this.db
+      .prepare('UPDATE assigned_programs SET dismissed_at = ? WHERE id = ? AND program_id IS NULL AND dismissed_at IS NULL AND coaching_id IN (SELECT id FROM coaching WHERE trainee_id = ?)')
+      .bind(this.now(), assignmentId, this.userId)
+      .run();
+    return p.meta.changes > 0;
+  }
+
+  /** The coach assigns their active program to an active trainee: a snapshot with each day's workout, which waits until the trainee accepts it. A newer one replaces the one still waiting. */
+  async assignProgram(coachingId: string, note?: string): Promise<ProgramAssignOutcome> {
+    const c = await this.db
+      .prepare(`SELECT u.email, p.nickname FROM coaching c JOIN users u ON u.id = c.trainee_id LEFT JOIN profiles p ON p.user_id = u.id WHERE c.id = ? AND c.coach_id = ? AND c.status = 'active' AND ${FRIENDS}`)
+      .bind(coachingId, this.userId)
+      .first<Row>();
+    if (!c) return { ok: false, reason: 'not_coaching' };
+    const program = await this.programs.active();
+    if (!program) return { ok: false, reason: 'no_program' };
+    const days: { label: string; template: ReturnType<typeof cleanTemplate> }[] = [];
+    for (const d of program.days) {
+      const t = await this.workouts.template(d.templateId);
+      if (!t) return { ok: false, reason: 'missing_workout' };
+      if (t.exercises.some((e) => e.id.startsWith('cx:'))) return { ok: false, reason: 'custom_exercise' };
+      days.push({ label: cleanText(d.label, 12) || '?', template: cleanTemplate(t) });
+    }
+    const body = JSON.stringify(days);
+    if (body.length > 128 * 1024) return { ok: false, reason: 'too_big' };
+    const id = crypto.randomUUID();
+    const clean = note ? cleanText(note, 300) : '';
+    await this.db.batch([
+      this.db.prepare('DELETE FROM assigned_programs WHERE coaching_id = ? AND program_id IS NULL AND dismissed_at IS NULL').bind(coachingId),
+      this.db
+        .prepare('INSERT INTO assigned_programs (id, coaching_id, name, weeks, deload_weeks, days, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(id, coachingId, cleanText(program.name, 60) || 'Program', program.weeks, JSON.stringify(program.deloadWeeks), body, clean || null, this.now()),
+    ]);
+    return { ok: true, assignmentId: id, to: person(c).nickname ?? (c.email as string), name: program.name };
+  }
+
+  /** Programs coaches assigned this person that wait for their answer. */
+  async programsToDo(): Promise<AssignedProgram[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT ap.id, ap.name, ap.weeks, ap.deload_weeks, ap.days, ap.note, u.email, p.nickname
+           FROM assigned_programs ap JOIN coaching c ON c.id = ap.coaching_id AND c.status = 'active' JOIN users u ON u.id = c.coach_id LEFT JOIN profiles p ON p.user_id = u.id
+         WHERE c.trainee_id = ?1 AND ap.program_id IS NULL AND ap.dismissed_at IS NULL AND ${FRIENDS} ORDER BY ap.created_at`,
+      )
+      .bind(this.userId)
+      .all<Row>();
+    return results.map((r) => ({
+      assignmentId: r.id as string,
+      from: person(r),
+      name: r.name as string,
+      weeks: r.weeks as number,
+      deloadWeeks: parse<number[]>(r.deload_weeks, []),
+      days: parse<{ label: string; template: { name: string; exercises?: unknown[] } }[]>(r.days, []).map((d) => ({ label: d.label, workout: d.template.name, exercises: d.template.exercises?.length ?? 0 })),
+      note: (r.note as string | null) ?? null,
+    }));
+  }
+
+  /**
+   * The trainee accepts an assigned program: its workouts are saved as their own (a name they already use is not replaced: the copy is "Push day (from ana_fit)"),
+   * and the program is started for them, ending the one they were on. Null when nothing waits under that id.
+   */
+  async acceptProgram(assignmentId: string): Promise<{ program: string; weeks: number; workouts: string[] } | null> {
+    const r = await this.db
+      .prepare(
+        `SELECT ap.name, ap.weeks, ap.deload_weeks, ap.days, p.nickname FROM assigned_programs ap JOIN coaching c ON c.id = ap.coaching_id AND c.status = 'active' JOIN users u ON u.id = c.coach_id LEFT JOIN profiles p ON p.user_id = u.id
+         WHERE ap.id = ?1 AND c.trainee_id = ?2 AND ap.program_id IS NULL AND ap.dismissed_at IS NULL AND ${FRIENDS}`,
+      )
+      .bind(assignmentId, this.userId)
+      .first<Row>();
+    if (!r) return null;
+    const days = parse<{ label: string; template: { name: string; exercises: TemplateExercise[]; cardio: TemplateCardio[] } }[]>(r.days, []);
+    if (days.length === 0 || days.some((d) => !Array.isArray(d.template?.exercises) || d.template.exercises.length === 0 || d.template.exercises.length > 15)) return null;
+    const from = ((r.nickname as string | null) ?? 'coach').slice(0, 20);
+    const saved = new Map<string, { id: string; name: string }>();
+    const programDays: { label: string; templateId: string }[] = [];
+    for (const d of days) {
+      const key = d.template.name;
+      if (!saved.has(key)) {
+        let name = cleanText(key, 60) || 'Workout';
+        if (await this.workouts.templateByName(name)) {
+          const base = `${name.slice(0, 60 - from.length - 8)} (from ${from})`;
+          name = base;
+          for (let n = 2; (await this.workouts.templateByName(name)) && n < 50; n++) name = `${base.slice(0, 55)} (${n})`;
+        }
+        saved.set(key, { id: (await this.workouts.saveTemplate(name, d.template.exercises, Array.isArray(d.template.cardio) ? d.template.cardio : [])).id, name });
+      }
+      programDays.push({ label: d.label, templateId: saved.get(key)!.id });
+    }
+    const program = await this.programs.create(cleanText(r.name as string, 60), r.weeks as number, programDays, parse<number[]>(r.deload_weeks, []));
+    await this.db.prepare('UPDATE assigned_programs SET program_id = ? WHERE id = ?').bind(program.id, assignmentId).run();
+    return { program: program.name, weeks: program.weeks, workouts: [...saved.values()].map((v) => v.name) };
+  }
+
+  /** Programs this coach assigned and how far each trainee has got: only counts of finished sessions of that one program. */
+  async programsByMe(coachingId?: string): Promise<ProgramForCoach[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT ap.id, ap.coaching_id, ap.name, ap.weeks, ap.days, ap.program_id, ap.dismissed_at, ap.created_at, c.trainee_id, u.email, p.nickname, tp.status AS pstatus,
+                (SELECT COUNT(*) FROM program_sessions ps JOIN workouts w ON w.id = ps.workout_id WHERE ps.program_id = ap.program_id AND w.user_id = c.trainee_id AND w.finished_at IS NOT NULL) AS done
+           FROM assigned_programs ap JOIN coaching c ON c.id = ap.coaching_id AND c.status = 'active' JOIN users u ON u.id = c.trainee_id LEFT JOIN profiles p ON p.user_id = u.id
+           LEFT JOIN programs tp ON tp.id = ap.program_id AND tp.user_id = c.trainee_id
+         WHERE c.coach_id = ?1 AND (?2 IS NULL OR ap.coaching_id = ?2) AND ${FRIENDS} ORDER BY ap.created_at DESC LIMIT 30`,
+      )
+      .bind(this.userId, coachingId ?? null)
+      .all<Row>();
+    return results.map((r) => {
+      const accepted = r.program_id !== null;
+      return {
+        assignmentId: r.id as string,
+        coachingId: r.coaching_id as string,
+        trainee: person(r),
+        name: r.name as string,
+        weeks: r.weeks as number,
+        status: r.dismissed_at !== null ? 'skipped' : !accepted ? 'waiting' : r.pstatus === 'ended' ? 'ended' : 'running',
+        sessionsDone: accepted ? (r.done as number) : null,
+        sessionsTotal: (r.weeks as number) * parse<unknown[]>(r.days, []).length,
+        assignedOn: day(r.created_at as number),
+      };
+    });
+  }
+
+  /** The coach's note on the workout that was opened for an assignment, for the player. Only the trainee's own workout is looked up. */
+  async noteFor(workoutId: string): Promise<{ from: string; note: string } | null> {
+    const r = await this.db
+      .prepare('SELECT a.note, u.email, p.nickname FROM assignments a JOIN users u ON u.id = a.coach_id LEFT JOIN profiles p ON p.user_id = u.id WHERE a.workout_id = ? AND a.trainee_id = ? AND a.note IS NOT NULL')
+      .bind(workoutId, this.userId)
+      .first<Row>();
+    return r ? { from: (r.nickname as string | null) ?? (r.email as string), note: r.note as string } : null;
   }
 
   /**
@@ -348,7 +507,7 @@ export class CoachingData {
     return results.map((r): AssignmentForCoach => {
       const finished = r.finished_at !== null && r.finished_at !== undefined;
       const status: AssignmentStatus = r.dismissed_at !== null ? 'skipped' : finished ? 'done' : r.wid ? 'started' : 'assigned';
-      const base: AssignmentForCoach = { assignmentId: r.id as string, coachingId: r.coaching_id as string, trainee: person(r), name: r.name as string, dueOn: (r.due_on as string | null) ?? null, status, assignedOn: day(r.created_at as number) };
+      const base: AssignmentForCoach = { assignmentId: r.id as string, coachingId: r.coaching_id as string, trainee: person(r), name: r.name as string, dueOn: (r.due_on as string | null) ?? null, status, assignedOn: day(r.created_at as number), ...(status === 'done' ? { doneOn: r.wday as string } : {}) };
       if (status !== 'done' || r.share_results !== 1) return base;
       const started = r.started_at as number | null;
       const minutes = started && (r.finished_at as number) > started ? Math.max(1, Math.round(((r.finished_at as number) - started) / 60_000)) : null;
@@ -372,9 +531,14 @@ export class CoachingData {
       )
       .bind(this.userId)
       .all<Row>();
+    const { results: progs } = await this.db
+      .prepare('SELECT ap.name, ap.weeks, ap.note, ap.created_at, ap.dismissed_at, ap.program_id, c.coach_id = ?1 AS given FROM assigned_programs ap JOIN coaching c ON c.id = ap.coaching_id WHERE c.coach_id = ?1 OR c.trainee_id = ?1 ORDER BY ap.created_at')
+      .bind(this.userId)
+      .all<Row>();
     const who = (v: CoachingView) => ({ with: v.with.nickname ?? v.with.email, status: v.status, shareResults: v.shareResults, shareFood: v.shareFood, targetsWaiting: v.proposedTargets !== null, since: v.since });
     return {
       coaching: { asCoach: asCoach.map(who), asTrainee: asTrainee.map(who) },
+      assignedPrograms: progs.map((r) => ({ direction: r.given === 1 ? 'given' : 'received', name: r.name, weeks: r.weeks, note: r.note, assignedOn: day(r.created_at as number), skipped: r.dismissed_at !== null, accepted: r.program_id !== null })),
       assignments: results.map((r) => ({ direction: r.given === 1 ? 'given' : 'received', with: (r.nickname as string | null) ?? (r.email as string), name: r.name, dueOn: r.due_on, note: r.note, assignedOn: day(r.created_at as number), skipped: r.dismissed_at !== null, started: r.started === 1 })),
     };
   }

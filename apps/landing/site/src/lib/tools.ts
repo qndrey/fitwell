@@ -600,8 +600,27 @@ export const CATEGORIES: Category[] = [
       {
         name: "list_assignments",
         kind: "reads",
-        what: "Shows the workouts coaches assigned you, and the ones you assigned with whether each was started, done or skipped.",
+        what: "Shows the workouts and programs coaches assigned you, and the ones you assigned with whether each was started, done or skipped and how far through a program they are.",
         ask: "What did my coach send me?",
+      },
+      {
+        name: "assign_program",
+        kind: "saves",
+        what: "Assigns your active program to someone you coach, with each day's workout and an optional note. Nothing is saved for them until they accept.",
+        ask: "Send my four-week block to Bo.",
+      },
+      {
+        name: "accept_assigned_program",
+        kind: "saves",
+        asks: true,
+        what: "Accepts a program your coach assigned: its workouts are saved as your own, never replacing one you have, and the program starts, ending the one you are on.",
+        ask: "Start the program my coach sent.",
+      },
+      {
+        name: "show_coach_roster",
+        kind: "opens",
+        what: "Opens everyone you coach: how much of what came due they did over the last four weeks, what is overdue, the last finished day, the next workout, their program progress and, only if they share it, their food averages. Only what each trainee allows.",
+        ask: "How are my trainees doing?",
       },
       {
         name: "propose_targets",
@@ -626,7 +645,7 @@ export const CATEGORIES: Category[] = [
         name: "dismiss_assignment",
         kind: "saves",
         asks: true,
-        what: "Takes an assigned workout off your list without doing it. Your coach sees it was skipped.",
+        what: "Takes an assigned workout or program off your list without doing it. Your coach sees it was skipped.",
         ask: "Skip the push day my coach sent.",
       },
       {

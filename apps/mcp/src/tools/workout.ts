@@ -127,6 +127,12 @@ function restOf(w: Workout): PlannedRest | undefined {
 }
 
 /** The player's view of a stored workout (also used to resume one). */
+/** The plan with the coach's note when the workout was opened for an assigned workout that had one. */
+async function withCoach(plan: WorkoutPlan, coaching: CoachingData, workoutId: string): Promise<WorkoutPlan> {
+  const c = await coaching.noteFor(workoutId);
+  return c ? { ...plan, coach: c } : plan;
+}
+
 function toPlan(w: Workout, gym?: Gym, bests?: Map<string, ExerciseBests>, ctx?: PlanContext): WorkoutPlan {
   return {
     workoutId: w.id,
@@ -504,7 +510,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
         return `${e.supersetId ? '[superset] ' : ''}${e.exerciseName} ${what}${warm ? ` after ${warm} warm-up sets` : ''}${e.lastTime ? ` (last time ${e.lastTime})` : ''}`;
       });
       const flags = flagsFor(items.map((e) => e.id), await activeInjuries(profile.timeZone));
-      const result = json({ workout: toPlan(w, profile.gym, await bestsFor(w), await planContext(w, profile.weightKg)), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}), ...(flags.length ? { injuryFlags: flags } : {}) });
+      const result = json({ workout: await withCoach(toPlan(w, profile.gym, await bestsFor(w), await planContext(w, profile.weightKg)), coaching, w.id), ...(args.save_as_template ? { savedTemplate: args.save_as_template } : {}), ...(flags.length ? { injuryFlags: flags } : {}) });
       const cardioText = cardioBlocks.length ? ` Cardio: ${cardioBlocks.map((b) => `${b.plannedMin} min ${b.activityName} (${b.when === 'before' ? 'warm-up' : 'finisher'})`).join('; ')}.` : '';
       result.content = [{ type: 'text', text: `Workout "${w.name}" is open in the player (id ${w.id})${programStep ? `, ${programStep.label}` : ''}: ${lines.join('; ')}.${cardioText} The player shows all of this: reply with nothing more, no summary or recap.${flags.length ? ` One exception, in one short sentence: ${flags.map((f) => `${f.exercise} (${f.why})`).join('; ')}. Offer a swap (search_exercises with similar_to); do not diagnose and do not call anything safe.` : ''}` }];
       return result;
@@ -525,7 +531,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const w = await workouts.get(workoutId);
       if (!w || w.type !== 'strength') return toolError('No such workout.');
       const profile = await data.profile();
-      return json({ workout: toPlan(w, profile.gym, w.finishedAt === null ? await bestsFor(w) : undefined, await planContext(w, profile.weightKg)) });
+      return json({ workout: await withCoach(toPlan(w, profile.gym, w.finishedAt === null ? await bestsFor(w) : undefined, await planContext(w, profile.weightKg)), coaching, w.id) });
     },
   );
 
@@ -725,7 +731,7 @@ export async function registerWorkoutTools(server: McpServer, deps: WorkoutDeps)
       const next: StoredExercise = { ...buildExercise(item, i, past.get(newId)!, profile.weightKg, ramp, profile.gym), uid: old.uid, ...(old.supersetId ? { supersetId: old.supersetId } : {}) };
       const exercises = w.exercises.map((x, k) => (k === i ? next : x));
       await workouts.saveExercises(workoutId, exercises);
-      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: toPlan({ ...w, exercises }, profile.gym, await bestsFor({ ...w, exercises }), await planContext(w, profile.weightKg)) });
+      return json({ swapped: { from: old.exerciseName, to: next.exerciseName }, workout: await withCoach(toPlan({ ...w, exercises }, profile.gym, await bestsFor({ ...w, exercises }), await planContext(w, profile.weightKg)), coaching, w.id) });
     },
   );
 

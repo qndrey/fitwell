@@ -84,3 +84,25 @@ export function nudgeMail(i: NudgeInput): Mail {
   const { text, html } = wrap(lines, ['You get this because you turned on a reminder after a few quiet days in Fitwell. To change that, ask Claude, or use the link below.'], i.url);
   return { to: i.to, subject: `Fitwell: nothing logged since ${weekdayOf(i.lastDay)}`, text, html, headers: headers(i.url) };
 }
+
+export interface AssignedInput {
+  to: string;
+  today: string;
+  url: string;
+  /** Workouts a coach assigned that are due today or a few days ago and not started. Names and people come from others and are already cleaned. */
+  items: { name: string; from: string; dueOn: string }[];
+}
+
+/** One morning email when an assigned workout is due: what it is, from whom, and how to start it. No pressure: a workout can be dismissed. */
+export function assignedMail(i: AssignedInput): Mail {
+  const first = i.items[0]!;
+  const lines = [
+    i.items.length === 1 ? 'A workout from your coach is waiting.' : `${i.items.length} workouts from your coach are waiting.`,
+    '',
+    ...i.items.map((a) => `${a.name} (from ${a.from}), ${a.dueOn === i.today ? 'due today' : `due ${weekdayOf(a.dueOn)} ${short(a.dueOn)}`}`),
+    '',
+    'Ask Claude to start it and it opens in the player. If it does not suit this week, you can ask Claude to dismiss it.',
+  ];
+  const { text, html } = wrap(lines, ['You get this because you turned on reminders for assigned workouts in Fitwell. To change that, ask Claude, or use the link below.'], i.url);
+  return { to: i.to, subject: i.items.length === 1 ? `Fitwell: ${first.name} is ${first.dueOn === i.today ? 'due today' : 'waiting'}` : `Fitwell: ${i.items.length} workouts from your coach`, text, html, headers: headers(i.url) };
+}

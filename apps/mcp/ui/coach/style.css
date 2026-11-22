@@ -1,0 +1,13 @@
+@import '../shared/panel.css';
+/* The coach roster: one flat card per trainee, with the numbers that matter first, calm like the other pages. */
+.who { font-weight: 600; }
+.trainees { display: grid; gap: var(--s3); margin: 0; padding: 0; list-style: none; }
+.trainee { background: var(--surface); border-radius: var(--radius); padding: var(--s3); display: grid; gap: var(--s2); }
+.trainee .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); }
+.trainee h3 { margin: 0; font-size: var(--fs-body); }
+.trainee .meta { color: var(--muted); font-size: var(--fs-small); }
+.trainee .stat { font-size: var(--fs-small); }
+.trainee .alert { font-weight: 600; }
+.bar { height: 8px; border-radius: 4px; background: var(--seg-off); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.empty { text-align: center; }

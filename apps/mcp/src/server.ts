@@ -89,7 +89,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const injuries = new InjuryData(deps.db, deps.user.id);
   const households = new HouseholdData(deps.db, deps.user.id);
   const programs = new ProgramData(deps.db, deps.user.id);
-  const coaching = new CoachingData(deps.db, deps.user.id, workouts);
+  const coaching = new CoachingData(deps.db, deps.user.id, workouts, programs);
   const challenges = new ChallengeData(deps.db, deps.user.id);
   // The tools Claude reads before planning or advising answer with the role to take (src/instructions/*.md).
   const server = withRoles(mcp, {

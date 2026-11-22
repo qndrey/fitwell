@@ -3,7 +3,7 @@
 // way (no markup, no links, no control characters, bounded lengths) and what points back to the sender (own foods, the source page) is dropped.
 import { addDays, isDay, weekStart as mondayOf } from '@fitwell/core/domain/dates';
 import { EXTRA_KEYS, type Extras } from '@fitwell/core/domain/nutrition';
-import { SLOT_NAMES, type PlannedItem } from '../planning/check';
+import { checkPlan, SLOT_NAMES, type PlannedItem } from '../planning/check';
 import type { PlanData, Recipe, RecipeItem } from './planData';
 import type { Template, TemplateCardio, TemplateExercise, WorkoutData } from './workoutData';
 
@@ -141,6 +141,8 @@ export class TransfersData {
     private readonly workouts: WorkoutData,
     private readonly plans: PlanData,
     private readonly now: () => number = Date.now,
+    /** The person's own allergies and dislikes, to check a received meal plan against before it is saved. */
+    private readonly diet?: () => Promise<{ allergies: string[]; dislikes: string[] }>,
   ) {}
 
   private async prune(): Promise<void> {
@@ -221,7 +223,7 @@ export class TransfersData {
   }
 
   /** Copies a received item into this person's own templates or recipes, never replacing one they have (a taken name gets a suffix), and removes the transfer. */
-  async accept(transferId: string, weekStart?: string): Promise<{ kind: TransferKind; name: string } | { needs: 'week' | 'free_week' } | null> {
+  async accept(transferId: string, weekStart?: string): Promise<{ kind: TransferKind; name: string; allergies?: string[]; dislikes?: string[] } | { needs: 'week' | 'free_week' } | null> {
     const t = await this.db
       .prepare(
         `SELECT t.kind, t.name, t.snapshot, u.email, p.nickname FROM item_transfers t JOIN users u ON u.id = t.sender_id LEFT JOIN profiles p ON p.user_id = u.id
@@ -246,7 +248,12 @@ export class TransfersData {
       if (!items) return null;
       await this.plans.savePlan(weekStart, items);
       await this.db.prepare('DELETE FROM item_transfers WHERE id = ? AND recipient_id = ?').bind(transferId, this.userId).run();
-      return { kind, name: `Meal plan, week of ${weekStart}` };
+      // Whoever made the plan did not know this person's allergies and dislikes: it is saved as before (the plan view flags it), and the matches are named now.
+      const diet = this.diet ? await this.diet() : { allergies: [], dislikes: [] };
+      const check = checkPlan(Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), items, null, diet.allergies, diet.dislikes);
+      const named = (kind: 'allergy' | 'dislike') => [...new Set(check.warnings.filter((w) => w.kind === kind).map((w) => `${w.item} (${w.matches.join(', ')})`))].slice(0, 8);
+      const [allergies, dislikes] = [named('allergy'), named('dislike')];
+      return { kind, name: `Meal plan, week of ${weekStart}`, ...(allergies.length ? { allergies } : {}), ...(dislikes.length ? { dislikes } : {}) };
     }
     const from = ((t.nickname as string | null) ?? 'a friend').slice(0, 20);
     const exists = (n: string) => (kind === 'template' ? this.workouts.templateByName(n) : this.plans.recipeByName(n));

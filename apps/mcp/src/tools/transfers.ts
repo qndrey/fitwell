@@ -62,7 +62,8 @@ export function registerTransferTools(server: McpServer, transfers: TransfersDat
     async ({ transfer_id, week_start }) => {
       const saved = await transfers.accept(transfer_id, week_start);
       if (saved && 'needs' in saved) return toolError(saved.needs === 'week' ? 'A meal plan needs a week: ask which Monday (YYYY-MM-DD) to put it in, then accept again with week_start.' : 'They already have a plan for that week, and it is not replaced. Pick another week.');
-      return saved ? json({ saved: true, kind: saved.kind, name: saved.name }) : toolError('There is no waiting item with that id (or it can no longer be accepted). Check list_received_items.');
+      if (saved && 'allergies' in saved && saved.allergies) return json({ saved: true, kind: saved.kind, name: saved.name, allergies: saved.allergies, ...(saved.dislikes ? { dislikes: saved.dislikes } : {}), note: `ALLERGY warning: this plan was made by someone who did not know the person's allergies and it matches: ${saved.allergies.join('; ')}. It is saved, but say so plainly now, never present it as safe, and offer to swap those meals (the meal plan view flags them too).` });
+      return saved ? json({ saved: true, kind: saved.kind, name: saved.name, ...('dislikes' in saved && saved.dislikes ? { dislikes: saved.dislikes, note: `Saved, but these meals contain something the person dislikes: ${saved.dislikes.join('; ')}. Say so and offer swaps.` } : {}) }) : toolError('There is no waiting item with that id (or it can no longer be accepted). Check list_received_items.');
     },
   );
 

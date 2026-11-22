@@ -73,6 +73,7 @@ export async function deleteUser(db: D1Database, user: Pick<User, 'id' | 'email'
     db.prepare('DELETE FROM item_transfers WHERE sender_id = ? OR recipient_id = ?').bind(user.id, user.id),
     // Coaching in both roles, with every workout assigned through it.
     db.prepare('DELETE FROM assignments WHERE coach_id = ? OR trainee_id = ?').bind(user.id, user.id),
+    db.prepare('DELETE FROM coach_targets WHERE coaching_id IN (SELECT id FROM coaching WHERE coach_id = ?1 OR trainee_id = ?1)').bind(user.id),
     db.prepare('DELETE FROM coaching WHERE coach_id = ? OR trainee_id = ?').bind(user.id, user.id),
     db.prepare('DELETE FROM digest_log WHERE user_id = ?').bind(user.id),
     db.prepare('DELETE FROM kudos WHERE giver_id = ? OR owner_id = ?').bind(user.id, user.id),

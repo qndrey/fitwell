@@ -575,13 +575,13 @@ export const CATEGORIES: Category[] = [
       {
         name: "accept_coaching",
         kind: "saves",
-        what: "Accepts a friend's offer to coach you. You choose whether they also see the sets, effort and notes of the workouts they assign; they never see your food, weight or other workouts.",
+        what: "Accepts a friend's offer to coach you. You choose, separately, whether they also see the sets, effort and notes of the workouts they assign, and whether they see your daily calorie and macro totals (never what you ate). They never see your weight or other workouts.",
         ask: "Accept Ana's offer to coach me.",
       },
       {
         name: "set_coaching_sharing",
         kind: "saves",
-        what: "Changes whether your coach sees how the assigned workouts went, from now on.",
+        what: "Changes whether your coach sees how the assigned workouts went, and your daily calorie and macro totals, from now on.",
         ask: "Stop my coach seeing my sets.",
       },
       {
@@ -602,6 +602,25 @@ export const CATEGORIES: Category[] = [
         kind: "reads",
         what: "Shows the workouts coaches assigned you, and the ones you assigned with whether each was started, done or skipped.",
         ask: "What did my coach send me?",
+      },
+      {
+        name: "propose_targets",
+        kind: "saves",
+        what: "Proposes calorie and macro targets to someone you coach. Nothing changes for them unless they accept.",
+        ask: "Suggest 2,300 kcal and 160 g protein to Bo.",
+      },
+      {
+        name: "answer_coach_targets",
+        kind: "saves",
+        asks: true,
+        what: "Accepts or declines the targets your coach proposed. Accepting replaces your calorie and macro goals; your coach is not told which you chose.",
+        ask: "Use my coach's targets.",
+      },
+      {
+        name: "get_trainee_food",
+        kind: "reads",
+        what: "Shows the daily calorie and macro totals of someone you coach, next to their own goals, for the last days. Only if they chose to share them, and never what they ate.",
+        ask: "How is Bo doing on food this week?",
       },
       {
         name: "dismiss_assignment",

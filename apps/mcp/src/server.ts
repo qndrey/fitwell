@@ -83,7 +83,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   const achievements = new AchievementsData(deps.db, deps.user.id);
   const friends = new FriendsData(deps.db, deps.user.id);
   const nicknames = new NicknameData(deps.db, deps.user.id);
-  const transfers = new TransfersData(deps.db, deps.user.id, workouts, plans);
+  const transfers = new TransfersData(deps.db, deps.user.id, workouts, plans, Date.now, async () => (await data.profile()).diet);
   const digests = new DigestData(deps.db, deps.user.id);
   const crew = new CrewData(deps.db, deps.user.id);
   const injuries = new InjuryData(deps.db, deps.user.id);
@@ -124,7 +124,7 @@ export async function createServer(deps: ServerDeps): Promise<McpServer> {
   registerMealPlanTools(server, { data, plans, households });
   registerFriendTools(server, friends, nicknames);
   registerTransferTools(server, transfers);
-  registerCoachingTools(server, coaching);
+  registerCoachingTools(server, coaching, data);
   registerCrewTools(server, { data, crew });
   registerMemberInviteTools(server, { db: deps.db, userId: deps.user.id, isAdmin: deps.isAdmin === true, isReviewer: deps.isReviewer, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });
   if (deps.isAdmin) registerInviteTools(server, { db: deps.db, ownEmail: deps.user.email, publicUrl: deps.publicUrl, mailer: deps.mailer, contact: deps.contact });

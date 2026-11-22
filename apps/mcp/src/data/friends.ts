@@ -249,6 +249,7 @@ export class FriendsData {
       this.db.prepare('DELETE FROM kudos WHERE (giver_id = ?1 AND owner_id = ?2) OR (giver_id = ?2 AND owner_id = ?1)').bind(this.userId, other),
       // Coaching is between friends: it ends with the friendship, with what was assigned through it.
       this.db.prepare('DELETE FROM assignments WHERE (coach_id = ?1 AND trainee_id = ?2) OR (coach_id = ?2 AND trainee_id = ?1)').bind(this.userId, other),
+      this.db.prepare('DELETE FROM coach_targets WHERE coaching_id IN (SELECT id FROM coaching WHERE (coach_id = ?1 AND trainee_id = ?2) OR (coach_id = ?2 AND trainee_id = ?1))').bind(this.userId, other),
       this.db.prepare('DELETE FROM coaching WHERE (coach_id = ?1 AND trainee_id = ?2) OR (coach_id = ?2 AND trainee_id = ?1)').bind(this.userId, other),
       // The friendship goes. Requests left over between the two are hidden from whoever they were sent to, not deleted: they would otherwise
       // show their sender that an address was this friend's, and a hidden request cannot bring the friendship back (nobody can answer it).

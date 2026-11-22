@@ -5,7 +5,8 @@
 // person and checks the friendship is still there, so removing a friend ends the coaching without anything having to be cleaned up first.
 import { summarizeSets } from '@fitwell/core/domain/workouts';
 import { EFFORT_LABELS } from '@fitwell/core/domain/progression';
-import { isDay } from '@fitwell/core/domain/dates';
+import { addDays, isDay } from '@fitwell/core/domain/dates';
+import { todayIn } from './time';
 import { cleanTemplate, cleanText } from './transfers';
 import type { StoredExercise, TemplateCardio, TemplateExercise, WorkoutData } from './workoutData';
 
@@ -26,7 +27,28 @@ export interface CoachingView {
   status: 'pending' | 'active';
   /** The trainee's choice: the coach also sees sets, effort and notes of the assigned workouts. */
   shareResults: boolean;
+  /** The trainee's separate choice: the coach sees daily calorie and macro totals against their goals. */
+  shareFood: boolean;
+  /** Targets the coach proposed that the trainee has not answered. The note is the coach's own text. */
+  proposedTargets: ProposedTargets | null;
   since: string;
+}
+
+export interface Targets {
+  kcal?: number;
+  proteinG?: number;
+  carbsG?: number;
+  fatG?: number;
+}
+export type ProposedTargets = Targets & { note: string | null; sentOn: string };
+
+export interface TraineeFood {
+  /** The trainee's own goals, as they set them. */
+  goals: { kcal: number | null; proteinG: number | null; carbsG: number | null; fatG: number | null };
+  /** Newest first. A day with nothing logged is listed with logged false and no numbers; today (the trainee's day) is not finished and is left out of the averages. */
+  days: { day: string; logged: boolean; today: boolean; kcal?: number; protein?: number; carbs?: number; fat?: number }[];
+  /** Over the finished days with something logged. */
+  average: { loggedDays: number; kcal: number; protein: number; carbs: number; fat: number } | null;
 }
 
 export interface AssignedWorkout {
@@ -56,6 +78,7 @@ export interface AssignmentForCoach {
   result?: { day: string; minutes: number | null; exercises: { name: string; sets: string; effort: string | null; note: string | null }[] };
 }
 
+export type FoodOutcome = { ok: true; food: TraineeFood } | { ok: false; reason: 'not_coaching' | 'not_shared' };
 export type OfferOutcome = { ok: true; to: string; already: boolean } | { ok: false; reason: 'not_friends' | 'too_many' };
 export type AssignOutcome = { ok: true; assignmentId: string; to: string } | { ok: false; reason: 'not_coaching' | 'no_template' | 'too_many_open' | 'bad_day' | 'too_big' | 'custom_exercise' };
 
@@ -126,43 +149,113 @@ export class CoachingData {
     await this.prune();
     const { results } = await this.db
       .prepare(
-        `SELECT c.id, c.coach_id, c.trainee_id, c.status, c.share_results, c.created_at, u.email, p.nickname,
-                (SELECT COUNT(*) FROM assignments a WHERE a.coaching_id = c.id AND ${OPEN}) AS open
-           FROM coaching c JOIN users u ON u.id = CASE WHEN c.coach_id = ?1 THEN c.trainee_id ELSE c.coach_id END LEFT JOIN profiles p ON p.user_id = u.id
+        `SELECT c.id, c.coach_id, c.trainee_id, c.status, c.share_results, c.share_food, c.created_at, u.email, p.nickname,
+                (SELECT COUNT(*) FROM assignments a WHERE a.coaching_id = c.id AND ${OPEN}) AS open,
+                t.kcal AS t_kcal, t.protein_g AS t_protein, t.carbs_g AS t_carbs, t.fat_g AS t_fat, t.note AS t_note, t.created_at AS t_at
+           FROM coaching c LEFT JOIN coach_targets t ON t.coaching_id = c.id JOIN users u ON u.id = CASE WHEN c.coach_id = ?1 THEN c.trainee_id ELSE c.coach_id END LEFT JOIN profiles p ON p.user_id = u.id
          WHERE (c.coach_id = ?1 OR c.trainee_id = ?1) AND ${FRIENDS} ORDER BY c.created_at`,
       )
       .bind(this.userId)
       .all<Row>();
-    const view = (r: Row): CoachingView => ({ coachingId: r.id as string, with: person(r), status: r.status as 'pending' | 'active', shareResults: r.share_results === 1, since: day(r.created_at as number) });
+    const targets = (r: Row): ProposedTargets | null =>
+      r.t_at === null || r.t_at === undefined
+        ? null
+        : { ...(r.t_kcal !== null && { kcal: r.t_kcal as number }), ...(r.t_protein !== null && { proteinG: r.t_protein as number }), ...(r.t_carbs !== null && { carbsG: r.t_carbs as number }), ...(r.t_fat !== null && { fatG: r.t_fat as number }), note: (r.t_note as string | null) ?? null, sentOn: day(r.t_at as number) };
+    const view = (r: Row): CoachingView => ({ coachingId: r.id as string, with: person(r), status: r.status as 'pending' | 'active', shareResults: r.share_results === 1, shareFood: r.share_food === 1, proposedTargets: targets(r), since: day(r.created_at as number) });
     return {
       asCoach: results.filter((r) => r.coach_id === this.userId).map((r) => ({ ...view(r), open: r.open as number })),
       asTrainee: results.filter((r) => r.trainee_id === this.userId).map(view),
     };
   }
 
-  /** The trainee says yes, and chooses whether the coach also sees how the assigned workouts went. False when there is no such offer for them. */
-  async accept(coachingId: string, shareResults: boolean): Promise<boolean> {
+  /** The trainee says yes, and chooses (separately) whether the coach also sees how the assigned workouts went and their daily food totals. False when there is no such offer for them. */
+  async accept(coachingId: string, shareResults: boolean, shareFood = false): Promise<boolean> {
     const r = await this.db
-      .prepare(`UPDATE coaching AS c SET status = 'active', share_results = ?, responded_at = ? WHERE c.id = ? AND c.trainee_id = ? AND c.status = 'pending' AND ${FRIENDS}`)
-      .bind(shareResults ? 1 : 0, this.now(), coachingId, this.userId)
+      .prepare(`UPDATE coaching AS c SET status = 'active', share_results = ?, share_food = ?, responded_at = ? WHERE c.id = ? AND c.trainee_id = ? AND c.status = 'pending' AND ${FRIENDS}`)
+      .bind(shareResults ? 1 : 0, shareFood ? 1 : 0, this.now(), coachingId, this.userId)
       .run();
     return r.meta.changes > 0;
   }
 
-  /** The trainee changes whether the coach sees results, from now on. */
-  async setShareResults(coachingId: string, shareResults: boolean): Promise<boolean> {
+  /** The trainee changes what the coach sees, from now on; only what is given changes. Returns the choices as they are now, or null. */
+  async setSharing(coachingId: string, choice: { results?: boolean; food?: boolean }): Promise<{ shareResults: boolean; shareFood: boolean } | null> {
     const r = await this.db
-      .prepare(`UPDATE coaching AS c SET share_results = ? WHERE c.id = ? AND c.trainee_id = ? AND c.status = 'active' AND ${FRIENDS}`)
-      .bind(shareResults ? 1 : 0, coachingId, this.userId)
+      .prepare(`UPDATE coaching AS c SET share_results = COALESCE(?, c.share_results), share_food = COALESCE(?, c.share_food) WHERE c.id = ? AND c.trainee_id = ? AND c.status = 'active' AND ${FRIENDS}`)
+      .bind(choice.results === undefined ? null : choice.results ? 1 : 0, choice.food === undefined ? null : choice.food ? 1 : 0, coachingId, this.userId)
       .run();
-    return r.meta.changes > 0;
+    if (r.meta.changes === 0) return null;
+    const now = await this.db.prepare('SELECT share_results, share_food FROM coaching WHERE id = ?').bind(coachingId).first<Row>();
+    return { shareResults: now?.share_results === 1, shareFood: now?.share_food === 1 };
+  }
+
+  /** The coach proposes calorie and macro targets to an active trainee. They change nothing until the trainee accepts; a new proposal replaces the waiting one. */
+  async proposeTargets(coachingId: string, t: Targets, note?: string): Promise<boolean> {
+    const c = await this.db.prepare(`SELECT 1 AS ok FROM coaching c WHERE c.id = ? AND c.coach_id = ? AND c.status = 'active' AND ${FRIENDS}`).bind(coachingId, this.userId).first<Row>();
+    if (!c) return false;
+    const clean = note ? cleanText(note, 300) : '';
+    await this.db
+      .prepare('INSERT OR REPLACE INTO coach_targets (coaching_id, kcal, protein_g, carbs_g, fat_g, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(coachingId, t.kcal ?? null, t.proteinG ?? null, t.carbsG ?? null, t.fatG ?? null, clean || null, this.now())
+      .run();
+    return true;
+  }
+
+  /** The trainee answers the waiting proposal: it goes either way, and the targets are returned (to be saved as goals) only when accepted. Null when nothing waits for them. */
+  async answerTargets(coachingId: string, accept: boolean): Promise<Targets | 'declined' | null> {
+    const r = await this.db
+      .prepare(`SELECT t.kcal, t.protein_g, t.carbs_g, t.fat_g FROM coach_targets t JOIN coaching c ON c.id = t.coaching_id WHERE t.coaching_id = ? AND c.trainee_id = ? AND c.status = 'active' AND ${FRIENDS}`)
+      .bind(coachingId, this.userId)
+      .first<Row>();
+    if (!r) return null;
+    await this.db.prepare('DELETE FROM coach_targets WHERE coaching_id = ?').bind(coachingId).run();
+    if (!accept) return 'declined';
+    return { ...(r.kcal !== null && { kcal: r.kcal as number }), ...(r.protein_g !== null && { proteinG: r.protein_g as number }), ...(r.carbs_g !== null && { carbsG: r.carbs_g as number }), ...(r.fat_g !== null && { fatG: r.fat_g as number }) };
+  }
+
+  /**
+   * The trainee's daily calorie and macro totals for the last days, against their goals, for the coach, only when the trainee said yes (share_food).
+   * Totals only: no food names, amounts, meals or timing, and nothing else from their log.
+   */
+  async foodFor(coachingId: string, days: number): Promise<FoodOutcome> {
+    const c = await this.db
+      .prepare(`SELECT c.trainee_id, c.share_food FROM coaching c WHERE c.id = ? AND c.coach_id = ? AND c.status = 'active' AND ${FRIENDS}`)
+      .bind(coachingId, this.userId)
+      .first<Row>();
+    if (!c) return { ok: false, reason: 'not_coaching' };
+    if (c.share_food !== 1) return { ok: false, reason: 'not_shared' };
+    const trainee = c.trainee_id as string;
+    const zone = ((await this.db.prepare('SELECT time_zone FROM profiles WHERE user_id = ?').bind(trainee).first<Row>())?.time_zone as string | undefined) ?? 'UTC';
+    const today = todayIn(zone, new Date(this.now()));
+    const from = addDays(today, -(days - 1));
+    const { results } = await this.db
+      .prepare('SELECT day, SUM(kcal) AS kcal, SUM(protein) AS protein, SUM(carbs) AS carbs, SUM(fat) AS fat FROM food_entries WHERE user_id = ? AND day BETWEEN ? AND ? GROUP BY day')
+      .bind(trainee, from, today)
+      .all<Row>();
+    const byDay = new Map(results.map((r) => [r.day as string, r]));
+    const g = await this.db.prepare('SELECT kcal, protein_g, carbs_g, fat_g FROM goals WHERE user_id = ?').bind(trainee).first<Row>();
+    const r0 = (n: unknown) => Math.round(n as number);
+    const rows = Array.from({ length: days }, (_, i) => {
+      const d = addDays(today, -i);
+      const r = byDay.get(d);
+      return { day: d, logged: r !== undefined, today: d === today, ...(r ? { kcal: r0(r.kcal), protein: r0(r.protein), carbs: r0(r.carbs), fat: r0(r.fat) } : {}) };
+    });
+    const done = rows.filter((r) => r.logged && !r.today);
+    const avg = (k: 'kcal' | 'protein' | 'carbs' | 'fat') => Math.round(done.reduce((n, r) => n + (r[k] ?? 0), 0) / done.length);
+    return {
+      ok: true,
+      food: {
+        goals: { kcal: (g?.kcal as number | null) ?? null, proteinG: (g?.protein_g as number | null) ?? null, carbsG: (g?.carbs_g as number | null) ?? null, fatG: (g?.fat_g as number | null) ?? null },
+        days: rows,
+        average: done.length ? { loggedDays: done.length, kcal: avg('kcal'), protein: avg('protein'), carbs: avg('carbs'), fat: avg('fat') } : null,
+      },
+    };
   }
 
   /** Either side ends it (or the trainee declines an offer): the coaching and its assignments go; what the trainee logged stays theirs. */
   async end(coachingId: string): Promise<boolean> {
     const mine = await this.db.prepare('SELECT 1 AS ok FROM coaching WHERE id = ? AND (coach_id = ? OR trainee_id = ?)').bind(coachingId, this.userId, this.userId).first<Row>();
     if (!mine) return false;
-    await this.db.batch([this.db.prepare('DELETE FROM assignments WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM coaching WHERE id = ?').bind(coachingId)]);
+    await this.db.batch([this.db.prepare('DELETE FROM assignments WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM coach_targets WHERE coaching_id = ?').bind(coachingId), this.db.prepare('DELETE FROM coaching WHERE id = ?').bind(coachingId)]);
     return true;
   }
 
@@ -279,7 +372,7 @@ export class CoachingData {
       )
       .bind(this.userId)
       .all<Row>();
-    const who = (v: CoachingView) => ({ with: v.with.nickname ?? v.with.email, status: v.status, shareResults: v.shareResults, since: v.since });
+    const who = (v: CoachingView) => ({ with: v.with.nickname ?? v.with.email, status: v.status, shareResults: v.shareResults, shareFood: v.shareFood, targetsWaiting: v.proposedTargets !== null, since: v.since });
     return {
       coaching: { asCoach: asCoach.map(who), asTrainee: asTrainee.map(who) },
       assignments: results.map((r) => ({ direction: r.given === 1 ? 'given' : 'received', with: (r.nickname as string | null) ?? (r.email as string), name: r.name, dueOn: r.due_on, note: r.note, assignedOn: day(r.created_at as number), skipped: r.dismissed_at !== null, started: r.started === 1 })),

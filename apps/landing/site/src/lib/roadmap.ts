@@ -428,9 +428,9 @@ export const ITEMS: RoadmapItem[] = [
     theme: "friends",
     status: "shipped",
     title: "Coach and trainee",
-    summary: "A friend sends you workouts and sees how they went.",
+    summary: "A friend sends you workouts, meal plans and targets, and sees how it went.",
     detail:
-      "A friend offers to coach you; you accept and choose what they see. They assign a saved workout, it shows on your Today, and you run it in the player with weights from your own history. They always see whether it was done or skipped; the sets, effort and notes only if you said yes, and never your food, weight or other workouts. Either of you can end it at any time.",
+      "A friend offers to coach you; you accept and choose what they see. They assign a saved workout, it shows on your Today, and you run it in the player with weights from your own history. They can also propose calorie and macro targets (nothing changes unless you accept) and send a week of meals, which is checked against your allergies. They always see whether a workout was done or skipped; the sets, effort and notes only if you said yes, and your daily calorie and macro totals only if you said yes separately (never what you ate). They never see your weight or other workouts. Either of you can end it at any time.",
   },
 
   // Later

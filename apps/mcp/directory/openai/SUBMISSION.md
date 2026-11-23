@@ -1,6 +1,6 @@
 # OpenAI plugin submission
 
-What goes into OpenAI's plugin portal ([guide](https://developers.openai.com/apps-sdk/deploy/submission)) and what you do there. The package itself is `plugin/` (manifest and MCP config); the logo and screenshots are the listing images already in [../](../README.md), copied in when the ZIP is built.
+What goes into OpenAI's plugin portal ([guide](https://developers.openai.com/apps-sdk/deploy/submission)) and what you do there. The package itself is `plugin/` (manifest and MCP config); the logo is the listing icon already in [../](../README.md), copied in when the ZIP is built. The package has no screenshots: the portal refuses a manifest with `interface.screenshots`.
 
 ```bash
 npm run package:openai -w @fitwell/mcp

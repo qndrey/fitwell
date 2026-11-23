@@ -35,7 +35,9 @@ export function validatePlugin(manifest: unknown, mcp: unknown, assetExists: (pa
   const prompts = ui.defaultPrompt;
   if (!Array.isArray(prompts) || prompts.length > 3 || prompts.some((p) => typeof p !== 'string' || p.length > 128)) errors.push('interface.defaultPrompt: at most 3 prompts of at most 128 characters');
 
-  const assets = [ui.logo, ui.composerIcon, ...(Array.isArray(ui.screenshots) ? ui.screenshots : [])];
+  // The portal refuses a package whose manifest has interface.screenshots ("Remove `interface.screenshots` from the plugin manifest").
+  if (ui.screenshots !== undefined) errors.push('interface.screenshots: remove it, the portal refuses packages that have it');
+  const assets = [ui.logo, ui.composerIcon];
   if (typeof ui.logo !== 'string') errors.push('interface.logo is required');
   if (typeof ui.composerIcon !== 'string') errors.push('interface.composerIcon is required');
   for (const a of assets) {
@@ -76,11 +78,6 @@ export const PLUGIN_DIR = join(import.meta.dirname, '..', 'directory', 'openai',
 /** The package's ./assets files are the directory listing's own images, copied in when the ZIP is built (not kept twice). */
 export const ASSET_SOURCES: Record<string, string> = {
   'assets/logo.png': join(import.meta.dirname, '..', 'directory', 'icon-512.png'),
-  'assets/screenshot-1.png': join(import.meta.dirname, '..', 'directory', '1-workout-player.png'),
-  'assets/screenshot-2.png': join(import.meta.dirname, '..', 'directory', '2-dashboard.png'),
-  'assets/screenshot-3.png': join(import.meta.dirname, '..', 'directory', '3-weekly-review.png'),
-  'assets/screenshot-4.png': join(import.meta.dirname, '..', 'directory', '4-shopping-list.png'),
-  'assets/screenshot-5.png': join(import.meta.dirname, '..', 'directory', '5-exercise-guide.png'),
 };
 export const assetInPackage = (path: string) => existsSync(ASSET_SOURCES[path] ?? join(PLUGIN_DIR, path));
 

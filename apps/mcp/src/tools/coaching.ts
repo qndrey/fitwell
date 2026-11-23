@@ -107,7 +107,7 @@ export function registerCoachingTools(server: McpServer, coaching: CoachingData,
       inputSchema: id
         .extend({ share_results: z.boolean().optional(), share_food: z.boolean().optional() })
         .refine((a) => a.share_results !== undefined || a.share_food !== undefined, 'Give share_results, share_food or both'),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ coaching_id, share_results, share_food }) => {
       const r = await coaching.setSharing(coaching_id, { ...(share_results !== undefined && { results: share_results }), ...(share_food !== undefined && { food: share_food }) });
@@ -181,7 +181,7 @@ export function registerCoachingTools(server: McpServer, coaching: CoachingData,
         'Optional note (a short message, up to 300 characters). The program must use library exercises only. The coach sees status and how many sessions are finished (list_assignments, programsByMe), and the trainee starts each session with start_workout program: true like any program. ' +
         RULES,
       inputSchema: id.extend({ note: z.string().max(300).optional().describe('A short message to the trainee about this program') }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     async ({ coaching_id, note }) => {
       const r = await coaching.assignProgram(coaching_id, note);
@@ -240,7 +240,7 @@ export function registerCoachingTools(server: McpServer, coaching: CoachingData,
         fat_g: z.number().min(0).max(400).optional(),
         note: z.string().max(300).optional().describe('A short message to the trainee about these targets'),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     async ({ coaching_id, kcal, protein_g, carbs_g, fat_g, note }) => {
       if (kcal === undefined && protein_g === undefined && carbs_g === undefined && fat_g === undefined) return toolError('Give at least one of kcal, protein_g, carbs_g, fat_g.');

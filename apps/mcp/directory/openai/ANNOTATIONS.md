@@ -19,21 +19,22 @@ They only read the signed-in person's own data (or compute from it) and return i
 - `search_foods`, `lookup_barcode`: query Open Food Facts (public). The only write is a shared cache of public Open Food Facts results (`off_cache`); it holds no user data and no link to the person.
 - `import_recipe`: fetches a web page the person named and parses the recipe; nothing is saved until `save_recipe`.
 
-## Not read-only, not destructive (41)
+## Not read-only, not destructive (38)
 
 Additive or transient edits: they add rows or change short-lived state, and never remove or overwrite something the person entered.
 
-`get_profile` (on a new account's first call it records that the setup guide was offered; otherwise reads), `assign_program propose_targets offer_coaching accept_coaching set_coaching_sharing assign_workout add_injury log_food save_custom_food start_workout log_set set_rest log_cardio_block swap_exercise finish_workout log_past_workout log_cardio log_session create_challenge invite_to_challenge accept_challenge log_planned_meal invite_to_household accept_household_invite set_grocery_checked import_fitwell_backup show_weekly_review get_streaks set_streak_freeze show_celebration today_eat_planned today_quick_add today_add_water plan_eat_meal request_friend accept_friend send_to_friend accept_received_item give_kudos add_invitation`
+`get_profile` (on a new account's first call it records that the setup guide was offered; otherwise reads), `offer_coaching accept_coaching assign_workout add_injury log_food save_custom_food start_workout log_set set_rest log_cardio_block swap_exercise finish_workout log_past_workout log_cardio log_session create_challenge invite_to_challenge accept_challenge log_planned_meal invite_to_household accept_household_invite set_grocery_checked import_fitwell_backup show_weekly_review get_streaks set_streak_freeze show_celebration today_eat_planned today_quick_add today_add_water plan_eat_meal request_friend accept_friend send_to_friend accept_received_item give_kudos add_invitation`
 
 Notes: `log_set` with `reopen` and `set_rest` change the current workout's transient state; `swap_exercise` only works while no sets are logged; `import_fitwell_backup` never changes existing entries; `show_celebration` marks a milestone as seen; `set_grocery_checked` toggles a tick box.
 
-## Destructive, closed-world (36)
+## Destructive, closed-world (39)
 
 Each can delete or overwrite saved content:
 
 - Deletes: `delete_item delete_my_account end_injury end_program cancel_challenge leave_challenge leave_household decline_challenge decline_household_invite decline_friend remove_friend decline_received_item end_coaching dismiss_assignment accept_assigned_program answer_coach_targets cancel_friend_invite decline_invite_request remove_invitation`
 - Overwrites: `update_profile` (replaces the given profile fields: time zone, units, sex, birth year, height, weight, activity level, equipment, diet preferences, allergies, dislikes; used only for the person's own calorie estimates, allergy warnings and meal plans, never shared; exportable with `export_my_data`, erasable with `delete_my_account`), `set_goals edit_food_entry edit_workout_set log_body` (a value for a day replaces the one there), `save_recipe save_workout_template` (same name replaces), `save_meal_plan` (same week replaces), `create_program` (ends the running one), `set_household_portion use_household_plan set_exercise_note` (empty note removes it), `plan_swap_recipe plan_copy_meal plan_repeat_day` (replace planned meals), `set_nickname` (overwrites or clears)
-- Cannot be undone: `set_sharing` (granting shows data to a friend)
+- Replaces what is waiting: `assign_program` (a newer assigned program deletes one the trainee has not accepted yet), `propose_targets` (a new proposal replaces the one waiting)
+- Cannot be undone: `set_sharing` (granting shows data to a friend), `set_coaching_sharing` (granting shows the trainee's assigned-workout results or daily food totals to their coach)
 
 ## Destructive, open-world (2)
 

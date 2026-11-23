@@ -615,6 +615,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "assign_program",
         kind: "saves",
+        asks: true,
         what: "Assigns your active program to someone you coach, with each day's workout and an optional note. Nothing is saved for them until they accept.",
         ask: "Send my four-week block to Bo.",
       },
@@ -648,6 +649,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "propose_targets",
         kind: "saves",
+        asks: true,
         what: "Proposes calorie and macro targets to someone you coach. Nothing changes for them unless they accept.",
         ask: "Suggest 2,300 kcal and 160 g protein to Bo.",
       },
@@ -667,6 +669,7 @@ export const CATEGORIES: Category[] = [
       {
         name: "set_coaching_sharing",
         kind: "saves",
+        asks: true,
         what: "Changes whether your coach sees how the assigned workouts went, and your daily calorie and macro totals, from now on.",
         ask: "Stop my coach seeing my sets.",
       },

@@ -1423,6 +1423,8 @@ function overviewBody(): Child[] {
         h('h1', { tabIndex: -1 }, 'Today', h('span', { className: 'sr-only' }, ` · ${plan.name}`)),
         h('p', { className: 'muted' }, `${ov.workingDone} of ${ov.workingTotal} sets · ${ov.exerciseCount} ${ov.exerciseCount === 1 ? 'exercise' : 'exercises'}`),
       ),
+      // A coach's note is another person's text: drawn as text (never markup), and labelled with who wrote it.
+      plan.coach && h('div', { className: 'coachnote', role: 'note' }, h('p', { className: 'muted small' }, `Note from ${plan.coach.from}`), h('p', {}, plan.coach.note)),
       rest &&
         h(
           'div',

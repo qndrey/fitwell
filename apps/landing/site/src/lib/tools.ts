@@ -48,7 +48,7 @@ export const CATEGORIES: Category[] = [
         name: "update_profile",
         kind: "saves",
         asks: true,
-        what: "Changes your profile, only the parts you name. It is also where you turn the optional emails on or off: a Sunday summary, and a nudge after a few quiet days. Both are off until you ask.",
+        what: "Changes your profile, only the parts you name. It is also where you turn the optional emails on or off: a Sunday summary, a nudge after a few quiet days, a morning reminder when a workout your coach assigned is due, and a Monday summary of your trainees if you coach. All are off until you ask.",
         ask: "I train at home with a barbell and dumbbells, and I'm allergic to peanuts.",
       },
       {
@@ -389,7 +389,7 @@ export const CATEGORIES: Category[] = [
     id: "friends",
     title: "Friends",
     blurb:
-      "Connect by nickname, so nobody has to hand out an email address. Connecting shares nothing: you choose, per friend and one kind at a time, whether they see your workouts, your consistency (streaks, no numbers), your templates and recipes, or your body data, and you can take any of it back. Friends only ever see counts and names, never weights or notes.",
+      "Connect by nickname, so nobody has to hand out an email address. Connecting shares nothing: you choose, per friend and one kind at a time, whether they see your workouts, your consistency (streaks, no numbers), your templates and recipes, or your body data, and you can take any of it back. Friends only ever see counts and names, never weights or notes. Coaching has its own section below.",
     tools: [
       {
         name: "set_nickname",
@@ -579,6 +579,103 @@ export const CATEGORIES: Category[] = [
         asks: true,
         what: "Takes back an invitation nobody has used.",
         ask: "Cancel the invitation to sam@example.com.",
+      },
+    ],
+  },
+  {
+    id: "coaching",
+    title: "Coaching",
+    blurb:
+      "A friend can coach a friend. Offering shares nothing: the trainee accepts and chooses, separately, whether the coach sees how the assigned workouts went and whether they see daily calorie and macro totals (never what they ate). A coach always sees whether an assigned workout was done, skipped or is overdue, and never your weight or anything else you log. Either of you can end it any time.",
+    tools: [
+      {
+        name: "offer_coaching",
+        kind: "saves",
+        what: "Offers to coach a friend. Nothing happens until they accept, and they choose what you see.",
+        ask: "Offer to coach bo.lifts.",
+      },
+      {
+        name: "accept_coaching",
+        kind: "saves",
+        what: "Accepts a friend's offer to coach you. You choose, separately, whether they also see the sets, effort and notes of the workouts they assign, and whether they see your daily calorie and macro totals (never what you ate). They never see your weight or other workouts.",
+        ask: "Accept Ana's offer to coach me.",
+      },
+      {
+        name: "list_coaching",
+        kind: "reads",
+        what: "Shows who you coach and who coaches you, with offers waiting for an answer.",
+        ask: "Who am I coaching?",
+      },
+      {
+        name: "assign_workout",
+        kind: "saves",
+        what: "Assigns one of your saved workouts to someone you coach, with an optional day and a short note. It waits on their Today.",
+        ask: "Give Bo my push day for Tuesday.",
+      },
+      {
+        name: "assign_program",
+        kind: "saves",
+        what: "Assigns your active program to someone you coach, with each day's workout and an optional note. Nothing is saved for them until they accept.",
+        ask: "Send my four-week block to Bo.",
+      },
+      {
+        name: "accept_assigned_program",
+        kind: "saves",
+        asks: true,
+        what: "Accepts a program your coach assigned: its workouts are saved as your own, never replacing one you have, and the program starts, ending the one you are on.",
+        ask: "Start the program my coach sent.",
+      },
+      {
+        name: "list_assignments",
+        kind: "reads",
+        what: "Shows the workouts and programs coaches assigned you, and the ones you assigned with whether each was started, done or skipped and how far through a program they are.",
+        ask: "What did my coach send me?",
+      },
+      {
+        name: "dismiss_assignment",
+        kind: "saves",
+        asks: true,
+        what: "Takes an assigned workout or program off your list without doing it. Your coach sees it was skipped.",
+        ask: "Skip the push day my coach sent.",
+      },
+      {
+        name: "show_coach_roster",
+        kind: "opens",
+        what: "Opens everyone you coach: how much of what came due they did over the last four weeks, what is overdue, the last finished day, the next workout, their program progress and, only if they share it, their food averages. Only what each trainee allows.",
+        ask: "How are my trainees doing?",
+        shots: [{ name: "coach", alt: "The coaching roster: bo.lifts with 75 % of what came due done, one workout overdue and a program 7 of 16 sessions in; cy with 100 % done, food averages he shares and targets waiting for his answer; and di, whose offer has not been answered yet" }],
+      },
+      {
+        name: "propose_targets",
+        kind: "saves",
+        what: "Proposes calorie and macro targets to someone you coach. Nothing changes for them unless they accept.",
+        ask: "Suggest 2,300 kcal and 160 g protein to Bo.",
+      },
+      {
+        name: "answer_coach_targets",
+        kind: "saves",
+        asks: true,
+        what: "Accepts or declines the targets your coach proposed. Accepting replaces your calorie and macro goals; your coach is not told which you chose.",
+        ask: "Use my coach's targets.",
+      },
+      {
+        name: "get_trainee_food",
+        kind: "reads",
+        what: "Shows the daily calorie and macro totals of someone you coach, next to their own goals, for the last days. Only if they chose to share them, and never what they ate.",
+        ask: "How is Bo doing on food this week?",
+      },
+      {
+        name: "set_coaching_sharing",
+        kind: "saves",
+        what: "Changes whether your coach sees how the assigned workouts went, and your daily calorie and macro totals, from now on.",
+        ask: "Stop my coach seeing my sets.",
+      },
+      {
+        name: "end_coaching",
+        kind: "saves",
+        asks: true,
+        what: "Ends coaching from either side, or declines an offer. The workouts assigned through it go; what you logged stays yours.",
+        ask: "Stop being coached by Ana.",
       },
     ],
   },

@@ -99,6 +99,8 @@ export interface WorkoutPlan {
   rest?: PlannedRest;
   /** The person's bar and plates, for the plate calculator. */
   gym?: { barKg: number; platesKg: number[] };
+  /** A workout a coach assigned, with the coach's note: text from another person, shown as such on the overview. */
+  coach?: { from: string; note: string };
 }
 
 export const WORKOUT_VIEW_URI = 'ui://fitwell/workout.html';

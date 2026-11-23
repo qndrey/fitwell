@@ -2,6 +2,7 @@
 import { addDays, weekStart } from '@fitwell/core/domain/dates';
 import { sum } from '@fitwell/core/domain/nutrition';
 import type { BodyData } from '../data/bodyData';
+import type { CoachingData } from '../data/coaching';
 import type { PlanData } from '../data/planData';
 import { slotAt, todayIn } from '../data/time';
 import type { UserData } from '../data/userData';
@@ -14,6 +15,8 @@ export interface TodayDeps {
   plans: PlanData;
   workouts: WorkoutData;
   body: BodyData;
+  /** Coaches' assigned workouts; left out where there is no coaching. */
+  coaching?: CoachingData;
 }
 
 export const QUICK_ADD_DAYS = 45;
@@ -36,6 +39,8 @@ export async function buildToday(deps: TodayDeps, now: Date = new Date()): Promi
     deps.data.quickAddCandidates(addDays(day, -QUICK_ADD_DAYS), addDays(day, -0), QUICK_ADD_SHOWN * 3),
   ]);
   const eaten = sum(entries);
+  // Assigned workouts due today or earlier, or with no day: the coach's note is another person's text, shown as such.
+  const assigned = deps.coaching ? (await deps.coaching.toDo(day)).map((a) => ({ assignmentId: a.assignmentId, name: a.name, from: a.from.nickname ?? a.from.email ?? 'your coach', summary: a.summary, dueOn: a.dueOn, note: a.note, started: a.started })) : [];
 
   const planned: TodayMeal[] = SLOT_NAMES.flatMap((slot) => {
     const items = (plan?.items ?? []).filter((i) => i.day === day && i.slot === slot);
@@ -73,6 +78,6 @@ export async function buildToday(deps: TodayDeps, now: Date = new Date()): Promi
     waterMl: metrics?.waterMl ?? 0,
     waterGoalMl: goals?.waterMl ?? null,
     steps: metrics?.steps ?? null,
-    training: { doneToday, suggested },
+    training: { doneToday, suggested, assigned },
   };
 }

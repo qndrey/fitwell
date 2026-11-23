@@ -1,10 +1,14 @@
 // Email digests (E1): who asked for which, the secret behind each unsubscribe link, and what was already sent.
-export const DIGEST_KINDS = ['weekly', 'nudge'] as const;
+export const DIGEST_KINDS = ['weekly', 'nudge', 'assigned', 'coach'] as const;
 export type DigestKind = (typeof DIGEST_KINDS)[number];
 
 export interface DigestSettings {
   weeklyReview: boolean;
   inactivityNudge: boolean;
+  /** A morning email when a workout a coach assigned is due. */
+  assignmentReminder: boolean;
+  /** A Monday-morning email to a coach about their trainees. */
+  coachSummary: boolean;
 }
 
 type Row = Record<string, unknown>;
@@ -22,8 +26,8 @@ export class DigestData {
   ) {}
 
   async settings(): Promise<DigestSettings> {
-    const r = await this.db.prepare('SELECT digest_weekly, digest_nudge FROM profiles WHERE user_id = ?').bind(this.userId).first<Row>();
-    return { weeklyReview: r?.digest_weekly === 1, inactivityNudge: r?.digest_nudge === 1 };
+    const r = await this.db.prepare('SELECT digest_weekly, digest_nudge, digest_assigned, digest_coach FROM profiles WHERE user_id = ?').bind(this.userId).first<Row>();
+    return { weeklyReview: r?.digest_weekly === 1, inactivityNudge: r?.digest_nudge === 1, assignmentReminder: r?.digest_assigned === 1, coachSummary: r?.digest_coach === 1 };
   }
 
   /** Turns digests on or off (only the given ones change). The first time one is turned on the unsubscribe secret is made. */
@@ -32,8 +36,8 @@ export class DigestData {
     const cur = await this.settings();
     const next = { ...cur, ...patch };
     await this.db
-      .prepare('UPDATE profiles SET digest_weekly = ?, digest_nudge = ?, digest_token = CASE WHEN ?3 = 1 AND digest_token IS NULL THEN ?4 ELSE digest_token END, updated_at = ?5 WHERE user_id = ?6')
-      .bind(next.weeklyReview ? 1 : 0, next.inactivityNudge ? 1 : 0, next.weeklyReview || next.inactivityNudge ? 1 : 0, randomToken(), this.now(), this.userId)
+      .prepare('UPDATE profiles SET digest_weekly = ?, digest_nudge = ?, digest_assigned = ?, digest_coach = ?, digest_token = CASE WHEN ?5 = 1 AND digest_token IS NULL THEN ?6 ELSE digest_token END, updated_at = ?7 WHERE user_id = ?8')
+      .bind(next.weeklyReview ? 1 : 0, next.inactivityNudge ? 1 : 0, next.assignmentReminder ? 1 : 0, next.coachSummary ? 1 : 0, next.weeklyReview || next.inactivityNudge || next.assignmentReminder || next.coachSummary ? 1 : 0, randomToken(), this.now(), this.userId)
       .run();
     return next;
   }
@@ -51,7 +55,7 @@ export async function unsubscribe(db: D1Database, userId: string, token: string,
   const r = await db.prepare('SELECT digest_token FROM profiles WHERE user_id = ?').bind(userId).first<Row>();
   const stored = r?.digest_token as string | null | undefined;
   if (!stored || !sameToken(stored, token)) return false;
-  const sets = kind === 'all' ? 'digest_weekly = 0, digest_nudge = 0' : kind === 'weekly' ? 'digest_weekly = 0' : 'digest_nudge = 0';
+  const sets = kind === 'all' ? 'digest_weekly = 0, digest_nudge = 0, digest_assigned = 0, digest_coach = 0' : kind === 'weekly' ? 'digest_weekly = 0' : kind === 'nudge' ? 'digest_nudge = 0' : kind === 'assigned' ? 'digest_assigned = 0' : 'digest_coach = 0';
   await db.prepare(`UPDATE profiles SET ${sets} WHERE user_id = ?`).bind(userId).run();
   return true;
 }
@@ -64,11 +68,11 @@ function sameToken(a: string, b: string): boolean {
 }
 
 /** Everyone with a digest on and an active account, with what they need to be sent one. */
-export async function recipients(db: D1Database): Promise<{ id: string; email: string; weekly: boolean; nudge: boolean; token: string }[]> {
+export async function recipients(db: D1Database): Promise<{ id: string; email: string; weekly: boolean; nudge: boolean; assigned: boolean; coach: boolean; token: string }[]> {
   const { results } = await db
-    .prepare("SELECT u.id, u.email, p.digest_weekly, p.digest_nudge, p.digest_token FROM profiles p JOIN users u ON u.id = p.user_id WHERE u.status = 'active' AND (p.digest_weekly = 1 OR p.digest_nudge = 1) AND p.digest_token IS NOT NULL")
+    .prepare("SELECT u.id, u.email, p.digest_weekly, p.digest_nudge, p.digest_assigned, p.digest_coach, p.digest_token FROM profiles p JOIN users u ON u.id = p.user_id WHERE u.status = 'active' AND (p.digest_weekly = 1 OR p.digest_nudge = 1 OR p.digest_assigned = 1 OR p.digest_coach = 1) AND p.digest_token IS NOT NULL")
     .all<Row>();
-  return results.map((r) => ({ id: r.id as string, email: r.email as string, weekly: r.digest_weekly === 1, nudge: r.digest_nudge === 1, token: r.digest_token as string }));
+  return results.map((r) => ({ id: r.id as string, email: r.email as string, weekly: r.digest_weekly === 1, nudge: r.digest_nudge === 1, assigned: r.digest_assigned === 1, coach: r.digest_coach === 1, token: r.digest_token as string }));
 }
 
 /** Records that a digest is being sent; false when it already was (so a second cron run, or a retry, sends nothing). */

@@ -40,5 +40,7 @@ export interface TodayView {
     /** The saved workout done least recently (or never): a suggestion, not a schedule. */
     /** The saved workout that has waited longest; `templateId` is what start_workout takes. */
     suggested: { templateId: string; name: string; daysSince: number | null } | null;
+    /** Workouts a coach assigned for today or earlier (or no day) that are not finished: `assignmentId` is what start_workout takes. */
+    assigned?: { assignmentId: string; name: string; from: string; summary: string; dueOn: string | null; note: string | null; started: boolean }[];
   };
 }

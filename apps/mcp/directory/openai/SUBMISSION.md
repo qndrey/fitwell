@@ -17,7 +17,7 @@ This checks the manifest against the portal's limits and writes `apps/mcp/.wrang
 
 ## In the portal (platform.openai.com/plugins)
 
-1. **Account:** you must be an organization owner, or have *Apps Management Write*. Finish individual or business verification under Settings → Organization → General, and pick the verified *Developer identity* (shown in the directory; the manifest's `developerName` is "Fitwell", so use an identity that matches or change it).
+1. **Account:** you must be an organization owner, or have *Apps Management Write*. Finish individual or business verification under Settings → Organization → General, and The organization is verified as an **individual** (Andrii Balokha), not a business, so the manifest's `developerName` and `author.name` are "Andrii Balokha" and the privacy notice, terms, support page and website footer name Andrii Balokha as the operator. Version 0.1.1 was rejected because `developerName` was "Fitwell", which OpenAI could not link to the verified individual ("could not confirm that the verified individual or business owns this plugin, brand, or trademark"). Keep these names matching the verification; to publish as "Fitwell" instead, complete business verification for a registered company of that name first.
 2. **Plugins → Upload new or existing plugin → Upload plugin:** the ZIP. Read the *Metadata & Skills* findings, fix them in `plugin/`, rebuild and upload again. `category` must be a title from the dashboard's list: "Health & Fitness" was refused ("Select a valid category"), so it is `Productivity`, the title OpenAI's docs use. OpenAI's own plugins use only Developer Tools, Productivity, Creativity, Communication, Education & Research, Data & Analytics, Finance, Security, Business & Operations and Scientific Research; if the dashboard offers something closer for a fitness tracker, put that title in `plugin.json`. The `capabilities` labels are also a guess.
 3. **MCPs → Connect:** URL `https://mcp.fitwell.fyi/mcp`, authentication OAuth. **Domain verification** shows a token. Set it and redeploy nothing else:
 
@@ -42,7 +42,7 @@ Already in `plugin/plugin.json`; the short one is limited to 30 characters.
 
 **Data handling, if the form asks:** the API is our own (`mcp.fitwell.fyi`, Cloudflare, database in the EU). Food searches and barcodes also go to Open Food Facts (only the search words or the barcode). The app stores health data (weight, measurements, food, training, sleep, steps) that the person chooses to share, which they can export or erase at any time (`export_my_data`, `delete_my_account`). No ads, no analytics, no sponsored content, no selling or sharing, no AI training by Fitwell.
 
-**Release notes (0.1.0):** First submission of Fitwell: food and macro logging, meal plans and shopping lists, a workout player, progress dashboard, weekly review, muscle map and exercise guides.
+**Release notes (0.1.2):** Published by the verified individual developer, Andrii Balokha; Fitwell is the product name. Food and macro logging, meal plans and shopping lists, a workout player, progress dashboard, weekly review, muscle map and exercise guides.
 
 ## Instructions for reviewers
 

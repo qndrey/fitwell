@@ -1,0 +1,14 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "fyi.fitwell/fitwell",
+  "title": "Fitwell",
+  "description": "Log food, plan meals, run workouts and track weight and progress by chatting. Invite-only.",
+  "version": "0.2.0",
+  "websiteUrl": "https://fitwell.fyi",
+  "icons": [
+    { "src": "https://mcp.fitwell.fyi/icon-512.png", "mimeType": "image/png", "sizes": ["512x512"] }
+  ],
+  "remotes": [
+    { "type": "streamable-http", "url": "https://mcp.fitwell.fyi/mcp" }
+  ]
+}

@@ -233,7 +233,7 @@ function Footer(): ReactNode {
         <p>
           Food data: Frida 5.5, DTU National Food Institute (CC BY 4.0), and Open Food Facts contributors (ODbL). Exercises: free-exercise-db (public domain). Typeface: Figtree (SIL OFL).
         </p>
-        <p>Fitwell is an independent project and is not affiliated with Anthropic.</p>
+        <p>Fitwell is an independent project by Andrii Balokha and is not affiliated with Anthropic or OpenAI.</p>
         <p className="flex flex-wrap gap-x-6 gap-y-2">
           <a href="/" className="underline underline-offset-4 hover:text-foreground">
             Home

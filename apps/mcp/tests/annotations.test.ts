@@ -30,6 +30,9 @@ const DESTRUCTIVE = [
   'end_coaching', // ends the coaching and removes the workouts assigned through it
   'dismiss_assignment', // takes an assigned workout off the list for good
   'accept_assigned_program', // ends the program the person was on
+  'set_coaching_sharing', // turning sharing on shows the trainee's results or food totals to the coach, which cannot be undone
+  'assign_program', // a newer assigned program replaces (deletes) one still waiting
+  'propose_targets', // a new proposal replaces the one still waiting
   'answer_coach_targets', // accepting replaces the person's calorie and macro goals, and either answer discards the proposal
   'decline_invite_request', // deletes a request
   'remove_invitation', // takes back an invitation

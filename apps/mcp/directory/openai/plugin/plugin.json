@@ -38,14 +38,7 @@
         ],
         "brandColor": "#C2603F",
         "composerIcon": "./assets/logo.png",
-        "logo": "./assets/logo.png",
-        "screenshots": [
-          "./assets/screenshot-1.png",
-          "./assets/screenshot-2.png",
-          "./assets/screenshot-3.png",
-          "./assets/screenshot-4.png",
-          "./assets/screenshot-5.png"
-        ]
+        "logo": "./assets/logo.png"
       },
       "review": {
         "test_cases": {
